@@ -20,8 +20,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { useRouter } from "next/navigation";
-
 
 const formSchema = z.object({
   name: z.string().min(1, "O nome não pode estar vazio."),
@@ -34,7 +32,6 @@ type FormValues = z.infer<typeof formSchema>;
 export function SignupForm() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
-  const router = useRouter();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -52,8 +49,8 @@ export function SignupForm() {
       await updateProfile(userCredential.user, {
         displayName: data.name,
       });
-       // O redirecionamento manual para a página principal após o sucesso.
-       router.push('/');
+      // O AuthGuard irá lidar com o redirecionamento automaticamente
+      // após o estado de autenticação ser atualizado.
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -63,7 +60,8 @@ export function SignupForm() {
             ? "Este email já está em uso."
             : "Ocorreu um erro. Por favor, tente novamente.",
       });
-      setLoading(false);
+    } finally {
+        setLoading(false);
     }
   };
 
