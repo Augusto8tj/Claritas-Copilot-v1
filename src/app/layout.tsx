@@ -3,6 +3,9 @@ import './globals.css';
 import { AppLayout } from '@/components/layout/app-layout';
 import { Toaster } from '@/components/ui/toaster';
 import { ThemeProvider } from '@/hooks/use-theme';
+import { AuthProvider } from '@/hooks/use-auth';
+import { AuthGuard } from '@/components/layout/auth-guard';
+
 
 export const metadata: Metadata = {
   title: 'Claritas Copilot',
@@ -23,10 +26,14 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased" suppressHydrationWarning>
         <ThemeProvider>
-          <AppLayout>
-            {children}
-          </AppLayout>
-          <Toaster />
+          <AuthProvider>
+            <AuthGuard>
+              <AppLayout>
+                {children}
+              </AppLayout>
+              <Toaster />
+            </AuthGuard>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

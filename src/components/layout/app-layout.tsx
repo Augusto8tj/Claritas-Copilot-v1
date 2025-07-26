@@ -24,7 +24,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Logo } from "@/components/icons";
 import { UserNav } from "./user-nav";
-import { Button } from "../ui/button";
+import { useAuth } from "@/hooks/use-auth";
+
 
 const navItems = [
   {
@@ -73,6 +74,12 @@ const navItems = [
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { user } = useAuth();
+
+  // Não renderiza o layout principal em telas de autenticação
+  if (!user) {
+    return <main>{children}</main>;
+  }
 
   return (
     <SidebarProvider>
