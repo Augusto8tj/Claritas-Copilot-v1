@@ -13,40 +13,40 @@ import {
 } from "@/components/ui/chart";
 
 const chartData = [
-  { category: "Food & Dining", amount: 850, fill: "var(--color-food)" },
-  { category: "Shopping", amount: 1200, fill: "var(--color-shopping)" },
-  { category: "Housing", amount: 1800, fill: "var(--color-housing)" },
-  { category: "Transport", amount: 450, fill: "var(--color-transport)" },
-  { category: "Entertainment", amount: 600, fill: "var(--color-entertainment)" },
-  { category: "Other", amount: 300, fill: "var(--color-other)" },
+  { category: "Alimentação", amount: 850, fill: "var(--color-food)" },
+  { category: "Compras", amount: 1200, fill: "var(--color-shopping)" },
+  { category: "Moradia", amount: 1800, fill: "var(--color-housing)" },
+  { category: "Transporte", amount: 450, fill: "var(--color-transport)" },
+  { category: "Lazer", amount: 600, fill: "var(--color-entertainment)" },
+  { category: "Outros", amount: 300, fill: "var(--color-other)" },
 ];
 
 const chartConfig = {
   amount: {
-    label: "Amount",
+    label: "Valor",
   },
   food: {
-    label: "Food & Dining",
+    label: "Alimentação",
     color: "hsl(var(--chart-1))",
   },
   shopping: {
-    label: "Shopping",
+    label: "Compras",
     color: "hsl(var(--chart-2))",
   },
   housing: {
-    label: "Housing",
+    label: "Moradia",
     color: "hsl(var(--chart-3))",
   },
   transport: {
-    label: "Transport",
+    label: "Transporte",
     color: "hsl(var(--chart-4))",
   },
   entertainment: {
-    label: "Entertainment",
+    label: "Lazer",
     color: "hsl(var(--chart-5))",
   },
   other: {
-    label: "Other",
+    label: "Outros",
     color: "hsl(var(--muted))",
   },
 };
@@ -91,14 +91,14 @@ export function SpendingChart() {
                         y={viewBox.cy - 12}
                         className="fill-muted-foreground text-sm"
                       >
-                        Total Spent
+                        Gasto Total
                       </tspan>
                       <tspan
                         x={viewBox.cx}
                         y={viewBox.cy + 12}
                         className="fill-foreground text-2xl font-bold"
                       >
-                        ${totalAmount.toLocaleString()}
+                        R${totalAmount.toLocaleString('pt-BR')}
                       </tspan>
                     </text>
                   );

@@ -17,7 +17,7 @@ export async function AIInsightCard() {
     investments: 25000,
     debt: 5000,
   });
-  const mockUserGoals = "Save for a house down payment, reduce debt.";
+  const mockUserGoals = "Economizar para a entrada de uma casa, reduzir dívidas.";
 
   const { insights } = await getFinancialInsights({
     financialData: mockFinancialData,
@@ -28,7 +28,7 @@ export async function AIInsightCard() {
     <Card className="col-span-4 bg-primary/5 border-primary/20">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-lg font-medium text-primary font-headline">
-          AI Copilot Insight
+          Insight do Copiloto de IA
         </CardTitle>
         <Lightbulb className="w-5 h-5 text-primary" />
       </CardHeader>
@@ -44,7 +44,7 @@ export async function AIInsightCard() {
           </ul>
         ) : (
           <p className="text-sm text-muted-foreground">
-            No new insights at the moment.
+            Nenhum novo insight no momento.
           </p>
         )}
       </CardContent>

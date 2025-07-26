@@ -15,22 +15,22 @@ export function MonthlyBalance() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline">Monthly Balance</CardTitle>
-        <CardDescription>Your income vs. expenses this month.</CardDescription>
+        <CardTitle className="font-headline">Balanço Mensal</CardTitle>
+        <CardDescription>Sua receita vs. despesas este mês.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="font-medium text-muted-foreground">Expenses</span>
+            <span className="font-medium text-muted-foreground">Despesas</span>
             <span className="font-bold">
-              ${expenses.toLocaleString()}
+              R${expenses.toLocaleString('pt-BR')}
             </span>
           </div>
           <Progress value={progress} />
           <div className="flex justify-between text-sm">
-            <span className="font-medium text-muted-foreground">Income</span>
+            <span className="font-medium text-muted-foreground">Receita</span>
             <span className="font-bold text-green-600">
-              ${income.toLocaleString()}
+              R${income.toLocaleString('pt-BR')}
             </span>
           </div>
         </div>

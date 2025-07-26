@@ -26,22 +26,22 @@ const navItems = [
   {
     href: "/",
     icon: LayoutDashboard,
-    label: "Dashboard",
+    label: "Painel",
   },
   {
     href: "/analysis",
     icon: BarChart3,
-    label: "Analysis",
+    label: "Análise",
   },
   {
     href: "/goals",
     icon: Target,
-    label: "Goals",
+    label: "Metas",
   },
   {
     href: "/chat",
     icon: MessageCircle,
-    label: "AI Chat",
+    label: "Chat com IA",
   },
 ];
 

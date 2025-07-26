@@ -16,18 +16,18 @@ import { Label, Pie, PieChart, Cell } from "recharts";
 
 const chartConfig = {
   progress: {
-    label: "Progress",
+    label: "Progresso",
     color: "hsl(var(--accent))",
   },
   remaining: {
-    label: "Remaining",
+    label: "Restante",
     color: "hsl(var(--muted))",
   },
 };
 
 export function MainGoal() {
   const goal = {
-    name: "House Down Payment",
+    name: "Entrada da Casa Própria",
     current: 27500,
     target: 50000,
   };
@@ -41,7 +41,7 @@ export function MainGoal() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline">Primary Goal</CardTitle>
+        <CardTitle className="font-headline">Meta Principal</CardTitle>
         <CardDescription>{goal.name}</CardDescription>
       </CardHeader>
       <CardContent className="flex items-center justify-center">

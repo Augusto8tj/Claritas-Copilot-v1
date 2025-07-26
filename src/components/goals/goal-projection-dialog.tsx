@@ -37,13 +37,13 @@ type Goal = {
 };
 
 const formSchema = z.object({
-  currentSavings: z.coerce.number().positive("Must be a positive number"),
-  goalAmount: z.coerce.number().positive("Must be a positive number"),
-  monthlyContribution: z.coerce.number().positive("Must be a positive number"),
+  currentSavings: z.coerce.number().positive("Deve ser um número positivo"),
+  goalAmount: z.coerce.number().positive("Deve ser um número positivo"),
+  monthlyContribution: z.coerce.number().positive("Deve ser um número positivo"),
   monthlyReturnRate: z.coerce
     .number()
-    .min(0, "Cannot be negative")
-    .max(100, "Cannot be over 100"),
+    .min(0, "Não pode ser negativo")
+    .max(100, "Não pode ser superior a 100"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -77,7 +77,7 @@ export function GoalProjectionDialog({ goal }: { goal: Goal }) {
       } else {
          toast({
             variant: "destructive",
-            title: "Projection Failed",
+            title: "Falha na Projeção",
             description: response.error,
         });
       }
@@ -100,21 +100,21 @@ export function GoalProjectionDialog({ goal }: { goal: Goal }) {
       <DialogTrigger asChild>
         <Button className="w-full" variant="outline">
           <Sparkles className="mr-2 h-4 w-4" />
-          Project Goal
+          Projetar Meta
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="font-headline">Project: {goal.name}</DialogTitle>
+          <DialogTitle className="font-headline">Projetar: {goal.name}</DialogTitle>
           <DialogDescription>
-            See how long it will take to reach your goal. Adjust the values to
-            simulate different scenarios.
+            Veja quanto tempo levará para atingir sua meta. Ajuste os valores para
+            simular diferentes cenários.
           </DialogDescription>
         </DialogHeader>
         {result ? (
             <Alert className="bg-primary/5 border-primary/20">
                 <Sparkles className="h-4 w-4 text-primary" />
-                <AlertTitle className="text-primary font-headline">AI Projection</AlertTitle>
+                <AlertTitle className="text-primary font-headline">Projeção da IA</AlertTitle>
                 <AlertDescription className="text-primary/90">
                     {result}
                 </AlertDescription>
@@ -127,7 +127,7 @@ export function GoalProjectionDialog({ goal }: { goal: Goal }) {
               name="currentSavings"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Current Savings ($)</FormLabel>
+                  <FormLabel>Economias Atuais (R$)</FormLabel>
                   <FormControl>
                     <Input type="number" {...field} />
                   </FormControl>
@@ -140,7 +140,7 @@ export function GoalProjectionDialog({ goal }: { goal: Goal }) {
               name="goalAmount"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Goal Amount ($)</FormLabel>
+                  <FormLabel>Valor da Meta (R$)</FormLabel>
                   <FormControl>
                     <Input type="number" {...field} />
                   </FormControl>
@@ -153,7 +153,7 @@ export function GoalProjectionDialog({ goal }: { goal: Goal }) {
               name="monthlyContribution"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Monthly Contribution ($)</FormLabel>
+                  <FormLabel>Contribuição Mensal (R$)</FormLabel>
                   <FormControl>
                     <Input type="number" {...field} />
                   </FormControl>
@@ -166,7 +166,7 @@ export function GoalProjectionDialog({ goal }: { goal: Goal }) {
               name="monthlyReturnRate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Annual Return Rate (%)</FormLabel>
+                  <FormLabel>Taxa de Retorno Anual (%)</FormLabel>
                   <FormControl>
                     <Input type="number" step="0.1" {...field} />
                   </FormControl>
@@ -180,7 +180,7 @@ export function GoalProjectionDialog({ goal }: { goal: Goal }) {
               ) : (
                 <Sparkles className="mr-2 h-4 w-4" />
               )}
-              Calculate Projection
+              Calcular Projeção
             </Button>
           </form>
         </Form>

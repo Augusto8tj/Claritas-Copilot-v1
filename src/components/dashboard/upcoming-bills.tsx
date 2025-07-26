@@ -20,41 +20,41 @@ const bills = [
     recipient: "Netflix",
     dueDate: "2024-08-25",
     amount: 15.49,
-    status: "Upcoming",
+    status: "Próxima",
   },
   {
-    recipient: "AT&T Internet",
+    recipient: "Internet AT&T",
     dueDate: "2024-08-28",
     amount: 80.0,
-    status: "Upcoming",
+    status: "Próxima",
   },
   {
     recipient: "Edison Electric",
     dueDate: "2024-09-01",
     amount: 124.5,
-    status: "Upcoming",
+    status: "Próxima",
   },
   {
-    recipient: "Chase Credit Card",
+    recipient: "Cartão de Crédito Chase",
     dueDate: "2024-09-05",
     amount: 250.0,
-    status: "Upcoming",
+    status: "Próxima",
   },
    {
     recipient: "Spotify",
     dueDate: "2024-08-15",
     amount: 10.99,
-    status: "Paid",
+    status: "Paga",
   },
 ];
 
 export function UpcomingBills() {
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'Paid':
-        return <Badge variant="secondary">Paid</Badge>;
-      case 'Upcoming':
-        return <Badge variant="outline" className="border-accent/50 text-accent">Upcoming</Badge>;
+      case 'Paga':
+        return <Badge variant="secondary">Paga</Badge>;
+      case 'Próxima':
+        return <Badge variant="outline" className="border-accent/50 text-accent">Próxima</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -62,19 +62,19 @@ export function UpcomingBills() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline">Upcoming Bills</CardTitle>
+        <CardTitle className="font-headline">Contas a Vencer</CardTitle>
         <CardDescription>
-          Keep track of your upcoming payments to avoid late fees.
+          Acompanhe seus próximos pagamentos para evitar multas por atraso.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Recipient</TableHead>
+              <TableHead>Beneficiário</TableHead>
               <TableHead className="text-center">Status</TableHead>
-              <TableHead className="text-center">Due Date</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
+              <TableHead className="text-center">Data de Vencimento</TableHead>
+              <TableHead className="text-right">Valor</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -82,8 +82,8 @@ export function UpcomingBills() {
               <TableRow key={index}>
                 <TableCell className="font-medium">{bill.recipient}</TableCell>
                  <TableCell className="text-center">{getStatusBadge(bill.status)}</TableCell>
-                <TableCell className="text-center">{new Date(bill.dueDate).toLocaleDateString()}</TableCell>
-                <TableCell className="text-right">${bill.amount.toFixed(2)}</TableCell>
+                <TableCell className="text-center">{new Date(bill.dueDate).toLocaleDateString('pt-BR')}</TableCell>
+                <TableCell className="text-right">R${bill.amount.toFixed(2).replace('.', ',')}</TableCell>
               </TableRow>
             ))}
           </TableBody>

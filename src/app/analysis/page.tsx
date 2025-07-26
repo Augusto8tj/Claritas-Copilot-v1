@@ -13,14 +13,14 @@ export default function AnalysisPage() {
     <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h1 className="text-3xl font-bold tracking-tight font-headline">
-          Spending Analysis
+          Análise de Despesas
         </h1>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle className="font-headline">Expense Breakdown</CardTitle>
+          <CardTitle className="font-headline">Detalhamento de Despesas</CardTitle>
           <CardDescription>
-            Your spending by category for the current month.
+            Seus gastos por categoria para o mês atual.
           </CardDescription>
         </CardHeader>
         <CardContent>

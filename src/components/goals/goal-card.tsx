@@ -46,8 +46,8 @@ export function GoalCard({ goal }: GoalCardProps) {
         <div className="space-y-2">
           <Progress value={progress} />
           <div className="flex justify-between text-sm text-muted-foreground">
-            <span>${goal.currentAmount.toLocaleString()}</span>
-            <span>${goal.targetAmount.toLocaleString()}</span>
+            <span>R${goal.currentAmount.toLocaleString('pt-BR')}</span>
+            <span>R${goal.targetAmount.toLocaleString('pt-BR')}</span>
           </div>
         </div>
       </CardContent>

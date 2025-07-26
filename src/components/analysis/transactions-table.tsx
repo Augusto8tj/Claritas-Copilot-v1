@@ -27,68 +27,68 @@ import {
 const transactions = [
   {
     merchant: "Whole Foods",
-    category: "Food & Dining",
+    category: "Alimentação",
     date: "2024-08-20",
     amount: 125.6,
   },
   {
     merchant: "Amazon",
-    category: "Shopping",
+    category: "Compras",
     date: "2024-08-19",
     amount: 78.99,
   },
   {
-    merchant: "Mortgage Payment",
-    category: "Housing",
+    merchant: "Pagamento de Hipoteca",
+    category: "Moradia",
     date: "2024-08-18",
     amount: 1800.0,
   },
   {
-    merchant: "AMC Theatres",
-    category: "Entertainment",
+    merchant: "Cinemas AMC",
+    category: "Lazer",
     date: "2024-08-17",
     amount: 45.0,
   },
   {
     merchant: "Exxon Mobil",
-    category: "Transport",
+    category: "Transporte",
     date: "2024-08-16",
     amount: 55.2,
   },
   {
     merchant: "Target",
-    category: "Shopping",
+    category: "Compras",
     date: "2024-08-15",
     amount: 112.4,
   },
 ];
 
 const categoryIcons: { [key: string]: React.ReactNode } = {
-  "Food & Dining": <Utensils className="h-4 w-4 text-muted-foreground" />,
-  Shopping: <ShoppingCart className="h-4 w-4 text-muted-foreground" />,
-  Housing: <Home className="h-4 w-4 text-muted-foreground" />,
-  Transport: <Car className="h-4 w-4 text-muted-foreground" />,
-  Entertainment: <Ticket className="h-4 w-4 text-muted-foreground" />,
-  Other: <MoreHorizontal className="h-4 w-4 text-muted-foreground" />,
+  "Alimentação": <Utensils className="h-4 w-4 text-muted-foreground" />,
+  "Compras": <ShoppingCart className="h-4 w-4 text-muted-foreground" />,
+  "Moradia": <Home className="h-4 w-4 text-muted-foreground" />,
+  "Transporte": <Car className="h-4 w-4 text-muted-foreground" />,
+  "Lazer": <Ticket className="h-4 w-4 text-muted-foreground" />,
+  "Outros": <MoreHorizontal className="h-4 w-4 text-muted-foreground" />,
 };
 
 export function TransactionsTable() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline">Recent Transactions</CardTitle>
+        <CardTitle className="font-headline">Transações Recentes</CardTitle>
         <CardDescription>
-          A list of your recent transactions.
+          Uma lista de suas transações recentes.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Merchant</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
+              <TableHead>Comerciante</TableHead>
+              <TableHead>Categoria</TableHead>
+              <TableHead>Data</TableHead>
+              <TableHead className="text-right">Valor</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -97,15 +97,15 @@ export function TransactionsTable() {
                 <TableCell className="font-medium">{t.merchant}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    {categoryIcons[t.category] || categoryIcons["Other"]}
+                    {categoryIcons[t.category] || categoryIcons["Outros"]}
                     {t.category}
                   </div>
                 </TableCell>
                 <TableCell>
-                  {new Date(t.date).toLocaleDateString()}
+                  {new Date(t.date).toLocaleDateString('pt-BR')}
                 </TableCell>
                 <TableCell className="text-right">
-                  -${t.amount.toFixed(2)}
+                  -R${t.amount.toFixed(2).replace('.', ',')}
                 </TableCell>
               </TableRow>
             ))}

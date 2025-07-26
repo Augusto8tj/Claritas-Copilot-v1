@@ -16,7 +16,7 @@ export default function DashboardPage() {
     <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h1 className="text-3xl font-bold tracking-tight font-headline">
-          Dashboard
+          Painel
         </h1>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -25,8 +25,8 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-4">
           <CardHeader>
-            <CardTitle className="font-headline">Net Worth</CardTitle>
-            <CardDescription>Your financial journey over the last year.</CardDescription>
+            <CardTitle className="font-headline">Patrimônio Líquido</CardTitle>
+            <CardDescription>Sua jornada financeira no último ano.</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
             <NetWorthChart />

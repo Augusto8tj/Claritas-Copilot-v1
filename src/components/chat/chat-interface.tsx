@@ -28,7 +28,7 @@ type Message = {
 };
 
 const formSchema = z.object({
-  query: z.string().min(1, "Message cannot be empty"),
+  query: z.string().min(1, "A mensagem não pode estar vazia"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -61,7 +61,7 @@ export function ChatInterface() {
       const errorMessage: Message = {
         role: "assistant",
         content:
-          response.error || "Sorry, something went wrong. Please try again.",
+          response.error || "Desculpe, algo deu errado. Por favor, tente novamente.",
       };
       setMessages((prev) => [...prev, errorMessage]);
     }
@@ -85,8 +85,8 @@ export function ChatInterface() {
           {messages.length === 0 && (
             <div className="text-center text-muted-foreground pt-10">
               <Sparkles className="mx-auto h-10 w-10 mb-4" />
-              <p className="font-semibold">Welcome to Claritas AI</p>
-              <p className="text-sm">Start a conversation by typing below.</p>
+              <p className="font-semibold">Bem-vindo à Claritas AI</p>
+              <p className="text-sm">Inicie uma conversa digitando abaixo.</p>
             </div>
           )}
           {messages.map((message, index) => (
@@ -148,7 +148,7 @@ export function ChatInterface() {
                 <FormItem className="flex-1">
                   <FormControl>
                     <Input
-                      placeholder="e.g., How can I improve my savings?"
+                      placeholder="ex: Como posso melhorar minhas economias?"
                       {...field}
                       disabled={loading}
                     />
@@ -159,7 +159,7 @@ export function ChatInterface() {
             />
             <Button type="submit" size="icon" disabled={loading}>
               <CornerDownLeft className="h-4 w-4" />
-              <span className="sr-only">Send message</span>
+              <span className="sr-only">Enviar mensagem</span>
             </Button>
           </form>
         </Form>

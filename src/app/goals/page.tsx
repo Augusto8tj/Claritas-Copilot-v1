@@ -3,7 +3,7 @@ import { GoalCard } from "@/components/goals/goal-card";
 const goals = [
   {
     id: "1",
-    name: "Vacation to Japan",
+    name: "Viagem para o Japão",
     currentAmount: 7500,
     targetAmount: 12000,
     imageUrl: "https://placehold.co/600x400.png",
@@ -11,7 +11,7 @@ const goals = [
   },
   {
     id: "2",
-    name: "New Car Fund",
+    name: "Fundo para Carro Novo",
     currentAmount: 15000,
     targetAmount: 35000,
     imageUrl: "https://placehold.co/600x400.png",
@@ -19,7 +19,7 @@ const goals = [
   },
   {
     id: "3",
-    name: "Emergency Fund",
+    name: "Fundo de Emergência",
     currentAmount: 8500,
     targetAmount: 10000,
     imageUrl: "https://placehold.co/600x400.png",
@@ -27,7 +27,7 @@ const goals = [
   },
   {
     id: "4",
-    name: "Kitchen Renovation",
+    name: "Renovação da Cozinha",
     currentAmount: 2500,
     targetAmount: 15000,
     imageUrl: "https://placehold.co/600x400.png",
@@ -40,11 +40,11 @@ export default function GoalsPage() {
     <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h1 className="text-3xl font-bold tracking-tight font-headline">
-          Financial Goals
+          Metas Financeiras
         </h1>
       </div>
       <p className="text-muted-foreground">
-        Track your progress and stay motivated to reach your dreams.
+        Acompanhe seu progresso e mantenha-se motivado para alcançar seus sonhos.
       </p>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {goals.map((goal) => (
