@@ -40,14 +40,14 @@ const prompt = ai.definePrompt({
   name: 'goalProjectionPrompt',
   input: {schema: GoalProjectionInputSchema},
   output: {schema: GoalProjectionOutputSchema},
-  prompt: `You are a financial advisor helping a user understand when they will reach their financial goal.
+  prompt: `Você é um consultor financeiro ajudando um usuário a entender quando ele alcançará sua meta financeira.
 
-  Given the following information, calculate how many months it will take for the user to reach their goal and provide a summary.  Be concise.
+  Com base nas seguintes informações, calcule quantos meses levará para o usuário atingir sua meta e forneça um resumo. Seja conciso.
 
-  Current Savings: {{{currentSavings}}}
-  Goal Amount: {{{goalAmount}}}
-  Monthly Contribution: {{{monthlyContribution}}}
-  Monthly Return Rate: {{{monthlyReturnRate}}}
+  Economias Atuais: {{{currentSavings}}}
+  Valor da Meta: {{{goalAmount}}}
+  Contribuição Mensal: {{{monthlyContribution}}}
+  Taxa de Retorno Mensal: {{{monthlyReturnRate}}}
   `,
 });
 
