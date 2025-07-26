@@ -7,6 +7,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Lightbulb } from "lucide-react";
 
 export default function AnalysisPage() {
   return (
@@ -16,6 +18,13 @@ export default function AnalysisPage() {
           Análise de Despesas
         </h1>
       </div>
+       <Alert className="bg-primary/5 border-primary/20">
+        <Lightbulb className="h-4 w-4 text-primary" />
+        <AlertTitle className="text-primary font-headline">Dica</AlertTitle>
+        <AlertDescription className="text-primary/90">
+          Para adicionar uma nova transação manualmente, vá para a página <b>Chat com IA - Insights</b> e peça à Claritas, por exemplo: "Adicione uma despesa de R$50 com transporte".
+        </AlertDescription>
+      </Alert>
       <Card>
         <CardHeader>
           <CardTitle className="font-headline">Detalhamento de Despesas</CardTitle>
