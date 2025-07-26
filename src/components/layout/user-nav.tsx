@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,8 +33,12 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem>Perfil</DropdownMenuItem>
-          <DropdownMenuItem>Configurações</DropdownMenuItem>
+          <Link href="/profile" passHref>
+            <DropdownMenuItem>Perfil</DropdownMenuItem>
+          </Link>
+          <Link href="/settings" passHref>
+            <DropdownMenuItem>Configurações</DropdownMenuItem>
+          </Link>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem>Sair</DropdownMenuItem>

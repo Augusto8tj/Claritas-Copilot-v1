@@ -6,8 +6,10 @@ import {
   HelpCircle,
   LayoutDashboard,
   MessageCircle,
+  Settings,
   Sparkles,
   Target,
+  User,
 } from "lucide-react";
 
 import {
@@ -51,6 +53,18 @@ const navItems = [
     label: "Chat com IA - Insights",
   },
   {
+    href: "/profile",
+    icon: User,
+    label: "Perfil",
+    hidden: true,
+  },
+   {
+    href: "/settings",
+    icon: Settings,
+    label: "Configurações",
+    hidden: true,
+  },
+  {
     href: "/help",
     icon: HelpCircle,
     label: "Ajuda",
@@ -72,7 +86,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </SidebarHeader>
         <SidebarMenu>
-          {navItems.map((item) => (
+          {navItems.filter(item => !item.hidden).map((item) => (
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton
                 asChild
