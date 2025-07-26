@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { ThemeSelector } from "@/components/settings/theme-selector";
 
 export default function SettingsPage() {
   return (
@@ -50,15 +51,7 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-           <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
-            <div className="space-y-0.5">
-              <Label htmlFor="dark-mode">Modo Escuro</Label>
-               <p className="text-sm text-muted-foreground">
-                Ative para uma experiência com menos brilho.
-              </p>
-            </div>
-            <Switch id="dark-mode" />
-          </div>
+           <ThemeSelector />
         </CardContent>
       </Card>
     </div>
