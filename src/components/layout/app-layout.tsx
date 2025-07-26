@@ -12,7 +12,6 @@ import {
   Target,
   User,
 } from "lucide-react";
-
 import {
   Sidebar,
   SidebarHeader,
@@ -23,10 +22,12 @@ import {
   SidebarTrigger,
   SidebarInset,
 } from "@/components/ui/sidebar";
-import { SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Logo } from "@/components/icons";
 import { UserNav } from "./user-nav";
 import { useAuth } from "@/hooks/use-auth";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useSidebar } from "@/components/ui/sidebar";
 
 
 const navItems = [
@@ -51,6 +52,11 @@ const navItems = [
     label: "Chat IA Claritas",
   },
   {
+    href: "/chat",
+    icon: MessageCircle,
+    label: "Chat com IA",
+  },
+  {
     href: "/profile",
     icon: User,
     label: "Perfil",
@@ -69,9 +75,73 @@ const navItems = [
   },
 ];
 
+function MainNav() {
+  const pathname = usePathname();
+  return (
+    <SidebarMenu>
+      {navItems.filter(item => !item.hidden).map((item) => (
+        <SidebarMenuItem key={item.href}>
+          <SidebarMenuButton
+            asChild
+            isActive={pathname === item.href}
+            className="justify-start"
+          >
+            <a href={item.href}>
+              <item.icon className="w-5 h-5" />
+              <span>{item.label}</span>
+            </a>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      ))}
+    </SidebarMenu>
+  )
+}
+
+function MobileSidebar() {
+    const { openMobile, setOpenMobile } = useSidebar();
+    return (
+        <Sheet open={openMobile} onOpenChange={setOpenMobile}>
+          <SheetContent
+            side="left"
+            className="w-[18rem] bg-background p-0 text-foreground [&>button]:hidden"
+          >
+            <SheetHeader>
+              <SheetTitle className="sr-only">Menu de Navegação</SheetTitle>
+            </SheetHeader>
+            <SidebarHeader className="p-4">
+              <div className="flex items-center gap-2">
+                <Logo className="w-8 h-8 text-primary" />
+                <h1 className="text-xl font-bold font-headline text-primary">
+                  Claritas
+                </h1>
+              </div>
+            </SidebarHeader>
+            <MainNav />
+          </SheetContent>
+        </Sheet>
+    )
+}
+
+function DesktopSidebar() {
+    return (
+        <Sidebar>
+            <SidebarHeader className="p-4">
+              <div className="flex items-center gap-2">
+                <Logo className="w-8 h-8 text-primary" />
+                <h1 className="text-xl font-bold font-headline text-primary">
+                  Claritas
+                </h1>
+              </div>
+            </SidebarHeader>
+            <MainNav />
+        </Sidebar>
+    )
+}
+
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const pathname = usePathname();
+  const isMobile = useIsMobile();
   
   const pageTitle = navItems.find(item => item.href === pathname)?.label || 'Claritas Copilot';
 
@@ -82,32 +152,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader className="p-4">
-          <div className="flex items-center gap-2">
-            <Logo className="w-8 h-8 text-primary" />
-            <h1 className="text-xl font-bold font-headline text-primary">
-              Claritas
-            </h1>
-          </div>
-        </SidebarHeader>
-        <SidebarMenu>
-          {navItems.filter(item => !item.hidden).map((item) => (
-            <SidebarMenuItem key={item.href}>
-              <SidebarMenuButton
-                asChild
-                isActive={pathname === item.href}
-                className="justify-start"
-              >
-                <a href={item.href}>
-                  <item.icon className="w-5 h-5" />
-                  <span>{item.label}</span>
-                </a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      </Sidebar>
+      {isMobile ? <MobileSidebar /> : <DesktopSidebar />}
       <SidebarInset>
         <header className="sticky top-0 z-10 flex items-center justify-between h-16 px-4 bg-background/80 backdrop-blur-sm border-b">
           <div className="flex items-center gap-4">
