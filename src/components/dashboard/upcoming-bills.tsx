@@ -19,31 +19,31 @@ const bills = [
   {
     recipient: "Netflix",
     dueDate: "2024-08-25",
-    amount: 15.49,
+    amount: 39.90,
     status: "Próxima",
   },
   {
-    recipient: "Internet AT&T",
+    recipient: "Internet Claro",
     dueDate: "2024-08-28",
-    amount: 80.0,
+    amount: 99.90,
     status: "Próxima",
   },
   {
-    recipient: "Edison Electric",
+    recipient: "CPFL Energia",
     dueDate: "2024-09-01",
     amount: 124.5,
     status: "Próxima",
   },
   {
-    recipient: "Cartão de Crédito Chase",
+    recipient: "Cartão de Crédito Nubank",
     dueDate: "2024-09-05",
-    amount: 250.0,
+    amount: 850.0,
     status: "Próxima",
   },
    {
     recipient: "Spotify",
     dueDate: "2024-08-15",
-    amount: 10.99,
+    amount: 21.90,
     status: "Paga",
   },
 ];
@@ -82,7 +82,7 @@ export function UpcomingBills() {
               <TableRow key={index}>
                 <TableCell className="font-medium">{bill.recipient}</TableCell>
                  <TableCell className="text-center">{getStatusBadge(bill.status)}</TableCell>
-                <TableCell className="text-center">{new Date(bill.dueDate).toLocaleDateString('pt-BR')}</TableCell>
+                <TableCell className="text-center">{new Date(bill.dueDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</TableCell>
                 <TableCell className="text-right">R${bill.amount.toFixed(2).replace('.', ',')}</TableCell>
               </TableRow>
             ))}

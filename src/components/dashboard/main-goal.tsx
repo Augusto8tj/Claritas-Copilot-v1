@@ -44,7 +44,7 @@ export function MainGoal() {
         <CardTitle className="font-headline">Meta Principal</CardTitle>
         <CardDescription>{goal.name}</CardDescription>
       </CardHeader>
-      <CardContent className="flex items-center justify-center">
+      <CardContent className="flex items-center justify-center p-6">
         <ChartContainer
           config={chartConfig}
           className="mx-auto aspect-square h-[150px]"

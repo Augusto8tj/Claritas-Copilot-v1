@@ -5,19 +5,20 @@ import { Lightbulb } from "lucide-react";
 export async function AIInsightCard() {
   // Mock data for demonstration purposes
   const mockFinancialData = JSON.stringify({
-    renda: 5000,
+    renda: 7250,
     despesas: {
-      moradia: 1500,
-      transporte: 400,
-      alimentacao: 600,
-      servicos_publicos: 200,
-      lazer: 800, // Gastos elevados com lazer
+      moradia: 1800,
+      transporte: 450,
+      alimentacao: 850,
+      compras: 780,
+      lazer: 600,
+      outros: 350
     },
-    economias: 10000,
-    investimentos: 25000,
+    economias: 18500,
+    investimentos: 45000,
     dividas: 5000,
   });
-  const mockUserGoals = "Economizar para a entrada de uma casa, reduzir dívidas.";
+  const mockUserGoals = "Economizar para a entrada de uma casa, fazer uma viagem internacional.";
 
   const { insights } = await getFinancialInsights({
     financialData: mockFinancialData,

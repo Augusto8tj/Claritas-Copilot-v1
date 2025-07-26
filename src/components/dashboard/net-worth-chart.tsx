@@ -12,17 +12,17 @@ import {
 
 const data = [
   { name: "Jan", netWorth: 45000 },
-  { name: "Feb", netWorth: 46500 },
+  { name: "Fev", netWorth: 46500 },
   { name: "Mar", netWorth: 48000 },
-  { name: "Apr", netWorth: 52000 },
-  { name: "May", netWorth: 51500 },
+  { name: "Abr", netWorth: 52000 },
+  { name: "Mai", netWorth: 51500 },
   { name: "Jun", netWorth: 53000 },
   { name: "Jul", netWorth: 55500 },
-  { name: "Aug", netWorth: 57000 },
-  { name: "Sep", netWorth: 56000 },
-  { name: "Oct", netWorth: 59000 },
+  { name: "Ago", netWorth: 57000 },
+  { name: "Set", netWorth: 58000 },
+  { name: "Out", netWorth: 59000 },
   { name: "Nov", netWorth: 61000 },
-  { name: "Dec", netWorth: 63500 },
+  { name: "Dez", netWorth: 63500 },
 ];
 
 export function NetWorthChart() {
@@ -42,9 +42,11 @@ export function NetWorthChart() {
           fontSize={12}
           tickLine={false}
           axisLine={false}
-          tickFormatter={(value) => `$${value / 1000}k`}
+          tickFormatter={(value) => `R$${value / 1000}k`}
         />
         <Tooltip
+            formatter={(value: number) => `R$${value.toLocaleString('pt-BR')}`}
+            labelStyle={{ color: 'hsl(var(--foreground))' }}
             contentStyle={{
                 backgroundColor: 'hsl(var(--background))',
                 borderColor: 'hsl(var(--border))',
@@ -54,6 +56,7 @@ export function NetWorthChart() {
         <Line
           type="monotone"
           dataKey="netWorth"
+          name="Patrimônio Líquido"
           stroke="hsl(var(--primary))"
           strokeWidth={2}
           dot={{ r: 4, fill: "hsl(var(--primary))" }}

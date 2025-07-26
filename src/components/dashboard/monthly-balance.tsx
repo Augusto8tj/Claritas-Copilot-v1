@@ -23,14 +23,14 @@ export function MonthlyBalance() {
           <div className="flex justify-between text-sm">
             <span className="font-medium text-muted-foreground">Despesas</span>
             <span className="font-bold">
-              R${expenses.toLocaleString('pt-BR')}
+              R${expenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </span>
           </div>
           <Progress value={progress} />
           <div className="flex justify-between text-sm">
             <span className="font-medium text-muted-foreground">Receita</span>
             <span className="font-bold text-green-600">
-              R${income.toLocaleString('pt-BR')}
+              R${income.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </span>
           </div>
         </div>

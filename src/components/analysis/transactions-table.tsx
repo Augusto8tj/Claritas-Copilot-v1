@@ -25,41 +25,47 @@ import {
 } from "lucide-react";
 
 const transactions = [
-  {
-    merchant: "Whole Foods",
-    category: "Alimentação",
-    date: "2024-08-20",
-    amount: 125.6,
-  },
-  {
-    merchant: "Amazon",
-    category: "Compras",
-    date: "2024-08-19",
-    amount: 78.99,
-  },
-  {
-    merchant: "Pagamento de Hipoteca",
+   {
+    merchant: "Pagamento de Aluguel",
     category: "Moradia",
-    date: "2024-08-18",
+    date: "2024-08-01",
     amount: 1800.0,
   },
   {
-    merchant: "Cinemas AMC",
-    category: "Lazer",
-    date: "2024-08-17",
-    amount: 45.0,
+    merchant: "Supermercado Pão de Açúcar",
+    category: "Alimentação",
+    date: "2024-08-05",
+    amount: 850.25,
   },
   {
-    merchant: "Exxon Mobil",
+    merchant: "Posto Shell",
     category: "Transporte",
-    date: "2024-08-16",
-    amount: 55.2,
+    date: "2024-08-10",
+    amount: 150.0,
   },
   {
-    merchant: "Target",
+    merchant: "Cinema Kinoplex",
+    category: "Lazer",
+    date: "2024-08-12",
+    amount: 85.0,
+  },
+   {
+    merchant: "Amazon.com.br",
     category: "Compras",
     date: "2024-08-15",
-    amount: 112.4,
+    amount: 250.99,
+  },
+  {
+    merchant: "Uber",
+    category: "Transporte",
+    date: "2024-08-18",
+    amount: 45.5,
+  },
+  {
+    merchant: "Padaria",
+    category: "Alimentação",
+    date: "2024-08-20",
+    amount: 55.30,
   },
 ];
 
@@ -102,7 +108,7 @@ export function TransactionsTable() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  {new Date(t.date).toLocaleDateString('pt-BR')}
+                  {new Date(t.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                 </TableCell>
                 <TableCell className="text-right">
                   -R${t.amount.toFixed(2).replace('.', ',')}

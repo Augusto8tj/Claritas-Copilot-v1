@@ -13,36 +13,36 @@ import {
 } from "@/components/ui/chart";
 
 const chartData = [
-  { category: "Alimentação", amount: 850, fill: "var(--color-food)" },
-  { category: "Compras", amount: 1200, fill: "var(--color-shopping)" },
   { category: "Moradia", amount: 1800, fill: "var(--color-housing)" },
+  { category: "Alimentação", amount: 850, fill: "var(--color-food)" },
   { category: "Transporte", amount: 450, fill: "var(--color-transport)" },
   { category: "Lazer", amount: 600, fill: "var(--color-entertainment)" },
-  { category: "Outros", amount: 300, fill: "var(--color-other)" },
+  { category: "Compras", amount: 780, fill: "var(--color-shopping)" },
+  { category: "Outros", amount: 350, fill: "var(--color-other)" },
 ];
 
 const chartConfig = {
   amount: {
     label: "Valor",
   },
-  food: {
-    label: "Alimentação",
-    color: "hsl(var(--chart-1))",
-  },
-  shopping: {
-    label: "Compras",
-    color: "hsl(var(--chart-2))",
-  },
   housing: {
     label: "Moradia",
-    color: "hsl(var(--chart-3))",
+    color: "hsl(var(--chart-1))",
+  },
+  food: {
+    label: "Alimentação",
+    color: "hsl(var(--chart-2))",
   },
   transport: {
     label: "Transporte",
-    color: "hsl(var(--chart-4))",
+    color: "hsl(var(--chart-3))",
   },
   entertainment: {
     label: "Lazer",
+    color: "hsl(var(--chart-4))",
+  },
+  shopping: {
+    label: "Compras",
     color: "hsl(var(--chart-5))",
   },
   other: {

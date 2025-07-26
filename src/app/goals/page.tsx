@@ -11,11 +11,11 @@ const goals = [
   },
   {
     id: "2",
-    name: "Fundo para Carro Novo",
-    currentAmount: 15000,
-    targetAmount: 35000,
+    name: "Entrada da Casa Própria",
+    currentAmount: 27500,
+    targetAmount: 50000,
     imageUrl: "https://placehold.co/600x400.png",
-    imageHint: "new car"
+    imageHint: "dream house"
   },
   {
     id: "3",
