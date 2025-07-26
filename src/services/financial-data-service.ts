@@ -5,6 +5,7 @@
  * fetch data from a database or a financial API.
  */
 import type { Goal } from '@/lib/types';
+import { generateGoalImage } from '@/ai/flows/goal-image-generation';
 
 
 // Mock database
@@ -95,12 +96,21 @@ const MOCK_DATA = {
   
   export async function addGoal(name: string, targetAmount: number): Promise<Goal> {
     const newId = (MOCK_DATA.goals.length + 1).toString();
+    
+    let imageUrl = "https://placehold.co/600x400.png";
+    try {
+        const imageResult = await generateGoalImage({ goalName: name });
+        imageUrl = imageResult.imageUrl;
+    } catch (error) {
+        console.error("Falha ao gerar imagem da meta, usando placeholder.", error);
+    }
+
     const newGoal: Goal = {
       id: newId,
       name,
       targetAmount,
       currentAmount: 0,
-      imageUrl: "https://placehold.co/600x400.png",
+      imageUrl: imageUrl,
       imageHint: "new goal"
     };
     MOCK_DATA.goals.push(newGoal);
