@@ -16,7 +16,7 @@ export async function addGoal(data: { name: string; targetAmount: number }): Pro
   }
 
   try {
-    const newGoal = addGoalToService(validatedData.data.name, validatedData.data.targetAmount);
+    const newGoal = await addGoalToService(validatedData.data.name, validatedData.data.targetAmount);
     return { success: newGoal };
   } catch (e) {
     console.error(e);

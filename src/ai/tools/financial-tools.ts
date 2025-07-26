@@ -43,7 +43,7 @@ export const getFinancialInsightsTool = ai.defineTool(
   },
   async () => {
     console.log('getFinancialInsightsTool foi chamada');
-    const financialData = getFinancialSummary();
+    const financialData = await getFinancialSummary();
     const { output } = await insightsPrompt({ financialData });
     if (!output) {
       return 'Não foi possível gerar insights no momento.';
@@ -79,6 +79,7 @@ export const addGoalTool = ai.defineTool(
     outputSchema: z.string(),
   },
   async ({ name, targetAmount }) => {
-    return addGoal(name, targetAmount);
+    const newGoal = await addGoal(name, targetAmount);
+    return `Meta "${newGoal.name}" adicionada com sucesso.`;
   }
 );
