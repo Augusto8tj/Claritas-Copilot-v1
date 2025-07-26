@@ -22,7 +22,7 @@ export default function AnalysisPage() {
         <Lightbulb className="h-4 w-4 text-primary" />
         <AlertTitle className="text-primary font-headline">Dica</AlertTitle>
         <AlertDescription className="text-primary/90">
-          Para adicionar uma nova transação manualmente, vá para a página <b>Chat com a Claritas</b> e peça à Claritas, por exemplo: "Adicione uma despesa de R$50 com transporte".
+          Para adicionar uma nova transação manualmente, vá para a página <b>Chat IA Claritas</b> e peça à Claritas, por exemplo: "Adicione uma despesa de R$50 com transporte".
         </AlertDescription>
       </Alert>
       <Card>

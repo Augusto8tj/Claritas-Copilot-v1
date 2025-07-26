@@ -47,7 +47,13 @@ const navItems = [
   {
     href: "/chat-insights",
     icon: Sparkles,
-    label: "Chat com a Claritas",
+    label: "Chat IA Claritas",
+  },
+  {
+    href: "/chat",
+    icon: MessageCircle,
+    label: "Chat com IA",
+    hidden: true,
   },
   {
     href: "/profile",
@@ -69,13 +75,15 @@ const navItems = [
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
   const { user } = useAuth();
+  const pathname = usePathname();
   const [pageTitle, setPageTitle] = useState('Claritas Copilot');
-
+  
   useEffect(() => {
     const currentNavItem = navItems.find(item => item.href === pathname);
-    setPageTitle(currentNavItem?.label || 'Claritas Copilot');
+    if (currentNavItem) {
+      setPageTitle(currentNavItem.label);
+    }
   }, [pathname]);
 
 
