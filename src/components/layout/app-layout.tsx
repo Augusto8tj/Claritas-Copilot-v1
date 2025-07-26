@@ -51,7 +51,7 @@ const navItems = [
   {
     href: "/chat-insights",
     icon: Sparkles,
-    label: "Chat com IA - Insights",
+    label: "Chat com a Claritas",
   },
   {
     href: "/profile",
