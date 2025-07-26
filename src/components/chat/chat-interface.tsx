@@ -36,7 +36,7 @@ type FormValues = z.infer<typeof formSchema>;
 export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -70,9 +70,9 @@ export function ChatInterface() {
   };
 
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTo({
-        top: scrollAreaRef.current.scrollHeight,
+    if (viewportRef.current) {
+      viewportRef.current.scrollTo({
+        top: viewportRef.current.scrollHeight,
         behavior: "smooth",
       });
     }
@@ -80,7 +80,7 @@ export function ChatInterface() {
 
   return (
     <Card className="h-full flex flex-col">
-      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
+      <ScrollArea className="flex-1 p-4" viewportRef={viewportRef}>
         <div className="space-y-6">
           {messages.length === 0 && (
             <div className="text-center text-muted-foreground pt-10">
