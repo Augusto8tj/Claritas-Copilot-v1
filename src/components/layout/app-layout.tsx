@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  HelpCircle,
   LayoutDashboard,
   MessageCircle,
   Target,
@@ -42,6 +43,11 @@ const navItems = [
     href: "/chat",
     icon: MessageCircle,
     label: "Chat com IA",
+  },
+  {
+    href: "/help",
+    icon: HelpCircle,
+    label: "Ajuda",
   },
 ];
 
