@@ -54,7 +54,7 @@ const MOCK_DATA = {
     ],
   };
   
-  export async function getFinancialSummary(): Promise<string> {
+  export async function getFinancialSummary(): Promise<{ income: number; expenses: number; balance: number; }> {
     const income = MOCK_DATA.transactions
       .filter((t) => t.type === 'income')
       .reduce((acc, t) => acc + t.amount, 0);
@@ -63,13 +63,11 @@ const MOCK_DATA = {
       .filter((t) => t.type === 'expense')
       .reduce((acc, t) => acc + t.amount, 0);
   
-    const summary = `
-      Resumo Financeiro:
-      - Renda Mensal Total: R$${income.toFixed(2)}
-      - Despesas Mensais Totais: R$${expenses.toFixed(2)}
-      - Saldo: R$${(income - expenses).toFixed(2)}
-    `;
-    return summary;
+    return {
+        income,
+        expenses,
+        balance: income - expenses,
+    }
   }
   
   export async function getInsights(): Promise<string[]> {

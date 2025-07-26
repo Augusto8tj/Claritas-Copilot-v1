@@ -7,15 +7,22 @@ import { ai } from '@/ai/genkit';
 import { addGoal, addTransaction, getFinancialSummary } from '@/services/financial-data-service';
 import { z } from 'zod';
 
+const FinancialSummarySchema = z.object({
+  income: z.number().describe('Renda mensal total do usuário.'),
+  expenses: z.number().describe('Despesas mensais totais do usuário.'),
+  balance: z.number().describe('O saldo mensal (renda - despesas).'),
+});
+
 export const getFinancialSummaryTool = ai.defineTool(
   {
     name: 'getFinancialSummaryTool',
-    description: 'Obtém um resumo dos dados financeiros do usuário, incluindo renda, despesas e economias.',
+    description: 'Obtém um resumo estruturado dos dados financeiros do usuário, incluindo renda, despesas e saldo.',
     inputSchema: z.object({}),
-    outputSchema: z.string().describe('Um resumo em formato de string dos dados financeiros.'),
+    outputSchema: FinancialSummarySchema,
   },
   async () => {
     console.log('getFinancialSummaryTool foi chamada');
+    // A função getFinancialSummary foi modificada para retornar um objeto
     return getFinancialSummary();
   }
 );
@@ -44,7 +51,8 @@ export const getFinancialInsightsTool = ai.defineTool(
   async () => {
     console.log('getFinancialInsightsTool foi chamada');
     const financialData = await getFinancialSummary();
-    const { output } = await insightsPrompt({ financialData });
+    const financialDataString = `Renda: ${financialData.income}, Despesas: ${financialData.expenses}, Saldo: ${financialData.balance}`;
+    const { output } = await insightsPrompt({ financialData: financialDataString });
     if (!output) {
       return 'Não foi possível gerar insights no momento.';
     }
