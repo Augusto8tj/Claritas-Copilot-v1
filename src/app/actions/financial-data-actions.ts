@@ -1,8 +1,9 @@
 "use server";
 
 import { z } from "zod";
-import { addGoal as addGoalToService, getGoals as getGoalsFromService } from "@/services/financial-data-service";
+import { addGoal as addGoalToService, getGoals as getGoalsFromService, deleteGoal as deleteGoalFromService } from "@/services/financial-data-service";
 import type { Goal } from "@/lib/types";
+import { revalidatePath } from "next/cache";
 
 const addGoalSchema = z.object({
   name: z.string().min(1, "O nome da meta é obrigatório."),
@@ -17,6 +18,7 @@ export async function addGoal(data: { name: string; targetAmount: number }): Pro
 
   try {
     const newGoal = await addGoalToService(validatedData.data.name, validatedData.data.targetAmount);
+    revalidatePath("/goals");
     return { success: newGoal };
   } catch (e) {
     console.error(e);
@@ -26,4 +28,21 @@ export async function addGoal(data: { name: string; targetAmount: number }): Pro
 
 export async function getGoals(): Promise<Goal[]> {
     return getGoalsFromService();
+}
+
+export async function deleteGoal(goalId: string): Promise<{ success: boolean; error?: string }> {
+    if(!goalId) {
+        return { success: false, error: "ID da meta é obrigatório." };
+    }
+    try {
+        const result = await deleteGoalFromService(goalId);
+        if(result.success) {
+            revalidatePath("/goals");
+            return { success: true };
+        }
+        return { success: false, error: "Meta não encontrada." };
+    } catch (e) {
+        console.error(e);
+        return { success: false, error: "Ocorreu um erro inesperado ao deletar a meta." };
+    }
 }

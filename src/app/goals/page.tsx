@@ -26,6 +26,10 @@ export default function GoalsPage() {
     setGoals((prevGoals) => [...prevGoals, newGoal]);
   };
 
+  const handleGoalDeleted = (deletedGoalId: string) => {
+    setGoals((prevGoals) => prevGoals.filter(goal => goal.id !== deletedGoalId));
+  }
+
   return (
     <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
@@ -43,7 +47,7 @@ export default function GoalsPage() {
               <CardSkeleton key={i} />
             ))
           : goals.map((goal) => (
-              <GoalCard key={goal.id} goal={goal} />
+              <GoalCard key={goal.id} goal={goal} onGoalDeleted={handleGoalDeleted} />
             ))}
       </div>
     </div>

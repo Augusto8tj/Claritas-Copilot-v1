@@ -111,4 +111,16 @@ const MOCK_DATA = {
   export async function getGoals(): Promise<Goal[]> {
       return MOCK_DATA.goals;
   }
+
+  export async function deleteGoal(goalId: string): Promise<{ success: boolean }> {
+    const initialLength = MOCK_DATA.goals.length;
+    MOCK_DATA.goals = MOCK_DATA.goals.filter(goal => goal.id !== goalId);
+    const success = MOCK_DATA.goals.length < initialLength;
+    if(success) {
+        console.log(`Meta com ID ${goalId} deletada.`);
+    } else {
+        console.warn(`Meta com ID ${goalId} não encontrada para deletar.`);
+    }
+    return { success };
+  }
   
