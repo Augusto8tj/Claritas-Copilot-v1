@@ -163,20 +163,37 @@ const Sidebar = React.forwardRef<
     side?: "left" | "right"
     variant?: "sidebar" | "floating" | "inset"
     collapsible?: "offcanvas" | "icon" | "none"
+    children: React.ReactNode;
   }
 >(
   (
     {
       side = "left",
       variant = "sidebar",
-      collapsible = "offcanvas",
+      collapsible = "icon",
       className,
       children,
       ...props
     },
     ref
   ) => {
-    const { state } = useSidebar()
+    const { state, openMobile, setOpenMobile, isMobile } = useSidebar();
+
+    if (isMobile) {
+      return (
+        <Sheet open={openMobile} onOpenChange={setOpenMobile}>
+          <SheetContent
+            side="left"
+            className="w-[18rem] bg-background p-0 text-foreground [&>button]:hidden"
+          >
+            <SheetHeader>
+              <SheetTitle className="sr-only">Menu de Navegação</SheetTitle>
+            </SheetHeader>
+            {children}
+          </SheetContent>
+        </Sheet>
+      )
+    }
     
     if (collapsible === "none") {
       return (
@@ -192,7 +209,6 @@ const Sidebar = React.forwardRef<
         </div>
       )
     }
-
 
     return (
       <div
@@ -743,3 +759,5 @@ export {
   SidebarTrigger,
   useSidebar,
 }
+
+    
