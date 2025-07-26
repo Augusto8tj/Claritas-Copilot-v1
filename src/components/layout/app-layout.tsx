@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
@@ -75,6 +76,13 @@ const navItems = [
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user } = useAuth();
+  const [pageTitle, setPageTitle] = useState('Claritas Copilot');
+
+  useEffect(() => {
+    const currentNavItem = navItems.find(item => item.href === pathname);
+    setPageTitle(currentNavItem?.label || 'Claritas Copilot');
+  }, [pathname]);
+
 
   // Não renderiza o layout principal em telas de autenticação
   if (!user) {
@@ -114,7 +122,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-4">
              <SidebarTrigger className="md:hidden" />
              <h2 className="text-lg font-semibold font-headline">
-                {navItems.find(item => item.href === pathname)?.label || 'Claritas Copilot'}
+                {pageTitle}
              </h2>
           </div>
           <UserNav />
