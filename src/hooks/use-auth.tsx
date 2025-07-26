@@ -3,13 +3,40 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useState,
   type ReactNode,
 } from "react";
-import { onAuthStateChanged, type User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import type { User } from "firebase/auth";
 import { Loader2 } from "lucide-react";
+
+// Mock user data to bypass Firebase Auth for testing
+const mockUser: User = {
+  uid: "mock-user-123",
+  displayName: "Usuário de Teste",
+  email: "teste@exemplo.com",
+  photoURL: "https://placehold.co/100x100.png",
+  emailVerified: true,
+  isAnonymous: false,
+  metadata: {},
+  providerData: [],
+  providerId: "password",
+  refreshToken: "mock-token",
+  tenantId: null,
+  delete: async () => undefined,
+  getIdToken: async () => "mock-id-token",
+  getIdTokenResult: async () => ({
+    token: "mock-id-token",
+    expirationTime: new Date().toISOString(),
+    authTime: new Date().toISOString(),
+    issuedAtTime: new Date().toISOString(),
+    signInProvider: null,
+    signInSecondFactor: null,
+    claims: {},
+  }),
+  reload: async () => undefined,
+  toJSON: () => ({}),
+};
+
 
 type AuthContextType = {
   user: User | null;
@@ -19,28 +46,11 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="h-10 w-10 animate-spin" />
-      </div>
-    );
-  }
+  // Always return the mock user and set loading to false
+  const value = { user: mockUser, loading: false };
 
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
