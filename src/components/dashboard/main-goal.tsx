@@ -1,0 +1,98 @@
+"use client";
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import { Label, Pie, PieChart, Cell } from "recharts";
+
+const chartConfig = {
+  progress: {
+    label: "Progress",
+    color: "hsl(var(--accent))",
+  },
+  remaining: {
+    label: "Remaining",
+    color: "hsl(var(--muted))",
+  },
+};
+
+export function MainGoal() {
+  const goal = {
+    name: "House Down Payment",
+    current: 27500,
+    target: 50000,
+  };
+
+  const progress = (goal.current / goal.target) * 100;
+  const chartData = [
+    { name: "progress", value: progress, fill: "var(--color-progress)" },
+    { name: "remaining", value: 100 - progress, fill: "var(--color-remaining)" },
+  ];
+  
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="font-headline">Primary Goal</CardTitle>
+        <CardDescription>{goal.name}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex items-center justify-center">
+        <ChartContainer
+          config={chartConfig}
+          className="mx-auto aspect-square h-[150px]"
+        >
+          <PieChart>
+            <ChartTooltip
+              cursor={false}
+              content={<ChartTooltipContent hideLabel />}
+            />
+            <Pie
+              data={chartData}
+              dataKey="value"
+              nameKey="name"
+              innerRadius={50}
+              outerRadius={70}
+              startAngle={90}
+              endAngle={450}
+              cornerRadius={50}
+            >
+               {chartData.map((entry) => (
+                <Cell key={`cell-${entry.name}`} fill={entry.fill} />
+              ))}
+              <Label
+                content={({ viewBox }) => {
+                  if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+                    return (
+                      <text
+                        x={viewBox.cx}
+                        y={viewBox.cy}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                      >
+                        <tspan
+                          x={viewBox.cx}
+                          y={viewBox.cy}
+                          className="fill-foreground text-3xl font-bold"
+                        >
+                          {progress.toFixed(0)}%
+                        </tspan>
+                      </text>
+                    );
+                  }
+                }}
+              />
+            </Pie>
+          </PieChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}

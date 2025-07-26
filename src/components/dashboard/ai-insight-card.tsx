@@ -1,0 +1,53 @@
+import { getFinancialInsights } from "@/ai/flows/financial-insights";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Lightbulb } from "lucide-react";
+
+export async function AIInsightCard() {
+  // Mock data for demonstration purposes
+  const mockFinancialData = JSON.stringify({
+    income: 5000,
+    expenses: {
+      housing: 1500,
+      transportation: 400,
+      food: 600,
+      utilities: 200,
+      leisure: 800, // High leisure spending
+    },
+    savings: 10000,
+    investments: 25000,
+    debt: 5000,
+  });
+  const mockUserGoals = "Save for a house down payment, reduce debt.";
+
+  const { insights } = await getFinancialInsights({
+    financialData: mockFinancialData,
+    userGoals: mockUserGoals,
+  });
+
+  return (
+    <Card className="col-span-4 bg-primary/5 border-primary/20">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-lg font-medium text-primary font-headline">
+          AI Copilot Insight
+        </CardTitle>
+        <Lightbulb className="w-5 h-5 text-primary" />
+      </CardHeader>
+      <CardContent>
+        {insights.length > 0 ? (
+          <ul className="space-y-2 text-sm text-primary/80">
+            {insights.map((insight, index) => (
+              <li key={index} className="flex items-start gap-2">
+                <span className="mt-1.5">&#8226;</span>
+                <span>{insight}</span>
+                </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No new insights at the moment.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
