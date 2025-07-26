@@ -32,6 +32,20 @@ export default function HelpPage() {
                 O Claritas Copilot é seu assistente financeiro pessoal, projetado para ajudá-lo a ter uma visão clara de suas finanças, acompanhar seu progresso em direção a metas e obter insights com a ajuda de inteligência artificial.
               </AccordionContent>
             </AccordionItem>
+            
+            <AccordionItem value="item-7">
+              <AccordionTrigger className="text-lg font-semibold">
+                Como os Dados São Adicionados?
+              </AccordionTrigger>
+              <AccordionContent className="text-base leading-relaxed space-y-2">
+                 <p>Para que o Claritas Copilot forneça insights precisos, ele precisa de seus dados financeiros. Em um ambiente de produção, os dados seriam adicionados de duas maneiras seguras:</p>
+                <ul className="list-disc pl-6 space-y-1">
+                  <li><strong>Conexão via Open Banking:</strong> Você poderia conectar suas contas bancárias de forma segura. O aplicativo usaria acesso de apenas leitura para importar suas transações automaticamente, sem nunca poder movimentar seu dinheiro.</li>
+                  <li><strong>Entrada Manual:</strong> Para metas, orçamentos e outras informações específicas, você poderia adicionar os dados manualmente na plataforma.</li>
+                </ul>
+                <p className="pt-2"><strong>Nota:</strong> Atualmente, o aplicativo funciona com dados de demonstração (mock) para que você possa explorar todos os recursos sem precisar conectar dados reais.</p>
+              </AccordionContent>
+            </AccordionItem>
 
             <AccordionItem value="item-2">
               <AccordionTrigger className="text-lg font-semibold">
@@ -72,13 +86,13 @@ export default function HelpPage() {
                 Chat com IA
               </AccordionTrigger>
               <AccordionContent className="text-base leading-relaxed">
-                Converse com a Claritas, sua assistente financeira de IA. Faça perguntas sobre finanças, peça conselhos sobre orçamentos, investimentos ou qualquer outra dúvida financeira que você tenha.
+                Converse com a Claritas, sua assistente financeira de IA. Faça perguntas sobre finanças, peça conselhos sobre orçamentos, investimentos ou qualquer outra dúvida financeira que você tenha. A versão "Insights" pode acessar os dados do aplicativo para respostas ainda mais personalizadas.
               </AccordionContent>
             </AccordionItem>
             
             <AccordionItem value="item-6">
               <AccordionTrigger className="text-lg font-semibold">
-                Configuração
+                Configuração da Chave de API
               </AccordionTrigger>
               <AccordionContent className="text-base leading-relaxed space-y-2">
                 <p>Para que os recursos de Inteligência Artificial do Claritas Copilot funcionem, é crucial configurar sua chave de API do Google AI.</p>
