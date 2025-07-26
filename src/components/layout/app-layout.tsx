@@ -1,6 +1,6 @@
+
 "use client";
 
-import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
@@ -23,6 +23,7 @@ import {
   SidebarTrigger,
   SidebarInset,
 } from "@/components/ui/sidebar";
+import { SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Logo } from "@/components/icons";
 import { UserNav } from "./user-nav";
 import { useAuth } from "@/hooks/use-auth";
@@ -50,12 +51,6 @@ const navItems = [
     label: "Chat IA Claritas",
   },
   {
-    href: "/chat",
-    icon: MessageCircle,
-    label: "Chat com IA",
-    hidden: true,
-  },
-  {
     href: "/profile",
     icon: User,
     label: "Perfil",
@@ -77,15 +72,8 @@ const navItems = [
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const pathname = usePathname();
-  const [pageTitle, setPageTitle] = useState('Claritas Copilot');
   
-  useEffect(() => {
-    const currentNavItem = navItems.find(item => item.href === pathname);
-    if (currentNavItem) {
-      setPageTitle(currentNavItem.label);
-    }
-  }, [pathname]);
-
+  const pageTitle = navItems.find(item => item.href === pathname)?.label || 'Claritas Copilot';
 
   // Não renderiza o layout principal em telas de autenticação
   if (!user) {
