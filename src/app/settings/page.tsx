@@ -8,6 +8,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ThemeSelector } from "@/components/settings/theme-selector";
+import { FontSelector } from "@/components/settings/font-selector";
+import { Separator } from "@/components/ui/separator";
 
 export default function SettingsPage() {
   return (
@@ -45,13 +47,15 @@ export default function SettingsPage() {
       </Card>
         <Card>
         <CardHeader>
-          <CardTitle className="font-headline">Tema</CardTitle>
+          <CardTitle className="font-headline">Aparência</CardTitle>
           <CardDescription>
             Personalize a aparência do aplicativo.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
            <ThemeSelector />
+           <Separator />
+           <FontSelector />
         </CardContent>
       </Card>
     </div>
