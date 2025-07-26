@@ -1,20 +1,56 @@
+'use server';
+
 /**
  * @fileOverview A mock financial data service. In a real application, this would
  * fetch data from a database or a financial API.
  */
+import type { Goal } from '@/lib/types';
+
 
 // Mock database
 const MOCK_DATA = {
     transactions: [
-      { id: 1, date: "2024-08-01", description: "Salário", amount: 5000, type: "income" },
-      { id: 2, date: "2024-08-01", description: "Aluguel", amount: 1500, type: "expense" },
-      { id: 3, date: "2024-08-05", description: "Supermercado", amount: 400, type: "expense" },
-      { id: 4, date: "2024-08-10", description: "Restaurante", amount: 150, type: "expense" },
-      { id: 5, date: "2024-08-15", description: "Conta de Luz", amount: 120, type: "expense" },
+      { id: 1, date: "2024-08-01", description: "Salário", amount: 7250, type: "income" },
+      { id: 2, date: "2024-08-01", description: "Aluguel", amount: 1800, type: "expense" },
+      { id: 3, date: "2024-08-05", description: "Supermercado", amount: 850, type: "expense" },
+      { id: 4, date: "2024-08-10", description: "Posto Shell", amount: 450, type: "expense" },
+      { id: 5, date: "2024-08-12", description: "Cinema", amount: 600, type: "expense" },
+      { id: 6, date: "2024-08-15", description: "Compras Online", amount: 780, type: "expense" },
+      { id: 7, date: "2024-08-20", description: "Outros", amount: 350, type: "expense" },
     ],
     goals: [
-      { id: 1, name: "Viagem para o Japão", target: 12000, current: 7500 },
-      { id: 2, name: "Fundo de Emergência", target: 10000, current: 8500 },
+        {
+            id: "1",
+            name: "Viagem para o Japão",
+            currentAmount: 7500,
+            targetAmount: 12000,
+            imageUrl: "https://placehold.co/600x400.png",
+            imageHint: "japan temple"
+        },
+        {
+            id: "2",
+            name: "Entrada da Casa Própria",
+            currentAmount: 27500,
+            targetAmount: 50000,
+            imageUrl: "https://placehold.co/600x400.png",
+            imageHint: "dream house"
+        },
+        {
+            id: "3",
+            name: "Fundo de Emergência",
+            currentAmount: 8500,
+            targetAmount: 10000,
+            imageUrl: "https://placehold.co/600x400.png",
+            imageHint: "saving money"
+        },
+        {
+            id: "4",
+            name: "Renovação da Cozinha",
+            currentAmount: 2500,
+            targetAmount: 15000,
+            imageUrl: "https://placehold.co/600x400.png",
+            imageHint: "modern kitchen"
+        },
     ],
   };
   
@@ -55,17 +91,26 @@ const MOCK_DATA = {
       amount,
       type,
     });
+    console.log('Nova transação adicionada:', MOCK_DATA.transactions.at(-1));
     return `Transação "${description}" de R$${amount.toFixed(2)} adicionada com sucesso.`;
   }
   
-  export function addGoal(name: string, target: number): string {
-    const newId = MOCK_DATA.goals.length + 1;
-    MOCK_DATA.goals.push({
+  export function addGoal(name: string, targetAmount: number): Goal {
+    const newId = (MOCK_DATA.goals.length + 1).toString();
+    const newGoal: Goal = {
       id: newId,
       name,
-      target,
-      current: 0,
-    });
-    return `Meta "${name}" de R$${target.toFixed(2)} adicionada com sucesso.`;
+      targetAmount,
+      currentAmount: 0,
+      imageUrl: "https://placehold.co/600x400.png",
+      imageHint: "new goal"
+    };
+    MOCK_DATA.goals.push(newGoal);
+    console.log('Nova meta adicionada:', newGoal);
+    return newGoal;
+  }
+  
+  export function getGoals(): Goal[] {
+      return MOCK_DATA.goals;
   }
   

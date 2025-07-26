@@ -8,15 +8,8 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { GoalProjectionDialog } from "./goal-projection-dialog";
+import type { Goal } from "@/lib/types";
 
-type Goal = {
-  id: string;
-  name: string;
-  currentAmount: number;
-  targetAmount: number;
-  imageUrl: string;
-  imageHint: string;
-};
 
 interface GoalCardProps {
   goal: Goal;

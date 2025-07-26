@@ -4,7 +4,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { getFinancialSummary, getInsights } from '@/services/financial-data-service';
+import { addGoal, addTransaction, getFinancialSummary } from '@/services/financial-data-service';
 import { z } from 'zod';
 
 export const getFinancialSummaryTool = ai.defineTool(
@@ -49,5 +49,36 @@ export const getFinancialInsightsTool = ai.defineTool(
       return 'Não foi possível gerar insights no momento.';
     }
     return output.insights.join('\n');
+  }
+);
+
+export const addTransactionTool = ai.defineTool(
+  {
+    name: 'addTransactionTool',
+    description: 'Adiciona uma nova transação (receita ou despesa) aos registros financeiros.',
+    inputSchema: z.object({
+      description: z.string().describe('A descrição da transação.'),
+      amount: z.number().describe('O valor da transação.'),
+      type: z.enum(['income', 'expense']).describe('O tipo da transação: "income" para receita, "expense" para despesa.'),
+    }),
+    outputSchema: z.string(),
+  },
+  async ({ description, amount, type }) => {
+    return addTransaction(description, amount, type);
+  }
+);
+
+export const addGoalTool = ai.defineTool(
+  {
+    name: 'addGoalTool',
+    description: 'Adiciona uma nova meta financeira.',
+    inputSchema: z.object({
+      name: z.string().describe('O nome da meta.'),
+      targetAmount: z.number().describe('O valor alvo da meta.'),
+    }),
+    outputSchema: z.string(),
+  },
+  async ({ name, targetAmount }) => {
+    return addGoal(name, targetAmount);
   }
 );

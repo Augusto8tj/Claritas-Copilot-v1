@@ -10,7 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { getFinancialInsightsTool, getFinancialSummaryTool } from '../tools/financial-tools';
+import { getFinancialInsightsTool, getFinancialSummaryTool, addTransactionTool, addGoalTool } from '../tools/financial-tools';
 
 const MessageSchema = z.object({
   role: z.enum(['user', 'model']),
@@ -33,10 +33,11 @@ const prompt = ai.definePrompt({
   name: 'financialChatbotInsightsPrompt',
   input: {schema: FinancialChatbotInsightsInputSchema},
   output: {schema: FinancialChatbotInsightsOutputSchema},
-  tools: [getFinancialSummaryTool, getFinancialInsightsTool],
+  tools: [getFinancialSummaryTool, getFinancialInsightsTool, addTransactionTool, addGoalTool],
   system: `Você é a Claritas, uma assistente financeira de IA.
 Sua função é fornecer insights financeiros e responder a perguntas para ajudar os usuários a gerenciar suas finanças.
 Use as ferramentas disponíveis para obter dados financeiros e oferecer conselhos.
+Você também pode adicionar transações ou metas a pedido do usuário.
 Seja sempre prestativa, clara e use o português do Brasil.`,
   prompt: `Histórico da Conversa:
 {{#each history}}
