@@ -13,33 +13,35 @@ export function AuthGuard({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (loading) {
-      return; // Don't do anything while loading
+      return; // Não faça nada enquanto o estado de autenticação está carregando
     }
 
-    const isPublic = publicPaths.includes(pathname);
+    const pathIsPublic = publicPaths.includes(pathname);
 
-    // If the user is not logged in and not on a public page, redirect to login
-    if (!user && !isPublic) {
+    // Se o usuário não estiver logado e tentar acessar uma página protegida, redirecione para o login
+    if (!user && !pathIsPublic) {
       router.replace("/login");
     }
 
-    // If the user is logged in and on a public page, redirect to home
-    if (user && isPublic) {
+    // Se o usuário estiver logado e tentar acessar uma página pública (login/signup), redirecione para o painel
+    if (user && pathIsPublic) {
       router.replace("/");
     }
   }, [user, loading, router, pathname]);
 
 
+  // Enquanto carrega, não renderize nada para evitar piscar a tela
   if (loading) {
-    return null; // O provedor de autenticação já mostra um loader
+    return null;
   }
   
-  const isPublic = publicPaths.includes(pathname);
-
-  // Render children only if the conditions are met to avoid flickering
-  if ((user && !isPublic) || (!user && isPublic)) {
+  const pathIsPublic = publicPaths.includes(pathname);
+  
+  // Renderiza o conteúdo se as condições de rota e autenticação forem atendidas
+  if ((!user && pathIsPublic) || (user && !pathIsPublic)) {
      return <>{children}</>;
   }
 
+  // Se nenhuma das condições acima for atendida (por exemplo, durante um redirecionamento), não renderize nada
   return null;
 }

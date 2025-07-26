@@ -20,6 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { useRouter } from "next/navigation";
 
 
 const formSchema = z.object({
@@ -33,6 +34,7 @@ type FormValues = z.infer<typeof formSchema>;
 export function SignupForm() {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -50,7 +52,8 @@ export function SignupForm() {
       await updateProfile(userCredential.user, {
         displayName: data.name,
       });
-      // O redirecionamento será tratado pelo AuthGuard
+       // O redirecionamento manual para a página principal após o sucesso.
+       router.push('/');
     } catch (error: any) {
       toast({
         variant: "destructive",
