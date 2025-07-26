@@ -8,6 +8,8 @@ const fonts = [
   { name: "Inter", value: "font-body" },
   { name: "Roboto", value: "font-roboto" },
   { name: "Lato", value: "font-lato" },
+  { name: "Courier", value: "font-courier" },
+  { name: "Script", value: "font-script" },
 ];
 
 export function FontSelector() {

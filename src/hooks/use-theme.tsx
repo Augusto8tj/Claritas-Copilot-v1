@@ -3,7 +3,7 @@
 import * as React from 'react';
 
 type Theme = 'light' | 'dark' | 'theme-ocean' | 'theme-desert' | 'theme-forest';
-type Font = 'font-body' | 'font-roboto' | 'font-lato';
+type Font = 'font-body' | 'font-roboto' | 'font-lato' | 'font-courier' | 'font-script';
 
 interface ThemeContextType {
   theme: Theme;

@@ -15,6 +15,8 @@ export default {
         headline: ['Inter', 'sans-serif'],
         roboto: ['Roboto', 'sans-serif'],
         lato: ['Lato', 'sans-serif'],
+        courier: ['Source Code Pro', 'monospace'],
+        script: ['Dancing Script', 'cursive'],
         code: ['monospace'],
       },
       colors: {
@@ -90,5 +92,3 @@ export default {
   },
   plugins: [require('tailwindcss-animate')],
 } satisfies Config;
-
-    
