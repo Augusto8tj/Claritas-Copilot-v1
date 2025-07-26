@@ -5,6 +5,10 @@ import {
   FinancialChatbotInput,
 } from "@/ai/flows/financial-chatbot";
 import {
+  financialChatbotInsights,
+  FinancialChatbotInsightsInput,
+} from "@/ai/flows/financial-chatbot-insights";
+import {
   goalProjection,
   GoalProjectionInput,
 } from "@/ai/flows/goal-projection";
@@ -45,5 +49,15 @@ export async function getChatbotResponse(data: FinancialChatbotInput) {
   } catch (e) {
     console.error(e);
     return { error: "Sorry, I couldn't process that. Please try again." };
+  }
+}
+
+export async function getChatbotInsightsResponse(data: FinancialChatbotInsightsInput) {
+  try {
+    const result = await financialChatbotInsights(data);
+    return { success: result.response };
+  } catch (e) {
+    console.error(e);
+    return { error: "Desculpe, não consegui processar isso. Por favor, tente novamente." };
   }
 }

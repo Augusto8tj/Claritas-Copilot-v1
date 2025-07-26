@@ -6,6 +6,7 @@ import {
   HelpCircle,
   LayoutDashboard,
   MessageCircle,
+  Sparkles,
   Target,
 } from "lucide-react";
 
@@ -43,6 +44,11 @@ const navItems = [
     href: "/chat",
     icon: MessageCircle,
     label: "Chat com IA",
+  },
+  {
+    href: "/chat-insights",
+    icon: Sparkles,
+    label: "Chat com IA - Insights",
   },
   {
     href: "/help",
