@@ -22,10 +22,11 @@ import { getChatbotInsightsResponse } from "@/app/actions";
 import { cn } from "@/lib/utils";
 import { Logo } from "../icons";
 
-type Message = {
-  role: "user" | "model";
-  content: string;
-};
+const MessageSchema = z.object({
+  role: z.enum(['user', 'model']),
+  content: z.string(),
+});
+type Message = z.infer<typeof MessageSchema>;
 
 const formSchema = z.object({
   query: z.string().min(1, "A mensagem não pode estar vazia"),

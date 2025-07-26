@@ -12,11 +12,10 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { getFinancialInsightsTool, getFinancialSummaryTool } from '../tools/financial-tools';
 
-export const MessageSchema = z.object({
+const MessageSchema = z.object({
   role: z.enum(['user', 'model']),
   content: z.string(),
 });
-export type Message = z.infer<typeof MessageSchema>;
 
 const FinancialChatbotInsightsInputSchema = z.object({
   history: z.array(MessageSchema).describe('The conversation history.'),
