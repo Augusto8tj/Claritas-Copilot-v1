@@ -93,18 +93,18 @@ const MOCK_DATA = {
     ];
   }
   
-  export async function addTransaction(description: string, amount: number, type: 'income' | 'expense'): Promise<string> {
-    const newId = MOCK_DATA.transactions.length + 1;
+  export async function addTransaction(data: { description: string, amount: number, type: 'income' | 'expense', category: string, date: string }): Promise<string> {
+    const newId = MOCK_DATA.transactions.length > 0 ? Math.max(...MOCK_DATA.transactions.map(t => t.id)) + 1 : 1;
     MOCK_DATA.transactions.push({
       id: newId,
-      date: new Date().toISOString().split('T')[0],
-      description,
-      amount,
-      type,
-      category: "Outros"
+      date: data.date,
+      description: data.description,
+      amount: data.amount,
+      type: data.type,
+      category: data.category
     });
     console.log('Nova transação adicionada:', MOCK_DATA.transactions.at(-1));
-    return `Transação "${description}" de R$${amount.toFixed(2)} adicionada com sucesso.`;
+    return `Transação "${data.description}" de R$${data.amount.toFixed(2)} adicionada com sucesso.`;
   }
   
   export async function addGoal(name: string, targetAmount: number): Promise<Goal> {
@@ -186,4 +186,8 @@ const MOCK_DATA = {
     }
     console.warn(`Categoria de orçamento "${name}" não encontrada para atualização.`);
     return null;
+  }
+  
+  export async function getExpenseCategories(): Promise<string[]> {
+    return Object.keys(MOCK_DATA.budgetLimits);
   }
