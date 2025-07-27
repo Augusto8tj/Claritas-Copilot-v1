@@ -4,20 +4,20 @@
  * @fileOverview A mock financial data service. In a real application, this would
  * fetch data from a database or a financial API.
  */
-import type { Goal } from '@/lib/types';
+import type { Goal, BudgetCategory } from '@/lib/types';
 import { generateGoalImage } from '@/ai/flows/goal-image-generation';
 
 
 // Mock database
 const MOCK_DATA = {
     transactions: [
-      { id: 1, date: "2024-08-01", description: "Salário", amount: 7250, type: "income" },
-      { id: 2, date: "2024-08-01", description: "Aluguel", amount: 1800, type: "expense" },
-      { id: 3, date: "2024-08-05", description: "Supermercado", amount: 850, type: "expense" },
-      { id: 4, date: "2024-08-10", description: "Posto Shell", amount: 450, type: "expense" },
-      { id: 5, date: "2024-08-12", description: "Cinema", amount: 600, type: "expense" },
-      { id: 6, date: "2024-08-15", description: "Compras Online", amount: 780, type: "expense" },
-      { id: 7, date: "2024-08-20", description: "Outros", amount: 350, type: "expense" },
+      { id: 1, date: "2024-08-01", description: "Salário", amount: 7250, type: "income", category: "Renda" },
+      { id: 2, date: "2024-08-01", description: "Aluguel", amount: 1800, type: "expense", category: "Moradia" },
+      { id: 3, date: "2024-08-05", description: "Supermercado", amount: 850, type: "expense", category: "Alimentação" },
+      { id: 4, date: "2024-08-10", description: "Posto Shell", amount: 450, type: "expense", category: "Transporte" },
+      { id: 5, date: "2024-08-12", description: "Cinema", amount: 600, type: "expense", category: "Lazer" },
+      { id: 6, date: "2024-08-15", description: "Compras Online", amount: 780, type: "expense", category: "Compras" },
+      { id: 7, date: "2024-08-20", description: "Outros", amount: 350, type: "expense", category: "Outros" },
     ],
     goals: [
         {
@@ -53,6 +53,14 @@ const MOCK_DATA = {
             imageHint: "modern kitchen"
         },
     ],
+    budget: {
+        "Moradia": { budgeted: 2000, spent: 1800 },
+        "Alimentação": { budgeted: 1000, spent: 850 },
+        "Transporte": { budgeted: 500, spent: 450 },
+        "Lazer": { budgeted: 400, spent: 600 },
+        "Compras": { budgeted: 600, spent: 780 },
+        "Outros": { budgeted: 300, spent: 350 },
+    }
   };
   
   export async function getFinancialSummary(): Promise<{ income: number; expenses: number; balance: number; }> {
@@ -89,6 +97,7 @@ const MOCK_DATA = {
       description,
       amount,
       type,
+      category: "Outros"
     });
     console.log('Nova transação adicionada:', MOCK_DATA.transactions.at(-1));
     return `Transação "${description}" de R$${amount.toFixed(2)} adicionada com sucesso.`;
@@ -132,5 +141,15 @@ const MOCK_DATA = {
         console.warn(`Meta com ID ${goalId} não encontrada para deletar.`);
     }
     return { success };
+  }
+
+  export async function getBudgetData(): Promise<BudgetCategory[]> {
+    const budgetData = Object.entries(MOCK_DATA.budget).map(([name, values]) => ({
+      name,
+      ...values,
+    }));
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return budgetData;
   }
   

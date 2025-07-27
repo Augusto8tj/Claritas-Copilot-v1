@@ -71,6 +71,14 @@ export default function HelpPage() {
                 A página de <strong>Análise</strong> oferece um detalhamento dos seus gastos. O gráfico de pizza mostra a distribuição de suas despesas por categoria, enquanto a tabela exibe suas transações mais recentes, ajudando você a entender para onde seu dinheiro está indo.
               </AccordionContent>
             </AccordionItem>
+             <AccordionItem value="item-8">
+              <AccordionTrigger className="text-lg font-semibold">
+                Orçamento Mensal
+              </AccordionTrigger>
+              <AccordionContent className="text-base leading-relaxed">
+                A página de <strong>Orçamento</strong> ajuda você a manter seus gastos sob controle. Para cada categoria, você pode ver quanto já gastou em relação ao limite que foi definido. Isso ajuda a evitar surpresas no final do mês e a garantir que você está no caminho certo para atingir suas metas financeiras.
+              </AccordionContent>
+            </AccordionItem>
 
             <AccordionItem value="item-4">
               <AccordionTrigger className="text-lg font-semibold">

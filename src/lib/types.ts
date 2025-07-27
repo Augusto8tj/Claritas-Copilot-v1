@@ -6,3 +6,9 @@ export type Goal = {
   imageUrl: string;
   imageHint: string;
 };
+
+export type BudgetCategory = {
+    name: string;
+    budgeted: number;
+    spent: number;
+};

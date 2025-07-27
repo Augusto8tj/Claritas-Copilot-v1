@@ -11,6 +11,7 @@ import {
   Sparkles,
   Target,
   User,
+  PiggyBank,
 } from "lucide-react";
 import {
   Sidebar,
@@ -40,6 +41,11 @@ const navItems = [
     href: "/analysis",
     icon: BarChart3,
     label: "Análise",
+  },
+   {
+    href: "/budget",
+    icon: PiggyBank,
+    label: "Orçamento",
   },
   {
     href: "/goals",
