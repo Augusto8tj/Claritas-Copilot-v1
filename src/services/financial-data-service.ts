@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -53,13 +54,13 @@ const MOCK_DATA = {
             imageHint: "modern kitchen"
         },
     ],
-    budget: {
-        "Moradia": { budgeted: 2000, spent: 1800 },
-        "Alimentação": { budgeted: 1000, spent: 850 },
-        "Transporte": { budgeted: 500, spent: 450 },
-        "Lazer": { budgeted: 400, spent: 600 },
-        "Compras": { budgeted: 600, spent: 780 },
-        "Outros": { budgeted: 300, spent: 350 },
+    budgetLimits: {
+        "Moradia": 2000,
+        "Alimentação": 1000,
+        "Transporte": 500,
+        "Lazer": 400,
+        "Compras": 600,
+        "Outros": 300,
     }
   };
   
@@ -144,10 +145,22 @@ const MOCK_DATA = {
   }
 
   export async function getBudgetData(): Promise<BudgetCategory[]> {
-    const budgetData = Object.entries(MOCK_DATA.budget).map(([name, values]) => ({
+    const expensesByCategory = MOCK_DATA.transactions
+      .filter(t => t.type === 'expense')
+      .reduce((acc, t) => {
+        if (!acc[t.category]) {
+          acc[t.category] = 0;
+        }
+        acc[t.category] += t.amount;
+        return acc;
+      }, {} as { [key: string]: number });
+
+    const budgetData = Object.entries(MOCK_DATA.budgetLimits).map(([name, budgeted]) => ({
       name,
-      ...values,
+      budgeted,
+      spent: expensesByCategory[name] || 0,
     }));
+    
     // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 500));
     return budgetData;
