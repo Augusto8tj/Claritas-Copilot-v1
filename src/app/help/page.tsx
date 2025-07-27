@@ -40,7 +40,7 @@ export default function HelpPage() {
               <AccordionContent className="text-base leading-relaxed space-y-2">
                  <p>Para que o Claritas Copilot forneça insights precisos, ele precisa de seus dados financeiros. Em um ambiente de produção, os dados seriam adicionados de duas maneiras seguras:</p>
                 <ul className="list-disc pl-6 space-y-1">
-                  <li><strong>Conexão via Open Banking:</strong> Você poderia conectar suas contas bancárias de forma segura. O aplicativo usaria acesso de apenas leitura para importar suas transações automaticamente, sem nunca poder movimentar seu dinheiro.</li>
+                  <li><strong>Conexão via Open Banking:</strong> Você poderia conectar suas contas bancárias e de corretoras de forma segura. O aplicativo usaria acesso de apenas leitura para importar suas transações e saldos automaticamente, sem nunca poder movimentar seu dinheiro. Isso consolida as informações de diversas fontes em um só lugar.</li>
                   <li><strong>Entrada Manual:</strong> Para metas, orçamentos e outras informações específicas, você poderia adicionar os dados manualmente na plataforma.</li>
                 </ul>
                 <p className="pt-2"><strong>Nota:</strong> Atualmente, o aplicativo funciona com dados de demonstração (mock) para que você possa explorar todos os recursos sem precisar conectar dados reais.</p>
