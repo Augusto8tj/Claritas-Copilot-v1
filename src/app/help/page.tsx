@@ -20,41 +20,28 @@ export default function HelpPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="font-headline">Guia do Aplicativo</CardTitle>
+          <CardTitle className="font-headline">Guia Completo do Aplicativo</CardTitle>
         </CardHeader>
         <CardContent>
           <Accordion type="single" collapsible className="w-full">
             <AccordionItem value="item-1">
               <AccordionTrigger className="text-lg font-semibold">
-                Visão Geral
-              </AccordionTrigger>
-              <AccordionContent className="text-base leading-relaxed">
-                O Claritas Copilot é seu assistente financeiro pessoal, projetado para ajudá-lo a ter uma visão clara de suas finanças, acompanhar seu progresso em direção a metas e obter insights com a ajuda de inteligência artificial.
-              </AccordionContent>
-            </AccordionItem>
-            
-            <AccordionItem value="item-7">
-              <AccordionTrigger className="text-lg font-semibold">
-                Como os Dados São Adicionados?
+                Visão Geral e Autenticação
               </AccordionTrigger>
               <AccordionContent className="text-base leading-relaxed space-y-2">
-                 <p>Para que o Claritas Copilot forneça insights precisos, ele precisa de seus dados financeiros. Em um ambiente de produção, os dados seriam adicionados de duas maneiras seguras:</p>
-                <ul className="list-disc pl-6 space-y-1">
-                  <li><strong>Conexão via Open Banking:</strong> Você poderia conectar suas contas bancárias e de corretoras de forma segura. O aplicativo usaria acesso de apenas leitura para importar suas transações e saldos automaticamente, sem nunca poder movimentar seu dinheiro. Isso consolida as informações de diversas fontes em um só lugar.</li>
-                  <li><strong>Entrada Manual:</strong> Para metas, orçamentos e outras informações específicas, você poderia adicionar os dados manualmente na plataforma.</li>
-                </ul>
-                <p className="pt-2"><strong>Nota:</strong> Atualmente, o aplicativo funciona com dados de demonstração (mock) para que você possa explorar todos os recursos sem precisar conectar dados reais.</p>
+                <p>O Claritas Copilot é seu assistente financeiro pessoal, projetado para ajudá-lo a ter uma visão clara de suas finanças. O acesso é protegido por <strong>autenticação</strong>: crie uma conta ou faça login para acessar seus dados de forma segura. Você também pode gerenciar seu nome e foto na página de <strong>Perfil</strong>.</p>
+                 <p className="pt-2"><strong>Nota sobre os Dados:</strong> Atualmente, o aplicativo funciona com dados de demonstração (mock) para que você possa explorar todos os recursos sem precisar conectar dados reais. Em um ambiente de produção, os dados seriam conectados de forma segura via Open Banking.</p>
               </AccordionContent>
             </AccordionItem>
 
             <AccordionItem value="item-2">
               <AccordionTrigger className="text-lg font-semibold">
-                Painel Principal
+                Painel Principal (Dashboard)
               </AccordionTrigger>
               <AccordionContent className="text-base leading-relaxed space-y-2">
                 <p>O <strong>Painel</strong> é a sua central de comando financeira. Aqui você encontra:</p>
                 <ul className="list-disc pl-6 space-y-1">
-                  <li><strong>Insight do Copiloto de IA:</strong> Sugestões personalizadas geradas por IA para melhorar sua saúde financeira.</li>
+                  <li><strong>Insight do Copiloto de IA:</strong> Sugestões personalizadas geradas por IA para melhorar sua saúde financeira com base em uma análise dos seus dados.</li>
                   <li><strong>Patrimônio Líquido:</strong> Um gráfico que mostra a evolução do seu patrimônio ao longo do tempo.</li>
                   <li><strong>Balanço Mensal:</strong> Uma visão rápida de suas receitas versus despesas para o mês atual.</li>
                   <li><strong>Meta Principal:</strong> Acompanhe o progresso da sua meta financeira mais importante.</li>
@@ -68,39 +55,58 @@ export default function HelpPage() {
                 Análise de Despesas
               </AccordionTrigger>
               <AccordionContent className="text-base leading-relaxed">
-                A página de <strong>Análise</strong> oferece um detalhamento dos seus gastos. O gráfico de pizza mostra a distribuição de suas despesas por categoria, enquanto a tabela exibe suas transações mais recentes, ajudando você a entender para onde seu dinheiro está indo.
-              </AccordionContent>
-            </AccordionItem>
-             <AccordionItem value="item-8">
-              <AccordionTrigger className="text-lg font-semibold">
-                Orçamento Mensal
-              </AccordionTrigger>
-              <AccordionContent className="text-base leading-relaxed">
-                A página de <strong>Orçamento</strong> ajuda você a manter seus gastos sob controle. Para cada categoria, você pode ver quanto já gastou em relação ao limite que foi definido. Isso ajuda a evitar surpresas no final do mês e a garantir que você está no caminho certo para atingir suas metas financeiras.
+                A página de <strong>Análise</strong> oferece um detalhamento dos seus gastos. O gráfico de pizza mostra a distribuição de suas despesas por categoria, enquanto a tabela exibe suas transações recentes. Para adicionar transações, use o <strong>Chat IA Claritas</strong> e peça, por exemplo, "Adicione um gasto de R$50 com Uber".
               </AccordionContent>
             </AccordionItem>
 
             <AccordionItem value="item-4">
               <AccordionTrigger className="text-lg font-semibold">
-                Metas Financeiras
+                Orçamento Mensal (Funcionalidade Nova!)
               </AccordionTrigger>
               <AccordionContent className="text-base leading-relaxed">
-                Na seção de <strong>Metas</strong>, você pode visualizar e acompanhar o progresso de todas as suas metas financeiras. Use a ferramenta de projeção de IA para simular cenários e descobrir quanto tempo levará para atingir cada objetivo com base em suas contribuições.
+                A página de <strong>Orçamento</strong> ajuda você a manter seus gastos sob controle. Para cada categoria, você pode ver quanto já gastou em relação ao limite que foi definido. Clique em <strong>"Editar"</strong> para ajustar os limites de cada categoria e personalizar seu planejamento financeiro.
               </AccordionContent>
             </AccordionItem>
-            
+
             <AccordionItem value="item-5">
               <AccordionTrigger className="text-lg font-semibold">
-                Chat com IA
+                Metas Financeiras
               </AccordionTrigger>
-              <AccordionContent className="text-base leading-relaxed">
-                Converse com a Claritas, sua assistente financeira de IA. Faça perguntas sobre finanças, peça conselhos sobre orçamentos, investimentos ou qualquer outra dúvida financeira que você tenha. A versão "Insights" pode acessar os dados do aplicativo para respostas ainda mais personalizadas.
+              <AccordionContent className="text-base leading-relaxed space-y-2">
+                <p>Na seção de <strong>Metas</strong>, você pode criar, visualizar e deletar suas metas financeiras. Ao adicionar uma nova meta, a IA gera uma imagem inspiradora para representá-la!</p>
+                <p>Use a ferramenta de <strong>Projeção de IA</strong> em cada meta para simular cenários e descobrir quanto tempo levará para atingir cada objetivo com base em suas contribuições e no retorno esperado dos seus investimentos.</p>
               </AccordionContent>
             </AccordionItem>
             
             <AccordionItem value="item-6">
               <AccordionTrigger className="text-lg font-semibold">
-                Configuração da Chave de API
+                Chatbots com Inteligência Artificial
+              </AccordionTrigger>
+              <AccordionContent className="text-base leading-relaxed space-y-2">
+                <p>O Claritas Copilot oferece dois assistentes de IA:</p>
+                <ul className="list-disc pl-6 space-y-1">
+                  <li><strong>Chat com IA:</strong> Um chatbot para responder a perguntas gerais sobre finanças, conceitos de investimento, dicas de economia, etc.</li>
+                  <li><strong>Chat IA Claritas:</strong> Uma versão avançada da IA que pode <strong>acessar os dados do seu aplicativo</strong>. Use-a para perguntar sobre seu orçamento ("como estão meus gastos com lazer?"), obter insights personalizados, adicionar novas transações ou até mesmo criar novas metas financeiras, tudo através da conversa.</li>
+                </ul>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-7">
+              <AccordionTrigger className="text-lg font-semibold">
+                Configurações
+              </AccordionTrigger>
+              <AccordionContent className="text-base leading-relaxed space-y-2">
+                <p>Na página de <strong>Configurações</strong>, você pode personalizar sua experiência:</p>
+                 <ul className="list-disc pl-6 space-y-1">
+                  <li><strong>Aparência:</strong> Altere o tema de cores e a fonte do aplicativo.</li>
+                  <li><strong>Notificações:</strong> Gerencie suas preferências de notificação e envie um email de teste (que será registrado no console do servidor).</li>
+                </ul>
+              </AccordionContent>
+            </AccordionItem>
+            
+            <AccordionItem value="item-8">
+              <AccordionTrigger className="text-lg font-semibold">
+                Configuração da Chave de API (Importante!)
               </AccordionTrigger>
               <AccordionContent className="text-base leading-relaxed space-y-2">
                 <p>Para que os recursos de Inteligência Artificial do Claritas Copilot funcionem, é crucial configurar sua chave de API do Google AI.</p>
@@ -108,8 +114,7 @@ export default function HelpPage() {
                 <ol className="list-decimal pl-6 space-y-1">
                   <li>Obtenha uma chave de API no <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary underline">Google AI Studio</a>.</li>
                   <li>No seu projeto, localize o arquivo chamado <code>.env</code>.</li>
-                  <li>Dentro deste arquivo, você encontrará uma linha: <code>GEMINI_API_KEY="YOUR_API_KEY"</code>.</li>
-                  <li>Substitua <code>"YOUR_API_KEY"</code> pela chave de API que você copiou.</li>
+                  <li>Dentro deste arquivo, adicione a seguinte linha, substituindo <code>"SUA_CHAVE_DE_API"</code> pela chave que você copiou: <br/><code>GEMINI_API_KEY="SUA_CHAVE_DE_API"</code></li>
                   <li>Salve o arquivo e reinicie o aplicativo para que as alterações tenham efeito.</li>
                 </ol>
               </AccordionContent>

@@ -21,7 +21,10 @@ import {
   MoreHorizontal,
   LucideIcon,
   Loader2,
+  Pencil,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { EditBudgetDialog } from "./edit-budget-dialog";
 
 const categoryIcons: { [key: string]: LucideIcon } = {
   Moradia: Home,
@@ -36,14 +39,24 @@ export function BudgetOverview() {
   const [budgetData, setBudgetData] = React.useState<BudgetCategory[]>([]);
   const [loading, setLoading] = React.useState(true);
 
+  const fetchBudgetData = async () => {
+    setLoading(true);
+    const data = await getBudgetData();
+    setBudgetData(data);
+    setLoading(false);
+  };
+
   React.useEffect(() => {
-    const fetchData = async () => {
-      const data = await getBudgetData();
-      setBudgetData(data);
-      setLoading(false);
-    };
-    fetchData();
+    fetchBudgetData();
   }, []);
+
+  const handleBudgetUpdated = (updatedCategory: BudgetCategory) => {
+    setBudgetData(currentData =>
+      currentData.map(cat =>
+        cat.name === updatedCategory.name ? updatedCategory : cat
+      )
+    );
+  };
 
   const getProgressColor = (progress: number) => {
     if (progress > 90) return "bg-destructive";
@@ -72,13 +85,13 @@ export function BudgetOverview() {
       <CardHeader>
         <CardTitle className="font-headline">Acompanhamento do Orçamento</CardTitle>
         <CardDescription>
-          Veja como seus gastos se comparam aos seus limites.
+          Veja como seus gastos se comparam aos seus limites. Clique em editar para ajustar um limite.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-6">
           {budgetData.map((category) => {
-            const progress = (category.spent / category.budgeted) * 100;
+            const progress = category.budgeted > 0 ? (category.spent / category.budgeted) * 100 : 0;
             const Icon = categoryIcons[category.name] || MoreHorizontal;
             return (
               <div key={category.name}>
@@ -91,6 +104,11 @@ export function BudgetOverview() {
                     </span>{" "}
                     / R${category.budgeted.toLocaleString("pt-BR")}
                   </div>
+                   <EditBudgetDialog category={category} onBudgetUpdated={handleBudgetUpdated}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </EditBudgetDialog>
                 </div>
                 <Progress value={progress} className="h-2" indicatorClassName={getProgressColor(progress)} />
               </div>

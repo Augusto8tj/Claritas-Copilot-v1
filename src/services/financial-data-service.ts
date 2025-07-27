@@ -16,10 +16,12 @@ const MOCK_DATA = {
       { id: 1, date: "2024-08-01", description: "Salário", amount: 7250, type: "income", category: "Renda" },
       { id: 2, date: "2024-08-01", description: "Aluguel", amount: 1800, type: "expense", category: "Moradia" },
       { id: 3, date: "2024-08-05", description: "Supermercado", amount: 850, type: "expense", category: "Alimentação" },
-      { id: 4, date: "2024-08-10", description: "Posto Shell", amount: 450, type: "expense", category: "Transporte" },
+      { id: 4, date: "2024-08-10", description: "Gasolina", amount: 300, type: "expense", category: "Transporte" },
+      { id: 10, date: "2024-08-18", description: "Uber", amount: 150, type: "expense", category: "Transporte" },
       { id: 5, date: "2024-08-12", description: "Cinema", amount: 600, type: "expense", category: "Lazer" },
       { id: 6, date: "2024-08-15", description: "Compras Online", amount: 780, type: "expense", category: "Compras" },
-      { id: 7, date: "2024-08-20", description: "Outros", amount: 350, type: "expense", category: "Outros" },
+      { id: 7, date: "2024-08-20", description: "Farmácia", amount: 150, type: "expense", category: "Outros" },
+      { id: 8, date: "2024-08-22", description: "Padaria", amount: 200, type: "expense", category: "Alimentação" },
     ],
     goals: [
         {
@@ -149,7 +151,6 @@ const MOCK_DATA = {
     const expensesByCategory = MOCK_DATA.transactions
       .filter(t => t.type === 'expense')
       .reduce((acc, t) => {
-        // Fallback para 'Outros' se a categoria não estiver definida
         const category = t.category || "Outros";
         if (!acc[category]) {
           acc[category] = 0;
@@ -157,15 +158,32 @@ const MOCK_DATA = {
         acc[category] += t.amount;
         return acc;
       }, {} as { [key: string]: number });
-
+  
     const budgetData = Object.entries(MOCK_DATA.budgetLimits).map(([name, budgeted]) => ({
       name,
       budgeted,
       spent: expensesByCategory[name] || 0,
     }));
     
-    // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 500));
     return budgetData;
   }
-  
+
+  export async function updateBudgetLimit(name: string, newLimit: number): Promise<BudgetCategory | null> {
+    if (name in MOCK_DATA.budgetLimits) {
+      MOCK_DATA.budgetLimits[name as keyof typeof MOCK_DATA.budgetLimits] = newLimit;
+      console.log(`Limite do orçamento para "${name}" atualizado para ${newLimit}`);
+      
+      const expensesByCategory = MOCK_DATA.transactions
+        .filter(t => t.type === 'expense' && t.category === name)
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      return {
+        name,
+        budgeted: newLimit,
+        spent: expensesByCategory,
+      };
+    }
+    console.warn(`Categoria de orçamento "${name}" não encontrada para atualização.`);
+    return null;
+  }
