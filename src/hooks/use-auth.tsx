@@ -23,7 +23,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Mock user data to bypass Firebase Auth for testing if needed
-const useMockUser = process.env.NEXT_PUBLIC_USE_MOCK_AUTH === 'true';
+const useMockUser = true; // process.env.NEXT_PUBLIC_USE_MOCK_AUTH === 'true';
 
 const mockUser: User = {
   uid: "mock-user-123",
@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = { user, loading, updateUser };
 
-  if (loading) {
+  if (loading && !useMockUser) {
      return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
