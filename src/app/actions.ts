@@ -13,6 +13,9 @@ import {
   GoalProjectionInput,
 } from "@/ai/flows/goal-projection";
 import { z } from "zod";
+import { getFinancialSummary, getInsights } from "@/services/financial-data-service";
+import { auth } from "@/lib/firebase";
+
 
 const goalProjectionSchema = z.object({
   currentSavings: z.coerce.number().positive("Must be a positive number"),
@@ -59,5 +62,49 @@ export async function getChatbotInsightsResponse(data: FinancialChatbotInsightsI
   } catch (e) {
     console.error(e);
     return { error: "Desculpe, não consegui processar isso. Por favor, tente novamente." };
+  }
+}
+
+export async function sendFinancialSummaryEmail() {
+  try {
+    // Em um app real, aqui você obteria o usuário da sessão
+    const userEmail = auth.currentUser?.email || "usuariodemo@exemplo.com";
+    
+    // Obter os dados financeiros
+    const summary = await getFinancialSummary();
+    const insights = await getInsights();
+
+    // Montar o conteúdo do email
+    const emailSubject = "Seu Resumo Financeiro Semanal - Claritas Copilot";
+    const emailBody = `
+      Olá,
+
+      Aqui está um resumo da sua situação financeira:
+
+      - Renda Mensal: R$${summary.income.toFixed(2)}
+      - Despesas Mensais: R$${summary.expenses.toFixed(2)}
+      - Saldo: R$${summary.balance.toFixed(2)}
+
+      Insights da IA para você:
+      ${insights.map(i => `- ${i}`).join("\n")}
+
+      Continue acompanhando suas finanças!
+
+      Atenciosamente,
+      Equipe Claritas Copilot
+    `;
+
+    // Simular o envio do email
+    console.log("===================================");
+    console.log("SIMULANDO ENVIO DE EMAIL");
+    console.log(`Para: ${userEmail}`);
+    console.log(`Assunto: ${emailSubject}`);
+    console.log("Corpo:", emailBody);
+    console.log("===================================");
+
+    return { success: `Email de teste enviado para o console.` };
+  } catch (error) {
+    console.error("Falha ao enviar email de resumo:", error);
+    return { error: "Não foi possível enviar o email de resumo." };
   }
 }

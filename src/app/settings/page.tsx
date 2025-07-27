@@ -1,3 +1,4 @@
+import { EmailNotificationsCard } from "@/components/settings/email-notifications-card";
 import {
   Card,
   CardContent,
@@ -5,8 +6,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { ThemeSelector } from "@/components/settings/theme-selector";
 import { FontSelector } from "@/components/settings/font-selector";
 import { Separator } from "@/components/ui/separator";
@@ -17,35 +16,10 @@ export default function SettingsPage() {
       <h1 className="text-3xl font-bold tracking-tight font-headline">
         Configurações
       </h1>
+      
+      <EmailNotificationsCard />
+
       <Card>
-        <CardHeader>
-          <CardTitle className="font-headline">Notificações</CardTitle>
-          <CardDescription>
-            Gerencie como você recebe notificações do aplicativo.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
-            <div className="space-y-0.5">
-              <Label htmlFor="email-notifications">Notificações por Email</Label>
-              <p className="text-sm text-muted-foreground">
-                Receba insights e alertas importantes por email.
-              </p>
-            </div>
-            <Switch id="email-notifications" defaultChecked />
-          </div>
-          <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
-            <div className="space-y-0.5">
-              <Label htmlFor="push-notifications">Notificações Push</Label>
-               <p className="text-sm text-muted-foreground">
-                Receba alertas em tempo real no seu dispositivo.
-              </p>
-            </div>
-            <Switch id="push-notifications" />
-          </div>
-        </CardContent>
-      </Card>
-        <Card>
         <CardHeader>
           <CardTitle className="font-headline">Aparência</CardTitle>
           <CardDescription>
