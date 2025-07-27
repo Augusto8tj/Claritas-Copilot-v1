@@ -9,7 +9,7 @@ export default function ChatPage() {
         </h1>
       </div>
       <p className="text-muted-foreground">
-        Pergunte qualquer coisa sobre suas finanças para a Claritas.
+        Faça perguntas sobre finanças em geral para nosso assistente de IA.
       </p>
       <div className="h-[calc(100vh-14rem)]">
         <ChatInterface />

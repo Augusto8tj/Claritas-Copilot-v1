@@ -177,23 +177,7 @@ const Sidebar = React.forwardRef<
     },
     ref
   ) => {
-    const { state, openMobile, setOpenMobile, isMobile } = useSidebar();
-
-    if (isMobile) {
-      return (
-        <Sheet open={openMobile} onOpenChange={setOpenMobile}>
-          <SheetContent
-            side="left"
-            className="w-[18rem] bg-background p-0 text-foreground [&>button]:hidden"
-          >
-            <SheetHeader>
-              <SheetTitle className="sr-only">Menu de Navegação</SheetTitle>
-            </SheetHeader>
-            {children}
-          </SheetContent>
-        </Sheet>
-      )
-    }
+    const { state } = useSidebar();
     
     if (collapsible === "none") {
       return (

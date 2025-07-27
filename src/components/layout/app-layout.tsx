@@ -105,17 +105,15 @@ function MobileSidebar() {
             side="left"
             className="w-[18rem] bg-background p-0 text-foreground [&>button]:hidden"
           >
-            <SheetHeader>
+            <SheetHeader className="p-4">
               <SheetTitle className="sr-only">Menu de Navegação</SheetTitle>
-            </SheetHeader>
-            <SidebarHeader className="p-4">
               <div className="flex items-center gap-2">
                 <Logo className="w-8 h-8 text-primary" />
                 <h1 className="text-xl font-bold font-headline text-primary">
                   Claritas
                 </h1>
               </div>
-            </SidebarHeader>
+            </SheetHeader>
             <MainNav />
           </SheetContent>
         </Sheet>
