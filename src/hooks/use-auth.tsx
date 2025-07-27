@@ -4,12 +4,25 @@ import {
   createContext,
   useContext,
   useState,
+  useEffect,
   type ReactNode,
 } from "react";
 import type { User } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import { Loader2 } from "lucide-react";
 
-// Mock user data to bypass Firebase Auth for testing
+type AuthContextType = {
+  user: User | null;
+  loading: boolean;
+  updateUser: (user: User | null) => void;
+};
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Mock user data to bypass Firebase Auth for testing if needed
+const useMockUser = process.env.NEXT_PUBLIC_USE_MOCK_AUTH === 'true';
+
 const mockUser: User = {
   uid: "mock-user-123",
   displayName: "Usuário de Teste",
@@ -38,16 +51,34 @@ const mockUser: User = {
 };
 
 
-type AuthContextType = {
-  user: User | null;
-  loading: boolean;
-};
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Always return the mock user and set loading to false
-  const value = { user: mockUser, loading: false };
+  const [user, setUser] = useState<User | null>(useMockUser ? mockUser : null);
+  const [loading, setLoading] = useState(!useMockUser);
+
+  useEffect(() => {
+    if (useMockUser) return;
+    
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const updateUser = (updatedUser: User | null) => {
+    setUser(updatedUser);
+  };
+
+  const value = { user, loading, updateUser };
+
+  if (loading) {
+     return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider value={value}>
