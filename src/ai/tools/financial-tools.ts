@@ -4,7 +4,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { addGoal, addTransaction, getFinancialSummary } from '@/services/financial-data-service';
+import { addGoal, addTransaction, getFinancialSummary, getBudgetData } from '@/services/financial-data-service';
 import { z } from 'zod';
 
 const FinancialSummarySchema = z.object({
@@ -90,4 +90,25 @@ export const addGoalTool = ai.defineTool(
     const newGoal = await addGoal(name, targetAmount);
     return `Meta "${newGoal.name}" adicionada com sucesso.`;
   }
+);
+
+const BudgetStatusSchema = z.array(
+    z.object({
+        name: z.string().describe("O nome da categoria do orçamento."),
+        budgeted: z.number().describe("O valor total orçado para a categoria."),
+        spent: z.number().describe("O valor gasto até agora na categoria."),
+    })
+);
+
+export const getBudgetStatusTool = ai.defineTool(
+    {
+        name: 'getBudgetStatusTool',
+        description: 'Obtém o status atual do orçamento, mostrando os valores orçados e gastos para cada categoria.',
+        inputSchema: z.object({}),
+        outputSchema: BudgetStatusSchema,
+    },
+    async () => {
+        console.log('getBudgetStatusTool foi chamada');
+        return getBudgetData();
+    }
 );

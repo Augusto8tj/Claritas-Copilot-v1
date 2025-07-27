@@ -1,4 +1,5 @@
 
+
 'use server';
 
 /**
@@ -148,10 +149,12 @@ const MOCK_DATA = {
     const expensesByCategory = MOCK_DATA.transactions
       .filter(t => t.type === 'expense')
       .reduce((acc, t) => {
-        if (!acc[t.category]) {
-          acc[t.category] = 0;
+        // Fallback para 'Outros' se a categoria não estiver definida
+        const category = t.category || "Outros";
+        if (!acc[category]) {
+          acc[category] = 0;
         }
-        acc[t.category] += t.amount;
+        acc[category] += t.amount;
         return acc;
       }, {} as { [key: string]: number });
 
