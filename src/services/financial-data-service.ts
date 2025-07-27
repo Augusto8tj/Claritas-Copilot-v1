@@ -95,7 +95,7 @@ const MOCK_DATA = {
   }
   
   export async function addGoal(name: string, targetAmount: number): Promise<Goal> {
-    const newId = (MOCK_DATA.goals.length + 1).toString();
+    const newId = Date.now().toString();
     
     let imageUrl = "https://placehold.co/600x400.png";
     try {
