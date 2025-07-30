@@ -10,6 +10,23 @@ import { NetWorthChart } from "@/components/dashboard/net-worth-chart";
 import { MonthlyBalance } from "@/components/dashboard/monthly-balance";
 import { UpcomingBills } from "@/components/dashboard/upcoming-bills";
 import { MainGoal } from "@/components/dashboard/main-goal";
+import { Suspense } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+
+function MainGoalSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <Skeleton className="h-6 w-3/4" />
+        <Skeleton className="h-4 w-1/2" />
+      </CardHeader>
+      <CardContent className="flex items-center justify-center p-6">
+        <Skeleton className="h-36 w-36 rounded-full" />
+      </CardContent>
+    </Card>
+  )
+}
+
 
 export default function DashboardPage() {
   return (
@@ -20,7 +37,9 @@ export default function DashboardPage() {
         </h1>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <AIInsightCard />
+        <Suspense fallback={<Skeleton className="h-36 w-full" />}>
+           <AIInsightCard />
+        </Suspense>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-4">
@@ -34,7 +53,9 @@ export default function DashboardPage() {
         </Card>
         <div className="col-span-4 lg:col-span-3 space-y-4">
           <MonthlyBalance />
-          <MainGoal />
+          <Suspense fallback={<MainGoalSkeleton />}>
+            <MainGoal />
+          </Suspense>
         </div>
       </div>
       <UpcomingBills />
