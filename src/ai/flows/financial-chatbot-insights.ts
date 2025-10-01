@@ -10,7 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { getFinancialInsightsTool, getFinancialSummaryTool, addTransactionTool, addGoalTool, getBudgetStatusTool } from '../tools/financial-tools';
+import { getFinancialInsightsTool, getFinancialSummaryTool, addTransactionTool, addGoalTool, getBudgetStatusTool, getStockPriceTool } from '../tools/financial-tools';
 
 const MessageSchema = z.object({
   role: z.enum(['user', 'model']),
@@ -33,12 +33,12 @@ const prompt = ai.definePrompt({
   name: 'financialChatbotInsightsPrompt',
   input: {schema: FinancialChatbotInsightsInputSchema},
   output: {schema: FinancialChatbotInsightsOutputSchema},
-  tools: [getFinancialSummaryTool, getFinancialInsightsTool, addTransactionTool, addGoalTool, getBudgetStatusTool],
+  tools: [getFinancialSummaryTool, getFinancialInsightsTool, addTransactionTool, addGoalTool, getBudgetStatusTool, getStockPriceTool],
   system: `Você é a Claritas, uma assistente financeira de IA.
 Sua função é fornecer insights financeiros e responder a perguntas para ajudar os usuários a gerenciar suas finanças.
-Use as ferramentas disponíveis para obter dados financeiros, de orçamento e de metas e ofereça conselhos com base nos resultados das ferramentas.
+Use as ferramentas disponíveis para obter dados financeiros, de orçamento, de metas e de cotações de ações, e ofereça conselhos com base nos resultados.
 Você também pode adicionar transações ou metas a pedido do usuário.
-Seja sempre prestativa, clara e use o português do Brasil.`,
+Seja sempre prestativa, clara e use o português do Brasil. Ao fornecer cotações de ações, sempre inclua o ticker e o valor formatado como moeda (R$).`,
   prompt: `Histórico da Conversa:
 {{#each history}}
 - {{role}}: {{content}}

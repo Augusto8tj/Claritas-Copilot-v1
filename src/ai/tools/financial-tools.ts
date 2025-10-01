@@ -112,3 +112,23 @@ export const getBudgetStatusTool = ai.defineTool(
         return getBudgetData();
     }
 );
+
+export const getStockPriceTool = ai.defineTool(
+  {
+    name: 'getStockPriceTool',
+    description: 'Obtém o preço atual de uma ação específica do mercado financeiro.',
+    inputSchema: z.object({
+      ticker: z.string().describe('O ticker da ação. Por exemplo: "PETR4", "MGLU3", "IBOV".'),
+    }),
+    outputSchema: z.object({
+      price: z.number(),
+    }),
+  },
+  async ({ ticker }) => {
+    console.log(`Buscando preço para o ticker: ${ticker}`);
+    // Em um aplicativo real, aqui você chamaria uma API de mercado financeiro.
+    // Para simulação, vamos gerar um preço aleatório.
+    const mockPrice = parseFloat((Math.random() * (200 - 5) + 5).toFixed(2));
+    return { price: mockPrice };
+  }
+);
