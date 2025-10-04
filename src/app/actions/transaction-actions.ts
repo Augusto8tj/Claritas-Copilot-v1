@@ -33,6 +33,7 @@ export async function addTransaction(data: {
     await addTransactionToService(validatedData.data);
     revalidatePath("/analysis");
     revalidatePath("/budget");
+    revalidatePath("/"); // Revalidate dashboard to update monthly balance
     return { success: true };
   } catch (e) {
     console.error(e);

@@ -6,6 +6,7 @@
 import { ai } from '@/ai/genkit';
 import { addGoal, addTransaction, getFinancialSummary, getBudgetData } from '@/services/financial-data-service';
 import { z } from 'zod';
+import { revalidatePath } from 'next/cache';
 
 const FinancialSummarySchema = z.object({
   income: z.number().describe('Renda mensal total do usuário.'),
@@ -81,7 +82,13 @@ export const addTransactionTool = ai.defineTool(
         category: 'Outros',
         date: new Date().toISOString()
     };
-    return addTransaction(transactionData);
+    const result = await addTransaction(transactionData);
+    
+    // Revalidate paths to reflect the new transaction
+    revalidatePath("/analysis");
+    revalidatePath("/budget");
+
+    return result;
   }
 );
 
@@ -97,6 +104,8 @@ export const addGoalTool = ai.defineTool(
   },
   async ({ name, targetAmount }) => {
     const newGoal = await addGoal(name, targetAmount);
+    revalidatePath('/goals');
+    revalidatePath('/'); // Revalidate dashboard to show new goal in carousel
     return `Meta "${newGoal.name}" adicionada com sucesso.`;
   }
 );
