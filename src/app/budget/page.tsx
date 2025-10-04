@@ -1,6 +1,4 @@
 import { BudgetOverview } from "@/components/budget/budget-overview";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { PiggyBank } from "lucide-react";
 
 export default function BudgetPage() {
   return (
@@ -11,15 +9,8 @@ export default function BudgetPage() {
         </h1>
       </div>
       <p className="text-muted-foreground">
-        Acompanhe seus gastos em relação às metas de orçamento mensais.
+        Acompanhe e ajuste seus gastos em relação às metas de orçamento.
       </p>
-      <Alert className="bg-primary/5 border-primary/20">
-        <PiggyBank className="h-4 w-4 text-primary" />
-        <AlertTitle className="text-primary font-headline">Dica de Orçamento</AlertTitle>
-        <AlertDescription className="text-primary/90">
-            Em uma versão futura, você poderá definir e editar seus próprios limites de orçamento para cada categoria diretamente nesta página.
-        </AlertDescription>
-      </Alert>
       <BudgetOverview />
     </div>
   );

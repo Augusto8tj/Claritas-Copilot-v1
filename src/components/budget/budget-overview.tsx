@@ -85,7 +85,7 @@ export function BudgetOverview() {
       <CardHeader>
         <CardTitle className="font-headline">Acompanhamento do Orçamento</CardTitle>
         <CardDescription>
-          Veja como seus gastos se comparam aos seus limites. Clique em editar para ajustar um limite.
+          Veja como seus gastos se comparam aos seus limites. Clique no lápis para ajustar um limite.
         </CardDescription>
       </CardHeader>
       <CardContent>
