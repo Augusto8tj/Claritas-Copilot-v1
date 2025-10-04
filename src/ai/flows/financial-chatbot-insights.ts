@@ -10,7 +10,9 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+// Ferramentas para acessar dados internos do aplicativo (orçamento, transações, etc.)
 import { getFinancialInsightsTool, getFinancialSummaryTool, addTransactionTool, addGoalTool, getBudgetStatusTool } from '../tools/financial-tools';
+// Ferramentas para acessar dados externos do mercado financeiro (cotações de ações, etc.)
 import { getMarketDataTool } from '../tools/trading-tools';
 
 
@@ -35,7 +37,17 @@ const prompt = ai.definePrompt({
   name: 'financialChatbotInsightsPrompt',
   input: {schema: FinancialChatbotInsightsInputSchema},
   output: {schema: FinancialChatbotInsightsOutputSchema},
-  tools: [getFinancialSummaryTool, getFinancialInsightsTool, addTransactionTool, addGoalTool, getBudgetStatusTool, getMarketDataTool],
+  // A IA decide qual ferramenta usar com base na pergunta do usuário.
+  tools: [
+    // Ferramentas para dados internos:
+    getFinancialSummaryTool, 
+    getFinancialInsightsTool, 
+    addTransactionTool, 
+    addGoalTool, 
+    getBudgetStatusTool, 
+    // Ferramenta para dados externos:
+    getMarketDataTool
+  ],
   system: `Você é a Claritas, uma assistente financeira de IA.
 Sua função é fornecer insights financeiros e responder a perguntas para ajudar os usuários a gerenciar suas finanças.
 Use as ferramentas disponíveis para obter dados financeiros, de orçamento, de metas e de cotações de ações, e ofereça conselhos com base nos resultados.
