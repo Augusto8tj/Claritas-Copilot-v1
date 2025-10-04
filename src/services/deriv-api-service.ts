@@ -93,17 +93,32 @@ export async function getHistoricalData(symbol: string, period: string): Promise
   console.log(`[Deriv Service] Fetching historical data for ${symbol} over ${period}.`);
   await new Promise(resolve => setTimeout(resolve, 1200));
 
-  // Generate mock historical data
+  // Generate more realistic mock historical data
   const data = [];
   const endDate = new Date();
-  const days = 365; // Simulate 1 year of data
-  let price = Math.random() * 200 + 50;
+  
+  let days;
+  if (period.includes("ano") || period.includes("year")) {
+      days = 365;
+  } else if (period.includes("mes") || period.includes("month")) {
+      days = 30 * (parseInt(period) || 1);
+  } else {
+      days = 30; // Default to 30 days
+  }
+
+  let price = Math.random() * 200 + 50; // Starting price
 
   for (let i = 0; i < days; i++) {
     const date = new Date(endDate);
-    date.setDate(date.getDate() - (days - i));
-    price += (Math.random() - 0.5) * 5;
-    if (price < 5) price = 5;
+    date.setDate(date.getDate() - (days - i - 1));
+    
+    // Introduce some trend and volatility
+    const trend = Math.sin(i / 50) * 0.5; // Slow-moving trend
+    const volatility = (Math.random() - 0.5) * 4; // Daily random fluctuation
+    price += trend + volatility;
+
+    if (price < 5) price = 5; // Floor price
+    
     data.push({ date: date.toISOString().split('T')[0], price: parseFloat(price.toFixed(2)) });
   }
 

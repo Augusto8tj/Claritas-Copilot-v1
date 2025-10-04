@@ -3,7 +3,7 @@
 /**
  * @fileOverview An AI flow for backtesting a trading strategy described by the user.
  * 
- * - runStrategyBacktestFlow - The main flow function.
+ * - runStrategyBacktest - The main flow function.
  */
 
 import { ai } from '@/ai/genkit';
