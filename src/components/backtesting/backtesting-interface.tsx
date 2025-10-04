@@ -1,10 +1,11 @@
+
 "use client";
 
 import { useState } from "react";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, TestTube, Bot } from "lucide-react";
+import { Loader2, TestTube, Bot, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -111,7 +112,7 @@ export function BacktestingInterface() {
                 </form>
               </Form>
             </TabsContent>
-            <TabsContent value="mql" className="flex-1 flex flex-col">
+            <TabsContent value="mql" className="flex-1 flex flex-col space-y-4">
               <Form {...mqlForm}>
                 <form onSubmit={mqlForm.handleSubmit(onMqlSubmit)} className="space-y-4 flex flex-col flex-1">
                   <FormField
@@ -131,6 +132,13 @@ export function BacktestingInterface() {
                       </FormItem>
                     )}
                   />
+                   <Alert className="bg-primary/5 border-primary/20">
+                    <Lightbulb className="h-4 w-4 text-primary" />
+                    <AlertTitle className="text-primary font-headline">Dica</AlertTitle>
+                    <AlertDescription className="text-primary/90">
+                      Para robôs com muitas linhas de código, foque em colar as partes principais da lógica, como as funções `OnTick()`, `OnTrade()` e as condições de entrada/saída para uma análise mais precisa.
+                    </AlertDescription>
+                  </Alert>
                   <Button type="submit" disabled={analyzing} className="w-full" variant="outline">
                     {analyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}
                     Analisar e Preencher Estratégia
