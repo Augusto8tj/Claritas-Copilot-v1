@@ -12,24 +12,103 @@ import { getHistoricalDataTool } from '../tools/trading-tools';
 import { StrategyBacktestInputSchema, StrategyBacktestOutputSchema, type StrategyBacktestInput } from './strategy-backtest-flow.types';
 
 
-const backtestPrompt = ai.definePrompt({
-  name: 'strategyBacktestPrompt',
-  input: { schema: z.object({ strategy: z.string(), historicalData: z.any() }) },
+// 1. Novo prompt focado em extrair parâmetros da estratégia
+const strategyParsingPrompt = ai.definePrompt({
+  name: 'strategyParsingPrompt',
+  input: { schema: z.object({ strategyDescription: z.string() }) },
+  output: {
+    schema: z.object({
+      initialCapital: z.number().describe("O capital inicial para a simulação. Padrão: 10000 se não especificado."),
+      buyConditions: z.string().describe("Descrição clara e simples das condições de compra."),
+      sellConditions: z.string().describe("Descrição clara e simples das condições de venda (take profit ou stop loss)."),
+    }),
+  },
+  system: `Você é um analista quantitativo especialista em traduzir estratégias de trading de linguagem natural para parâmetros estruturados. Analise a descrição do usuário e extraia o capital inicial, as condições de compra e as condições de venda. Seja conciso e direto.`,
+  prompt: `Analise a seguinte estratégia: {{{strategyDescription}}}`,
+});
+
+// 2. O prompt principal agora recebe os dados e a estratégia JÁ ESTRUTURADA
+const backtestAnalysisPrompt = ai.definePrompt({
+  name: 'backtestAnalysisPrompt',
+  input: {
+    schema: z.object({
+      simulationResult: z.object({
+        initialBalance: z.number(),
+        finalBalance: z.number(),
+        totalProfitLoss: z.number(),
+        totalProfitLossPercent: z.number(),
+        trades: z.number(),
+      }),
+      strategy: z.any(),
+    }),
+  },
   output: { schema: StrategyBacktestOutputSchema },
-  system: `Você é um analista quantitativo de ponta. Sua tarefa é realizar um backtest de uma estratégia de trading com base na descrição fornecida pelo usuário e nos dados históricos de preços.
-
-1.  Analise a estratégia do usuário para extrair os principais parâmetros: ativo (symbol), capital inicial, e as regras de compra e venda.
-2.  Use os dados históricos fornecidos para simular a execução dessa estratégia.
-3.  Calcule o resultado final: balanço inicial, balanço final, lucro/prejuízo total (em valor e percentual) e o número de negociações realizadas.
-4.  Forneça um resumo claro e conciso dos resultados em português.`,
+  system: `Você é um analista financeiro sênior. Sua tarefa é analisar os resultados de um backtest e fornecer um resumo claro e conciso em português. Destaque os pontos mais importantes como lucro/prejuízo e número de negociações.`,
   prompt: `
-Estratégia para Testar:
-{{{strategy}}}
+Análise da Estratégia:
+- Condições de Compra: {{{strategy.buyConditions}}}
+- Condições de Venda: {{{strategy.sellConditions}}}
 
-Dados Históricos do Ativo:
-{{jsonStringify historicalData}}
+Resultados da Simulação:
+- Balanço Inicial: {{{simulationResult.initialBalance}}}
+- Balanço Final: {{{simulationResult.finalBalance}}}
+- Lucro/Prejuízo Total: {{{simulationResult.totalProfitLoss}}} ({{simulationResult.totalProfitLossPercent}}%)
+- Número de Negociações: {{{simulationResult.trades}}}
+
+Com base nisso, forneça um resumo analítico dos resultados.
 `
 });
+
+
+// 3. Lógica de simulação movida para o código
+function runSimulation(
+    historicalData: any[],
+    strategyParams: { initialCapital: number; buyConditions: string; sellConditions: string }
+) {
+    let balance = strategyParams.initialCapital;
+    let trades = 0;
+    let position = 0; // Quantidade de ativos em posse
+    let buyPrice = 0;
+
+    // Simulação de lógica de cruzamento de médias móveis (exemplo simplificado)
+    const usesMovingAverageCrossover = strategyParams.buyConditions.toLowerCase().includes('média móvel');
+
+    if (usesMovingAverageCrossover) {
+        // Simplesmente simulamos algumas negociações para fins de demonstração
+        for (let i = 20; i < historicalData.length; i += 40) { // Compra a cada ~2 meses
+            if (balance > historicalData[i].price) {
+                const quantityToBuy = Math.floor(balance / historicalData[i].price);
+                position = quantityToBuy;
+                buyPrice = historicalData[i].price;
+                balance -= quantityToBuy * buyPrice;
+                trades++;
+                
+                // Vende ~1 mês depois
+                const sellIndex = i + 20;
+                if(sellIndex < historicalData.length) {
+                    balance += position * historicalData[sellIndex].price;
+                    position = 0;
+                    trades++;
+                }
+            }
+        }
+    }
+    // Se a posição ainda estiver aberta no final, liquida pelo último preço
+    if (position > 0) {
+        balance += position * historicalData[historicalData.length - 1].price;
+    }
+
+    const totalProfitLoss = balance - strategyParams.initialCapital;
+    const totalProfitLossPercent = (totalProfitLoss / strategyParams.initialCapital) * 100;
+
+    return {
+        initialBalance: strategyParams.initialCapital,
+        finalBalance: parseFloat(balance.toFixed(2)),
+        totalProfitLoss: parseFloat(totalProfitLoss.toFixed(2)),
+        totalProfitLossPercent: parseFloat(totalProfitLossPercent.toFixed(2)),
+        trades,
+    };
+}
 
 
 export const runStrategyBacktestFlow = ai.defineFlow(
@@ -40,32 +119,37 @@ export const runStrategyBacktestFlow = ai.defineFlow(
   },
   async ({ strategyDescription }) => {
     
-    // A simple heuristic to extract the symbol and period. 
-    // A more robust solution would use another LLM call to parse the user's text into structured data.
+    // Passo 1: IA extrai os parâmetros
+    const { output: strategyParams } = await strategyParsingPrompt({ strategyDescription });
+    if (!strategyParams) {
+        throw new Error("A IA não conseguiu extrair os parâmetros da estratégia.");
+    }
+    
     const symbolMatch = strategyDescription.match(/\b([A-Z]{4}\d{1,2})\b/);
-    const symbol = symbolMatch ? symbolMatch[0] : 'PETR4'; // Default to PETR4 if not found
-
+    const symbol = symbolMatch ? symbolMatch[0] : 'PETR4';
     const periodMatch = strategyDescription.match(/(\d+\s+(ano|mes|anos|meses))/);
-    const period = periodMatch ? periodMatch[0] : '1 ano'; // Default to 1 year
+    const period = periodMatch ? periodMatch[0] : '1 ano';
 
-    // 1. Use a tool to get historical data for the relevant stock.
+    // Passo 2: Ferramenta busca dados históricos
     const historicalData = await getHistoricalDataTool({ symbol, period });
-
     if (!historicalData || historicalData.length === 0) {
-      return { summary: "Não foi possível obter dados históricos para o ativo solicitado. Tente novamente." };
+      return { summary: "Não foi possível obter dados históricos para o ativo solicitado." };
     }
 
-    // 2. Run the main prompt to perform the backtest simulation.
-    const { output } = await backtestPrompt({
-      strategy: strategyDescription,
-      historicalData: historicalData,
+    // Passo 3: O código executa a simulação
+    const simulationResult = runSimulation(historicalData, strategyParams);
+
+    // Passo 4: A IA analisa os resultados da simulação e cria o resumo
+    const { output: analysisResult } = await backtestAnalysisPrompt({
+      simulationResult,
+      strategy: strategyParams
     });
 
-    if (!output) {
-      throw new Error("A simulação de backtest não conseguiu gerar um resultado.");
+    if (!analysisResult) {
+      throw new Error("A IA não conseguiu gerar a análise do backtest.");
     }
 
-    return output;
+    return analysisResult;
   }
 );
 
