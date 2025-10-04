@@ -12,6 +12,8 @@ import {
   Target,
   User,
   PiggyBank,
+  CandlestickChart,
+  TestTube,
 } from "lucide-react";
 import {
   Sidebar,
@@ -51,6 +53,16 @@ const navItems = [
     href: "/goals",
     icon: Target,
     label: "Metas",
+  },
+  {
+    href: "/trading",
+    icon: CandlestickChart,
+    label: "Trading",
+  },
+  {
+    href: "/backtesting",
+    icon: TestTube,
+    label: "Backtesting",
   },
   {
     href: "/chat-insights",
