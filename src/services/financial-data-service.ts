@@ -6,12 +6,16 @@
  * @fileOverview A mock financial data service. In a real application, this would
  * fetch data from a database or a financial API.
  */
-import type { Goal, BudgetCategory } from '@/lib/types';
+import type { Goal, BudgetCategory, Transaction } from '@/lib/types';
 import { generateGoalImage } from '@/ai/flows/goal-image-generation';
 
 
 // Mock database
-const MOCK_DATA = {
+const MOCK_DATA: {
+    transactions: Transaction[];
+    goals: Goal[];
+    budgetLimits: { [key: string]: number };
+} = {
     transactions: [
       { id: 1, date: "2024-08-01", description: "Salário", amount: 7250, type: "income", category: "Renda" },
       { id: 2, date: "2024-08-01", description: "Aluguel", amount: 1800, type: "expense", category: "Moradia" },
@@ -81,6 +85,10 @@ const MOCK_DATA = {
         expenses,
         balance: income - expenses,
     }
+  }
+
+  export async function getTransactions(): Promise<Transaction[]> {
+    return MOCK_DATA.transactions;
   }
   
   export async function getInsights(): Promise<string[]> {
@@ -165,6 +173,7 @@ const MOCK_DATA = {
       spent: expensesByCategory[name] || 0,
     }));
     
+    // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 500));
     return budgetData;
   }

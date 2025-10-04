@@ -12,3 +12,12 @@ export type BudgetCategory = {
     budgeted: number;
     spent: number;
 };
+
+export type Transaction = {
+  id: number;
+  date: string;
+  description: string;
+  amount: number;
+  type: 'income' | 'expense';
+  category: string;
+}

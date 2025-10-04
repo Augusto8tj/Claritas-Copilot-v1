@@ -1,3 +1,8 @@
+"use client";
+
+import * as React from "react";
+import { getTransactions } from "@/services/financial-data-service";
+import type { Transaction } from "@/lib/types";
 import {
   Card,
   CardContent,
@@ -15,59 +20,16 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import {
-  CreditCard,
   Utensils,
   Home,
   Car,
   Ticket,
   ShoppingCart,
   MoreHorizontal,
+  ArrowDown,
+  ArrowUp,
+  Loader2,
 } from "lucide-react";
-
-const transactions = [
-   {
-    merchant: "Pagamento de Aluguel",
-    category: "Moradia",
-    date: "2024-08-01",
-    amount: 1800.0,
-  },
-  {
-    merchant: "Supermercado Pão de Açúcar",
-    category: "Alimentação",
-    date: "2024-08-05",
-    amount: 850.25,
-  },
-  {
-    merchant: "Posto Shell",
-    category: "Transporte",
-    date: "2024-08-10",
-    amount: 150.0,
-  },
-  {
-    merchant: "Cinema Kinoplex",
-    category: "Lazer",
-    date: "2024-08-12",
-    amount: 85.0,
-  },
-   {
-    merchant: "Amazon.com.br",
-    category: "Compras",
-    date: "2024-08-15",
-    amount: 250.99,
-  },
-  {
-    merchant: "Uber",
-    category: "Transporte",
-    date: "2024-08-18",
-    amount: 45.5,
-  },
-  {
-    merchant: "Padaria",
-    category: "Alimentação",
-    date: "2024-08-20",
-    amount: 55.30,
-  },
-];
 
 const categoryIcons: { [key: string]: React.ReactNode } = {
   "Alimentação": <Utensils className="h-4 w-4 text-muted-foreground" />,
@@ -79,6 +41,21 @@ const categoryIcons: { [key: string]: React.ReactNode } = {
 };
 
 export function TransactionsTable() {
+  const [transactions, setTransactions] = React.useState<Transaction[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const data = await getTransactions();
+      // Sort transactions by date, most recent first
+      data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setTransactions(data);
+      setLoading(false);
+    };
+    fetchData();
+  }, []);
+
   return (
     <Card>
       <CardHeader>
@@ -91,30 +68,49 @@ export function TransactionsTable() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Comerciante</TableHead>
+              <TableHead>Descrição</TableHead>
               <TableHead>Categoria</TableHead>
               <TableHead>Data</TableHead>
               <TableHead className="text-right">Valor</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {transactions.map((t, i) => (
-              <TableRow key={i}>
-                <TableCell className="font-medium">{t.merchant}</TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    {categoryIcons[t.category] || categoryIcons["Outros"]}
-                    {t.category}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {new Date(t.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
-                </TableCell>
-                <TableCell className="text-right">
-                  -R${t.amount.toFixed(2).replace('.', ',')}
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={4} className="h-24 text-center">
+                  <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
                 </TableCell>
               </TableRow>
-            ))}
+            ) : transactions.length > 0 ? (
+              transactions.map((t) => (
+                <TableRow key={t.id}>
+                  <TableCell className="font-medium">{t.description}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {categoryIcons[t.category] || categoryIcons["Outros"]}
+                      {t.category}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {new Date(t.date).toLocaleDateString("pt-BR", {
+                      timeZone: "UTC",
+                    })}
+                  </TableCell>
+                  <TableCell className={`text-right font-semibold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                    <div className="flex items-center justify-end gap-1">
+                      {t.type === 'income' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                       R${t.amount.toFixed(2).replace(".", ",")}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+                <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        Nenhuma transação encontrada.
+                    </TableCell>
+                </TableRow>
+            )}
           </TableBody>
         </Table>
       </CardContent>
