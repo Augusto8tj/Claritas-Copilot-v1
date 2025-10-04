@@ -4,26 +4,11 @@
  * @fileOverview Generates an image for a financial goal using AI.
  *
  * - generateGoalImage - A function that generates an image based on a goal name.
- * - GenerateGoalImageInput - The input type for the function.
- * - GenerateGoalImageOutput - The return type for the function.
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'zod';
+import { GenerateGoalImageInputSchema, GenerateGoalImageOutputSchema, type GenerateGoalImageInput } from './goal-image-generation.types';
 
-const GenerateGoalImageInputSchema = z.object({
-  goalName: z.string().describe('The name of the financial goal.'),
-});
-export type GenerateGoalImageInput = z.infer<typeof GenerateGoalImageInputSchema>;
-
-const GenerateGoalImageOutputSchema = z.object({
-  imageUrl: z.string().describe('The data URI of the generated image.'),
-});
-export type GenerateGoalImageOutput = z.infer<typeof GenerateGoalImageOutputSchema>;
-
-export async function generateGoalImage(input: GenerateGoalImageInput): Promise<GenerateGoalImageOutput> {
-  return generateGoalImageFlow(input);
-}
 
 const generateGoalImageFlow = ai.defineFlow(
   {
@@ -47,3 +32,7 @@ const generateGoalImageFlow = ai.defineFlow(
     return { imageUrl: media.url };
   }
 );
+
+export async function generateGoalImage(input: GenerateGoalImageInput) {
+  return generateGoalImageFlow(input);
+}

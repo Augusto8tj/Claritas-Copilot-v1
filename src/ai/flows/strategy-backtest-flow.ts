@@ -4,23 +4,13 @@
  * @fileOverview An AI flow for backtesting a trading strategy described by the user.
  * 
  * - runStrategyBacktestFlow - The main flow function.
- * - StrategyBacktestInput - The input type for the flow.
- * - StrategyBacktestOutput - The return type for the flow.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { getHistoricalDataTool } from '../tools/trading-tools';
+import { StrategyBacktestInputSchema, StrategyBacktestOutputSchema, type StrategyBacktestInput } from './strategy-backtest-flow.types';
 
-export const StrategyBacktestInputSchema = z.object({
-  strategyDescription: z.string().describe('A user-provided description of the trading strategy to be tested, written in natural language.'),
-});
-export type StrategyBacktestInput = z.infer<typeof StrategyBacktestInputSchema>;
-
-export const StrategyBacktestOutputSchema = z.object({
-  summary: z.string().describe('A detailed summary of the backtest results, including initial and final balance, total profit/loss, and number of trades.'),
-});
-export type StrategyBacktestOutput = z.infer<typeof StrategyBacktestOutputSchema>;
 
 const backtestPrompt = ai.definePrompt({
   name: 'strategyBacktestPrompt',
@@ -78,3 +68,8 @@ export const runStrategyBacktestFlow = ai.defineFlow(
     return output;
   }
 );
+
+// Wrapper function to be called by server actions
+export async function runStrategyBacktest(input: StrategyBacktestInput) {
+    return runStrategyBacktestFlow(input);
+}

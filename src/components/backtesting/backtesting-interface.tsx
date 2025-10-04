@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/form";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { runStrategyBacktest, analyzeMqlCode } from "@/app/actions/trading-actions";
+import { runStrategyBacktestAction, analyzeMqlCodeAction } from "@/app/actions/trading-actions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const strategySchema = z.object({
@@ -48,7 +48,7 @@ export function BacktestingInterface() {
   const onStrategySubmit: SubmitHandler<StrategyFormValues> = async (data) => {
     setLoading(true);
     setResult(null);
-    const response = await runStrategyBacktest(data);
+    const response = await runStrategyBacktestAction(data);
     if (response.success) {
       setResult(response.success);
     } else {
@@ -60,7 +60,7 @@ export function BacktestingInterface() {
   const onMqlSubmit: SubmitHandler<MqlFormValues> = async (data) => {
     setAnalyzing(true);
     setResult(null);
-    const response = await analyzeMqlCode(data);
+    const response = await analyzeMqlCodeAction(data);
     if (response.success) {
       strategyForm.setValue("strategyDescription", response.success);
     } else {

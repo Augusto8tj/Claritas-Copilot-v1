@@ -2,19 +2,19 @@
 
 import {
   financialChatbot,
-  FinancialChatbotInput,
 } from "@/ai/flows/financial-chatbot";
+import { type FinancialChatbotInput } from "@/ai/flows/financial-chatbot.types";
 import {
   financialChatbotInsights,
-  FinancialChatbotInsightsInput,
 } from "@/ai/flows/financial-chatbot-insights";
+import { type FinancialChatbotInsightsInput } from "@/ai/flows/financial-chatbot-insights.types";
 import {
   goalProjection,
-  GoalProjectionInput,
 } from "@/ai/flows/goal-projection";
 import { z } from "zod";
 import { getFinancialSummary, getInsights } from "@/services/financial-data-service";
 import { auth } from "@/lib/firebase";
+import { type GoalProjectionInput } from "@/ai/flows/goal-projection.types";
 
 
 const goalProjectionSchema = z.object({

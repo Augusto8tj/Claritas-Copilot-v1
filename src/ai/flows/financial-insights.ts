@@ -4,39 +4,11 @@
  * @fileOverview Provides proactive, personalized insights about a user's finances.
  *
  * - getFinancialInsights - A function that generates personalized financial insights.
- * - FinancialInsightsInput - The input type for the getFinancialInsights function.
- * - FinancialInsightsOutput - The return type for the getFinancialInsights function.
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { FinancialInsightsInputSchema, FinancialInsightsOutputSchema, type FinancialInsightsInput } from './financial-insights.types';
 
-const FinancialInsightsInputSchema = z.object({
-  financialData: z
-    .string()
-    .describe(
-      'Aggregated financial data of the user, including income, expenses, investments, and debts.'
-    ),
-  userGoals: z
-    .string()
-    .describe('The financial goals of the user, e.g., saving for retirement, buying a house.'),
-  pastInsights: z
-    .string()
-    .optional()
-    .describe(
-      'Past insights to avoid repetition. If empty, this is the first time we are generating insights.'
-    ),
-});
-export type FinancialInsightsInput = z.infer<typeof FinancialInsightsInputSchema>;
-
-const FinancialInsightsOutputSchema = z.object({
-  insights: z.array(z.string()).describe('Array of personalized financial insights.'),
-});
-export type FinancialInsightsOutput = z.infer<typeof FinancialInsightsOutputSchema>;
-
-export async function getFinancialInsights(input: FinancialInsightsInput): Promise<FinancialInsightsOutput> {
-  return financialInsightsFlow(input);
-}
 
 const prompt = ai.definePrompt({
   name: 'financialInsightsPrompt',
@@ -64,3 +36,7 @@ const financialInsightsFlow = ai.defineFlow(
     return output!;
   }
 );
+
+export async function getFinancialInsights(input: FinancialInsightsInput) {
+  return financialInsightsFlow(input);
+}

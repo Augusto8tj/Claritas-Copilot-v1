@@ -4,33 +4,14 @@
  * @fileOverview An AI-powered chatbot that can use tools to access and modify financial data.
  *
  * - financialChatbotInsights - A function that handles the chatbot interaction.
- * - FinancialChatbotInsightsInput - The input type for the function.
- * - FinancialChatbotInsightsOutput - The return type for the function.
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
 // Ferramentas para acessar dados internos do aplicativo (orçamento, transações, etc.)
 import { getFinancialInsightsTool, getFinancialSummaryTool, addTransactionTool, addGoalTool, getBudgetStatusTool } from '../tools/financial-tools';
 // Ferramentas para acessar dados externos do mercado financeiro (cotações de ações, etc.)
 import { getMarketDataTool } from '../tools/trading-tools';
-
-
-const MessageSchema = z.object({
-  role: z.enum(['user', 'model']),
-  content: z.string(),
-});
-
-const FinancialChatbotInsightsInputSchema = z.object({
-  history: z.array(MessageSchema).describe('The conversation history.'),
-  query: z.string().describe('The user query about their finances.'),
-});
-export type FinancialChatbotInsightsInput = z.infer<typeof FinancialChatbotInsightsInputSchema>;
-
-const FinancialChatbotInsightsOutputSchema = z.object({
-  response: z.string().describe('The AI-generated response to the user query.'),
-});
-export type FinancialChatbotInsightsOutput = z.infer<typeof FinancialChatbotInsightsOutputSchema>;
+import { FinancialChatbotInsightsInputSchema, FinancialChatbotInsightsOutputSchema, type FinancialChatbotInsightsInput } from './financial-chatbot-insights.types';
 
 
 const prompt = ai.definePrompt({
@@ -74,6 +55,6 @@ const financialChatbotInsightsFlow = ai.defineFlow(
   }
 );
 
-export async function financialChatbotInsights(input: FinancialChatbotInsightsInput): Promise<FinancialChatbotInsightsOutput> {
+export async function financialChatbotInsights(input: FinancialChatbotInsightsInput) {
   return financialChatbotInsightsFlow(input);
 }

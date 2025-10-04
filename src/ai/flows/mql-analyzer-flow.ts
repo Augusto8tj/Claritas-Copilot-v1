@@ -3,23 +3,11 @@
 /**
  * @fileOverview An AI flow for analyzing MQL5 trading bot code and extracting its strategy.
  * 
- * - analyzeMqlCodeFlow - The main flow function.
- * - MqlAnalyzerInput - The input type for the flow.
- * - MqlAnalyzerOutput - The return type for the flow.
+ * - analyzeMqlCode - The main flow function.
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'zod';
-
-export const MqlAnalyzerInputSchema = z.object({
-  mqlCode: z.string().describe('The MQL5 source code of a trading robot.'),
-});
-export type MqlAnalyzerInput = z.infer<typeof MqlAnalyzerInputSchema>;
-
-export const MqlAnalyzerOutputSchema = z.object({
-  strategyDescription: z.string().describe('A natural language description of the trading strategy extracted from the MQL5 code.'),
-});
-export type MqlAnalyzerOutput = z.infer<typeof MqlAnalyzerOutputSchema>;
+import { MqlAnalyzerInputSchema, MqlAnalyzerOutputSchema, type MqlAnalyzerInput } from './mql-analyzer-flow.types';
 
 const analyzerPrompt = ai.definePrompt({
   name: 'mqlAnalyzerPrompt',
@@ -44,7 +32,7 @@ Código MQL5:
 `
 });
 
-export const analyzeMqlCodeFlow = ai.defineFlow(
+const analyzeMqlCodeFlow = ai.defineFlow(
   {
     name: 'analyzeMqlCodeFlow',
     inputSchema: MqlAnalyzerInputSchema,
@@ -60,3 +48,7 @@ export const analyzeMqlCodeFlow = ai.defineFlow(
     return output;
   }
 );
+
+export async function analyzeMqlCode(input: MqlAnalyzerInput) {
+    return analyzeMqlCodeFlow(input);
+}
