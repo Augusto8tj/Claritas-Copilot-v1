@@ -111,7 +111,7 @@ function runSimulation(
 }
 
 
-export const runStrategyBacktestFlow = ai.defineFlow(
+const runStrategyBacktestFlow = ai.defineFlow(
   {
     name: 'runStrategyBacktestFlow',
     inputSchema: StrategyBacktestInputSchema,
