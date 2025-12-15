@@ -16,7 +16,11 @@ import {
   CandlestickChart,
   TestTube,
   Layers,
-  ChevronDown
+  ChevronDown,
+  Bot,
+  Settings2,
+  Laptop,
+  Smartphone,
 } from "lucide-react";
 import {
   Sidebar,
@@ -138,6 +142,36 @@ function MainNav() {
                     <SidebarMenuSubButton href="/deriv-trader" isActive={pathname === '/deriv-trader'}>
                         <CandlestickChart />
                         <span>Deriv Trader</span>
+                    </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+                 <SidebarMenuSubItem>
+                    <SidebarMenuSubButton href="#" isActive={pathname === '/deriv-mt5'} disabled>
+                        <CandlestickChart />
+                        <span>Deriv MT5</span>
+                    </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+                 <SidebarMenuSubItem>
+                    <SidebarMenuSubButton href="#" isActive={pathname === '/deriv-bot'} disabled>
+                        <Bot />
+                        <span>Deriv Bot</span>
+                    </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+                 <SidebarMenuSubItem>
+                    <SidebarMenuSubButton href="#" isActive={pathname === '/deriv-x'} disabled>
+                        <Settings2 />
+                        <span>Deriv X</span>
+                    </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+                 <SidebarMenuSubItem>
+                    <SidebarMenuSubButton href="#" isActive={pathname === '/smart-trader'} disabled>
+                        <Laptop />
+                        <span>SmartTrader</span>
+                    </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+                 <SidebarMenuSubItem>
+                    <SidebarMenuSubButton href="#" isActive={pathname === '/deriv-go'} disabled>
+                        <Smartphone />
+                        <span>Deriv GO</span>
                     </SidebarMenuSubButton>
                 </SidebarMenuSubItem>
             </SidebarMenuSub>
