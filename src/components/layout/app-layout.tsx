@@ -126,6 +126,7 @@ function MainNav() {
       <Collapsible>
         <SidebarMenuItem>
             <CollapsibleTrigger asChild>
+                <a href="/trader" className="w-full">
                  <SidebarMenuButton
                     className="w-full justify-start"
                     isActive={isTraderSectionActive}
@@ -134,6 +135,7 @@ function MainNav() {
                     <span>Plataformas Deriv</span>
                     <ChevronDown className={cn("ml-auto h-4 w-4 shrink-0 transition-transform", isTraderSectionActive && "rotate-180")} />
                 </SidebarMenuButton>
+                </a>
             </CollapsibleTrigger>
         </SidebarMenuItem>
         <CollapsibleContent asChild>
