@@ -24,6 +24,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { useDerivApi } from "@/hooks/use-deriv-api"; // Import the new hook
 
 const formSchema = z.object({
   apiToken: z.string().min(10, "O token da API parece muito curto."),
@@ -32,34 +33,32 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 export function BrokerConnectionCard() {
+  const { isConnected, apiToken, connect, disconnect } = useDerivApi(); // Use the hook
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { apiToken: "" },
+    defaultValues: { apiToken: apiToken || "" },
   });
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     setIsConnecting(true);
-    // Simula uma chamada de API para verificar o token
+    // Simulate API call to check the token
     await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Em um app real, você faria uma chamada para a API da corretora
-    // para validar o token. Aqui vamos simular sucesso ou falha.
+
     const isTokenValid = !data.apiToken.includes("invalido");
 
     setIsConnecting(false);
 
     if (isTokenValid) {
-        setIsConnected(true);
+        connect(data.apiToken); // Save the token using the hook
         toast({
             title: "Conexão Estabelecida",
             description: "Sua conta da corretora foi conectada com sucesso.",
         });
     } else {
-        setIsConnected(false);
+        disconnect();
         toast({
             variant: "destructive",
             title: "Falha na Conexão",
@@ -69,7 +68,7 @@ export function BrokerConnectionCard() {
   };
   
   const handleDisconnect = () => {
-    setIsConnected(false);
+    disconnect();
     form.reset({ apiToken: "" });
      toast({
         title: "Desconectado",
