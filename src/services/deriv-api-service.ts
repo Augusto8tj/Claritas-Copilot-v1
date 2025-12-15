@@ -22,6 +22,10 @@ interface TradeResult {
   message: string;
 }
 
+interface TradeOptions {
+  allowEquals?: boolean;
+}
+
 /**
  * Simulates fetching the user's account balance from the broker.
  * @param apiToken - The user's API token for authentication.
@@ -64,22 +68,44 @@ export async function getMarketData(symbol: string): Promise<MarketData> {
  * Simulates executing a trade order.
  * @param apiToken - The user's API token.
  * @param symbol - The asset to trade.
- * @param action - 'buy' or 'sell'.
- * @param quantity - The amount of the asset to trade.
+ * @param tradeDirection - 'rise' or 'fall'.
+ * @param quantity - The amount of the asset to trade (stake).
+ * @param options - Additional options like 'allowEquals'.
  */
-export async function executeTrade(apiToken: string, symbol: string, action: 'buy' | 'sell', quantity: number): Promise<TradeResult> {
-  console.log(`[Deriv Service] Executing ${action.toUpperCase()} order for ${quantity} of ${symbol}`);
-  // Simulate API call delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
+export async function executeTrade(apiToken: string, symbol: string, tradeDirection: 'rise' | 'fall', quantity: number, options: TradeOptions = {}): Promise<TradeResult> {
+  const { allowEquals = false } = options;
 
+  let contractType;
+  if (tradeDirection === 'rise') {
+    contractType = allowEquals ? 'PUTE' : 'PUT';
+  } else { // 'fall'
+    contractType = allowEquals ? 'CALLE' : 'CALL';
+  }
+  
+  console.log(`[Deriv Service] Executing order for ${quantity} of ${symbol}`);
+  console.log(`[Deriv Service] -> Direction: ${tradeDirection}`);
+  console.log(`[Deriv Service] -> Contract Type: ${contractType}`);
+
+  // 1. Simulate getting a proposal
+  console.log(`[Deriv Service] Step 1: Requesting proposal with contract_type: ${contractType}`);
+  await new Promise(resolve => setTimeout(resolve, 400));
+  const proposalId = `mock-proposal-${Date.now()}`;
+  console.log(`[Deriv Service] -> Proposal ID received: ${proposalId}`);
+
+  // 2. Simulate buying the contract
   if (apiToken.includes('invalid')) {
     return { success: false, message: 'Trade failed due to invalid API token.' };
   }
+  
+  console.log(`[Deriv Service] Step 2: Buying contract with proposal ID: ${proposalId}`);
+  await new Promise(resolve => setTimeout(resolve, 600));
+  const contractId = `mock-contract-${Date.now()}`;
+  console.log(`[Deriv Service] -> Contract ID received: ${contractId}`);
 
   return {
     success: true,
-    orderId: `mock-order-${Date.now()}`,
-    message: `Successfully executed ${action} order for ${quantity} of ${symbol}.`,
+    orderId: contractId,
+    message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${quantity} executada com sucesso.`,
   };
 }
 

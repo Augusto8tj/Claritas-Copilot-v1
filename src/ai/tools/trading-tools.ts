@@ -52,26 +52,29 @@ export const executeTradeTool = ai.defineTool(
     description: 'Executa uma ordem de compra ou venda de um ativo na corretora. Use apenas quando o usuário explicitamente confirmar a ordem.',
     inputSchema: z.object({
       symbol: z.string().describe('O ticker do ativo a ser negociado.'),
-      action: z.enum(['buy', 'sell']).describe('A ação a ser executada: "buy" para comprar, "sell" para vender.'),
-      quantity: z.number().describe('A quantidade do ativo a ser negociada.'),
+      tradeDirection: z.enum(['rise', 'fall']).describe('A direção da negociação para opções: "rise" para prever uma subida, "fall" para prever uma queda.'),
+      quantity: z.number().describe('O valor do investimento (stake) para a negociação.'),
       tradeType: z.enum(['Digital', 'Accumulators', 'Vanilla', 'Turbo', 'Multipliers']).optional().describe('O tipo de opção de negociação, se aplicável.'),
       digitalOptionType: z.enum([
         'RiseFall', 'HigherLower', 'EndBetweens', 'StaysBetween', 
         'Lookbacks', 'TouchNoTouch', 'OnlyUpsDowns', 'HighestLowest', 
         'ResetCall', 'AsianUpDown', 'Digit:Matches/Differs', 
         'Digit:Even/Odd', 'Digit:Over/Under'
-      ]).optional().describe('O tipo específico de Opção Digital a ser negociada.')
+      ]).optional().describe('O tipo específico de Opção Digital a ser negociada.'),
+       allowEquals: z.boolean().optional().describe('Para Rise/Fall, define se ganhará o prêmio se o preço de saída for igual ao de entrada. Padrão é falso.')
     }),
     outputSchema: z.object({
       success: z.boolean(),
       message: z.string(),
     }),
   },
-  async ({ symbol, action, quantity, tradeType, digitalOptionType }) => {
+  async ({ symbol, tradeDirection, quantity, tradeType, digitalOptionType, allowEquals }) => {
     if (!API_TOKEN) throw new Error("O token da API da Deriv não está configurado.");
-    // O service precisaria ser atualizado para lidar com tradeType e digitalOptionType
-    console.log(`[Trade Tool] Executing trade with tradeType: ${tradeType} and digitalOptionType: ${digitalOptionType}`);
-    return executeTrade(API_TOKEN, symbol, action, quantity);
+    
+    console.log(`[Trade Tool] Executing trade with tradeType: ${tradeType}, digitalOptionType: ${digitalOptionType}, allowEquals: ${allowEquals}`);
+
+    // A função de serviço agora lida com os novos parâmetros
+    return executeTrade(API_TOKEN, symbol, tradeDirection, quantity, { allowEquals });
   }
 );
 
