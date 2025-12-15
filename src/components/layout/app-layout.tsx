@@ -14,6 +14,7 @@ import {
   PiggyBank,
   CandlestickChart,
   TestTube,
+  Layers,
 } from "lucide-react";
 import {
   Sidebar,
@@ -63,6 +64,11 @@ const navItems = [
     href: "/backtesting",
     icon: TestTube,
     label: "Backtesting",
+  },
+  {
+    href: "/options",
+    icon: Layers,
+    label: "Opções Deriv",
   },
   {
     href: "/chat-insights",
