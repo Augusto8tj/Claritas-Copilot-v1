@@ -1,42 +1,49 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Layers, Bot, CandlestickChart, Settings2, Laptop, Smartphone } from "lucide-react";
+import Link from "next/link";
 
 const platforms = [
   {
     icon: <Layers className="w-8 h-8 text-primary" />,
     title: "Deriv Trader",
     description: "Plataforma web para negociação de opções e multiplicadores.",
+    href: "/trader",
     comingSoon: false,
   },
   {
     icon: <CandlestickChart className="w-8 h-8 text-primary" />,
     title: "Deriv MT5 (MetaTrader 5)",
     description: "A plataforma padrão da indústria para negociação de CFDs.",
+    href: "#",
     comingSoon: true,
   },
   {
     icon: <Bot className="w-8 h-8 text-primary" />,
     title: "Deriv Bot",
     description: "Crie, teste e use robôs de negociação automatizados.",
+    href: "#",
     comingSoon: true,
   },
   {
     icon: <Settings2 className="w-8 h-8 text-primary" />,
     title: "Deriv X",
     description: "Plataforma multi-ativos altamente personalizável.",
+    href: "#",
     comingSoon: true,
   },
   {
     icon: <Laptop className="w-8 h-8 text-primary" />,
     title: "SmartTrader",
     description: "Interface simples para negociação de opções digitais.",
+    href: "#",
     comingSoon: true,
   },
   {
     icon: <Smartphone className="w-8 h-8 text-primary" />,
     title: "Deriv GO",
     description: "App móvel otimizado para negociação em movimento.",
+    href: "#",
     comingSoon: true,
   }
 ];
@@ -46,7 +53,7 @@ export default function OptionsPage() {
     <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h1 className="text-3xl font-bold tracking-tight font-headline">
-          Opções Deriv
+          Plataformas Deriv
         </h1>
       </div>
       <p className="text-muted-foreground">
@@ -64,8 +71,12 @@ export default function OptionsPage() {
               </div>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col justify-end">
-              <Button className="w-full mt-4" disabled={platform.comingSoon}>
-                {platform.comingSoon ? "Em Breve" : "Abrir Plataforma"}
+              <Button asChild className="w-full mt-4" disabled={platform.comingSoon}>
+                {platform.comingSoon ? (
+                    <span>Em Breve</span>
+                ) : (
+                    <Link href={platform.href!}>Abrir Plataforma</Link>
+                )}
               </Button>
             </CardContent>
           </Card>

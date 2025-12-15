@@ -56,7 +56,7 @@ const navItems = [
     label: "Metas",
   },
   {
-    href: "/trading",
+    href: "/trader",
     icon: CandlestickChart,
     label: "Trading",
   },
@@ -68,7 +68,7 @@ const navItems = [
   {
     href: "/options",
     icon: Layers,
-    label: "Opções Deriv",
+    label: "Plataformas Deriv",
   },
   {
     href: "/chat-insights",
