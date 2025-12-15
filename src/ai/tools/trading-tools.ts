@@ -52,13 +52,15 @@ export const executeTradeTool = ai.defineTool(
       symbol: z.string().describe('O ticker do ativo a ser negociado.'),
       action: z.enum(['buy', 'sell']).describe('A ação a ser executada: "buy" para comprar, "sell" para vender.'),
       quantity: z.number().describe('A quantidade do ativo a ser negociada.'),
+      tradeType: z.enum(['Digital', 'Accumulators', 'Vanilla', 'Turbo', 'Multipliers']).optional().describe('O tipo de opção de negociação, se aplicável.')
     }),
     outputSchema: z.object({
       success: z.boolean(),
       message: z.string(),
     }),
   },
-  async ({ symbol, action, quantity }) => {
+  async ({ symbol, action, quantity, tradeType }) => {
+    // O service precisaria ser atualizado para lidar com tradeType
     return executeTrade(MOCK_API_TOKEN, symbol, action, quantity);
   }
 );
