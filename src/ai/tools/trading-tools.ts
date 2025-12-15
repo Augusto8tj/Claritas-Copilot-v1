@@ -54,16 +54,23 @@ export const executeTradeTool = ai.defineTool(
       symbol: z.string().describe('O ticker do ativo a ser negociado.'),
       action: z.enum(['buy', 'sell']).describe('A ação a ser executada: "buy" para comprar, "sell" para vender.'),
       quantity: z.number().describe('A quantidade do ativo a ser negociada.'),
-      tradeType: z.enum(['Digital', 'Accumulators', 'Vanilla', 'Turbo', 'Multipliers']).optional().describe('O tipo de opção de negociação, se aplicável.')
+      tradeType: z.enum(['Digital', 'Accumulators', 'Vanilla', 'Turbo', 'Multipliers']).optional().describe('O tipo de opção de negociação, se aplicável.'),
+      digitalOptionType: z.enum([
+        'RiseFall', 'HigherLower', 'EndBetweens', 'StaysBetween', 
+        'Lookbacks', 'TouchNoTouch', 'OnlyUpsDowns', 'HighestLowest', 
+        'ResetCall', 'AsianUpDown', 'Digit:Matches/Differs', 
+        'Digit:Even/Odd', 'Digit:Over/Under'
+      ]).optional().describe('O tipo específico de Opção Digital a ser negociada.')
     }),
     outputSchema: z.object({
       success: z.boolean(),
       message: z.string(),
     }),
   },
-  async ({ symbol, action, quantity, tradeType }) => {
+  async ({ symbol, action, quantity, tradeType, digitalOptionType }) => {
     if (!API_TOKEN) throw new Error("O token da API da Deriv não está configurado.");
-    // O service precisaria ser atualizado para lidar com tradeType
+    // O service precisaria ser atualizado para lidar com tradeType e digitalOptionType
+    console.log(`[Trade Tool] Executing trade with tradeType: ${tradeType} and digitalOptionType: ${digitalOptionType}`);
     return executeTrade(API_TOKEN, symbol, action, quantity);
   }
 );
