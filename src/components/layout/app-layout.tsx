@@ -57,18 +57,18 @@ const navItems = [
   },
   {
     href: "/trader",
+    icon: Layers,
+    label: "Plataformas Deriv",
+  },
+  {
+    href: "/deriv-trader",
     icon: CandlestickChart,
-    label: "Trading",
+    label: "Deriv Trader",
   },
   {
     href: "/backtesting",
     icon: TestTube,
     label: "Backtesting",
-  },
-  {
-    href: "/options",
-    icon: Layers,
-    label: "Plataformas Deriv",
   },
   {
     href: "/chat-insights",

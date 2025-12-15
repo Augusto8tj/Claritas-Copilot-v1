@@ -8,7 +8,7 @@ const platforms = [
     icon: <Layers className="w-8 h-8 text-primary" />,
     title: "Deriv Trader",
     description: "Plataforma web para negociação de opções e multiplicadores.",
-    href: "/trader",
+    href: "/deriv-trader",
     comingSoon: false,
   },
   {
@@ -48,7 +48,7 @@ const platforms = [
   }
 ];
 
-export default function OptionsPage() {
+export default function DerivPlatformsPage() {
   return (
     <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
