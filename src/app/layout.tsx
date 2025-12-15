@@ -4,7 +4,7 @@ import { AppLayout } from '@/components/layout/app-layout';
 import { Toaster } from '@/components/ui/toaster';
 import { ThemeProvider } from '@/hooks/use-theme';
 import { AuthProvider } from '@/hooks/use-auth';
-import { DerivApiProvider } from '@/hooks/use-deriv-api';
+import { DerivApiProvider } from '@/hooks/use-deriv-api.tsx';
 
 
 export const metadata: Metadata = {

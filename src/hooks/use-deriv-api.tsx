@@ -48,7 +48,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const value = {
+  const contextValue = {
     apiToken,
     isConnected: !!apiToken,
     connect,
@@ -58,9 +58,9 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   if (loading) {
     return null;
   }
-
+  
   return (
-    <DerivApiContext.Provider value={value}>
+    <DerivApiContext.Provider value={contextValue}>
       {children}
     </DerivApiContext.Provider>
   );
