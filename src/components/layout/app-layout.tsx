@@ -28,7 +28,8 @@ import {
   SidebarTrigger,
   SidebarInset,
   SidebarMenuSub,
-  SidebarMenuSubButton
+  SidebarMenuSubButton,
+  SidebarMenuSubItem
 } from "@/components/ui/sidebar";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Logo } from "@/components/icons";
