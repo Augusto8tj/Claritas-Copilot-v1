@@ -58,7 +58,7 @@ const navItems = [
   {
     href: "/trader",
     icon: Layers,
-    label: "Plataformas Deriv",
+    label: "Plataformas",
   },
   {
     href: "/deriv-trader",
