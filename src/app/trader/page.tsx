@@ -8,7 +8,7 @@ const platforms = [
     icon: <Layers className="w-8 h-8 text-primary" />,
     title: "Deriv Trader",
     description: "Plataforma web para negociação de opções e multiplicadores.",
-    href: "/options",
+    href: "/deriv-trader",
     comingSoon: false,
   },
   {

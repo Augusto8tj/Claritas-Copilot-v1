@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { usePathname } from "next/navigation";
@@ -15,6 +16,7 @@ import {
   CandlestickChart,
   TestTube,
   Layers,
+  ChevronDown
 } from "lucide-react";
 import {
   Sidebar,
@@ -25,6 +27,8 @@ import {
   SidebarProvider,
   SidebarTrigger,
   SidebarInset,
+  SidebarMenuSub,
+  SidebarMenuSubButton
 } from "@/components/ui/sidebar";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Logo } from "@/components/icons";
@@ -32,6 +36,9 @@ import { UserNav } from "./user-nav";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSidebar } from "@/components/ui/sidebar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
+import React from "react";
 
 
 const navItems = [
@@ -54,16 +61,6 @@ const navItems = [
     href: "/goals",
     icon: Target,
     label: "Metas",
-  },
-  {
-    href: "/trader",
-    icon: Layers,
-    label: "Plataformas",
-  },
-  {
-    href: "/deriv-trader",
-    icon: CandlestickChart,
-    label: "Deriv Trader",
   },
   {
     href: "/backtesting",
@@ -101,6 +98,8 @@ const navItems = [
 
 function MainNav() {
   const pathname = usePathname();
+  const isTraderSectionActive = pathname.startsWith('/trader') || pathname.startsWith('/deriv-trader') || pathname.startsWith('/options');
+  
   return (
     <SidebarMenu>
       {navItems.filter(item => !item.hidden).map((item) => (
@@ -117,6 +116,32 @@ function MainNav() {
           </SidebarMenuButton>
         </SidebarMenuItem>
       ))}
+
+      {/* Menu de Plataformas com Submenu */}
+      <Collapsible>
+        <SidebarMenuItem>
+            <CollapsibleTrigger asChild>
+                 <SidebarMenuButton
+                    className="w-full justify-start"
+                    isActive={isTraderSectionActive}
+                    >
+                    <Layers className="w-5 h-5" />
+                    <span>Plataformas Deriv</span>
+                    <ChevronDown className={cn("ml-auto h-4 w-4 shrink-0 transition-transform", isTraderSectionActive && "rotate-180")} />
+                </SidebarMenuButton>
+            </CollapsibleTrigger>
+        </SidebarMenuItem>
+        <CollapsibleContent asChild>
+            <SidebarMenuSub>
+                <SidebarMenuSubItem>
+                    <SidebarMenuSubButton href="/deriv-trader" isActive={pathname === '/deriv-trader'}>
+                        <CandlestickChart />
+                        <span>Deriv Trader</span>
+                    </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+            </SidebarMenuSub>
+        </CollapsibleContent>
+      </Collapsible>
     </SidebarMenu>
   )
 }
