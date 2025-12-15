@@ -55,7 +55,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     disconnect,
   };
 
-  // Do not render children until token state is loaded from localStorage
   if (loading) {
     return null;
   }
