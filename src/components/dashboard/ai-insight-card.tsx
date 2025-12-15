@@ -1,29 +1,19 @@
-import { getFinancialInsights } from "@/ai/flows/financial-insights";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Lightbulb } from "lucide-react";
 
-export async function AIInsightCard() {
-  // Mock data for demonstration purposes
-  const mockFinancialData = JSON.stringify({
-    renda: 7250,
-    despesas: {
-      moradia: 1800,
-      transporte: 450,
-      alimentacao: 850,
-      compras: 780,
-      lazer: 600,
-      outros: 350
-    },
-    economias: 18500,
-    investimentos: 45000,
-    dividas: 5000,
-  });
-  const mockUserGoals = "Economizar para a entrada de uma casa, fazer uma viagem internacional.";
+async function getMockInsights() {
+  // Simula uma pequena demora de rede sem chamar a API real
+  await new Promise(resolve => setTimeout(resolve, 50));
+  return [
+      "Seu gasto com 'Compras' aumentou 15% este mês. Que tal revisar assinaturas não utilizadas?",
+      "Você economizou R$250 em 'Alimentação' comparado ao mês passado. Ótimo trabalho!",
+      "Considere aplicar R$500 do seu saldo atual na sua meta 'Viagem para o Japão' para acelerar o progresso."
+    ];
+}
 
-  const { insights } = await getFinancialInsights({
-    financialData: mockFinancialData,
-    userGoals: mockUserGoals,
-  });
+
+export async function AIInsightCard() {
+  const insights = await getMockInsights();
 
   return (
     <Card className="col-span-4 bg-primary/5 border-primary/20">
