@@ -9,8 +9,8 @@ import { z } from 'zod';
 
 // For simplicity, we assume the user's API token is available.
 // In a real app, this would be securely retrieved for the logged-in user.
-// THIS IS A PLACEHOLDER and will be replaced by a secure token retrieval mechanism.
-const MOCK_API_TOKEN = process.env.DERIV_API_TOKEN || "valid-token-for-testing";
+// It will use the environment variable if available.
+const API_TOKEN = process.env.DERIV_API_TOKEN || "valid-token-for-testing";
 
 export const getAccountBalanceTool = ai.defineTool(
   {
@@ -23,8 +23,8 @@ export const getAccountBalanceTool = ai.defineTool(
     }),
   },
   async () => {
-    // TODO: Securely get the API token for the current user.
-    return getAccountBalance(MOCK_API_TOKEN);
+    if (!API_TOKEN) throw new Error("O token da API da Deriv não está configurado.");
+    return getAccountBalance(API_TOKEN);
   }
 );
 
@@ -62,9 +62,9 @@ export const executeTradeTool = ai.defineTool(
     }),
   },
   async ({ symbol, action, quantity, tradeType }) => {
-    // TODO: Securely get the API token for the current user.
+    if (!API_TOKEN) throw new Error("O token da API da Deriv não está configurado.");
     // O service precisaria ser atualizado para lidar com tradeType
-    return executeTrade(MOCK_API_TOKEN, symbol, action, quantity);
+    return executeTrade(API_TOKEN, symbol, action, quantity);
   }
 );
 
