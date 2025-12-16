@@ -49,15 +49,21 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
 function CustomCandle({ x, y, width, height, low, high, open, close }: any) {
   const isBullish = close >= open;
   const color = isBullish ? "hsl(var(--primary))" : "hsl(var(--destructive))";
-  const bodyHeight = Math.abs(open - close);
+  
+  // Ensure width is at least 1 to be visible
+  const bodyWidth = Math.max(width, 1);
+  
   const bodyY = isBullish ? y + (high - close) : y + (high - open);
+  const bodyHeight = Math.max(Math.abs(open - close), 1);
+
+  const wickX = x + bodyWidth / 2;
 
   return (
     <g>
       {/* Wick */}
-      <line x1={x + width / 2} y1={y} x2={x + width / 2} y2={y + height} stroke={color} strokeWidth="1" />
+      <line x1={wickX} y1={y} x2={wickX} y2={y + height} stroke={color} strokeWidth="1" />
       {/* Body */}
-      <rect x={x} y={bodyY} width={width} height={bodyHeight} fill={color} />
+      <rect x={x} y={bodyY} width={bodyWidth} height={bodyHeight} fill={color} />
     </g>
   );
 };
@@ -70,7 +76,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    setData([]);
+    // Don't clear data to prevent flicker. The new data will replace the old one smoothly.
     setLoading(true);
     setError(null);
 
@@ -82,16 +88,16 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
     wsRef.current = ws;
 
     ws.onopen = () => {
+        const startTime = Math.floor(Date.now() / 1000) - timePeriodToSeconds[timePeriod];
         const request = chartType === 'Area' ? {
             "ticks_history": symbol,
             "end": "latest",
-            "start": Math.floor(Date.now() / 1000) - timePeriodToSeconds[timePeriod],
+            "start": startTime,
             "style": "ticks",
-            "count": 5000,
         } : {
             "ticks_history": symbol,
             "end": "latest",
-            "start": Math.floor(Date.now() / 1000) - timePeriodToSeconds[timePeriod],
+            "start": startTime,
             "style": "candles",
             "granularity": getGranularityForTimePeriod(timePeriod),
         };
@@ -122,7 +128,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
             high: candle.high,
             low: candle.low,
             close: candle.close,
-        }));
+        })).filter((c: CandleData) => c.open); // Filter out empty candles
       }
       
       if (initialData.length > 0) {
@@ -157,8 +163,12 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
 
     return () => {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-         wsRef.current.send(JSON.stringify({ "forget_all": "ticks" }));
-         wsRef.current.close();
+         try {
+            wsRef.current.send(JSON.stringify({ "forget_all": "ticks" }));
+            wsRef.current.close();
+         } catch (e) {
+            console.warn("[Deriv WS] WebSocket already closed or errored on cleanup.");
+         }
       }
       wsRef.current = null;
     };
@@ -173,7 +183,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   }
 
 
-  if (loading) {
+  if (loading && data.length === 0) { // Only show full-screen loader on initial load
     return (
       <div className="h-[400px] w-full flex items-center justify-center">
         <p className="text-muted-foreground">Carregando dados do gráfico em tempo real...</p>
@@ -190,7 +200,12 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   }
 
   return (
-    <div className="h-[400px] w-full">
+    <div className="h-[400px] w-full relative">
+        {loading && (
+            <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10">
+                <p className="text-muted-foreground">Atualizando gráfico...</p>
+            </div>
+        )}
         <ResponsiveContainer width="100%" height="100%">
         { chartType === 'Area' ? (
             <LineChart data={data}>
@@ -244,6 +259,9 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
+                    type="number"
+                    domain={getDomain()}
+                    allowDataOverflow={true}
                 />
                 <YAxis
                     stroke="hsl(var(--muted-foreground))"
@@ -252,56 +270,27 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
                     axisLine={false}
                     domain={['dataMin - 1', 'dataMax + 1']}
                     tickFormatter={(value) => `$${Number(value).toFixed(2)}`}
-                    width={60}
+                    width={80}
                 />
                 <Tooltip
-                     cursor={{fill: "hsl(var(--muted))"}}
+                     cursor={{fill: "hsl(var(--muted) / 0.5)"}}
                      content={({ active, payload, label }) => {
                         if (active && payload && payload.length) {
                         const candle = payload[0].payload as CandleData;
                         return (
-                            <div className="rounded-lg border bg-background p-2 shadow-sm">
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div className="flex flex-col">
-                                    <span className="text-[0.70rem] uppercase text-muted-foreground">
-                                        Data
-                                    </span>
-                                    <span className="font-bold text-muted-foreground">
-                                        {new Date(label * 1000).toLocaleString('pt-BR')}
-                                    </span>
-                                    </div>
-                                    <div className="flex flex-col">
-                                    <span className="text-[0.70rem] uppercase text-muted-foreground">
-                                        Abertura
-                                    </span>
-                                    <span className="font-bold text-green-500">
-                                        ${candle.open.toFixed(2)}
-                                    </span>
-                                    </div>
-                                    <div className="flex flex-col">
-                                    <span className="text-[0.70rem] uppercase text-muted-foreground">
-                                        Máxima
-                                    </span>
-                                    <span className="font-bold text-green-500">
-                                        ${candle.high.toFixed(2)}
-                                    </span>
-                                    </div>
-                                    <div className="flex flex-col">
-                                    <span className="text-[0.70rem] uppercase text-muted-foreground">
-                                        Mínima
-                                    </span>
-                                    <span className="font-bold text-red-500">
-                                        ${candle.low.toFixed(2)}
-                                    </span>
-                                    </div>
-                                    <div className="flex flex-col">
-                                    <span className="text-[0.70rem] uppercase text-muted-foreground">
-                                        Fechamento
-                                    </span>
-                                    <span className="font-bold text-red-500">
-                                        ${candle.close.toFixed(2)}
-                                    </span>
-                                    </div>
+                            <div className="rounded-lg border bg-background p-2 shadow-sm text-xs">
+                                <p className="font-bold mb-2">
+                                    {new Date(label * 1000).toLocaleString('pt-BR')}
+                                </p>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                    <span className="text-muted-foreground">Abertura:</span>
+                                    <span className="font-bold text-right">${candle.open.toFixed(2)}</span>
+                                    <span className="text-muted-foreground">Máxima:</span>
+                                    <span className="font-bold text-right text-green-500">${candle.high.toFixed(2)}</span>
+                                    <span className="text-muted-foreground">Mínima:</span>
+                                    <span className="font-bold text-right text-red-500">${candle.low.toFixed(2)}</span>
+                                    <span className="text-muted-foreground">Fechamento:</span>
+                                    <span className="font-bold text-right">${candle.close.toFixed(2)}</span>
                                 </div>
                             </div>
                         )
@@ -309,7 +298,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
                         return null;
                     }}
                 />
-                <Bar dataKey="close" shape={<CustomCandle />} />
+                <Bar dataKey="close" shape={<CustomCandle />} barSize={5} />
             </BarChart>
         )}
         </ResponsiveContainer>
