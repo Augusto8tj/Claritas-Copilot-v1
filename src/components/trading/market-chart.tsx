@@ -48,13 +48,12 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   const [data, setData] = useState<TickData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [zoomOffset, setZoomOffset] = useState(0); // in seconds
+  const [duration, setDuration] = useState(getHistoryDurationForTimePeriod(timePeriod));
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    // Reset zoom when symbol or timePeriod changes
-    setZoomOffset(0);
-  }, [symbol, timePeriod]);
+    setDuration(getHistoryDurationForTimePeriod(timePeriod));
+  }, [timePeriod]);
 
 
   useEffect(() => {
@@ -70,7 +69,6 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
     wsRef.current = ws;
 
     ws.onopen = () => {
-      const duration = getHistoryDurationForTimePeriod(timePeriod);
       const endTime = Math.floor(Date.now() / 1000);
       const startTime = endTime - duration;
 
@@ -145,31 +143,17 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
       }
       wsRef.current = null;
     };
-  }, [symbol, timePeriod]);
+  }, [symbol, duration]);
   
-  const getXAxisDomain = (): [number, number] => {
-    const baseDuration = getHistoryDurationForTimePeriod(timePeriod);
-    const zoomFactor = baseDuration * 0.1; // Each zoom step is 10% of the base duration
-    const currentDuration = baseDuration - (zoomOffset * zoomFactor);
-    
-    const latest = data.length > 0 ? data[data.length - 1].epoch : Math.floor(Date.now() / 1000);
-    
-    return [latest - currentDuration, latest];
+  const handleZoom = (factor: number) => {
+    setDuration(currentDuration => {
+      const newDuration = Math.round(currentDuration * factor);
+      // Prevent zooming too far in or out
+      if (newDuration < 60) return 60; // Min 1 minute
+      if (newDuration > 90 * 24 * 60 * 60) return 90 * 24 * 60 * 60; // Max 90 days
+      return newDuration;
+    });
   };
-
-  const handleZoomIn = () => {
-    // Prevent zooming in too much (e.g., less than 10% of original duration)
-    if (getHistoryDurationForTimePeriod(timePeriod) - ((zoomOffset + 1) * (getHistoryDurationForTimePeriod(timePeriod) * 0.1)) > 60) {
-       setZoomOffset(prev => prev + 1);
-    }
-  }
-  
-  const handleZoomOut = () => {
-    // Prevent zooming out too much
-     if (zoomOffset > 0) {
-        setZoomOffset(prev => prev - 1);
-     }
-  }
 
 
   if (loading) {
@@ -191,11 +175,11 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   return (
     <div className="h-[400px] w-full relative group">
        <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-        <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleZoomOut}>
+        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleZoom(1.5)}>
           <Minus className="h-4 w-4" />
           <span className="sr-only">Reduzir zoom</span>
         </Button>
-        <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleZoomIn}>
+        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleZoom(0.5)}>
           <Plus className="h-4 w-4" />
           <span className="sr-only">Ampliar zoom</span>
         </Button>
@@ -211,7 +195,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
             axisLine={false}
             tickFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleTimeString('pt-BR')}
             type="number"
-            domain={getXAxisDomain()}
+            domain={['dataMin', 'dataMax']}
             allowDataOverflow={true}
           />
           <YAxis

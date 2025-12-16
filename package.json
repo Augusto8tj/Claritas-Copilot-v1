@@ -46,7 +46,7 @@
     "firebase": "^11.9.1",
     "genkit": "1.26.0",
     "lucide-react": "^0.475.0",
-    "next": "16.0.7",
+    "next": "16.0.10",
     "patch-package": "^8.0.0",
     "react": "19.2.1",
     "react-dom": "19.2.1",
