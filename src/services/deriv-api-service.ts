@@ -146,15 +146,15 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
  * @param apiToken - The user's API token for authentication.
  * @param accountType - The type of account ('demo' or 'real').
  */
-export async function getAccountBalance(apiToken: string, accountType: AccountType = 'demo'): Promise<AccountBalance> {
-  console.log(`[Deriv Service] Fetching account balance for ${accountType} account...`);
+export async function getAccountBalance(apiToken: string): Promise<AccountBalance> {
+  console.log(`[Deriv Service] Fetching account balance...`);
   
   if (!apiToken) {
     throw new Error("API token is required.");
   }
 
   const authorizeRequest = { "authorize": apiToken };
-  const balanceRequest = { "balance": 1, "subscribe": 0 };
+  const balanceRequest = { "balance": 1 };
   
 
   try {
@@ -167,10 +167,7 @@ export async function getAccountBalance(apiToken: string, accountType: AccountTy
         };
     } else {
         console.warn("[Deriv Service] Balance not found in response.");
-        return {
-            balance: 0,
-            currency: 'USD',
-        };
+        throw new Error("Balance information not available in API response.");
     }
   } catch (error) {
     console.error("[Deriv Service] Error in getAccountBalance:", error);
@@ -261,15 +258,17 @@ export async function executeTrade(apiToken: string, symbol: string, tradeDirect
         throw new Error("Failed to get a valid proposal from the API.");
     }
     const proposalId = proposalResponse.proposal.id;
+    const price = proposalResponse.proposal.ask_price;
     console.log(`[Deriv Service] -> Proposal ID received: ${proposalId}`);
 
     const buyRequest = {
         "buy": proposalId,
-        "price": quantity
+        "price": price
     };
 
     console.log(`[Deriv Service] Step 2: Buying contract with proposal ID...`);
-    // Re-authorize and buy
+    
+    // The second call also needs to be authorized.
     const buyResponse: any = await callDerivApi([authorizeRequest, buyRequest]);
 
     if (buyResponse.buy && buyResponse.buy.contract_id) {
