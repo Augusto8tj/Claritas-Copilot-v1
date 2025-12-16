@@ -31,8 +31,10 @@ import { Checkbox } from "../ui/checkbox";
 import { Label } from "../ui/label";
 import { Separator } from "../ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type DurationUnit = 'ticks' | 'seconds' | 'minutes' | 'hours' | 'days';
+type TradeType = 'Rise/Fall' | 'Higher/Lower' | 'Touch/No Touch';
 
 const riseFallSchema = z.object({
   stake: z.coerce.number().min(0.35, "O valor mínimo é $0.35."),
@@ -69,9 +71,16 @@ const durationLimits: Record<DurationUnit, { min: number, max: number }> = {
     days: { min: 1, max: 365 },
 }
 
+const tradeTypes: {label: TradeType, description: string}[] = [
+    { label: "Rise/Fall", description: "Preveja se o preço de saída será maior ou menor que o preço de entrada." },
+    { label: "Higher/Lower", description: "Preveja se o preço terminará mais alto ou mais baixo que um alvo de preço." },
+    { label: "Touch/No Touch", description: "Preveja se o mercado tocará ou não um alvo a qualquer momento durante o período do contrato." },
+]
+
 export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<"rise" | "fall" | null>(null);
+  const [tradeType, setTradeType] = useState<TradeType>('Rise/Fall');
 
   const form = useForm<RiseFallFormValues>({
     resolver: zodResolver(riseFallSchema),
@@ -127,15 +136,45 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
   return (
     <Card className="bg-card/50">
       <CardContent className="p-4 space-y-4">
-        <div className="flex items-center justify-between p-2 rounded-md">
-            <Button variant="ghost" size="icon" className="h-6 w-6" disabled><ChevronLeft className="h-5 w-5" /></Button>
-            <div className="flex items-center gap-2">
-                <ArrowUp className="text-green-500 h-5 w-5" />
-                <ArrowDown className="text-red-500 h-5 w-5" />
-                <span className="font-semibold text-sm">Rise/Fall</span>
-            </div>
-            <Button variant="ghost" size="icon" className="h-6 w-6" disabled><ChevronRight className="h-5 w-5" /></Button>
-        </div>
+        <Popover>
+            <PopoverTrigger asChild>
+                <div className="flex items-center justify-between p-2 rounded-md hover:bg-muted cursor-pointer transition-colors">
+                    <Button variant="ghost" size="icon" className="h-6 w-6" disabled><ChevronLeft className="h-5 w-5" /></Button>
+                    <div className="flex items-center gap-2">
+                        <ArrowUp className="text-green-500 h-5 w-5" />
+                        <ArrowDown className="text-red-500 h-5 w-5" />
+                        <span className="font-semibold text-sm">{tradeType}</span>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" disabled><ChevronRight className="h-5 w-5" /></Button>
+                </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-80">
+                <div className="grid gap-4">
+                    <div className="space-y-2">
+                        <h4 className="font-medium leading-none">Tipos de Negociação</h4>
+                        <p className="text-sm text-muted-foreground">
+                        Escolha o tipo de contrato que deseja negociar.
+                        </p>
+                    </div>
+                    <div className="grid gap-2">
+                        {tradeTypes.map((type) => (
+                             <Button
+                                key={type.label}
+                                variant={tradeType === type.label ? "secondary" : "ghost"}
+                                onClick={() => setTradeType(type.label)}
+                                className="justify-start h-auto p-2"
+                                disabled={type.label !== 'Rise/Fall'} // Enable only Rise/Fall for now
+                            >
+                                <div className="flex flex-col items-start">
+                                    <span className="font-semibold">{type.label}</span>
+                                    <span className="text-xs text-muted-foreground text-left">{type.description}</span>
+                                </div>
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+            </PopoverContent>
+        </Popover>
 
         <Separator />
 
