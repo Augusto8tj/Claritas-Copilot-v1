@@ -1,3 +1,4 @@
+
 'use server';
 
 import {
@@ -10,8 +11,9 @@ import {
   analyzeMqlCode,
 } from '@/ai/flows/mql-analyzer-flow';
 import { MqlAnalyzerInputSchema, type MqlAnalyzerInput } from '@/ai/flows/mql-analyzer-flow.types';
-import { executeTradeTool } from '@/ai/tools/trading-tools';
+import { executeTrade as executeTradeInService } from '@/services/deriv-api-service';
 import { z } from 'zod';
+import { useDerivApi } from '@/hooks/use-deriv-api';
 
 const executeTradeSchema = z.object({
   symbol: z.string(),
@@ -66,8 +68,20 @@ export async function executeTradeAction(data: ExecuteTradeInput): Promise<{ suc
   }
 
   try {
-    const result = await executeTradeTool(validatedData.data);
-    return { success: result.message };
+    // This is a server action, it can't use hooks.
+    // We need to pass the token from the client.
+    // For now, let's assume the token is in an environment variable for simplicity.
+    const apiToken = process.env.DERIV_API_TOKEN;
+    if (!apiToken) {
+      return { error: "O token da API da Deriv não está configurado no servidor (.env)." };
+    }
+
+    const result = await executeTradeInService(apiToken, validatedData.data.symbol, validatedData.data.tradeDirection, validatedData.data.quantity, { allowEquals: validatedData.data.allowEquals });
+    if(result.success) {
+      return { success: result.message };
+    } else {
+      return { error: result.message };
+    }
   } catch (e: any) {
     console.error("Erro ao executar a negociação:", e);
     return { error: e.message || "Ocorreu um erro inesperado durante a negociação." };

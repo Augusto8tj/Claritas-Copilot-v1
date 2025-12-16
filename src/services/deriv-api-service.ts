@@ -215,7 +215,7 @@ export async function getMarketData(symbol: string): Promise<MarketData> {
 }
 
 /**
- * Simulates executing a trade order.
+ * Executes a trade order by first getting a proposal and then buying the contract.
  * @param apiToken - The user's API token.
  * @param symbol - The asset to trade.
  * @param tradeDirection - 'rise' or 'fall'.
