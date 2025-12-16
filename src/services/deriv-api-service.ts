@@ -1,3 +1,5 @@
+
+
 'use server';
 
 import WebSocket from 'ws';
@@ -127,32 +129,50 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
  */
 export async function getAccountBalance(apiToken: string): Promise<AccountBalance> {
   console.log(`[Deriv Service] Fetching account balance with token: ${apiToken.substring(0, 5)}...`);
-  // Simulate API call delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-
-  if (apiToken.includes('invalid')) {
-    throw new Error('Invalid API Token');
+  
+  if (!apiToken) {
+    throw new Error("API token is required.");
   }
 
-  // Use the provided real token for balance check
+  // Define the base request
+  const request: { [key: string]: any } = {
+    "authorize": apiToken,
+    "balance": 1,
+    "subscribe": 0,
+  };
+
+  // If the token is for the real account, specify the account type.
+  // The API requires this for some tokens.
   if (apiToken === 'URTTMpEMpZY8e5U') {
-     const response: any = await callDerivApi({
-        "balance": 1,
-        "subscribe": 0,
-        "account": "real"
-     });
-     return {
+    request["account"] = "real";
+  }
+
+  try {
+    const response: any = await callDerivApi(request);
+
+    // If the token is valid but doesn't return a balance (e.g., demo token not needing special calls)
+    // we return a mock balance.
+    if (response.balance) {
+      return {
         balance: response.balance.balance,
         currency: response.balance.currency,
-     };
-  }
+      };
+    }
+    
+    // Fallback for demo tokens or other valid tokens that don't need the specific "real" account call
+    // The authorize call itself is a validation.
+    console.log("[Deriv Service] Token validated, returning mock balance for non-real account.");
+    return {
+        balance: 10000,
+        currency: 'USD',
+    };
 
-  // Default mock balance for other tokens (like demo)
-  return {
-    balance: 10000,
-    currency: 'USD',
-  };
+  } catch (error) {
+    console.error("[Deriv Service] Error in getAccountBalance:", error);
+    throw error; // Re-throw the error to be handled by the caller
+  }
 }
+
 
 /**
  * Simulates fetching market data for a specific symbol.

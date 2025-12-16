@@ -137,6 +137,9 @@ export async function checkGeminiConnection(): Promise<{ success: boolean, error
 
 export async function checkDerivConnection(apiToken: string): Promise<{ success: boolean, error?: string }> {
     try {
+        if (!apiToken) {
+            return { success: false, error: "O token da API não foi fornecido." };
+        }
         await getAccountBalance(apiToken);
         return { success: true };
     } catch (e: any) {
