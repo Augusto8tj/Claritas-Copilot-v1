@@ -17,8 +17,8 @@ import { getFinancialSummary, getInsights } from "@/services/financial-data-serv
 import { auth } from "@/lib/firebase";
 import { type GoalProjectionInput } from "@/ai/flows/goal-projection.types";
 import { getAccountBalance } from "@/services/deriv-api-service";
-import { listModels } from "@genkit-ai/google-genai";
 import { AccountType } from "@/hooks/use-deriv-api";
+import { listModels } from "@genkit-ai/google-genai";
 
 
 const goalProjectionSchema = z.object({
