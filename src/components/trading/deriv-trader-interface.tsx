@@ -30,10 +30,20 @@ import { Input } from "../ui/input";
 import { Checkbox } from "../ui/checkbox";
 import { Label } from "../ui/label";
 import { Separator } from "../ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+type DurationUnit = 'ticks' | 'seconds' | 'minutes' | 'hours' | 'days';
 
 const riseFallSchema = z.object({
   stake: z.coerce.number().min(0.35, "O valor mínimo é $0.35."),
-  duration: z.coerce.number().min(5, "Mínimo de 5 ticks.").max(10, "Máximo de 10 ticks."),
+  duration: z.coerce.number().min(1, "A duração deve ser de pelo menos 1."),
+  duration_unit: z.nativeEnum({
+    ticks: 'ticks',
+    seconds: 'seconds',
+    minutes: 'minutes',
+    hours: 'hours',
+    days: 'days',
+  }),
   allowEquals: z.boolean().default(false),
 });
 
@@ -41,6 +51,22 @@ type RiseFallFormValues = z.infer<typeof riseFallSchema>;
 
 interface DerivTraderInterfaceProps {
   symbol: string;
+}
+
+const durationUnitLabels: Record<DurationUnit, string> = {
+  ticks: "Ticks",
+  seconds: "Segundos",
+  minutes: "Minutos",
+  hours: "Horas",
+  days: "Dias",
+};
+
+const durationLimits: Record<DurationUnit, { min: number, max: number }> = {
+    ticks: { min: 5, max: 10 },
+    seconds: { min: 15, max: 60 },
+    minutes: { min: 1, max: 60 },
+    hours: { min: 1, max: 24 },
+    days: { min: 1, max: 365 },
 }
 
 export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
@@ -52,9 +78,12 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
     defaultValues: {
       stake: 10,
       duration: 5,
+      duration_unit: "ticks",
       allowEquals: false,
     },
   });
+
+  const durationUnit = form.watch('duration_unit');
 
   const handleTrade = async (tradeDirection: "rise" | "fall") => {
     // Manually trigger validation
@@ -118,48 +147,54 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
                         <TabsTrigger value="endtime" disabled>Hora de término</TabsTrigger>
                     </TabsList>
                     <TabsContent value="duration" className="pt-2">
-                        <FormField
-                            control={form.control}
-                            name="duration"
-                            render={({ field }) => (
-                            <FormItem>
-                                <div className="flex items-center justify-between">
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8"
-                                        onClick={() => field.value > 5 && field.onChange(field.value - 1)}
-                                        disabled={field.value <= 5}
-                                    >
-                                        <Minus className="h-4 w-4" />
-                                    </Button>
-                                    <div className="text-center">
-                                        <span className="font-semibold text-lg">{field.value}</span>
-                                        <p className="text-xs text-muted-foreground">Ticks</p>
+                        <div className="flex gap-2">
+                            <FormField
+                                control={form.control}
+                                name="duration_unit"
+                                render={({ field }) => (
+                                    <FormItem className="w-1/2">
+                                        <Select onValueChange={(value) => {
+                                            const newUnit = value as DurationUnit;
+                                            field.onChange(newUnit);
+                                            form.setValue('duration', durationLimits[newUnit].min); // Reset duration to min of new unit
+                                            form.trigger('duration');
+                                        }} value={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Unidade" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {Object.entries(durationUnitLabels).map(([value, label]) => (
+                                                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="duration"
+                                render={({ field }) => (
+                                <FormItem className="w-1/2">
+                                    <div className="flex items-center justify-between">
+                                        <div className="text-center w-full">
+                                            <FormControl>
+                                                <Input 
+                                                    type="number"
+                                                    {...field}
+                                                    onChange={e => field.onChange(parseInt(e.target.value))}
+                                                    className="font-semibold text-lg text-center border-0 focus-visible:ring-0"
+                                                />
+                                            </FormControl>
+                                        </div>
                                     </div>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8"
-                                        onClick={() => field.value < 10 && field.onChange(field.value + 1)}
-                                        disabled={field.value >= 10}
-                                    >
-                                        <Plus className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                                <Input 
-                                    type="range"
-                                    min="5" max="10"
-                                    value={field.value}
-                                    onChange={(e) => field.onChange(parseInt(e.target.value))}
-                                    className="w-full h-1 p-0 cursor-pointer"
-                                />
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                        </div>
                     </TabsContent>
                 </Tabs>
                 
