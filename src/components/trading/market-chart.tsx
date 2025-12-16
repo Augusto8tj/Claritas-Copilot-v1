@@ -83,8 +83,10 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
         JSON.stringify({
           ticks_history: symbol,
           start: startTime,
-          end: endTime,
+          end: "latest",
           style: "ticks",
+          adjust_start_time: true,
+          count: 5000
         })
       );
     };
