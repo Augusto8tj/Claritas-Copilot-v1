@@ -17,6 +17,7 @@ import { auth } from "@/lib/firebase";
 import { type GoalProjectionInput } from "@/ai/flows/goal-projection.types";
 import { getAccountBalance } from "@/services/deriv-api-service";
 import { ai } from "@/ai/genkit";
+import { listModels } from "genkit/ai";
 
 
 const goalProjectionSchema = z.object({
@@ -111,16 +112,16 @@ export async function sendFinancialSummaryEmail() {
   }
 }
 
-export async function checkGeminiConnection(): Promise<{ success: boolean, error?: string }> {
+export async function checkGeminiConnection(): Promise<{ success: boolean, error?: string, models?: any[] }> {
     try {
-        const { text } = await ai.generate({
-            prompt: "Responda apenas com 'ok'.",
-            config: { temperature: 0 },
-        });
-        if (text?.trim().toLowerCase() === 'ok') {
-            return { success: true };
+        const models = await listModels();
+        // Filtramos para mostrar apenas modelos do Google AI, que são os relevantes para o Gemini
+        const googleModels = models.filter(m => m.name.startsWith('googleai/'));
+
+        if (googleModels.length > 0) {
+            return { success: true, models: googleModels };
         }
-        return { success: false, error: "A resposta da API foi inesperada." };
+        return { success: false, error: "Nenhum modelo do Google AI encontrado. Verifique sua chave de API e permissões." };
     } catch (e: any) {
         console.error("[Health Check] Gemini API error:", e.message);
         if (e.message.includes('API key not valid')) {
@@ -132,6 +133,7 @@ export async function checkGeminiConnection(): Promise<{ success: boolean, error
         return { success: false, error: e.message || "Ocorreu um erro desconhecido." };
     }
 }
+
 
 export async function checkDerivConnection(apiToken: string): Promise<{ success: boolean, error?: string }> {
     try {
