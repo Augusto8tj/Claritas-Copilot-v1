@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import type { TimePeriod } from "@/app/deriv-trader/page";
 
@@ -26,42 +26,40 @@ const timePeriodToSeconds: Record<TimePeriod, number> = {
   '1d': 24 * 60 * 60,
 };
 
-// Request slightly more data than needed for a smoother chart
-const timePeriodToCount: Record<TimePeriod, number> = {
-  '1m': 100,
-  '15m': 1000,
-  '30m': 2000,
-  '1h': 4000,
-  '8h': 5000, // Max for many symbols
-  '1d': 5000, // Max for many symbols
-};
-
-
 export function MarketChart({ symbol, timePeriod }: MarketChartProps) {
   const [data, setData] = useState<ChartData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     setData([]);
     setLoading(true);
     setError(null);
 
+    // Close any existing connection
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
-    const tickCount = timePeriodToCount[timePeriod];
+    wsRef.current = ws;
+
+    let historyLoaded = false;
+    
+    // Calculate the start time for the historical data request
+    const now = Math.floor(Date.now() / 1000);
+    const startTime = now - timePeriodToSeconds[timePeriod];
 
     ws.onopen = () => {
+      // Request historical data for the selected time period
       ws.send(JSON.stringify({
         "ticks_history": symbol,
-        "adjust_start_time": 1,
-        "count": tickCount,
+        "start": startTime,
         "end": "latest",
-        "start": 1,
         "style": "ticks"
       }));
     };
-
-    let historyLoaded = false;
 
     ws.onmessage = (event) => {
       const response = JSON.parse(event.data);
@@ -83,6 +81,7 @@ export function MarketChart({ symbol, timePeriod }: MarketChartProps) {
         historyLoaded = true;
         setLoading(false);
         
+        // Subscribe to live ticks after history is loaded
         ws.send(JSON.stringify({
             "ticks": symbol,
             "subscribe": 1
@@ -90,7 +89,7 @@ export function MarketChart({ symbol, timePeriod }: MarketChartProps) {
       }
 
       if (response.msg_type === 'tick') {
-        if (!historyLoaded) return;
+        if (!historyLoaded) return; // Don't process ticks until history is loaded
 
         const tick = response.tick;
         const newTickData: ChartData = {
@@ -100,10 +99,12 @@ export function MarketChart({ symbol, timePeriod }: MarketChartProps) {
         
         setData(currentData => {
             const newData = [...currentData, newTickData];
-            if (newData.length > tickCount + 100) { // Keep a slightly larger buffer
-                return newData.slice(newData.length - (tickCount + 100));
-            }
-            return newData;
+            // Remove old data that is outside the time period window
+            const now = Math.floor(Date.now() / 1000);
+            const cutoff = now - timePeriodToSeconds[timePeriod] - 60; // Keep a small buffer
+            const firstValidIndex = newData.findIndex(d => d.epoch > cutoff);
+            
+            return firstValidIndex > 0 ? newData.slice(firstValidIndex) : newData;
         });
       }
     };
@@ -126,16 +127,17 @@ export function MarketChart({ symbol, timePeriod }: MarketChartProps) {
          ws.send(JSON.stringify({ "forget_all": "ticks" }));
          ws.close();
       }
+      wsRef.current = null;
     };
 
   }, [symbol, timePeriod]);
   
   const getDomain = () => {
-    if (data.length < 2) return [0, 1];
+    if (data.length < 2) return ['dataMin', 'dataMax'];
     const nowInSeconds = Math.floor(Date.now() / 1000);
     const periodInSeconds = timePeriodToSeconds[timePeriod];
     const dataMin = nowInSeconds - periodInSeconds;
-    return [dataMin, 'dataMax'];
+    return [dataMin, nowInSeconds];
   }
 
 
@@ -181,6 +183,8 @@ export function MarketChart({ symbol, timePeriod }: MarketChartProps) {
               axisLine={false}
               domain={['dataMin - 1', 'dataMax + 1']}
               tickFormatter={(value) => `$${Number(value).toFixed(2)}`}
+              allowDataOverflow
+              width={60}
             />
             <Tooltip
                 formatter={(value: number) => [`$${value.toFixed(2)}`, "Preço"]}
@@ -192,6 +196,7 @@ export function MarketChart({ symbol, timePeriod }: MarketChartProps) {
                     borderRadius: 'var(--radius)'
                 }}
                 animationDuration={200}
+                position={{ y: 0 }}
             />
             <Line
               isAnimationActive={false}
