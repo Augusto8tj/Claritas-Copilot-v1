@@ -48,6 +48,7 @@ export function MarketChart({ symbol }: MarketChartProps) {
         console.error("Deriv API error:", response.error.message);
         setError(response.error.message);
         setLoading(false);
+        ws.close();
         return;
       }
       
@@ -88,17 +89,24 @@ export function MarketChart({ symbol }: MarketChartProps) {
     };
     
     ws.onerror = (event) => {
-        console.error("WebSocket connection error:", event);
-        setError("Não foi possível conectar ao servidor de dados em tempo real. Verifique sua conexão com a internet ou a configuração do app_id.");
+        console.error("WebSocket connection error. See 'onclose' event for details.");
+        setError("Não foi possível conectar ao servidor de dados em tempo real. Verifique sua conexão ou a configuração do app_id.");
         setLoading(false);
+    }
+
+    ws.onclose = (event) => {
+        console.log(`[Deriv WS] Connection closed: Code=${event.code}, Reason=${event.reason}`);
+        if (!event.wasClean) {
+            setError(`A conexão foi perdida inesperadamente (Código: ${event.code}). Por favor, atualize a página.`);
+        }
     }
 
     // Cleanup function to close WebSocket connection
     return () => {
       if (ws.readyState === WebSocket.OPEN) {
          ws.send(JSON.stringify({ "forget_all": "ticks" }));
+         ws.close();
       }
-      ws.close();
     };
 
   }, [symbol]);
