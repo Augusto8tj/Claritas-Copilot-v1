@@ -26,7 +26,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDerivApi, type AccountType } from "@/hooks/use-deriv-api";
-import { checkDerivConnection, checkGeminiConnection } from "@/app/actions";
+import { checkDerivConnection } from "@/app/actions";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 const derivSchema = z.object({
@@ -68,15 +68,19 @@ export function ApiKeysCard() {
         return;
     }
 
-    const result = await checkDerivConnection(token, type);
-    setLoading(null);
-
-    if (result.success) {
-      setTokens(type === 'demo' ? { demo: token } : { real: token });
-      toast({ title: "Conexão Estabelecida", description: `Sua conta ${type} da Deriv foi conectada.` });
+    // A validação agora é mais simples: apenas salvamos o token.
+    // A verificação real acontecerá quando o aplicativo tentar usar o token (por exemplo, ao buscar o saldo).
+    if (type === 'demo') {
+        setTokens({ demo: token });
     } else {
-      toast({ variant: "destructive", title: "Falha na Conexão", description: result.error });
+        setTokens({ real: token });
     }
+    
+    // Simula um pequeno atraso para feedback do usuário
+    await new Promise(res => setTimeout(res, 500));
+
+    setLoading(null);
+    toast({ title: "Token Salvo", description: `Seu token da conta ${type} foi salvo no navegador.` });
   };
 
   const handleGeminiSubmit: SubmitHandler<GeminiFormValues> = async (data) => {
@@ -106,9 +110,9 @@ export function ApiKeysCard() {
     return (
          <Alert className="border-green-500/50 bg-green-500/10 text-green-700">
             <CheckCircle className="h-4 w-4 !text-green-600" />
-            <AlertTitle>Conta Conectada</AlertTitle>
+            <AlertTitle>Token Salvo</AlertTitle>
             <AlertDescription className="flex justify-between items-center">
-                A chave foi salva e parece válida.
+                O token está salvo no seu navegador.
                 <Button variant="ghost" size="sm" className="text-green-700 hover:text-green-800 hover:bg-green-500/20" onClick={onDisconnectClick}>
                     <XCircle className="mr-2 h-4 w-4" /> Desconectar
                 </Button>
@@ -152,7 +156,7 @@ export function ApiKeysCard() {
                             <div className="flex gap-2">
                                 <Input type="password" placeholder="Cole seu token de API aqui" {...field} />
                                 <Button type="button" onClick={() => handleDerivSubmit('demo')} disabled={loading === 'demo'} className="min-w-[120px]">
-                                    {loading === 'demo' ? <Loader2 className="animate-spin" /> : <><LinkIcon className="mr-2"/>Conectar</>}
+                                    {loading === 'demo' ? <Loader2 className="animate-spin" /> : <><LinkIcon className="mr-2"/>Salvar</>}
                                 </Button>
                             </div>
                             </FormControl>
@@ -179,7 +183,7 @@ export function ApiKeysCard() {
                             <div className="flex gap-2">
                                 <Input type="password" placeholder="Cole seu token de API aqui" {...field} />
                                 <Button type="button" onClick={() => handleDerivSubmit('real')} disabled={loading === 'real'} className="min-w-[120px]">
-                                     {loading === 'real' ? <Loader2 className="animate-spin" /> : <><LinkIcon className="mr-2"/>Conectar</>}
+                                     {loading === 'real' ? <Loader2 className="animate-spin" /> : <><LinkIcon className="mr-2"/>Salvar</>}
                                 </Button>
                             </div>
                             </FormControl>

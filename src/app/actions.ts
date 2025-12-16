@@ -1,3 +1,4 @@
+
 "use server";
 
 import {
@@ -141,6 +142,7 @@ export async function checkDerivConnection(apiToken: string, accountType: Accoun
         if (!apiToken) {
             return { success: false, error: "O token da API não foi fornecido." };
         }
+        // A função getAccountBalance agora aceita o accountType
         await getAccountBalance(apiToken, accountType);
         return { success: true };
     } catch (e: any) {
