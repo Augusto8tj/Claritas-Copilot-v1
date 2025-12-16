@@ -18,8 +18,11 @@ interface MarketChartProps {
 const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
 
 const timePeriodToCount: Record<TimePeriod, number> = {
-  '1h': 500,
-  '8h': 2000,
+  '1m': 60,
+  '15m': 900,
+  '30m': 1800,
+  '1h': 3600,
+  '8h': 4000,
   '1d': 5000, // Max count
 };
 
@@ -114,7 +117,7 @@ export function MarketChart({ symbol, timePeriod }: MarketChartProps) {
       }
     };
 
-  }, [symbol, timePeriod, error]);
+  }, [symbol, timePeriod]);
 
   if (loading) {
     return (

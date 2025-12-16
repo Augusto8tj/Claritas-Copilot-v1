@@ -8,11 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { MarketChart } from "@/components/trading/market-chart";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-export type TimePeriod = '1h' | '8h' | '1d';
+export type TimePeriod = '1m' | '15m' | '30m' | '1h' | '8h' | '1d';
 
 export default function DerivTraderPage() {
   const [selectedAsset, setSelectedAsset] = useState("1HZ100V");
-  const [timePeriod, setTimePeriod] = useState<TimePeriod>('1h');
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('1m');
 
   return (
     <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
@@ -43,7 +43,10 @@ export default function DerivTraderPage() {
                     Visualização do desempenho do ativo em tempo real.
                     </CardDescription>
                 </div>
-                <ToggleGroup type="single" value={timePeriod} onValueChange={(value: TimePeriod) => value && setTimePeriod(value)} defaultValue="1h" aria-label="Período do Gráfico">
+                <ToggleGroup type="single" value={timePeriod} onValueChange={(value: TimePeriod) => value && setTimePeriod(value)} defaultValue="1m" aria-label="Período do Gráfico">
+                    <ToggleGroupItem value="1m" aria-label="Ver último minuto">1M</ToggleGroupItem>
+                    <ToggleGroupItem value="15m" aria-label="Ver últimos 15 minutos">15M</ToggleGroupItem>
+                    <ToggleGroupItem value="30m" aria-label="Ver últimos 30 minutos">30M</ToggleGroupItem>
                     <ToggleGroupItem value="1h" aria-label="Ver última hora">1H</ToggleGroupItem>
                     <ToggleGroupItem value="8h" aria-label="Ver últimas 8 horas">8H</ToggleGroupItem>
                     <ToggleGroupItem value="1d" aria-label="Ver último dia">1D</ToggleGroupItem>
