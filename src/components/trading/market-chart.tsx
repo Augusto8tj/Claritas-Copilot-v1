@@ -153,7 +153,10 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
         setData(initialData);
         setLoading(false);
       } else if (response.msg_type === 'history' || response.msg_type === 'candles') {
-        setLoading(false);
+        // This case handles when the API returns an empty history for the requested period.
+        if (data.length === 0) { // Only stop loading if we haven't received any data yet
+          setLoading(false);
+        }
       }
 
       if (response.msg_type === 'tick' && timePeriod === '1m') {
@@ -199,14 +202,9 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   }, [symbol, timePeriod, chartType]);
   
   const getXAxisDomain = (): [number, number] => {
-    if (data.length === 0) {
-        const now = Math.floor(Date.now() / 1000);
-        const duration = getHistoryDurationForTimePeriod(timePeriod);
-        return [now - duration, now];
-    }
-    const end = data[data.length - 1].epoch;
-    const start = data[0].epoch;
-    return [start, end];
+    const now = Math.floor(Date.now() / 1000);
+    const duration = getHistoryDurationForTimePeriod(timePeriod);
+    return [now - duration, now];
   };
 
   const yDomain = React.useMemo(() => {
