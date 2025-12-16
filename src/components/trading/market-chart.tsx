@@ -85,7 +85,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
           start: startTime,
           end: "latest",
           style: "ticks",
-          adjust_start_time: true,
+          adjust_start_time: 1,
           count: 5000
         })
       );
