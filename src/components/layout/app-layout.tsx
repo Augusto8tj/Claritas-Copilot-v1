@@ -21,6 +21,7 @@ import {
   Settings2,
   Laptop,
   Smartphone,
+  Activity,
 } from "lucide-react";
 import {
   Sidebar,
@@ -82,6 +83,11 @@ const navItems = [
     href: "/chat",
     icon: MessageCircle,
     label: "Chat com IA",
+  },
+  {
+    href: "/status",
+    icon: Activity,
+    label: "Status do Sistema",
   },
   {
     href: "/profile",

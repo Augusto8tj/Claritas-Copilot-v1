@@ -15,6 +15,8 @@ import { z } from "zod";
 import { getFinancialSummary, getInsights } from "@/services/financial-data-service";
 import { auth } from "@/lib/firebase";
 import { type GoalProjectionInput } from "@/ai/flows/goal-projection.types";
+import { getAccountBalance } from "@/services/deriv-api-service";
+import { ai } from "@/ai/genkit";
 
 
 const goalProjectionSchema = z.object({
@@ -107,4 +109,36 @@ export async function sendFinancialSummaryEmail() {
     console.error("Falha ao enviar email de resumo:", error);
     return { error: "Não foi possível enviar o email de resumo." };
   }
+}
+
+export async function checkGeminiConnection(): Promise<{ success: boolean, error?: string }> {
+    try {
+        const { text } = await ai.generate({
+            prompt: "Responda apenas com 'ok'.",
+            config: { temperature: 0 },
+        });
+        if (text?.trim().toLowerCase() === 'ok') {
+            return { success: true };
+        }
+        return { success: false, error: "A resposta da API foi inesperada." };
+    } catch (e: any) {
+        console.error("[Health Check] Gemini API error:", e.message);
+        if (e.message.includes('API key not valid')) {
+            return { success: false, error: "Chave de API inválida ou expirada." };
+        }
+        if (e.message.includes('fetch failed')) {
+            return { success: false, error: "Falha na conexão com a API do Gemini. Verifique a rede." };
+        }
+        return { success: false, error: e.message || "Ocorreu um erro desconhecido." };
+    }
+}
+
+export async function checkDerivConnection(apiToken: string): Promise<{ success: boolean, error?: string }> {
+    try {
+        await getAccountBalance(apiToken);
+        return { success: true };
+    } catch (e: any) {
+        console.error("[Health Check] Deriv API error:", e.message);
+        return { success: false, error: e.message || "Não foi possível validar o token." };
+    }
 }
