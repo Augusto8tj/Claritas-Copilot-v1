@@ -17,7 +17,7 @@ import { auth } from "@/lib/firebase";
 import { type GoalProjectionInput } from "@/ai/flows/goal-projection.types";
 import { getAccountBalance } from "@/services/deriv-api-service";
 import { ai } from "@/ai/genkit";
-import { listModels } from "genkit/ai";
+import { listModels } from "genkit";
 
 
 const goalProjectionSchema = z.object({
