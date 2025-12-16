@@ -82,7 +82,6 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    // Don't clear data to prevent flicker. The new data will replace the old one smoothly.
     setLoading(true);
     setError(null);
 
@@ -149,7 +148,13 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
       if (response.msg_type === 'tick' && chartType === 'Area') {
         const tick = response.tick;
         const newTickData: TickData = { epoch: tick.epoch, price: tick.quote };
-        setData(currentData => [...currentData, newTickData]);
+        setData(currentData => {
+            // Prevent duplicate ticks
+            if (currentData.length > 0 && (currentData[currentData.length - 1] as TickData).epoch === newTickData.epoch) {
+                return currentData;
+            }
+            return [...currentData, newTickData];
+        });
       }
     };
     
