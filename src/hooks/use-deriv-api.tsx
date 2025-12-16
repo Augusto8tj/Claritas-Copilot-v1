@@ -110,8 +110,10 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   }, [activeToken]);
 
   useEffect(() => {
-    fetchBalance();
-  }, [fetchBalance]);
+    if(!loading) {
+        fetchBalance();
+    }
+  }, [activeToken, fetchBalance, loading]);
 
   const contextValue = {
     demoToken,
