@@ -123,11 +123,11 @@ export async function checkGeminiConnection(): Promise<{ success: boolean, error
         }
         return { success: false, error: "Nenhum modelo do Google AI encontrado. Verifique sua chave de API e permissões." };
     } catch (e: any) {
-        console.error("[Health Check] Gemini API error:", e.message);
-        if (e.message.includes('API key not valid')) {
+        console.error("[Health Check] Gemini API error:", e);
+        if (e.message?.includes('API key not valid')) {
             return { success: false, error: "Chave de API inválida ou expirada." };
         }
-        if (e.message.includes('fetch failed')) {
+        if (e.message?.includes('fetch failed')) {
             return { success: false, error: "Falha na conexão com a API do Gemini. Verifique a rede." };
         }
         return { success: false, error: e.message || "Ocorreu um erro desconhecido." };
