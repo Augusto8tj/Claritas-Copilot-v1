@@ -1,9 +1,8 @@
 
 "use client";
 
-import * as React from "react";
 import { useEffect, useState, useRef } from "react";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, BarChart, Bar } from "recharts";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import type { TimePeriod, ChartType } from "@/app/deriv-trader/page";
 
 type TickData = {
@@ -41,49 +40,12 @@ const getHistoryDurationForTimePeriod = (timePeriod: TimePeriod): number => {
     }
 }
 
-const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
-    if (timePeriod === '1m') return 60; // Should not be used for candles, but as a fallback
-    const durationSeconds = getHistoryDurationForTimePeriod(timePeriod);
-    if (durationSeconds <= 24 * 3600) return 60; // 1-minute candles for up to 24h
-    if (durationSeconds <= 7 * 24 * 3600) return 300; // 5-minute candles for up to 7 days
-    return 3600; // 1-hour candles for more
-}
-
-
-function CustomCandle({ x, y, width, height, low, high, open, close }: any) {
-  // Safety check to prevent rendering with invalid NaN values
-  if (isNaN(x) || isNaN(y) || isNaN(width) || isNaN(height) || isNaN(low) || isNaN(high) || isNaN(open) || isNaN(close)) {
-    return null;
-  }
-  
-  const isBullish = close >= open;
-  const color = isBullish ? "hsl(var(--primary))" : "hsl(var(--destructive))";
-  
-  // Ensure width is at least 1 to be visible
-  const bodyWidth = Math.max(width, 1);
-  
-  const bodyY = isBullish ? y + (high - close) : y + (high - open);
-  const bodyHeight = Math.max(Math.abs(open - close), 1);
-
-  const wickX = x + bodyWidth / 2;
-
-  return (
-    <g>
-      {/* Wick */}
-      <line x1={wickX} y1={y} x2={wickX} y2={y + height} stroke={color} strokeWidth="1" />
-      {/* Body */}
-      <rect x={x} y={bodyY} width={bodyWidth} height={bodyHeight} fill={color} />
-    </g>
-  );
-};
-
 
 export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps) {
-  const [data, setData] = useState<ChartData[]>([]);
+  const [data, setData] = useState<TickData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const requestCounter = useRef(0);
 
   useEffect(() => {
     setLoading(true);
@@ -96,42 +58,20 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
 
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     wsRef.current = ws;
-    let accumulatedData: ChartData[] = [];
-
-    const fetchHistoryInChunks = (start: number, end: number, style: 'ticks' | 'candles', granularity?: number) => {
-        const req_id = ++requestCounter.current;
-        const request: any = {
-            ticks_history: symbol,
-            start,
-            end,
-            style,
-            req_id,
-        };
-        // CRITICAL FIX: Only add granularity if style is 'candles' and it's defined
-        if (style === 'candles' && granularity) {
-            request.granularity = granularity;
-        }
-        ws.send(JSON.stringify(request));
-    };
 
     ws.onopen = () => {
-      const totalDuration = getHistoryDurationForTimePeriod(timePeriod);
+      const duration = getHistoryDurationForTimePeriod(timePeriod);
       const endTime = Math.floor(Date.now() / 1000);
-      const startTime = endTime - totalDuration;
-      
-      const isCandleView = chartType === 'Candle' && timePeriod !== '1m';
-      const style = isCandleView ? 'candles' : 'ticks';
-      const granularity = isCandleView ? getGranularityForTimePeriod(timePeriod) : undefined;
-      
-      const chunkDuration = 24 * 60 * 60; // 1 day in seconds
-      if (style === 'candles' && totalDuration > chunkDuration) {
-          for (let chunkStart = startTime; chunkStart < endTime; chunkStart += chunkDuration) {
-              const chunkEnd = Math.min(chunkStart + chunkDuration, endTime);
-              fetchHistoryInChunks(chunkStart, chunkEnd, style, granularity);
-          }
-      } else {
-         fetchHistoryInChunks(startTime, endTime, style, granularity);
-      }
+      const startTime = endTime - duration;
+
+      ws.send(
+        JSON.stringify({
+          ticks_history: symbol,
+          start: startTime,
+          end: endTime,
+          style: "ticks",
+        })
+      );
     };
 
     ws.onmessage = (event) => {
@@ -141,51 +81,27 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
         console.error("Deriv API error:", response.error.message);
         setError(response.error.message);
         setLoading(false);
-        // Don't close immediately, might have other requests pending
-        // ws.close();
+        ws.close();
         return;
       }
       
-      let receivedData: ChartData[] = [];
-      if (response.msg_type === 'history' && response.history) {
-        receivedData = response.history.times.map((time: number, index: number) => ({
+      if (response.msg_type === 'history') {
+        const historyData: TickData[] = response.history.times.map((time: number, index: number) => ({
           epoch: time,
           price: response.history.prices[index],
         }));
-      } else if (response.msg_type === 'candles' && response.candles) {
-        receivedData = response.candles.map((candle: any) => ({
-            epoch: candle.epoch,
-            open: candle.open,
-            high: candle.high,
-            low: candle.low,
-            close: candle.close,
-        })).filter((c: CandleData) => c.open);
-      }
-      
-      if (receivedData.length > 0) {
-        accumulatedData = [...accumulatedData, ...receivedData].sort((a,b) => a.epoch - b.epoch);
-         // Deduplicate
-        accumulatedData = accumulatedData.filter((item, index, self) =>
-            index === self.findIndex((t) => (t.epoch === item.epoch))
-        );
-        setData([...accumulatedData]); // Update state with a new array
-      }
-
-      if (response.req_id === requestCounter.current) {
-          setLoading(false);
-          // All history is loaded, now subscribe to ticks if needed
-          if (timePeriod === '1m' && chartType === 'Area') {
+        setData(historyData);
+        setLoading(false);
+        // Subscribe to ticks for real-time updates only for shorter periods
+        if (timePeriod === '1m') {
             ws.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
-          }
+        }
       }
 
-      if (response.msg_type === 'tick' && timePeriod === '1m') {
+      if (response.msg_type === 'tick') {
         const tick = response.tick;
         const newTickData: TickData = { epoch: tick.epoch, price: tick.quote };
         setData(currentData => {
-            if (currentData.length > 0 && (currentData[currentData.length - 1] as TickData).epoch === newTickData.epoch) {
-                return currentData;
-            }
             const newData = [...currentData, newTickData];
             const maxPoints = 1000; 
             if (newData.length > maxPoints) {
@@ -219,7 +135,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
       }
       wsRef.current = null;
     };
-  }, [symbol, timePeriod, chartType]);
+  }, [symbol, timePeriod]);
   
   const getXAxisDomain = (): [number, number] => {
     const latest = data.length > 0 ? data[data.length - 1].epoch : Math.floor(Date.now() / 1000);
@@ -227,134 +143,10 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
     return [latest - duration, latest];
   };
 
-  const yDomain = React.useMemo(() => {
-    if (data.length === 0) return ['auto', 'auto'];
-
-    const values = data.flatMap(d => {
-        if ('price' in d) return [d.price];
-        if ('high' in d) return [d.high, d.low];
-        return [];
-    }).filter(v => v != null && !isNaN(v));
-
-    if (values.length === 0) return ['auto', 'auto'];
-
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const padding = (max - min) * 0.1;
-
-    return [min - padding, max + padding];
-  }, [data]);
-
-  const renderAreaChart = () => {
-    const chartData = data as (TickData | CandleData)[];
-    // For area chart on longer periods, use 'close' price from candles
-    const dataKey = (chartData[0] && 'price' in chartData[0]) ? 'price' : 'close';
-
-    return (
-        <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis
-            dataKey="epoch"
-            stroke="hsl(var(--muted-foreground))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-            tickFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            type="number"
-            domain={getXAxisDomain()}
-            allowDataOverflow={true}
-            />
-            <YAxis
-            dataKey={dataKey}
-            stroke="hsl(var(--muted-foreground))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-            domain={yDomain}
-            tickFormatter={(value) => `$${Number(value).toFixed(2)}`}
-            allowDataOverflow
-            width={80}
-            />
-            <Tooltip
-                formatter={(value: number, name, props: any) => [`$${Number(value).toFixed(2)}`, "Preço"]}
-                labelFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleString('pt-BR')}
-                labelStyle={{ color: 'hsl(var(--foreground))' }}
-                contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
-                animationDuration={200}
-                position={{ y: 0 }}
-            />
-            <Line
-            isAnimationActive={false}
-            type="monotone"
-            dataKey={dataKey}
-            stroke="hsl(var(--primary))"
-            strokeWidth={2}
-            dot={false}
-            />
-        </LineChart>
-    );
-  }
-
-  const renderCandleChart = () => {
-      return (
-        <BarChart data={data as CandleData[]}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis
-                dataKey="epoch"
-                tickFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                stroke="hsl(var(--muted-foreground))"
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-                type="number"
-                domain={getXAxisDomain()}
-                allowDataOverflow={true}
-            />
-            <YAxis
-                stroke="hsl(var(--muted-foreground))"
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-                domain={yDomain}
-                tickFormatter={(value) => `$${Number(value).toFixed(2)}`}
-                allowDataOverflow
-                width={80}
-            />
-            <Tooltip
-                 cursor={{fill: "hsl(var(--muted) / 0.5)"}}
-                 content={({ active, payload, label }) => {
-                    if (active && payload && payload.length) {
-                    const candle = payload[0].payload as CandleData;
-                    return (
-                        <div className="rounded-lg border bg-background p-2 shadow-sm text-xs">
-                            <p className="font-bold mb-2">
-                                {new Date(label * 1000).toLocaleString('pt-BR')}
-                            </p>
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                                <span className="text-muted-foreground">Abertura:</span>
-                                <span className="font-bold text-right">${candle.open.toFixed(2)}</span>
-                                <span className="text-muted-foreground">Máxima:</span>
-                                <span className="font-bold text-right text-green-500">${candle.high.toFixed(2)}</span>
-                                <span className="text-muted-foreground">Mínima:</span>
-                                <span className="font-bold text-right text-red-500">${candle.low.toFixed(2)}</span>
-                                <span className="text-muted-foreground">Fechamento:</span>
-                                <span className="font-bold text-right">${candle.close.toFixed(2)}</span>
-                            </div>
-                        </div>
-                    )
-                    }
-                    return null;
-                }}
-            />
-            <Bar dataKey="close" shape={<CustomCandle />} barSize={5} />
-        </BarChart>
-    );
-  }
-
-  if (loading && data.length === 0) {
+  if (loading) {
     return (
       <div className="h-[400px] w-full flex items-center justify-center">
-        <p className="text-muted-foreground">Carregando dados do gráfico em tempo real...</p>
+        <p className="text-muted-foreground">Carregando dados do gráfico...</p>
       </div>
     );
   }
@@ -366,19 +158,51 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
       </div>
     );
   }
-  
-  const isCandleView = chartType === 'Candle' && timePeriod !== '1m';
 
   return (
-    <div className="h-[400px] w-full relative">
-        {loading && (
-            <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10">
-                <p className="text-muted-foreground">Atualizando gráfico...</p>
-            </div>
-        )}
-        <ResponsiveContainer width="100%" height="100%">
-            {isCandleView ? renderCandleChart() : renderAreaChart()}
-        </ResponsiveContainer>
+    <div className="h-[400px] w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <XAxis
+            dataKey="epoch"
+            stroke="hsl(var(--muted-foreground))"
+            fontSize={12}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleTimeString('pt-BR')}
+            type="number"
+            domain={getXAxisDomain()}
+            allowDataOverflow={true}
+          />
+          <YAxis
+            dataKey="price"
+            stroke="hsl(var(--muted-foreground))"
+            fontSize={12}
+            tickLine={false}
+            axisLine={false}
+            domain={['dataMin', 'dataMax']}
+            tickFormatter={(value) => `$${Number(value).toFixed(2)}`}
+            allowDataOverflow
+            width={80}
+          />
+          <Tooltip
+            formatter={(value: number, name, props: any) => [`$${Number(value).toFixed(2)}`, "Preço"]}
+            labelFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleString('pt-BR')}
+            labelStyle={{ color: 'hsl(var(--foreground))' }}
+            contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
+            animationDuration={200}
+          />
+          <Line
+            isAnimationActive={false}
+            type="monotone"
+            dataKey="price"
+            stroke="hsl(var(--primary))"
+            strokeWidth={2}
+            dot={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }
