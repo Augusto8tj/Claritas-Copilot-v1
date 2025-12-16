@@ -17,14 +17,25 @@ interface MarketChartProps {
 
 const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
 
-const timePeriodToCount: Record<TimePeriod, number> = {
+const timePeriodToSeconds: Record<TimePeriod, number> = {
   '1m': 60,
-  '15m': 900,
-  '30m': 1800,
-  '1h': 3600,
-  '8h': 4000,
-  '1d': 5000, // Max count
+  '15m': 15 * 60,
+  '30m': 30 * 60,
+  '1h': 60 * 60,
+  '8h': 8 * 60 * 60,
+  '1d': 24 * 60 * 60,
 };
+
+// Request slightly more data than needed for a smoother chart
+const timePeriodToCount: Record<TimePeriod, number> = {
+  '1m': 100,
+  '15m': 1000,
+  '30m': 2000,
+  '1h': 4000,
+  '8h': 5000, // Max for many symbols
+  '1d': 5000, // Max for many symbols
+};
+
 
 export function MarketChart({ symbol, timePeriod }: MarketChartProps) {
   const [data, setData] = useState<ChartData[]>([]);
@@ -89,8 +100,8 @@ export function MarketChart({ symbol, timePeriod }: MarketChartProps) {
         
         setData(currentData => {
             const newData = [...currentData, newTickData];
-            if (newData.length > tickCount + 50) {
-                return newData.slice(newData.length - (tickCount + 50));
+            if (newData.length > tickCount + 100) { // Keep a slightly larger buffer
+                return newData.slice(newData.length - (tickCount + 100));
             }
             return newData;
         });
@@ -118,6 +129,15 @@ export function MarketChart({ symbol, timePeriod }: MarketChartProps) {
     };
 
   }, [symbol, timePeriod]);
+  
+  const getDomain = () => {
+    if (data.length < 2) return [0, 1];
+    const nowInSeconds = Math.floor(Date.now() / 1000);
+    const periodInSeconds = timePeriodToSeconds[timePeriod];
+    const dataMin = nowInSeconds - periodInSeconds;
+    return [dataMin, 'dataMax'];
+  }
+
 
   if (loading) {
     return (
@@ -151,7 +171,8 @@ export function MarketChart({ symbol, timePeriod }: MarketChartProps) {
                   return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit'});
               }}
               type="number"
-              domain={['dataMin', 'dataMax']}
+              domain={getDomain()}
+              allowDataOverflow={true}
             />
             <YAxis
               stroke="hsl(var(--muted-foreground))"
