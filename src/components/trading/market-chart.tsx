@@ -41,8 +41,8 @@ const getHistoryDurationForTimePeriod = (timePeriod: TimePeriod): number => {
     }
 }
 
-const getGranularityForTimePeriod = (timePeriod: TimePeriod): number | undefined => {
-    if (timePeriod === '1m') return undefined; // Ticks don't have granularity
+const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
+    if (timePeriod === '1m') return 60; // Should not be used for candles, but as a fallback
     const durationSeconds = getHistoryDurationForTimePeriod(timePeriod);
     if (durationSeconds <= 24 * 3600) return 60; // 1-minute candles for up to 24h
     if (durationSeconds <= 7 * 24 * 3600) return 300; // 5-minute candles for up to 7 days
@@ -100,14 +100,17 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
 
     const fetchHistoryInChunks = (start: number, end: number, style: 'ticks' | 'candles', granularity?: number) => {
         const req_id = ++requestCounter.current;
-        const request = {
+        const request: any = {
             ticks_history: symbol,
             start,
             end,
             style,
-            ...(granularity && { granularity }),
             req_id,
         };
+        // CRITICAL FIX: Only add granularity if style is 'candles' and it's defined
+        if (style === 'candles' && granularity) {
+            request.granularity = granularity;
+        }
         ws.send(JSON.stringify(request));
     };
 
@@ -120,7 +123,6 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
       const style = isCandleView ? 'candles' : 'ticks';
       const granularity = isCandleView ? getGranularityForTimePeriod(timePeriod) : undefined;
       
-      // For short durations or ticks, fetch all at once. For long candle views, chunk it.
       const chunkDuration = 24 * 60 * 60; // 1 day in seconds
       if (style === 'candles' && totalDuration > chunkDuration) {
           for (let chunkStart = startTime; chunkStart < endTime; chunkStart += chunkDuration) {
@@ -220,9 +222,9 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   }, [symbol, timePeriod, chartType]);
   
   const getXAxisDomain = (): [number, number] => {
-    const now = Math.floor(Date.now() / 1000);
+    const latest = data.length > 0 ? data[data.length - 1].epoch : Math.floor(Date.now() / 1000);
     const duration = getHistoryDurationForTimePeriod(timePeriod);
-    return [now - duration, now];
+    return [latest - duration, latest];
   };
 
   const yDomain = React.useMemo(() => {
@@ -232,7 +234,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
         if ('price' in d) return [d.price];
         if ('high' in d) return [d.high, d.low];
         return [];
-    });
+    }).filter(v => v != null && !isNaN(v));
 
     if (values.length === 0) return ['auto', 'auto'];
 
