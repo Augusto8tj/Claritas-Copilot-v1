@@ -96,6 +96,16 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
 
   const durationUnit = form.watch('duration_unit');
 
+  const handleDurationChange = (amount: number) => {
+    const currentDuration = form.getValues('duration');
+    const { min, max } = durationLimits[durationUnit];
+    let newDuration = currentDuration + amount;
+    if (newDuration < min) newDuration = min;
+    if (newDuration > max) newDuration = max;
+    form.setValue('duration', newDuration);
+    form.trigger('duration');
+  };
+
   const handleTrade = async (tradeDirection: "rise" | "fall") => {
     // Manually trigger validation
     const isValid = await form.trigger();
@@ -221,17 +231,19 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
                                 name="duration"
                                 render={({ field }) => (
                                 <FormItem className="w-1/2">
-                                    <div className="flex items-center justify-between">
-                                        <div className="text-center w-full">
+                                    <div className="flex items-center justify-center gap-0.5">
+                                        <Button type="button" variant="outline" size="icon" className="h-10 w-10" onClick={() => handleDurationChange(-1)}><Minus className="h-4 w-4"/></Button>
+                                        <div className="relative flex-1">
                                             <FormControl>
                                                 <Input 
                                                     type="number"
                                                     {...field}
                                                     onChange={e => field.onChange(parseInt(e.target.value))}
-                                                    className="font-semibold text-lg text-center border-0 focus-visible:ring-0"
+                                                    className="font-semibold text-lg text-center border-y border-x-0 rounded-none focus-visible:ring-0 h-10"
                                                 />
                                             </FormControl>
                                         </div>
+                                         <Button type="button" variant="outline" size="icon" className="h-10 w-10" onClick={() => handleDurationChange(1)}><Plus className="h-4 w-4"/></Button>
                                     </div>
                                     <FormMessage />
                                 </FormItem>
