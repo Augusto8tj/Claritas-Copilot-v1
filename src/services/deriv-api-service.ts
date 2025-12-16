@@ -154,12 +154,8 @@ export async function getAccountBalance(apiToken: string, accountType: AccountTy
   }
 
   const authorizeRequest = { "authorize": apiToken };
-  const balanceRequest = { "balance": 1, "subscribe": 1 };
+  const balanceRequest = { "balance": 1, "subscribe": 0 };
   
-  // This was incorrect, account is only needed for balance, not for authorize
-  // if (accountType === 'real') {
-  //   authorizeRequest["account"] = "real";
-  // }
 
   try {
     const response: any = await callDerivApi([authorizeRequest, balanceRequest]);
