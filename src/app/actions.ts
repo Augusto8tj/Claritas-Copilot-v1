@@ -114,7 +114,7 @@ export async function sendFinancialSummaryEmail() {
 
 export async function checkGeminiConnection(): Promise<{ success: boolean, error?: string, models?: any[] }> {
     try {
-        const models = await listModels();
+        const models = listModels();
         // Filtramos para mostrar apenas modelos do Google AI, que são os relevantes para o Gemini
         const googleModels = models.filter(m => m.name.startsWith('googleai/'));
 
