@@ -125,18 +125,16 @@ function MainNav() {
       {/* Menu de Plataformas com Submenu */}
       <Collapsible>
         <SidebarMenuItem>
-            <CollapsibleTrigger asChild>
-                <a href="/trader" className="w-full">
-                 <SidebarMenuButton
-                    className="w-full justify-start"
-                    isActive={isTraderSectionActive}
-                    >
-                    <Layers className="w-5 h-5" />
-                    <span>Plataformas Deriv</span>
-                    <ChevronDown className={cn("ml-auto h-4 w-4 shrink-0 transition-transform", isTraderSectionActive && "rotate-180")} />
-                </SidebarMenuButton>
-                </a>
-            </CollapsibleTrigger>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton
+              className="w-full justify-start"
+              isActive={isTraderSectionActive}
+            >
+              <Layers className="w-5 h-5" />
+              <span>Plataformas Deriv</span>
+              <ChevronDown className={cn("ml-auto h-4 w-4 shrink-0 transition-transform", isTraderSectionActive && "rotate-180")} />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
         </SidebarMenuItem>
         <CollapsibleContent asChild>
             <SidebarMenuSub>
