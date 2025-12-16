@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import WebSocket from 'ws';
@@ -43,8 +44,8 @@ const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089"; // Default 
 
 /**
  * Connects to the Deriv WebSocket API, authenticates, and sends requests.
- * @param requests An array of JSON request objects to send in sequence. The first should be the authorize request.
- * @returns A promise that resolves with the API response of the last request.
+ * @param requests An array of JSON request objects to send. The first MUST be the authorize request if auth is needed.
+ * @returns A promise that resolves with the API response of the last request in the chain.
  */
 function callDerivApi<T>(requests: object[]): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -54,12 +55,14 @@ function callDerivApi<T>(requests: object[]): Promise<T> {
 
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     let requestQueue = [...requests];
+    let isAuthorized = false;
+
+    // Check if the first request is for authorization
+    const hasAuthRequest = 'authorize' in requestQueue[0];
 
     ws.on('open', () => {
-      // Send the first request (expected to be authorize or a public request)
-      if (requestQueue.length > 0) {
-        ws.send(JSON.stringify(requestQueue.shift()));
-      }
+      // Send the first request (which could be public or an authorize request)
+      ws.send(JSON.stringify(requestQueue.shift()));
     });
 
     ws.on('message', (data: WebSocket.Data) => {
@@ -71,13 +74,22 @@ function callDerivApi<T>(requests: object[]): Promise<T> {
         return;
       }
 
-      // If it was an authorize response and there are more requests, send the next one.
-      if (response.msg_type === 'authorize' && requestQueue.length > 0) {
-        ws.send(JSON.stringify(requestQueue.shift()));
-      } else {
-        // This is the response to the last/main request
+      const msgType = response.msg_type;
+
+      if (msgType === 'authorize') {
+        isAuthorized = true;
+      }
+
+      // If this is the response to the last request in the queue, we are done.
+      if (requestQueue.length === 0) {
         resolve(response as T);
         ws.close();
+        return;
+      }
+
+      // If we are authorized (or don't need auth) and there are more requests, send the next one.
+      if ((isAuthorized || !hasAuthRequest) && requestQueue.length > 0) {
+        ws.send(JSON.stringify(requestQueue.shift()));
       }
     });
 
@@ -91,6 +103,7 @@ function callDerivApi<T>(requests: object[]): Promise<T> {
     });
   });
 }
+
 
 /**
  * Fetches the list of all available assets from the Deriv API.
@@ -154,7 +167,7 @@ export async function getAccountBalance(apiToken: string): Promise<AccountBalanc
   }
 
   const authorizeRequest = { "authorize": apiToken };
-  const balanceRequest = { "balance": 1 };
+  const balanceRequest = { "balance": 1, "subscribe": 1 }; // Using subscribe for real-time updates if needed, but we close connection.
   
 
   try {
@@ -229,9 +242,7 @@ export async function executeTrade(apiToken: string, symbol: string, tradeDirect
     contractType = allowEquals ? 'PUTE' : 'PUT';
   }
   
-  console.log(`[Deriv Service] Executing order for ${quantity} of ${symbol}`);
-  console.log(`[Deriv Service] -> Direction: ${tradeDirection}`);
-  console.log(`[Deriv Service] -> Contract Type: ${contractType}`);
+  console.log(`[Deriv Service] Executing order for ${quantity} of ${symbol} (${contractType})`);
 
   if (!apiToken || apiToken.includes('invalid')) {
     return { success: false, message: 'Trade failed due to invalid API token.' };
@@ -259,7 +270,7 @@ export async function executeTrade(apiToken: string, symbol: string, tradeDirect
     }
     const proposalId = proposalResponse.proposal.id;
     const price = proposalResponse.proposal.ask_price;
-    console.log(`[Deriv Service] -> Proposal ID received: ${proposalId}`);
+    console.log(`[Deriv Service] -> Proposal ID received: ${proposalId} at price ${price}`);
 
     const buyRequest = {
         "buy": proposalId,
@@ -275,10 +286,10 @@ export async function executeTrade(apiToken: string, symbol: string, tradeDirect
         return {
             success: true,
             orderId: buyResponse.buy.contract_id,
-            message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${quantity} executada com sucesso.`,
+            message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${quantity} USD executada com sucesso.`,
         };
     } else {
-        throw new Error("Buy request did not return a contract ID.");
+        throw new Error("Buy request did not return a contract ID. Response: " + JSON.stringify(buyResponse));
     }
 
   } catch (error) {
