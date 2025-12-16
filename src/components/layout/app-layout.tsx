@@ -44,6 +44,7 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import React from "react";
+import Link from "next/link";
 
 
 const navItems = [
@@ -126,14 +127,16 @@ function MainNav() {
       <Collapsible>
         <SidebarMenuItem>
           <CollapsibleTrigger asChild>
-            <SidebarMenuButton
-              className="w-full justify-start"
-              isActive={isTraderSectionActive}
-            >
-              <Layers className="w-5 h-5" />
-              <span>Plataformas Deriv</span>
-              <ChevronDown className={cn("ml-auto h-4 w-4 shrink-0 transition-transform", isTraderSectionActive && "rotate-180")} />
-            </SidebarMenuButton>
+            <Link href="/trader">
+              <SidebarMenuButton
+                className="w-full justify-start"
+                isActive={isTraderSectionActive}
+              >
+                <Layers className="w-5 h-5" />
+                <span>Plataformas Deriv</span>
+                <ChevronDown className={cn("ml-auto h-4 w-4 shrink-0 transition-transform", isTraderSectionActive && "rotate-180")} />
+              </SidebarMenuButton>
+            </Link>
           </CollapsibleTrigger>
         </SidebarMenuItem>
         <CollapsibleContent asChild>
