@@ -59,34 +59,34 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
     setLoading(true);
     setError(null);
     
-    // Unsubscribe from previous ticks stream to avoid multiple streams
+    // Unsubscribe from previous streams to avoid multiple streams
     wsRef.current.send(JSON.stringify({ "forget_all": "ticks" }));
+    wsRef.current.send(JSON.stringify({ "forget_all": "candles" }));
 
     wsRef.current.send(
       JSON.stringify({
         ticks_history: symbol,
         start: Math.floor(Date.now() / 1000) - currentDuration,
         end: "latest",
-        style: "ticks",
+        style: chartType === 'Area' ? 'ticks' : 'candles',
         adjust_start_time: 1,
         count: 5000,
       })
     );
-  }, [symbol]);
+  }, [symbol, chartType]);
 
   // Effect for WebSocket connection management
   useEffect(() => {
     if (!symbol) return;
 
-    const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
-    wsRef.current = ws;
+    wsRef.current = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
 
-    ws.onopen = () => {
+    wsRef.current.onopen = () => {
       console.log("[Deriv WS] Conexão estabelecida.");
       fetchData(duration);
     };
 
-    ws.onmessage = (event) => {
+    wsRef.current.onmessage = (event) => {
       const response = JSON.parse(event.data);
 
       if (response.error) {
@@ -104,12 +104,21 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
         setData(historyData);
         setLoading(false);
         // Subscribe to live ticks only if we are in the '1m' view
-        if (timePeriod === '1m') {
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
-            }
+        if (timePeriod === '1m' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
         }
+      } else if (response.msg_type === 'candles') {
+          const candleData: CandleData[] = response.candles.map((candle: any) => ({
+                epoch: candle.epoch,
+                open: candle.open,
+                high: candle.high,
+                low: candle.low,
+                close: candle.close,
+            }));
+          setData(candleData as any);
+          setLoading(false);
       }
+
 
       if (response.msg_type === 'tick') {
         const tick = response.tick;
@@ -122,13 +131,13 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
       }
     };
     
-    ws.onerror = (event) => {
+    wsRef.current.onerror = (event) => {
         console.error("WebSocket connection error:", event);
         setError("Não foi possível conectar ao servidor de dados em tempo real.");
         setLoading(false);
     }
 
-    ws.onclose = () => {
+    wsRef.current.onclose = () => {
         console.log("[Deriv WS] A conexão foi fechada.");
     }
 
@@ -138,6 +147,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
          try {
             if (wsRef.current.readyState === WebSocket.OPEN) {
                 wsRef.current.send(JSON.stringify({ "forget_all": "ticks" }));
+                 wsRef.current.send(JSON.stringify({ "forget_all": "candles" }));
             }
             wsRef.current.close();
             console.log("[Deriv WS] Conexão limpa e fechada.");
