@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -47,6 +48,11 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
 
 
 function CustomCandle({ x, y, width, height, low, high, open, close }: any) {
+  // Safety check to prevent rendering with invalid NaN values
+  if (isNaN(x) || isNaN(y) || isNaN(width) || isNaN(height)) {
+    return null;
+  }
+  
   const isBullish = close >= open;
   const color = isBullish ? "hsl(var(--primary))" : "hsl(var(--destructive))";
   
