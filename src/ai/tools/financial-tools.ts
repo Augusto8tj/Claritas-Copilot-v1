@@ -8,23 +8,17 @@ import { addGoal, addTransaction, getFinancialSummary, getBudgetData } from '@/s
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 
-const FinancialSummarySchema = z.object({
-  income: z.number().describe('Renda mensal total do usuário.'),
-  expenses: z.number().describe('Despesas mensais totais do usuário.'),
-  balance: z.number().describe('O saldo mensal (renda - despesas).'),
-});
-
 export const getFinancialSummaryTool = ai.defineTool(
   {
     name: 'getFinancialSummaryTool',
-    description: 'Obtém um resumo estruturado dos dados financeiros do usuário, incluindo renda, despesas e saldo.',
+    description: 'Obtém um resumo em texto dos dados financeiros do usuário, incluindo renda, despesas e saldo.',
     inputSchema: z.object({}),
-    outputSchema: FinancialSummarySchema,
+    outputSchema: z.string().describe("Uma frase resumindo a renda, despesas e saldo do usuário."),
   },
   async () => {
     console.log('getFinancialSummaryTool foi chamada');
-    // A função getFinancialSummary foi modificada para retornar um objeto
-    return getFinancialSummary();
+    const summary = await getFinancialSummary();
+    return `Seu resumo financeiro é: Renda de R$${summary.income.toFixed(2)}, Despesas de R$${summary.expenses.toFixed(2)}, resultando num saldo de R$${summary.balance.toFixed(2)}.`;
   }
 );
 
