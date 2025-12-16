@@ -105,7 +105,9 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
         setLoading(false);
         // Subscribe to live ticks only if we are in the '1m' view
         if (timePeriod === '1m') {
-            ws.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
+            }
         }
       }
 
