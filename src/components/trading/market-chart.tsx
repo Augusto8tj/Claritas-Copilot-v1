@@ -49,7 +49,7 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
 
 function CustomCandle({ x, y, width, height, low, high, open, close }: any) {
   // Safety check to prevent rendering with invalid NaN values
-  if (isNaN(x) || isNaN(y) || isNaN(width) || isNaN(height)) {
+  if (isNaN(x) || isNaN(y) || isNaN(width) || isNaN(height) || isNaN(low) || isNaN(high) || isNaN(open) || isNaN(close)) {
     return null;
   }
   
@@ -105,7 +105,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
             "end": "latest",
             "start": startTime,
             "style": "candles",
-            "granularity": getGranularityForTimePeriod(timePeriod),
+            "granularity": 0, // Per Deriv API docs, this is the correct way to get candles for a range
         };
         ws.send(JSON.stringify(request));
     };
@@ -311,5 +311,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
     </div>
   );
 }
+
+    
 
     
