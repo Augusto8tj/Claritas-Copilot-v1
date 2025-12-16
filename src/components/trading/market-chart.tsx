@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -17,10 +18,12 @@ const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
 export function MarketChart({ symbol }: MarketChartProps) {
   const [data, setData] = useState<ChartData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setData([]);
     setLoading(true);
+    setError(null);
 
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
 
@@ -43,11 +46,12 @@ export function MarketChart({ symbol }: MarketChartProps) {
 
       if (response.error) {
         console.error("Deriv API error:", response.error.message);
+        setError(response.error.message);
         setLoading(false);
         return;
       }
       
-      if (response.msg_type === 'history') {
+      if (response.msg_type === 'history' && response.history) {
         const historyData = response.history.times.map((time: number, index: number) => ({
           epoch: time,
           price: response.history.prices[index],
@@ -83,8 +87,9 @@ export function MarketChart({ symbol }: MarketChartProps) {
       }
     };
     
-    ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
+    ws.onerror = (event) => {
+        console.error("WebSocket connection error:", event);
+        setError("Não foi possível conectar ao servidor de dados em tempo real. Verifique sua conexão com a internet ou a configuração do app_id.");
         setLoading(false);
     }
 
@@ -102,6 +107,14 @@ export function MarketChart({ symbol }: MarketChartProps) {
     return (
       <div className="h-[400px] w-full flex items-center justify-center">
         <p className="text-muted-foreground">Carregando dados do gráfico em tempo real...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-[400px] w-full flex items-center justify-center text-center p-4">
+        <p className="text-destructive">{error}</p>
       </div>
     );
   }
@@ -130,7 +143,7 @@ export function MarketChart({ symbol }: MarketChartProps) {
               tickLine={false}
               axisLine={false}
               domain={['dataMin - 1', 'dataMax + 1']}
-              tickFormatter={(value) => `$${value.toFixed(2)}`}
+              tickFormatter={(value) => `$${Number(value).toFixed(2)}`}
             />
             <Tooltip
                 formatter={(value: number) => [`$${value.toFixed(2)}`, "Preço"]}
