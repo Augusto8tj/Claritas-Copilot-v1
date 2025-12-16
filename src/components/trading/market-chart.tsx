@@ -6,7 +6,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import type { TimePeriod, ChartType } from "@/app/deriv-trader/page";
 import { Button } from "@/components/ui/button";
-import { Plus, Minus } from "lucide-react";
+import { Plus, Minus, Loader2 } from "lucide-react";
 
 type TickData = {
   epoch: number;
@@ -33,13 +33,13 @@ const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
 
 const getHistoryDurationForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
-        case '1m': return 10 * 60; // 10 minutes
-        case '15m': return 4 * 60 * 60; // 4 hours
-        case '30m': return 24 * 60 * 60; // 24 hours
-        case '1h': return 4 * 24 * 60 * 60; // 4 days
-        case '8h': return 7 * 24 * 60 * 60; // 7 days
-        case '1d': return 30 * 24 * 60 * 60; // 30 days
-        default: return 10 * 60;
+        case '1m': return 60; // 1 minute of data for the live chart
+        case '15m': return 15 * 60; 
+        case '30m': return 30 * 60; 
+        case '1h': return 60 * 60;
+        case '8h': return 8 * 60 * 60;
+        case '1d': return 24 * 60 * 60;
+        default: return 60;
     }
 }
 
@@ -52,32 +52,24 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   const wsRef = useRef<WebSocket | null>(null);
 
   const fetchData = useCallback((currentDuration: number) => {
-    if (!symbol) {
-      setLoading(false);
-      setError("Nenhum ativo selecionado.");
-      return;
-    }
-     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      console.warn("[Deriv WS] WebSocket não está pronto. A requisição será adiada.");
-      // Optional: Add a retry mechanism here
+    if (!symbol || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       return;
     }
 
     setLoading(true);
     setError(null);
-    setData([]);
-
-    const endTime = Math.floor(Date.now() / 1000);
-    const startTime = endTime - currentDuration;
+    
+    // Unsubscribe from previous ticks stream to avoid multiple streams
+    wsRef.current.send(JSON.stringify({ "forget_all": "ticks" }));
 
     wsRef.current.send(
       JSON.stringify({
         ticks_history: symbol,
-        start: startTime,
+        start: Math.floor(Date.now() / 1000) - currentDuration,
         end: "latest",
         style: "ticks",
         adjust_start_time: 1,
-        count: 5000
+        count: 5000,
       })
     );
   }, [symbol]);
@@ -91,7 +83,6 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
 
     ws.onopen = () => {
       console.log("[Deriv WS] Conexão estabelecida.");
-      // Trigger initial data fetch once connected
       fetchData(duration);
     };
 
@@ -112,6 +103,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
         }));
         setData(historyData);
         setLoading(false);
+        // Subscribe to live ticks only if we are in the '1m' view
         if (timePeriod === '1m') {
             ws.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
         }
@@ -121,11 +113,8 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
         const tick = response.tick;
         const newTickData: TickData = { epoch: tick.epoch, price: tick.quote };
         setData(currentData => {
-            const newData = [...currentData, newTickData];
-            // Mantém a janela de dados rolando, removendo o ponto mais antigo
-            if (newData.length > 1000) { // Limita o número de pontos no gráfico para performance
-                return newData.slice(1);
-            }
+            // Add new tick and remove the oldest one to keep the window size
+            const newData = [...currentData.slice(1), newTickData];
             return newData;
         });
       }
@@ -137,38 +126,28 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
         setLoading(false);
     }
 
-    ws.onclose = (event) => {
-        console.log(`[Deriv WS] A conexão foi fechada (Código: ${event.code}).`);
-        if (!event.wasClean && !error) {
-           console.warn(`[Deriv WS] A conexão foi perdida inesperadamente.`);
-        }
+    ws.onclose = () => {
+        console.log("[Deriv WS] A conexão foi fechada.");
     }
 
     // Cleanup function
     return () => {
       if (wsRef.current) {
          try {
-            // Unsubscribe from all ticks before closing
-            wsRef.current.send(JSON.stringify({ "forget_all": "ticks" }));
+            if (wsRef.current.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ "forget_all": "ticks" }));
+            }
             wsRef.current.close();
             console.log("[Deriv WS] Conexão limpa e fechada.");
          } catch (e) {
             console.warn("[Deriv WS] WebSocket já fechado ou com erro na limpeza.");
          }
-         wsRef.current = null;
       }
     };
-    // This effect should only re-run when the symbol changes, managing the entire lifecycle.
-  }, [symbol]);
+  }, [symbol, duration, fetchData, timePeriod]);
 
-  // Effect for handling changes in duration (from zoom or timePeriod)
-  useEffect(() => {
-    // Don't fetch if the symbol isn't set, the connection effect will handle the initial fetch
-    if (!symbol || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-    
-    fetchData(duration);
-  }, [duration, fetchData, symbol]);
 
+  // Effect for handling changes in timePeriod
   useEffect(() => {
     setDuration(getHistoryDurationForTimePeriod(timePeriod));
   }, [timePeriod]);
@@ -190,7 +169,8 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   if (loading && data.length === 0) {
     return (
       <div className="h-[400px] w-full flex items-center justify-center">
-        <p className="text-muted-foreground">Carregando dados do gráfico...</p>
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <p className="text-muted-foreground ml-3">Carregando dados do gráfico...</p>
       </div>
     );
   }
@@ -245,10 +225,10 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
             labelFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleString('pt-BR')}
             labelStyle={{ color: 'hsl(var(--foreground))' }}
             contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
-            animationDuration={200}
+            animationDuration={0} // Disable animation for smoother live updates
           />
           <Line
-            isAnimationActive={false}
+            isAnimationActive={false} // Important for performance with live data
             type="monotone"
             dataKey="price"
             stroke="hsl(var(--primary))"
