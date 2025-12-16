@@ -122,9 +122,9 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
         const newTickData: TickData = { epoch: tick.epoch, price: tick.quote };
         setData(currentData => {
             const newData = [...currentData, newTickData];
-            const maxPoints = 1000; 
-            if (newData.length > maxPoints) {
-                return newData.slice(newData.length - maxPoints);
+            // Mantém a janela de dados rolando, removendo o ponto mais antigo
+            if (newData.length > 1000) { // Limita o número de pontos no gráfico para performance
+                return newData.slice(1);
             }
             return newData;
         });
@@ -164,7 +164,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   // Effect for handling changes in duration (from zoom or timePeriod)
   useEffect(() => {
     // Don't fetch if the symbol isn't set, the connection effect will handle the initial fetch
-    if (!symbol) return;
+    if (!symbol || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
     
     fetchData(duration);
   }, [duration, fetchData, symbol]);
