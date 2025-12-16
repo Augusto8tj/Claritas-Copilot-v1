@@ -92,8 +92,14 @@ export const executeTradeTool = ai.defineTool(
   async ({ symbol, tradeDirection, quantity, allowEquals }) => {
     if (!API_TOKEN) throw new Error("O token da API da Deriv não está configurado.");
     
-    // A função de serviço agora lida com os novos parâmetros
-    return executeTrade(API_TOKEN, symbol, tradeDirection, quantity, { allowEquals });
+    let contractType;
+    if (tradeDirection === 'rise') {
+      contractType = allowEquals ? 'PUTE' : 'PUT';
+    } else { // fall
+      contractType = allowEquals ? 'CALLE' : 'CALL';
+    }
+    
+    return executeTrade(API_TOKEN, symbol, contractType, quantity);
   }
 );
 

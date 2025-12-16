@@ -26,10 +26,6 @@ interface TradeResult {
   message: string;
 }
 
-interface TradeOptions {
-  allowEquals?: boolean;
-}
-
 export interface Asset {
   value: string;
   label: string;
@@ -73,6 +69,12 @@ function callDerivApi<T>(requests: object[], apiToken?: string): Promise<T> {
         return;
       }
       
+      // If this was the authorize response, just continue to the next request.
+      if (response.msg_type === 'authorize' && requestQueue.length > 0) {
+        ws.send(JSON.stringify(requestQueue.shift()));
+        return;
+      }
+      
       // If this was the last expected response, resolve and close.
       if (requestQueue.length === 0) {
         resolve(response as T);
@@ -80,10 +82,6 @@ function callDerivApi<T>(requests: object[], apiToken?: string): Promise<T> {
         return;
       }
 
-      // Send the next request in the queue.
-      if (requestQueue.length > 0) {
-         ws.send(JSON.stringify(requestQueue.shift()));
-      }
     });
 
     ws.on('error', (error) => {
@@ -148,8 +146,9 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
 
 
 /**
- * Simulates fetching the user's account balance from the broker.
+ * Fetches the user's account balance from the broker.
  * @param apiToken - The user's API token for authentication.
+ * @param accountType - The type of account to fetch balance for ('demo' or 'real').
  */
 export async function getAccountBalance(apiToken: string): Promise<AccountBalance> {
   console.log(`[Deriv Service] Fetching account balance...`);
@@ -218,21 +217,11 @@ export async function getMarketData(symbol: string): Promise<MarketData> {
  * Executes a trade order by authorizing, getting a proposal, and buying the contract in a single connection.
  * @param apiToken - The user's API token.
  * @param symbol - The asset to trade.
- * @param tradeDirection - 'rise' or 'fall'.
+ * @param contractType - The type of contract ('CALL', 'PUT', 'CALLE', 'PUTE').
  * @param quantity - The amount of the asset to trade (stake).
- * @param options - Additional options like 'allowEquals'.
  */
-export async function executeTrade(apiToken: string, symbol: string, tradeDirection: 'rise' | 'fall', quantity: number, options: TradeOptions = {}): Promise<TradeResult> {
+export async function executeTrade(apiToken: string, symbol: string, contractType: string, quantity: number): Promise<TradeResult> {
   return new Promise((resolve, reject) => {
-    const { allowEquals = false } = options;
-    
-    let contractType;
-    if (tradeDirection === 'rise') {
-        contractType = allowEquals ? 'CALLE' : 'CALL';
-    } else { // 'fall'
-        contractType = allowEquals ? 'PUTE' : 'PUT';
-    }
-  
     console.log(`[Deriv Service] Initiating trade for ${quantity} of ${symbol} (${contractType})`);
 
     if (!apiToken || apiToken.includes('invalid')) {
@@ -353,4 +342,3 @@ export async function getHistoricalData(symbol: string, period: string): Promise
 
   return data;
 }
-

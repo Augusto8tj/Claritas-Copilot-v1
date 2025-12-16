@@ -13,13 +13,13 @@ import {
 import { MqlAnalyzerInputSchema, type MqlAnalyzerInput } from '@/ai/flows/mql-analyzer-flow.types';
 import { executeTrade as executeTradeInService } from '@/services/deriv-api-service';
 import { z } from 'zod';
-import { useDerivApi } from '@/hooks/use-deriv-api';
 
 const executeTradeSchema = z.object({
   symbol: z.string(),
   tradeDirection: z.enum(['rise', 'fall']),
   quantity: z.coerce.number(),
   allowEquals: z.boolean().optional(),
+  contractType: z.string(), // This will be calculated in the component now
 });
 type ExecuteTradeInput = z.infer<typeof executeTradeSchema>;
 
@@ -76,7 +76,9 @@ export async function executeTradeAction(data: ExecuteTradeInput): Promise<{ suc
       return { error: "O token da API da Deriv não está configurado no servidor (.env)." };
     }
 
-    const result = await executeTradeInService(apiToken, validatedData.data.symbol, validatedData.data.tradeDirection, validatedData.data.quantity, { allowEquals: validatedData.data.allowEquals });
+    const { symbol, contractType, quantity } = validatedData.data;
+    const result = await executeTradeInService(apiToken, symbol, contractType, quantity);
+
     if(result.success) {
       return { success: result.message };
     } else {
