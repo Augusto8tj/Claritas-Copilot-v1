@@ -1,7 +1,8 @@
 
 'use client';
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react';
+import { getAccountBalance } from '@/services/deriv-api-service';
 
 const DERIV_DEMO_TOKEN_KEY = 'derivDemoApiToken';
 const DERIV_REAL_TOKEN_KEY = 'derivRealApiToken';
@@ -9,15 +10,23 @@ const DERIV_ACCOUNT_TYPE_KEY = 'derivAccountType';
 
 export type AccountType = 'demo' | 'real';
 
+interface AccountBalance {
+  balance: number | null;
+  currency: string | null;
+  loading: boolean;
+}
+
 interface DerivApiContextType {
   demoToken: string | null;
   realToken: string | null;
   activeToken: string | null;
   accountType: AccountType;
   isConnected: boolean;
+  accountBalance: AccountBalance;
   setAccountType: (type: AccountType) => void;
   setTokens: (tokens: { demo?: string; real?: string }) => void;
   disconnect: (type: AccountType) => void;
+  refreshBalance: () => void;
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
@@ -26,6 +35,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   const [demoToken, setDemoToken] = useState<string | null>(null);
   const [realToken, setRealToken] = useState<string | null>(null);
   const [accountType, setAccountTypeState] = useState<AccountType>('demo');
+  const [accountBalance, setAccountBalance] = useState<AccountBalance>({ balance: null, currency: null, loading: true });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -84,6 +94,25 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   
   const activeToken = accountType === 'demo' ? demoToken : realToken;
 
+  const fetchBalance = useCallback(async () => {
+    if (!activeToken) {
+      setAccountBalance({ balance: null, currency: null, loading: false });
+      return;
+    }
+    setAccountBalance(prev => ({...prev, loading: true}));
+    try {
+      const { balance, currency } = await getAccountBalance(activeToken);
+      setAccountBalance({ balance, currency, loading: false });
+    } catch (error) {
+      console.error("Failed to fetch account balance:", error);
+      setAccountBalance({ balance: null, currency: null, loading: false });
+    }
+  }, [activeToken]);
+
+  useEffect(() => {
+    fetchBalance();
+  }, [fetchBalance]);
+
   const contextValue = {
     demoToken,
     realToken,
@@ -93,6 +122,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     setAccountType,
     setTokens,
     disconnect,
+    accountBalance,
+    refreshBalance: fetchBalance
   };
 
   if (loading) {

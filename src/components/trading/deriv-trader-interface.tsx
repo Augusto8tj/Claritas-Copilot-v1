@@ -32,6 +32,7 @@ import { Label } from "../ui/label";
 import { Separator } from "../ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useDerivApi } from "@/hooks/use-deriv-api";
 
 type DurationUnit = 'ticks' | 'seconds' | 'minutes' | 'hours' | 'days';
 type TradeType = 'Rise/Fall' | 'Higher/Lower' | 'Touch/No Touch';
@@ -81,6 +82,7 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<"rise" | "fall" | null>(null);
   const [tradeType, setTradeType] = useState<TradeType>('Rise/Fall');
+  const { refreshBalance } = useDerivApi();
 
   const form = useForm<RiseFallFormValues>({
     resolver: zodResolver(riseFallSchema),
@@ -121,6 +123,8 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
         title: "Ordem Executada!",
         description: result.success,
       });
+      // Refresh balance after a trade
+      setTimeout(refreshBalance, 1000); // Small delay to allow API to update
     } else {
       toast({
         variant: "destructive",
