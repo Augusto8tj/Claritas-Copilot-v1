@@ -3,6 +3,7 @@
 'use server';
 
 import WebSocket from 'ws';
+import type { AccountType } from '@/hooks/use-deriv-api';
 
 /**
  * @fileOverview Service for interacting with the Deriv brokerage API.
@@ -40,6 +41,7 @@ export interface AssetGroup {
 }
 
 const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089"; // Default App ID
+const REAL_ACCOUNT_TOKEN = "URTTMpEMpZY8e5U";
 
 /**
  * Connects to the Deriv WebSocket API and sends a request.
@@ -126,50 +128,51 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
 /**
  * Simulates fetching the user's account balance from the broker.
  * @param apiToken - The user's API token for authentication.
+ * @param accountType - The type of account ('demo' or 'real').
  */
-export async function getAccountBalance(apiToken: string): Promise<AccountBalance> {
-  console.log(`[Deriv Service] Fetching account balance with token: ${apiToken.substring(0, 5)}...`);
+export async function getAccountBalance(apiToken: string, accountType: AccountType): Promise<AccountBalance> {
+  console.log(`[Deriv Service] Fetching account balance for ${accountType} account...`);
   
   if (!apiToken) {
     throw new Error("API token is required.");
   }
 
-  // Define the base request
   const request: { [key: string]: any } = {
     "authorize": apiToken,
     "balance": 1,
     "subscribe": 0,
   };
 
-  // If the token is for the real account, specify the account type.
-  // The API requires this for some tokens.
-  if (apiToken === 'URTTMpEMpZY8e5U') {
+  if (accountType === 'real') {
     request["account"] = "real";
   }
 
   try {
     const response: any = await callDerivApi(request);
-
-    // If the token is valid but doesn't return a balance (e.g., demo token not needing special calls)
-    // we return a mock balance.
-    if (response.balance) {
-      return {
-        balance: response.balance.balance,
-        currency: response.balance.currency,
-      };
-    }
     
-    // Fallback for demo tokens or other valid tokens that don't need the specific "real" account call
-    // The authorize call itself is a validation.
-    console.log("[Deriv Service] Token validated, returning mock balance for non-real account.");
-    return {
-        balance: 10000,
-        currency: 'USD',
-    };
-
+    if (response.authorize?.loginid?.startsWith('VRTC')) {
+        // It's a virtual account, return mock balance if API doesn't
+        return {
+            balance: response.balance?.balance ?? 10000,
+            currency: response.balance?.currency ?? 'USD',
+        };
+    } else if (response.balance) {
+        // It's a real account or a demo account that returned a balance
+        return {
+            balance: response.balance.balance,
+            currency: response.balance.currency,
+        };
+    } else {
+        // Fallback if balance is not returned but authorize was successful
+        console.warn("[Deriv Service] Balance not found in response, but authorize was successful. This might be a real account with no funds or an issue.");
+        return {
+            balance: 0,
+            currency: 'USD',
+        };
+    }
   } catch (error) {
     console.error("[Deriv Service] Error in getAccountBalance:", error);
-    throw error; // Re-throw the error to be handled by the caller
+    throw error;
   }
 }
 
@@ -278,4 +281,52 @@ export async function getHistoricalData(symbol: string, period: string): Promise
   }
 
   return data;
+}
+
+/**
+ * Fetches the user's account balance from the broker.
+ * This version of the function determines the account type based on the token
+ * and makes the appropriate API call.
+ * @param apiToken - The user's API token for authentication.
+ */
+export async function getAccountBalanceWithAccountType(apiToken: string): Promise<AccountBalance> {
+    console.log(`[Deriv Service] Fetching account balance with token: ${apiToken.substring(0, 5)}...`);
+    
+    if (!apiToken) {
+        throw new Error("API token is required.");
+    }
+
+    // Define the base request
+    const request: { [key: string]: any } = {
+        "authorize": apiToken,
+        "balance": 1,
+        "subscribe": 0,
+    };
+
+    // If the token is for the real account, specify the account type.
+    if (apiToken === REAL_ACCOUNT_TOKEN) {
+        request["account"] = "real";
+    }
+
+    try {
+        const response: any = await callDerivApi(request);
+
+        if (response.balance) {
+            return {
+                balance: response.balance.balance,
+                currency: response.balance.currency,
+            };
+        }
+        
+        // Fallback for demo tokens or other valid tokens that don't need the specific "real" account call
+        console.log("[Deriv Service] Token validated, returning mock balance for non-real account.");
+        return {
+            balance: 10000,
+            currency: 'USD',
+        };
+
+    } catch (error) {
+        console.error("[Deriv Service] Error in getAccountBalance:", error);
+        throw error; // Re-throw the error to be handled by the caller
+    }
 }

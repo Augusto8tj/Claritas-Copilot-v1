@@ -18,6 +18,7 @@ import { type GoalProjectionInput } from "@/ai/flows/goal-projection.types";
 import { getAccountBalance } from "@/services/deriv-api-service";
 import { ai } from "@/ai/genkit";
 import { listModels } from "genkit";
+import { AccountType } from "@/hooks/use-deriv-api";
 
 
 const goalProjectionSchema = z.object({
@@ -135,12 +136,12 @@ export async function checkGeminiConnection(): Promise<{ success: boolean, error
 }
 
 
-export async function checkDerivConnection(apiToken: string): Promise<{ success: boolean, error?: string }> {
+export async function checkDerivConnection(apiToken: string, accountType: AccountType): Promise<{ success: boolean, error?: string }> {
     try {
         if (!apiToken) {
             return { success: false, error: "O token da API não foi fornecido." };
         }
-        await getAccountBalance(apiToken);
+        await getAccountBalance(apiToken, accountType);
         return { success: true };
     } catch (e: any) {
         console.error("[Health Check] Deriv API error:", e.message);

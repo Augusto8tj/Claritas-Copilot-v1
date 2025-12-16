@@ -68,7 +68,7 @@ export function ApiKeysCard() {
         return;
     }
 
-    const result = await checkDerivConnection(token);
+    const result = await checkDerivConnection(token, type);
     setLoading(null);
 
     if (result.success) {

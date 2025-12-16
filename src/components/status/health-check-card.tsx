@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, AlertTriangle, Loader2, Settings } from "lucide-react";
 import Link from "next/link";
-import { useDerivApi } from "@/hooks/use-deriv-api";
+import { useDerivApi, type AccountType } from "@/hooks/use-deriv-api";
 
 type CheckResult = {
   success: boolean;
@@ -21,7 +21,7 @@ interface HealthCheckCardProps {
   configurePath: string;
   checkResult?: CheckResult; // For server-side checks
   isClientSide?: boolean; // Flag for client-side checks
-  clientCheckAction?: (token: string) => Promise<CheckResult>; // Action for client-side checks
+  clientCheckAction?: (token: string, accountType: AccountType) => Promise<CheckResult>; // Action for client-side checks
 }
 
 export function HealthCheckCard({
@@ -37,8 +37,8 @@ export function HealthCheckCard({
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState<string | undefined>(failureMessage);
   
-  const { demoToken, realToken } = useDerivApi();
-  const activeToken = serviceName.toLowerCase().includes('deriv') ? (demoToken || realToken) : null;
+  const { demoToken, realToken, accountType } = useDerivApi();
+  const activeToken = accountType === 'demo' ? demoToken : realToken;
 
   useEffect(() => {
     const runCheck = async () => {
@@ -50,7 +50,7 @@ export function HealthCheckCard({
           return;
         }
         if (clientCheckAction) {
-          const result = await clientCheckAction(activeToken);
+          const result = await clientCheckAction(activeToken, accountType);
           if (result.success) {
             setStatus("success");
           } else {
@@ -70,7 +70,7 @@ export function HealthCheckCard({
     };
 
     runCheck();
-  }, [checkResult, isClientSide, clientCheckAction, activeToken, failureMessage]);
+  }, [checkResult, isClientSide, clientCheckAction, activeToken, accountType, failureMessage]);
 
 
   const StatusInfo = () => {
