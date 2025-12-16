@@ -1,8 +1,9 @@
 'use server';
 
+import WebSocket from 'ws';
+
 /**
- * @fileOverview Mock service for interacting with a brokerage API (e.g., Deriv).
- * In a real application, this would make actual authenticated API calls.
+ * @fileOverview Service for interacting with the Deriv brokerage API.
  */
 
 interface AccountBalance {
@@ -25,6 +26,100 @@ interface TradeResult {
 interface TradeOptions {
   allowEquals?: boolean;
 }
+
+export interface Asset {
+  value: string;
+  label: string;
+}
+
+export interface AssetGroup {
+  label: string;
+  options: Asset[];
+}
+
+const DERIV_APP_ID = process.env.DERIV_APP_ID || "1089"; // Default App ID
+
+/**
+ * Connects to the Deriv WebSocket API and sends a request.
+ * @param request The JSON request object to send.
+ * @returns A promise that resolves with the API response.
+ */
+function callDerivApi<T>(request: object): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+
+    ws.on('open', () => {
+      ws.send(JSON.stringify(request));
+    });
+
+    ws.on('message', (data: WebSocket.Data) => {
+      const response = JSON.parse(data.toString());
+      
+      if (response.error) {
+        reject(new Error(response.error.message));
+      } else {
+        resolve(response as T);
+      }
+      ws.close();
+    });
+
+    ws.on('error', (error) => {
+      reject(error);
+      ws.close();
+    });
+
+    ws.on('close', (code, reason) => {
+      console.log(`[Deriv WS] Connection closed: ${code} ${reason.toString()}`);
+    });
+  });
+}
+
+/**
+ * Fetches the list of all available assets from the Deriv API.
+ */
+export async function getAvailableAssets(): Promise<AssetGroup[]> {
+  console.log("[Deriv Service] Fetching available assets...");
+  try {
+    const response: any = await callDerivApi({
+        "active_symbols": "full",
+        "product_type": "basic"
+    });
+
+    if (!response.active_symbols) {
+      throw new Error("Invalid response from active_symbols");
+    }
+
+    const groupedAssets: { [key: string]: Asset[] } = {};
+
+    for (const symbol of response.active_symbols) {
+        const market = symbol.market_display_name;
+        if (!groupedAssets[market]) {
+            groupedAssets[market] = [];
+        }
+        groupedAssets[market].push({
+            value: symbol.symbol,
+            label: symbol.display_name
+        });
+    }
+
+    // Convert to the format expected by the frontend
+    const assetGroups: AssetGroup[] = Object.keys(groupedAssets).map(label => ({
+      label,
+      options: groupedAssets[label].sort((a,b) => a.label.localeCompare(b.label))
+    })).sort((a, b) => a.label.localeCompare(b.label));
+    
+    console.log(`[Deriv Service] Found ${assetGroups.length} asset groups.`);
+    return assetGroups;
+
+  } catch (error) {
+    console.error("[Deriv Service] Error fetching available assets:", error);
+    // Return a default/fallback list in case of an error
+    return [
+      { label: "Erro", options: [{ value: "error", label: "Não foi possível carregar ativos" }] },
+    ];
+  }
+}
+
 
 /**
  * Simulates fetching the user's account balance from the broker.
