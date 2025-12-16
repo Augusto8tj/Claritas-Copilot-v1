@@ -51,15 +51,15 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   const [duration, setDuration] = useState(getHistoryDurationForTimePeriod(timePeriod));
   const wsRef = useRef<WebSocket | null>(null);
 
-  useEffect(() => {
-    setDuration(getHistoryDurationForTimePeriod(timePeriod));
-  }, [timePeriod]);
-
-
   const fetchData = useCallback((currentDuration: number) => {
     if (!symbol) {
       setLoading(false);
       setError("Nenhum ativo selecionado.");
+      return;
+    }
+     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.warn("[Deriv WS] WebSocket não está pronto. A requisição será adiada.");
+      // Optional: Add a retry mechanism here
       return;
     }
 
@@ -67,27 +67,32 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
     setError(null);
     setData([]);
 
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
+    const endTime = Math.floor(Date.now() / 1000);
+    const startTime = endTime - currentDuration;
+
+    wsRef.current.send(
+      JSON.stringify({
+        ticks_history: symbol,
+        start: startTime,
+        end: "latest",
+        style: "ticks",
+        adjust_start_time: 1,
+        count: 5000
+      })
+    );
+  }, [symbol]);
+
+  // Effect for WebSocket connection management
+  useEffect(() => {
+    if (!symbol) return;
 
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      const endTime = Math.floor(Date.now() / 1000);
-      const startTime = endTime - currentDuration;
-
-      ws.send(
-        JSON.stringify({
-          ticks_history: symbol,
-          start: startTime,
-          end: "latest",
-          style: "ticks",
-          adjust_start_time: 1,
-          count: 5000
-        })
-      );
+      console.log("[Deriv WS] Conexão estabelecida.");
+      // Trigger initial data fetch once connected
+      fetchData(duration);
     };
 
     ws.onmessage = (event) => {
@@ -97,7 +102,6 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
         console.error("Deriv API error:", response.error.message);
         setError(response.error.message);
         setLoading(false);
-        ws.close();
         return;
       }
       
@@ -134,27 +138,40 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
     }
 
     ws.onclose = (event) => {
+        console.log(`[Deriv WS] A conexão foi fechada (Código: ${event.code}).`);
         if (!event.wasClean && !error) {
-           console.warn(`[Deriv WS] A conexão foi perdida inesperadamente (Código: ${event.code}).`);
+           console.warn(`[Deriv WS] A conexão foi perdida inesperadamente.`);
         }
     }
 
+    // Cleanup function
     return () => {
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      if (wsRef.current) {
          try {
+            // Unsubscribe from all ticks before closing
             wsRef.current.send(JSON.stringify({ "forget_all": "ticks" }));
             wsRef.current.close();
+            console.log("[Deriv WS] Conexão limpa e fechada.");
          } catch (e) {
-            console.warn("[Deriv WS] WebSocket already closed or errored on cleanup.");
+            console.warn("[Deriv WS] WebSocket já fechado ou com erro na limpeza.");
          }
+         wsRef.current = null;
       }
-      wsRef.current = null;
     };
-  }, [symbol, timePeriod]);
+    // This effect should only re-run when the symbol changes, managing the entire lifecycle.
+  }, [symbol]);
+
+  // Effect for handling changes in duration (from zoom or timePeriod)
+  useEffect(() => {
+    // Don't fetch if the symbol isn't set, the connection effect will handle the initial fetch
+    if (!symbol) return;
+    
+    fetchData(duration);
+  }, [duration, fetchData, symbol]);
 
   useEffect(() => {
-    fetchData(duration);
-  }, [symbol, duration, fetchData]);
+    setDuration(getHistoryDurationForTimePeriod(timePeriod));
+  }, [timePeriod]);
   
   const handleZoom = (factor: number) => {
     setDuration(currentDuration => {
@@ -170,7 +187,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   };
 
 
-  if (loading) {
+  if (loading && data.length === 0) {
     return (
       <div className="h-[400px] w-full flex items-center justify-center">
         <p className="text-muted-foreground">Carregando dados do gráfico...</p>
