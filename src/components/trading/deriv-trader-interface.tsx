@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -7,9 +8,6 @@ import { z } from "zod";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import {
   Tabs,
@@ -17,48 +15,25 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Form,
   FormControl,
   FormField,
   FormItem,
-  FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Switch } from "@/components/ui/switch";
-import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Info, Loader2, Minus, Plus } from "lucide-react";
 import { executeTradeAction } from "@/app/actions/trading-actions";
 import { useToast } from "@/hooks/use-toast";
-
-const digitalOptionsTypes = [
-  "Rise/Fall",
-  "Higher/Lower",
-  "EndBetweens",
-  "StaysBetween",
-  "Lookbacks",
-  "Touch/NoTouch",
-  "OnlyUps/Downs",
-  "Highest/Lowest",
-  "ResetCall",
-  "AsianUpDown",
-  "Digit:Matches/Differs",
-  "Digit:Even/Odd",
-  "Digit:Over/Under",
-];
+import { Input } from "../ui/input";
+import { Checkbox } from "../ui/checkbox";
+import { Label } from "../ui/label";
+import { Separator } from "../ui/separator";
 
 const riseFallSchema = z.object({
   stake: z.coerce.number().min(0.35, "O valor mínimo é $0.35."),
-  duration: z.string().min(1, "A duração é obrigatória."),
+  duration: z.coerce.number().min(5, "Mínimo de 5 ticks.").max(10, "Máximo de 10 ticks."),
   allowEquals: z.boolean().default(false),
 });
 
@@ -76,14 +51,12 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
     resolver: zodResolver(riseFallSchema),
     defaultValues: {
       stake: 10,
-      duration: "5 ticks",
+      duration: 5,
       allowEquals: false,
     },
   });
 
-  const handleTrade = async (
-    tradeDirection: "rise" | "fall"
-  ) => {
+  const handleTrade = async (tradeDirection: "rise" | "fall") => {
     const data = form.getValues();
     setLoading(tradeDirection);
     const result = await executeTradeAction({
@@ -103,147 +76,178 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
       toast({
         variant: "destructive",
         title: "Falha na Negociação",
-        description:
-          result.error || "Não foi possível executar a ordem. Tente novamente.",
+        description: result.error || "Não foi possível executar a ordem. Tente novamente.",
       });
     }
   };
 
+  const payout = (form.watch('stake') * 1.942).toFixed(2);
+  const payoutPercentage = "94.20%";
+
   return (
-      <Card>
-        <Tabs defaultValue="options">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="multipliers" disabled>
-              Multiplicadores
-            </TabsTrigger>
-            <TabsTrigger value="options">Opções</TabsTrigger>
-          </TabsList>
+    <Card className="bg-card/50">
+      <CardContent className="p-4 space-y-4">
+        {/* Trade Type Selector */}
+        <div className="flex items-center justify-between p-2 rounded-md">
+            <Button variant="ghost" size="icon" className="h-6 w-6" disabled><ChevronLeft className="h-5 w-5" /></Button>
+            <div className="flex items-center gap-2">
+                <ArrowUp className="text-green-500 h-5 w-5" />
+                <ArrowDown className="text-red-500 h-5 w-5" />
+                <span className="font-semibold text-sm">Rise/Fall</span>
+            </div>
+            <Button variant="ghost" size="icon" className="h-6 w-6" disabled><ChevronRight className="h-5 w-5" /></Button>
+        </div>
 
-          {/* Multipliers Tab (Disabled for now) */}
-          <TabsContent value="multipliers">
-            {/* Content can be added here later */}
-          </TabsContent>
+        <Separator />
 
-          {/* Options Tab */}
-          <TabsContent value="options">
-            <CardHeader>
-              <CardTitle className="font-headline">Opções Digitais</CardTitle>
-              <CardDescription>
-                Preveja o resultado e ganhe um pagamento fixo.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Form {...form}>
-                <form className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Tipo de Opção</Label>
-                    <Select defaultValue="Rise/Fall" disabled>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o tipo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {digitalOptionsTypes.map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {type}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="duration"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Duração</FormLabel>
-                          <FormControl>
-                            <Input {...field} disabled={!!loading} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="stake"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Stake (USD)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              {...field}
-                              disabled={!!loading}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <FormField
+        {/* Duration */}
+        <Tabs defaultValue="duration" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="duration">Duração</TabsTrigger>
+                <TabsTrigger value="endtime" disabled>Hora de término</TabsTrigger>
+            </TabsList>
+            <TabsContent value="duration" className="pt-2">
+                <FormField
                     control={form.control}
-                    name="allowEquals"
+                    name="duration"
                     render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                        <div className="space-y-0.5">
-                          <FormLabel>Permitir Empates</FormLabel>
-                          <p className="text-[0.8rem] text-muted-foreground">
-                            Ganha se o preço de saída for igual ao de entrada.
-                          </p>
+                    <FormItem>
+                        <div className="flex items-center justify-between">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => field.value > 5 && field.onChange(field.value - 1)}
+                                disabled={field.value <= 5}
+                            >
+                                <Minus className="h-4 w-4" />
+                            </Button>
+                             <div className="text-center">
+                                <span className="font-semibold text-lg">{field.value}</span>
+                                <p className="text-xs text-muted-foreground">Ticks</p>
+                            </div>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => field.value < 10 && field.onChange(field.value + 1)}
+                                disabled={field.value >= 10}
+                            >
+                                <Plus className="h-4 w-4" />
+                            </Button>
                         </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                            disabled={!!loading}
-                          />
-                        </FormControl>
-                      </FormItem>
+                        <Input 
+                            type="range"
+                            min="5" max="10"
+                            value={field.value}
+                            onChange={(e) => field.onChange(parseInt(e.target.value))}
+                            className="w-full h-1 p-0 cursor-pointer"
+                        />
+                        <FormMessage />
+                    </FormItem>
                     )}
-                  />
-
-                  <div className="space-y-2 pt-2">
-                    <p className="text-sm text-center text-muted-foreground">
-                      Pagamento Potencial: $19.50 (simulado)
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 pt-2">
-                    <Button
-                      variant="outline"
-                      className="h-12 bg-green-50/50 text-green-600 border-green-200 hover:bg-green-100 hover:text-green-700"
-                      onClick={() => handleTrade("rise")}
-                      disabled={!!loading}
-                    >
-                      {loading === "rise" ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                      ) : (
-                        <>
-                          <ArrowUp className="mr-2 h-5 w-5" /> Rise
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-12 bg-red-50/50 text-red-600 border-red-200 hover:bg-red-100 hover:text-red-700"
-                      onClick={() => handleTrade("fall")}
-                      disabled={!!loading}
-                    >
-                      {loading === "fall" ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                      ) : (
-                        <>
-                          <ArrowDown className="mr-2 h-5 w-5" /> Fall
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </CardContent>
-          </TabsContent>
+                />
+            </TabsContent>
         </Tabs>
-      </Card>
+        
+        <Separator />
+        
+        {/* Stake */}
+        <Tabs defaultValue="stake" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="stake">Entrada</TabsTrigger>
+                <TabsTrigger value="payout" disabled>Pagamento</TabsTrigger>
+            </TabsList>
+            <TabsContent value="stake" className="pt-2">
+                <FormField
+                    control={form.control}
+                    name="stake"
+                    render={({ field }) => (
+                    <FormItem>
+                         <div className="flex items-center justify-center gap-2">
+                             <Button type="button" variant="outline" size="icon" onClick={() => form.setValue('stake', Math.max(0.35, field.value - 1))}><Minus className="h-4 w-4"/></Button>
+                            <div className="relative flex-1">
+                                <Input type="number" {...field} className="text-center font-bold text-lg pr-12"/>
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">USD</span>
+                            </div>
+                             <Button type="button" variant="outline" size="icon" onClick={() => form.setValue('stake', field.value + 1)}><Plus className="h-4 w-4"/></Button>
+                         </div>
+                         <FormMessage />
+                    </FormItem>
+                    )}
+                />
+            </TabsContent>
+        </Tabs>
+
+        {/* Allow Equals */}
+        <FormField
+            control={form.control}
+            name="allowEquals"
+            render={({ field }) => (
+            <FormItem className="flex flex-row items-center space-x-2 space-y-0 pt-2">
+                <FormControl>
+                    <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={!!loading}
+                        id="allowEquals"
+                    />
+                </FormControl>
+                <Label htmlFor="allowEquals" className="text-sm font-normal text-muted-foreground cursor-pointer">
+                    Permitir "Equals"
+                </Label>
+                <Info className="h-3 w-3 text-muted-foreground" />
+            </FormItem>
+            )}
+        />
+
+        {/* Trade Buttons */}
+        <div className="space-y-2 pt-2">
+             <div className="text-xs text-muted-foreground flex items-center justify-between">
+                <span>Pagamento</span>
+                <span className="font-semibold text-foreground">{payout} USD</span>
+             </div>
+             <Button
+                variant="outline"
+                className="w-full h-14 bg-green-500/10 text-green-600 border-green-500/30 hover:bg-green-500/20 hover:text-green-700 flex justify-between items-center"
+                onClick={() => handleTrade("rise")}
+                disabled={!!loading}
+            >
+                {loading === "rise" ? ( <Loader2 className="h-5 w-5 animate-spin" /> ) : (
+                    <>
+                        <div className="flex items-center gap-2">
+                            <ArrowUp className="h-5 w-5" />
+                            <span className="font-semibold">Rise</span>
+                        </div>
+                        <span className="text-lg font-bold">{payoutPercentage}</span>
+                    </>
+                )}
+            </Button>
+            
+             <div className="text-xs text-muted-foreground flex items-center justify-between pt-2">
+                <span>Pagamento</span>
+                <span className="font-semibold text-foreground">{payout} USD</span>
+             </div>
+            <Button
+                variant="outline"
+                className="w-full h-14 bg-red-500/10 text-red-600 border-red-500/30 hover:bg-red-500/20 hover:text-red-700 flex justify-between items-center"
+                onClick={() => handleTrade("fall")}
+                disabled={!!loading}
+            >
+                {loading === "fall" ? ( <Loader2 className="h-5 w-5 animate-spin" /> ) : (
+                    <>
+                        <div className="flex items-center gap-2">
+                            <ArrowDown className="h-5 w-5" />
+                            <span className="font-semibold">Fall</span>
+                        </div>
+                        <span className="text-lg font-bold">{payoutPercentage}</span>
+                    </>
+                )}
+            </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
