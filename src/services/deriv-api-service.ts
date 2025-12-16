@@ -37,7 +37,7 @@ export interface AssetGroup {
   options: Asset[];
 }
 
-const DERIV_APP_ID = process.env.DERIV_APP_ID || "1089"; // Default App ID
+const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089"; // Default App ID
 
 /**
  * Connects to the Deriv WebSocket API and sends a request.
@@ -134,8 +134,22 @@ export async function getAccountBalance(apiToken: string): Promise<AccountBalanc
     throw new Error('Invalid API Token');
   }
 
+  // Use the provided real token for balance check
+  if (apiToken === 'URTTMpEMpZY8e5U') {
+     const response: any = await callDerivApi({
+        "balance": 1,
+        "subscribe": 0,
+        "account": "real"
+     });
+     return {
+        balance: response.balance.balance,
+        currency: response.balance.currency,
+     };
+  }
+
+  // Default mock balance for other tokens (like demo)
   return {
-    balance: 10000, // Mock balance
+    balance: 10000,
     currency: 'USD',
   };
 }
