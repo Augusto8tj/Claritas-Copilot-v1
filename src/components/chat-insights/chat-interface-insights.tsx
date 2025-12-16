@@ -48,7 +48,6 @@ export function ChatInterfaceInsights() {
     setLoading(true);
     const userMessage: Message = { role: "user", content: data.query };
     
-    // Create a history that doesn't include the current user message
     const history = [...messages];
     setMessages((prev) => [...prev, userMessage]);
 
