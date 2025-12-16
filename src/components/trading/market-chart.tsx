@@ -1,9 +1,12 @@
 
 "use client";
 
+import * as React from "react";
 import { useEffect, useState, useRef } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import type { TimePeriod, ChartType } from "@/app/deriv-trader/page";
+import { Button } from "@/components/ui/button";
+import { Plus, Minus } from "lucide-react";
 
 type TickData = {
   epoch: number;
@@ -45,7 +48,14 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   const [data, setData] = useState<TickData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [zoomOffset, setZoomOffset] = useState(0); // in seconds
   const wsRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    // Reset zoom when symbol or timePeriod changes
+    setZoomOffset(0);
+  }, [symbol, timePeriod]);
+
 
   useEffect(() => {
     setLoading(true);
@@ -138,10 +148,29 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   }, [symbol, timePeriod]);
   
   const getXAxisDomain = (): [number, number] => {
+    const baseDuration = getHistoryDurationForTimePeriod(timePeriod);
+    const zoomFactor = baseDuration * 0.1; // Each zoom step is 10% of the base duration
+    const currentDuration = baseDuration - (zoomOffset * zoomFactor);
+    
     const latest = data.length > 0 ? data[data.length - 1].epoch : Math.floor(Date.now() / 1000);
-    const duration = getHistoryDurationForTimePeriod(timePeriod);
-    return [latest - duration, latest];
+    
+    return [latest - currentDuration, latest];
   };
+
+  const handleZoomIn = () => {
+    // Prevent zooming in too much (e.g., less than 10% of original duration)
+    if (getHistoryDurationForTimePeriod(timePeriod) - ((zoomOffset + 1) * (getHistoryDurationForTimePeriod(timePeriod) * 0.1)) > 60) {
+       setZoomOffset(prev => prev + 1);
+    }
+  }
+  
+  const handleZoomOut = () => {
+    // Prevent zooming out too much
+     if (zoomOffset > 0) {
+        setZoomOffset(prev => prev - 1);
+     }
+  }
+
 
   if (loading) {
     return (
@@ -160,7 +189,17 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   }
 
   return (
-    <div className="h-[400px] w-full">
+    <div className="h-[400px] w-full relative group">
+       <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+        <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleZoomOut}>
+          <Minus className="h-4 w-4" />
+          <span className="sr-only">Reduzir zoom</span>
+        </Button>
+        <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleZoomIn}>
+          <Plus className="h-4 w-4" />
+          <span className="sr-only">Ampliar zoom</span>
+        </Button>
+      </div>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
