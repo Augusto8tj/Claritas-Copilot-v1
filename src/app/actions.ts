@@ -112,16 +112,23 @@ export async function sendFinancialSummaryEmail() {
   }
 }
 
-export async function checkGeminiConnection(): Promise<{ success: boolean, error?: string, models?: any[] }> {
-    try {
-        // Temporariamente, apenas retornamos sucesso se a chave de API estiver presente no ambiente.
-        if (process.env.GEMINI_API_KEY) {
-            return { success: true, models: [] };
-        }
+export async function checkGeminiConnection(): Promise<{ success: boolean; error?: string, models?: any[] }> {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
         return { success: false, error: "A variável de ambiente GEMINI_API_KEY não está definida." };
+    }
+
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+        if (!response.ok) {
+            const errorBody = await response.json();
+            throw new Error(errorBody.error.message || `HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        return { success: true, models: data.models };
     } catch (e: any) {
         console.error("[Health Check] Gemini API error:", e);
-        return { success: false, error: e.message || "Ocorreu um erro desconhecido." };
+        return { success: false, error: e.message || "Ocorreu um erro desconhecido ao contatar a API do Gemini." };
     }
 }
 
@@ -139,4 +146,5 @@ export async function checkDerivConnection(apiToken: string, accountType: Accoun
         return { success: false, error: e.message || "Não foi possível validar o token." };
     }
 }
+
 

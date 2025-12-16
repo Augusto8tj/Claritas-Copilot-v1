@@ -1,6 +1,6 @@
 "use client";
 
-import { BrainCircuit, Loader2, AlertTriangle } from 'lucide-react';
+import { AlertTriangle, BrainCircuit, CheckCircle, Loader2 } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { checkGeminiConnection } from '@/app/actions';
@@ -12,21 +12,26 @@ import { Label } from '@/components/ui/label';
 export function ListModelsCard() {
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     const handleListModels = async () => {
         setIsLoading(true);
         setResult(null);
+        setError(null);
         try {
             const response = await checkGeminiConnection();
             if (response.success && response.models) {
-                const modelList = response.models.map((model: any) => `- ${model.displayName || model.name} (Suporta: ${model.supportedGenerationMethods.join(', ')})`).join('\n') || 'Nenhum modelo encontrado.';
-                setResult(`Conexão bem-sucedida!\n\nModelos disponíveis encontrados:\n\n${modelList}`);
+                const modelList = response.models
+                    .filter((model: any) => model.supportedGenerationMethods.includes('generateContent'))
+                    .map((model: any) => `- ${model.displayName || model.name} (${model.name})`)
+                    .join('\n') || 'Nenhum modelo compatível com "generateContent" foi encontrado.';
+                setResult(`Conexão bem-sucedida!\n\nModelos de geração de conteúdo disponíveis:\n\n${modelList}`);
             } else {
                 throw new Error(response.error || "A verificação da IA retornou uma falha desconhecida.");
             }
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido.";
-            setResult(`ERRO: ${errorMessage}`);
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : "Ocorreu um erro desconhecido.";
+            setError(errorMessage);
         } finally {
             setIsLoading(false);
         }
@@ -43,19 +48,31 @@ export function ListModelsCard() {
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>Como Usar</AlertTitle>
                     <AlertDescription>
-                        Se a IA apresentar erros de &quot;API key not valid&quot; ou &quot;model not found&quot;, clique no botão abaixo. Isso testa a conexão e lista os modelos que sua chave de API pode acessar.
+                        Se a IA apresentar erros de &quot;API key not valid&quot; ou de modelo não encontrado, clique no botão abaixo. Isso testa a conexão e valida a chave de API configurada no sistema, listando os modelos que ela pode acessar.
                     </AlertDescription>
                 </Alert>
                 <Button onClick={handleListModels} disabled={isLoading}>
                     {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                    {isLoading ? "Verificando..." : "Verificar Modelos de IA"}
+                    {isLoading ? "Verificando..." : "Verificar Conexão da IA"}
                 </Button>
 
                 {result && (
-                    <div className="space-y-1.5">
-                        <Label>Resultado da Verificação:</Label>
-                        <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto whitespace-pre-wrap max-h-60">{result}</pre>
-                    </div>
+                     <Alert variant="default" className="bg-green-500/10 border-green-500/50">
+                        <CheckCircle className="h-4 w-4 text-green-700"/>
+                        <AlertTitle className="text-green-800">Resultado da Verificação</AlertTitle>
+                        <AlertDescription className="whitespace-pre-wrap text-green-700 text-xs">
+                            {result}
+                        </AlertDescription>
+                    </Alert>
+                )}
+                {error && (
+                    <Alert variant="destructive">
+                        <AlertTriangle className="h-4 w-4"/>
+                        <AlertTitle>Erro na Verificação</AlertTitle>
+                        <AlertDescription className="whitespace-pre-wrap text-xs">
+                            {error}
+                        </AlertDescription>
+                    </Alert>
                 )}
             </CardContent>
         </Card>
