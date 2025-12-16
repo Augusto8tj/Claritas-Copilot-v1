@@ -77,12 +77,7 @@ const navItems = [
   {
     href: "/chat-insights",
     icon: Sparkles,
-    label: "Chat IA Claritas",
-  },
-  {
-    href: "/chat",
-    icon: MessageCircle,
-    label: "Chat com IA",
+    label: "Chat Claritas",
   },
   {
     href: "/status",

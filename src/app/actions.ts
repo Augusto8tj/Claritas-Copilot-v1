@@ -2,10 +2,6 @@
 "use server";
 
 import {
-  financialChatbot,
-} from "@/ai/flows/financial-chatbot";
-import { type FinancialChatbotInput } from "@/ai/flows/financial-chatbot.types";
-import {
   financialChatbotInsights,
 } from "@/ai/flows/financial-chatbot-insights";
 import { type FinancialChatbotInsightsInput } from "@/ai/flows/financial-chatbot-insights.types";
@@ -48,15 +44,6 @@ export async function getGoalProjection(data: GoalProjectionInput) {
   }
 }
 
-export async function getChatbotResponse(data: FinancialChatbotInput) {
-  try {
-    const result = await financialChatbot(data);
-    return { success: result.response };
-  } catch (e) {
-    console.error(e);
-    return { error: "Sorry, I couldn't process that. Please try again." };
-  }
-}
 
 export async function getChatbotInsightsResponse(data: FinancialChatbotInsightsInput) {
   try {
@@ -146,5 +133,6 @@ export async function checkDerivConnection(apiToken: string, accountType: Accoun
         return { success: false, error: e.message || "Não foi possível validar o token." };
     }
 }
+
 
 
