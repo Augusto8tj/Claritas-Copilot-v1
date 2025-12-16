@@ -42,27 +42,43 @@ export interface AssetGroup {
 const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089"; // Default App ID
 
 /**
- * Connects to the Deriv WebSocket API and sends a request.
- * @param request The JSON request object to send.
- * @returns A promise that resolves with the API response.
+ * Connects to the Deriv WebSocket API, authenticates, and sends requests.
+ * @param requests An array of JSON request objects to send in sequence. The first should be the authorize request.
+ * @returns A promise that resolves with the API response of the last request.
  */
-function callDerivApi<T>(request: object): Promise<T> {
+function callDerivApi<T>(requests: object[]): Promise<T> {
   return new Promise((resolve, reject) => {
+    if (requests.length === 0) {
+      return reject(new Error("No requests provided to callDerivApi."));
+    }
+
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+    let requestQueue = [...requests];
 
     ws.on('open', () => {
-      ws.send(JSON.stringify(request));
+      // Send the first request (expected to be authorize)
+      if (requestQueue.length > 0) {
+        ws.send(JSON.stringify(requestQueue.shift()));
+      }
     });
 
     ws.on('message', (data: WebSocket.Data) => {
       const response = JSON.parse(data.toString());
-      
+
       if (response.error) {
         reject(new Error(response.error.message));
-      } else {
-        resolve(response as T);
+        ws.close();
+        return;
       }
-      ws.close();
+
+      // If it was an authorize response and there are more requests, send the next one.
+      if (response.msg_type === 'authorize' && requestQueue.length > 0) {
+        ws.send(JSON.stringify(requestQueue.shift()));
+      } else {
+        // This is the response to the last/main request
+        resolve(response as T);
+        ws.close();
+      }
     });
 
     ws.on('error', (error) => {
@@ -82,10 +98,12 @@ function callDerivApi<T>(request: object): Promise<T> {
 export async function getAvailableAssets(): Promise<AssetGroup[]> {
   console.log("[Deriv Service] Fetching available assets...");
   try {
-    const response: any = await callDerivApi({
+    const response: any = await callDerivApi([
+      {
         "active_symbols": "full",
         "product_type": "basic"
-    });
+      }
+    ]);
 
     if (!response.active_symbols) {
       throw new Error("Invalid response from active_symbols");
@@ -128,43 +146,30 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
  * @param apiToken - The user's API token for authentication.
  * @param accountType - The type of account ('demo' or 'real').
  */
-export async function getAccountBalance(apiToken: string, accountType: AccountType): Promise<AccountBalance> {
+export async function getAccountBalance(apiToken: string, accountType: AccountType = 'demo'): Promise<AccountBalance> {
   console.log(`[Deriv Service] Fetching account balance for ${accountType} account...`);
   
   if (!apiToken) {
     throw new Error("API token is required.");
   }
 
-  const request: { [key: string]: any } = {
-    "authorize": apiToken,
-    "balance": 1,
-    "subscribe": 0,
-  };
+  const authorizeRequest = { "authorize": apiToken };
+  const balanceRequest: { [key: string]: any } = { "balance": 1 };
 
-  // The account field is only needed for some operations on real accounts, but including it is safer.
-  // The API will ignore it if not needed (e.g., for demo accounts identified by VRTC prefix).
   if (accountType === 'real') {
-    request["account"] = "real";
+    balanceRequest["account"] = "real";
   }
 
   try {
-    const response: any = await callDerivApi(request);
+    const response: any = await callDerivApi([authorizeRequest, balanceRequest]);
     
-    if (response.authorize?.loginid?.startsWith('VRTC')) {
-        // It's a virtual account, return mock balance if API doesn't
-        return {
-            balance: response.balance?.balance ?? 10000,
-            currency: response.balance?.currency ?? 'USD',
-        };
-    } else if (response.balance) {
-        // It's a real account or a demo account that returned a balance
+    if (response.balance) {
         return {
             balance: response.balance.balance,
             currency: response.balance.currency,
         };
     } else {
-        // Fallback if balance is not returned but authorize was successful
-        console.warn("[Deriv Service] Balance not found in response, but authorize was successful. This might be a real account with no funds or an issue.");
+        console.warn("[Deriv Service] Balance not found in response.");
         return {
             balance: 0,
             currency: 'USD',
@@ -183,17 +188,33 @@ export async function getAccountBalance(apiToken: string, accountType: AccountTy
  */
 export async function getMarketData(symbol: string): Promise<MarketData> {
   console.log(`[Deriv Service] Fetching market data for: ${symbol}`);
-  // Simulate API call delay
-  await new Promise(resolve => setTimeout(resolve, 300));
   
-  const mockPrice = parseFloat((Math.random() * (200 - 5) + 5).toFixed(2));
-  const mockChange = parseFloat((Math.random() * 5 * (Math.random() > 0.5 ? 1 : -1)).toFixed(2));
+  try {
+    const response: any = await callDerivApi([
+        {
+            "ticks": symbol
+        }
+    ]);
 
-  return {
-    symbol,
-    price: mockPrice,
-    changePercent: mockChange,
-  };
+    if (response.tick) {
+        return {
+            symbol: response.tick.symbol,
+            price: response.tick.quote,
+            changePercent: 0 // Tick stream doesn't provide change percentage easily
+        };
+    }
+     throw new Error("Invalid response for market data");
+  } catch (error) {
+    console.error(`[Deriv Service] Error fetching market data for ${symbol}:`, error);
+    // Fallback to mock data on error
+    const mockPrice = parseFloat((Math.random() * (200 - 5) + 5).toFixed(2));
+    const mockChange = parseFloat((Math.random() * 5 * (Math.random() > 0.5 ? 1 : -1)).toFixed(2));
+    return {
+        symbol,
+        price: mockPrice,
+        changePercent: mockChange,
+    };
+  }
 }
 
 /**
@@ -209,8 +230,6 @@ export async function executeTrade(apiToken: string, symbol: string, tradeDirect
 
   let contractType;
   if (tradeDirection === 'rise') {
-    // Note: The correct contract type for "Rise" is 'CALL' and for "Fall" is 'PUT'.
-    // If 'allowEquals' is true, it becomes 'CALLE' or 'PUTE'.
     contractType = allowEquals ? 'CALLE' : 'CALL';
   } else { // 'fall'
     contractType = allowEquals ? 'PUTE' : 'PUT';
@@ -220,27 +239,57 @@ export async function executeTrade(apiToken: string, symbol: string, tradeDirect
   console.log(`[Deriv Service] -> Direction: ${tradeDirection}`);
   console.log(`[Deriv Service] -> Contract Type: ${contractType}`);
 
-  // 1. Simulate getting a proposal
-  console.log(`[Deriv Service] Step 1: Requesting proposal with contract_type: ${contractType}`);
-  await new Promise(resolve => setTimeout(resolve, 400));
-  const proposalId = `mock-proposal-${Date.now()}`;
-  console.log(`[Deriv Service] -> Proposal ID received: ${proposalId}`);
-
-  // 2. Simulate buying the contract
-  if (apiToken.includes('invalid')) {
+  if (!apiToken || apiToken.includes('invalid')) {
     return { success: false, message: 'Trade failed due to invalid API token.' };
   }
-  
-  console.log(`[Deriv Service] Step 2: Buying contract with proposal ID: ${proposalId}`);
-  await new Promise(resolve => setTimeout(resolve, 600));
-  const contractId = `mock-contract-${Date.now()}`;
-  console.log(`[Deriv Service] -> Contract ID received: ${contractId}`);
 
-  return {
-    success: true,
-    orderId: contractId,
-    message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${quantity} executada com sucesso.`,
-  };
+  try {
+    const proposalRequest = {
+        "proposal": 1,
+        "amount": quantity,
+        "basis": "stake",
+        "contract_type": contractType,
+        "currency": "USD",
+        "duration": 5,
+        "duration_unit": "t",
+        "symbol": symbol,
+    };
+
+    const authorizeRequest = { "authorize": apiToken };
+    
+    console.log(`[Deriv Service] Step 1: Requesting proposal...`);
+    const proposalResponse: any = await callDerivApi([authorizeRequest, proposalRequest]);
+
+    if (!proposalResponse.proposal || !proposalResponse.proposal.id) {
+        throw new Error("Failed to get a valid proposal from the API.");
+    }
+    const proposalId = proposalResponse.proposal.id;
+    console.log(`[Deriv Service] -> Proposal ID received: ${proposalId}`);
+
+    const buyRequest = {
+        "buy": proposalId,
+        "price": quantity
+    };
+
+    console.log(`[Deriv Service] Step 2: Buying contract with proposal ID...`);
+    // Re-authorize and buy
+    const buyResponse: any = await callDerivApi([authorizeRequest, buyRequest]);
+
+    if (buyResponse.buy && buyResponse.buy.contract_id) {
+        return {
+            success: true,
+            orderId: buyResponse.buy.contract_id,
+            message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${quantity} executada com sucesso.`,
+        };
+    } else {
+        throw new Error("Buy request did not return a contract ID.");
+    }
+
+  } catch (error) {
+    console.error("[Deriv Service] Error executing trade:", error);
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+    return { success: false, message: errorMessage };
+  }
 }
 
 
