@@ -32,7 +32,7 @@ export default function SettingsPage() {
            <ThemeSelector />
            <Separator />
            <FontSelector />
-        </ContentCard>
+        </CardContent>
       </Card>
     </div>
   );
