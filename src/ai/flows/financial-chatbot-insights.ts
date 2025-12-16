@@ -6,7 +6,7 @@
  * - financialChatbotInsights - A function that handles the chatbot interaction.
  */
 
-import {ai} from '@/ai/genkit';
+import {ai, flash, pro} from '@/ai/genkit';
 // Ferramentas para acessar dados internos do aplicativo (orçamento, transações, etc.)
 import { getFinancialInsightsTool, getFinancialSummaryTool, addTransactionTool, addGoalTool, getBudgetStatusTool } from '../tools/financial-tools';
 // Ferramentas para acessar dados externos do mercado financeiro (cotações de ações, etc.)
@@ -50,8 +50,16 @@ const financialChatbotInsightsFlow = ai.defineFlow(
     outputSchema: FinancialChatbotInsightsOutputSchema,
   },
   async (input) => {
-    const {output} = await prompt(input);
-    return output!;
+    try {
+      // First, try the fast model
+      const { output } = await prompt(input, { model: flash });
+      return output!;
+    } catch (e) {
+      console.warn(`[Flow] Model '${flash}' failed, trying '${pro}'. Error:`, e);
+      // If it fails, fallback to the more robust model
+      const { output } = await prompt(input, { model: pro });
+      return output!;
+    }
   }
 );
 

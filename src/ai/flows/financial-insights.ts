@@ -6,7 +6,7 @@
  * - getFinancialInsights - A function that generates personalized financial insights.
  */
 
-import {ai} from '@/ai/genkit';
+import {ai, flash, pro} from '@/ai/genkit';
 import { FinancialInsightsInputSchema, FinancialInsightsOutputSchema, type FinancialInsightsInput } from './financial-insights.types';
 
 
@@ -32,8 +32,16 @@ const financialInsightsFlow = ai.defineFlow(
     outputSchema: FinancialInsightsOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    try {
+      // First, try the fast model
+      const { output } = await prompt(input, { model: flash });
+      return output!;
+    } catch (e) {
+      console.warn(`[Flow] Model '${flash}' failed, trying '${pro}'. Error:`, e);
+      // If it fails, fallback to the more robust model
+      const { output } = await prompt(input, { model: pro });
+      return output!;
+    }
   }
 );
 

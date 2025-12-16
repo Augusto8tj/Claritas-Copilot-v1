@@ -6,7 +6,7 @@
  * - analyzeMqlCode - The main flow function.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai, flash, pro } from '@/ai/genkit';
 import { MqlAnalyzerInputSchema, MqlAnalyzerOutputSchema, type MqlAnalyzerInput } from './mql-analyzer-flow.types';
 import { z } from 'zod';
 
@@ -34,9 +34,9 @@ Focus on:
 - Logic inside OnTick(), OnTrade(), or any custom function that defines trading rules.
 Ignore all boilerplate code, includes, variable declarations, or utility functions not directly related to the strategy itself. Provide a concise summary of the logic found. If no relevant logic is found in the chunk, respond with "N/A".`,
     prompt: `Analyze this chunk of MQL5 code and summarize its trading strategy logic:
-\`\`\`mql5
+\'\'\'mql5
 {{{codeChunk}}}
-\`\`\`
+\'\'\'
 `,
 });
 
@@ -59,9 +59,9 @@ Seja detalhado o suficiente para que outro sistema possa simular a estratégia c
 Analise o seguinte código/descrição de um robô de investimento MQL5 e descreva sua estratégia em linguagem natural.
 
 Código/Descrição:
-\`\`\`
+\'\'\'
 {{{mqlCode}}}
-\`\`\`
+\'\'\'
 `
 });
 
@@ -99,14 +99,18 @@ const analyzeMqlCodeFlow = ai.defineFlow(
         console.log(`[MQL Analyzer] Code is small enough (${mqlCode.length} chars). Analyzing directly.`);
     }
 
-    // Final analysis on the original code or the combined summary.
-    const { output } = await analyzerPrompt({ mqlCode: analysisInput });
-
-    if (!output) {
-      throw new Error("A IA não conseguiu analisar a estratégia do código MQL5.");
+    try {
+      // First, try the fast model
+      const { output } = await analyzerPrompt({ mqlCode: analysisInput }, { model: flash });
+      if (!output) throw new Error("A análise inicial com o modelo Flash retornou uma saída vazia.");
+      return output;
+    } catch (e) {
+      console.warn(`[Flow] Model '${flash}' failed for MQL analysis, trying '${pro}'. Error:`, e);
+      // If it fails, fallback to the more robust model
+      const { output } = await analyzerPrompt({ mqlCode: analysisInput }, { model: pro });
+      if (!output) throw new Error("A IA não conseguiu analisar a estratégia do código MQL5, mesmo com o modelo Pro.");
+      return output;
     }
-
-    return output;
   }
 );
 
