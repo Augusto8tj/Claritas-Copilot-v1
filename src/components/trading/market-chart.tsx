@@ -2,6 +2,7 @@
 
 "use client";
 
+import * as React from "react";
 import { useEffect, useState, useRef } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, BarChart, Bar } from "recharts";
 import type { TimePeriod, ChartType } from "@/app/deriv-trader/page";
@@ -361,5 +362,3 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
     </div>
   );
 }
-
-    
