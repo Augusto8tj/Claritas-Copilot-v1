@@ -17,7 +17,7 @@ import { getFinancialSummary, getInsights } from "@/services/financial-data-serv
 import { auth } from "@/lib/firebase";
 import { type GoalProjectionInput } from "@/ai/flows/goal-projection.types";
 import { getAccountBalance } from "@/services/deriv-api-service";
-import { ai } from "@/ai/genkit";
+import { listModels } from "@genkit-ai/google-genai";
 import { AccountType } from "@/hooks/use-deriv-api";
 
 
@@ -115,7 +115,7 @@ export async function sendFinancialSummaryEmail() {
 
 export async function checkGeminiConnection(): Promise<{ success: boolean, error?: string, models?: any[] }> {
     try {
-        const models = await ai.listModels();
+        const models = await listModels();
         // Filtramos para mostrar apenas modelos do Google AI, que são os relevantes para o Gemini
         const googleModels = models.filter(m => m.name.startsWith('googleai/'));
 
