@@ -57,6 +57,17 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
   });
 
   const handleTrade = async (tradeDirection: "rise" | "fall") => {
+    // Manually trigger validation
+    const isValid = await form.trigger();
+    if (!isValid) {
+        toast({
+            variant: "destructive",
+            title: "Entrada Inválida",
+            description: "Por favor, corrija os erros no formulário antes de negociar.",
+        });
+        return;
+    }
+
     const data = form.getValues();
     setLoading(tradeDirection);
     const result = await executeTradeAction({
@@ -87,7 +98,6 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
   return (
     <Card className="bg-card/50">
       <CardContent className="p-4 space-y-4">
-        {/* Trade Type Selector */}
         <div className="flex items-center justify-between p-2 rounded-md">
             <Button variant="ghost" size="icon" className="h-6 w-6" disabled><ChevronLeft className="h-5 w-5" /></Button>
             <div className="flex items-center gap-2">
@@ -100,110 +110,112 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
 
         <Separator />
 
-        {/* Duration */}
-        <Tabs defaultValue="duration" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="duration">Duração</TabsTrigger>
-                <TabsTrigger value="endtime" disabled>Hora de término</TabsTrigger>
-            </TabsList>
-            <TabsContent value="duration" className="pt-2">
-                <FormField
-                    control={form.control}
-                    name="duration"
-                    render={({ field }) => (
-                    <FormItem>
-                        <div className="flex items-center justify-between">
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => field.value > 5 && field.onChange(field.value - 1)}
-                                disabled={field.value <= 5}
-                            >
-                                <Minus className="h-4 w-4" />
-                            </Button>
-                             <div className="text-center">
-                                <span className="font-semibold text-lg">{field.value}</span>
-                                <p className="text-xs text-muted-foreground">Ticks</p>
-                            </div>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => field.value < 10 && field.onChange(field.value + 1)}
-                                disabled={field.value >= 10}
-                            >
-                                <Plus className="h-4 w-4" />
-                            </Button>
-                        </div>
-                        <Input 
-                            type="range"
-                            min="5" max="10"
-                            value={field.value}
-                            onChange={(e) => field.onChange(parseInt(e.target.value))}
-                            className="w-full h-1 p-0 cursor-pointer"
+        <Form {...form}>
+            <form className="space-y-4">
+                <Tabs defaultValue="duration" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="duration">Duração</TabsTrigger>
+                        <TabsTrigger value="endtime" disabled>Hora de término</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="duration" className="pt-2">
+                        <FormField
+                            control={form.control}
+                            name="duration"
+                            render={({ field }) => (
+                            <FormItem>
+                                <div className="flex items-center justify-between">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={() => field.value > 5 && field.onChange(field.value - 1)}
+                                        disabled={field.value <= 5}
+                                    >
+                                        <Minus className="h-4 w-4" />
+                                    </Button>
+                                    <div className="text-center">
+                                        <span className="font-semibold text-lg">{field.value}</span>
+                                        <p className="text-xs text-muted-foreground">Ticks</p>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={() => field.value < 10 && field.onChange(field.value + 1)}
+                                        disabled={field.value >= 10}
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                                <Input 
+                                    type="range"
+                                    min="5" max="10"
+                                    value={field.value}
+                                    onChange={(e) => field.onChange(parseInt(e.target.value))}
+                                    className="w-full h-1 p-0 cursor-pointer"
+                                />
+                                <FormMessage />
+                            </FormItem>
+                            )}
                         />
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-            </TabsContent>
-        </Tabs>
-        
-        <Separator />
-        
-        {/* Stake */}
-        <Tabs defaultValue="stake" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="stake">Entrada</TabsTrigger>
-                <TabsTrigger value="payout" disabled>Pagamento</TabsTrigger>
-            </TabsList>
-            <TabsContent value="stake" className="pt-2">
+                    </TabsContent>
+                </Tabs>
+                
+                <Separator />
+                
+                <Tabs defaultValue="stake" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="stake">Entrada</TabsTrigger>
+                        <TabsTrigger value="payout" disabled>Pagamento</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="stake" className="pt-2">
+                        <FormField
+                            control={form.control}
+                            name="stake"
+                            render={({ field }) => (
+                            <FormItem>
+                                <div className="flex items-center justify-center gap-2">
+                                    <Button type="button" variant="outline" size="icon" onClick={() => form.setValue('stake', Math.max(0.35, field.value - 1))}><Minus className="h-4 w-4"/></Button>
+                                    <div className="relative flex-1">
+                                        <FormControl>
+                                            <Input type="number" {...field} className="text-center font-bold text-lg pr-12"/>
+                                        </FormControl>
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">USD</span>
+                                    </div>
+                                    <Button type="button" variant="outline" size="icon" onClick={() => form.setValue('stake', field.value + 1)}><Plus className="h-4 w-4"/></Button>
+                                </div>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                    </TabsContent>
+                </Tabs>
+
                 <FormField
                     control={form.control}
-                    name="stake"
+                    name="allowEquals"
                     render={({ field }) => (
-                    <FormItem>
-                         <div className="flex items-center justify-center gap-2">
-                             <Button type="button" variant="outline" size="icon" onClick={() => form.setValue('stake', Math.max(0.35, field.value - 1))}><Minus className="h-4 w-4"/></Button>
-                            <div className="relative flex-1">
-                                <Input type="number" {...field} className="text-center font-bold text-lg pr-12"/>
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">USD</span>
-                            </div>
-                             <Button type="button" variant="outline" size="icon" onClick={() => form.setValue('stake', field.value + 1)}><Plus className="h-4 w-4"/></Button>
-                         </div>
-                         <FormMessage />
+                    <FormItem className="flex flex-row items-center space-x-2 space-y-0 pt-2">
+                        <FormControl>
+                            <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                disabled={!!loading}
+                                id="allowEquals"
+                            />
+                        </FormControl>
+                        <Label htmlFor="allowEquals" className="text-sm font-normal text-muted-foreground cursor-pointer">
+                            Permitir "Equals"
+                        </Label>
+                        <Info className="h-3 w-3 text-muted-foreground" />
                     </FormItem>
                     )}
                 />
-            </TabsContent>
-        </Tabs>
-
-        {/* Allow Equals */}
-        <FormField
-            control={form.control}
-            name="allowEquals"
-            render={({ field }) => (
-            <FormItem className="flex flex-row items-center space-x-2 space-y-0 pt-2">
-                <FormControl>
-                    <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        disabled={!!loading}
-                        id="allowEquals"
-                    />
-                </FormControl>
-                <Label htmlFor="allowEquals" className="text-sm font-normal text-muted-foreground cursor-pointer">
-                    Permitir "Equals"
-                </Label>
-                <Info className="h-3 w-3 text-muted-foreground" />
-            </FormItem>
-            )}
-        />
-
-        {/* Trade Buttons */}
+            </form>
+        </Form>
+        
         <div className="space-y-2 pt-2">
              <div className="text-xs text-muted-foreground flex items-center justify-between">
                 <span>Pagamento</span>
