@@ -9,7 +9,7 @@ import {
 import { ThemeSelector } from "@/components/settings/theme-selector";
 import { FontSelector } from "@/components/settings/font-selector";
 import { Separator } from "@/components/ui/separator";
-import { BrokerConnectionCard } from "@/components/settings/broker-connection-card";
+import { ApiKeysCard } from "@/components/settings/api-keys-card";
 
 export default function SettingsPage() {
   return (
@@ -18,7 +18,7 @@ export default function SettingsPage() {
         Configurações
       </h1>
       
-      <BrokerConnectionCard />
+      <ApiKeysCard />
       <EmailNotificationsCard />
 
       <Card>
@@ -32,7 +32,7 @@ export default function SettingsPage() {
            <ThemeSelector />
            <Separator />
            <FontSelector />
-        </CardContent>
+        </ContentCard>
       </Card>
     </div>
   );

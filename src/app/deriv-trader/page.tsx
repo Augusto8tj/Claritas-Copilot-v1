@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { AreaChart, CandlestickChart as CandlestickChartIcon } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useDerivApi, type AccountType } from "@/hooks/use-deriv-api";
 
 export type TimePeriod = '1m' | '15m' | '30m' | '1h' | '8h' | '1d';
 export type ChartType = 'Area' | 'Candle';
@@ -19,6 +20,7 @@ export default function DerivTraderPage() {
   const [selectedAsset, setSelectedAsset] = useState("1HZ100V");
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('1m');
   const [chartType, setChartType] = useState<ChartType>('Area');
+  const { accountType, setAccountType } = useDerivApi();
 
   const chartTypes: { label: ChartType, icon: React.ReactNode, disabled: boolean }[] = [
     { label: 'Area', icon: <AreaChart className="w-8 h-8 mx-auto" />, disabled: false },
@@ -37,6 +39,10 @@ export default function DerivTraderPage() {
             onAssetChange={setSelectedAsset} 
             />
         </div>
+        <ToggleGroup type="single" value={accountType} onValueChange={(value: AccountType) => value && setAccountType(value)} defaultValue="demo" aria-label="Tipo de Conta">
+            <ToggleGroupItem value="demo" aria-label="Usar conta demo">Demo</ToggleGroupItem>
+            <ToggleGroupItem value="real" aria-label="Usar conta real">Real</ToggleGroupItem>
+        </ToggleGroup>
       </div>
       <p className="text-muted-foreground">
         Nossa plataforma integrada para negociação de Opções e Multiplicadores.

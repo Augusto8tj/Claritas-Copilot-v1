@@ -3,55 +3,95 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 
-const DERIV_API_TOKEN_KEY = 'derivApiToken';
+const DERIV_DEMO_TOKEN_KEY = 'derivDemoApiToken';
+const DERIV_REAL_TOKEN_KEY = 'derivRealApiToken';
+const DERIV_ACCOUNT_TYPE_KEY = 'derivAccountType';
+
+export type AccountType = 'demo' | 'real';
 
 interface DerivApiContextType {
-  apiToken: string | null;
+  demoToken: string | null;
+  realToken: string | null;
+  activeToken: string | null;
+  accountType: AccountType;
   isConnected: boolean;
-  connect: (token: string) => void;
-  disconnect: () => void;
+  setAccountType: (type: AccountType) => void;
+  setTokens: (tokens: { demo?: string; real?: string }) => void;
+  disconnect: (type: AccountType) => void;
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
 
 export function DerivApiProvider({ children }: { children: ReactNode }) {
-  const [apiToken, setApiToken] = useState<string | null>(null);
+  const [demoToken, setDemoToken] = useState<string | null>(null);
+  const [realToken, setRealToken] = useState<string | null>(null);
+  const [accountType, setAccountTypeState] = useState<AccountType>('demo');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     try {
-      const storedToken = localStorage.getItem(DERIV_API_TOKEN_KEY);
-      if (storedToken) {
-        setApiToken(storedToken);
-      }
+      const storedDemoToken = localStorage.getItem(DERIV_DEMO_TOKEN_KEY);
+      const storedRealToken = localStorage.getItem(DERIV_REAL_TOKEN_KEY);
+      const storedAccountType = localStorage.getItem(DERIV_ACCOUNT_TYPE_KEY) as AccountType | null;
+      
+      if (storedDemoToken) setDemoToken(storedDemoToken);
+      if (storedRealToken) setRealToken(storedRealToken);
+      if (storedAccountType) setAccountTypeState(storedAccountType);
+
     } catch (error) {
       console.error("Failed to access localStorage:", error);
     }
     setLoading(false);
   }, []);
 
-  const connect = (token: string) => {
+  const setAccountType = (type: AccountType) => {
     try {
-      localStorage.setItem(DERIV_API_TOKEN_KEY, token);
-      setApiToken(token);
+        localStorage.setItem(DERIV_ACCOUNT_TYPE_KEY, type);
+        setAccountTypeState(type);
+    } catch (error) {
+        console.error("Failed to save account type to localStorage:", error);
+    }
+  }
+
+  const setTokens = (tokens: { demo?: string; real?: string }) => {
+    try {
+      if (tokens.demo) {
+        localStorage.setItem(DERIV_DEMO_TOKEN_KEY, tokens.demo);
+        setDemoToken(tokens.demo);
+      }
+      if (tokens.real) {
+        localStorage.setItem(DERIV_REAL_TOKEN_KEY, tokens.real);
+        setRealToken(tokens.real);
+      }
     } catch (error) {
       console.error("Failed to save token to localStorage:", error);
     }
   };
 
-  const disconnect = () => {
+  const disconnect = (type: AccountType) => {
     try {
-      localStorage.removeItem(DERIV_API_TOKEN_KEY);
-      setApiToken(null);
+      if (type === 'demo') {
+        localStorage.removeItem(DERIV_DEMO_TOKEN_KEY);
+        setDemoToken(null);
+      } else {
+        localStorage.removeItem(DERIV_REAL_TOKEN_KEY);
+        setRealToken(null);
+      }
     } catch (error) {
         console.error("Failed to remove token from localStorage:", error);
     }
   };
+  
+  const activeToken = accountType === 'demo' ? demoToken : realToken;
 
   const contextValue = {
-    apiToken,
-    isConnected: !!apiToken,
-    connect,
+    demoToken,
+    realToken,
+    activeToken,
+    accountType,
+    isConnected: !!activeToken,
+    setAccountType,
+    setTokens,
     disconnect,
   };
 

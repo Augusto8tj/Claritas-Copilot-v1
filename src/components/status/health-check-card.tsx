@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -36,19 +37,20 @@ export function HealthCheckCard({
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState<string | undefined>(failureMessage);
   
-  const { apiToken, isConnected } = useDerivApi();
+  const { demoToken, realToken } = useDerivApi();
+  const activeToken = serviceName.toLowerCase().includes('deriv') ? (demoToken || realToken) : null;
 
   useEffect(() => {
     const runCheck = async () => {
       setStatus("loading");
       if (isClientSide) {
-        if (!isConnected || !apiToken) {
-          setErrorMessage("Token não configurado no navegador.");
+        if (!activeToken) {
+          setErrorMessage("Nenhum token (demo ou real) configurado no navegador.");
           setStatus("error");
           return;
         }
         if (clientCheckAction) {
-          const result = await clientCheckAction(apiToken);
+          const result = await clientCheckAction(activeToken);
           if (result.success) {
             setStatus("success");
           } else {
@@ -68,8 +70,7 @@ export function HealthCheckCard({
     };
 
     runCheck();
-    // Dependency array needs to react to changes for client-side checks
-  }, [checkResult, isClientSide, clientCheckAction, apiToken, isConnected, failureMessage]);
+  }, [checkResult, isClientSide, clientCheckAction, activeToken, failureMessage]);
 
 
   const StatusInfo = () => {
