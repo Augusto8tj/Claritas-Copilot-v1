@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import type { TimePeriod, ChartType } from "@/app/deriv-trader/page";
 import { Button } from "@/components/ui/button";
@@ -56,8 +56,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   }, [timePeriod]);
 
 
-  useEffect(() => {
-    // Add a guard to ensure symbol is valid before connecting
+  const fetchData = useCallback((currentDuration: number) => {
     if (!symbol) {
       setLoading(false);
       setError("Nenhum ativo selecionado.");
@@ -77,7 +76,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
 
     ws.onopen = () => {
       const endTime = Math.floor(Date.now() / 1000);
-      const startTime = endTime - duration;
+      const startTime = endTime - currentDuration;
 
       ws.send(
         JSON.stringify({
@@ -109,7 +108,6 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
         }));
         setData(historyData);
         setLoading(false);
-        // Subscribe to ticks for real-time updates only for shorter periods
         if (timePeriod === '1m') {
             ws.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
         }
@@ -152,14 +150,21 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
       }
       wsRef.current = null;
     };
-  }, [symbol, duration]);
+  }, [symbol, timePeriod]);
+
+  useEffect(() => {
+    fetchData(duration);
+  }, [symbol, duration, fetchData]);
   
   const handleZoom = (factor: number) => {
     setDuration(currentDuration => {
       const newDuration = Math.round(currentDuration * factor);
-      // Prevent zooming too far in or out
-      if (newDuration < 60) return 60; // Min 1 minute
-      if (newDuration > 90 * 24 * 60 * 60) return 90 * 24 * 60 * 60; // Max 90 days
+      const minDuration = 60; // 1 minute
+      const maxDuration = 90 * 24 * 60 * 60; // 90 days
+      
+      if (newDuration < minDuration) return minDuration;
+      if (newDuration > maxDuration) return maxDuration;
+      
       return newDuration;
     });
   };
