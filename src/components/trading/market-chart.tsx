@@ -32,16 +32,29 @@ const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
 
 const timePeriodToSeconds: Record<TimePeriod, number> = {
   '1m': 60,
-  '15m': 4 * 60 * 60,       // 4 hours
-  '30m': 24 * 60 * 60,      // 24 hours
-  '1h': 4 * 24 * 60 * 60,   // 4 days
-  '8h': 7 * 24 * 60 * 60,   // 7 days
-  '1d': 30 * 24 * 60 * 60,  // 30 days
+  '15m': 15 * 60,
+  '30m': 30 * 60,
+  '1h': 60 * 60,
+  '8h': 8 * 60 * 60,
+  '1d': 24 * 60 * 60,
 };
 
-const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
-    if (timePeriod === '1m') return 0; // Ticks, not candles
-    const seconds = timePeriodToSeconds[timePeriod];
+const getHistoryDurationForTimePeriod = (timePeriod: TimePeriod): number => {
+    switch(timePeriod) {
+        case '1m': return 10 * 60; // 10 minutes
+        case '15m': return 4 * 60 * 60; // 4 hours
+        case '30m': return 24 * 60 * 60; // 24 hours
+        case '1h': return 4 * 24 * 60 * 60; // 4 days
+        case '8h': return 7 * 24 * 60 * 60; // 7 days
+        case '1d': return 30 * 24 * 60 * 60; // 30 days
+        default: return 10 * 60;
+    }
+}
+
+
+const getGranularityForTimePeriod = (timePeriod: TimePeriod): number | undefined => {
+    if (timePeriod === '1m') return undefined; // Ticks, not candles
+    const seconds = getHistoryDurationForTimePeriod(timePeriod);
     if (seconds <= 24 * 3600) return 60; // 1-minute candles for up to 24h
     if (seconds <= 7 * 24 * 3600) return 300; // 5-minute candles for up to 7 days
     return 3600; // 1-hour candles for more
@@ -95,18 +108,16 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
     wsRef.current = ws;
 
     ws.onopen = () => {
-        const startTime = Math.floor(Date.now() / 1000) - timePeriodToSeconds[timePeriod];
-        const request = chartType === 'Area' ? {
+        const historyDuration = getHistoryDurationForTimePeriod(timePeriod);
+        const startTime = Math.floor(Date.now() / 1000) - historyDuration;
+        const granularity = getGranularityForTimePeriod(timePeriod);
+
+        const request = {
             "ticks_history": symbol,
             "end": "latest",
             "start": startTime,
-            "style": "ticks",
-        } : {
-            "ticks_history": symbol,
-            "end": "latest",
-            "start": startTime,
-            "style": "candles",
-            "granularity": getGranularityForTimePeriod(timePeriod)
+            "style": chartType === 'Area' ? "ticks" : "candles",
+            ...(granularity && { "granularity": granularity })
         };
         ws.send(JSON.stringify(request));
     };
@@ -145,7 +156,11 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
         if (chartType === 'Area') {
             ws.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
         }
+      } else if (response.msg_type === 'history' || response.msg_type === 'candles') {
+        // Handle case where history is empty
+        setLoading(false);
       }
+
 
       if (response.msg_type === 'tick' && chartType === 'Area') {
         const tick = response.tick;
@@ -157,7 +172,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
             }
             const newData = [...currentData, newTickData];
             // Keep the data array from growing indefinitely
-            const maxPoints = 500; 
+            const maxPoints = 1000; 
             if (newData.length > maxPoints) {
                 return newData.slice(newData.length - maxPoints);
             }
@@ -191,14 +206,20 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
     };
   }, [symbol, timePeriod, chartType]);
   
-  const getDomain = () => {
-    if (data.length < 2) return ['dataMin', 'dataMax'];
-    const nowInSeconds = Math.floor(Date.now() / 1000);
-    // The domain should reflect the chosen display period, not the fetched data period
-    const periodInSeconds = timePeriodToSeconds[timePeriod.split('m')[0]+'m' as TimePeriod] || 60; // fallback to 1m
-    const dataMin = nowInSeconds - periodInSeconds;
-    return [dataMin, nowInSeconds];
-  }
+  const getXAxisDomain = (): [number, number] => {
+    if (data.length === 0) {
+        const now = Math.floor(Date.now() / 1000);
+        const duration = getHistoryDurationForTimePeriod(timePeriod);
+        return [now - duration, now];
+    }
+    const end = data[data.length - 1].epoch;
+    const duration = getHistoryDurationForTimePeriod(timePeriod);
+    const start = end - duration;
+    
+    // Ensure the domain covers at least the data we have, plus the full period
+    const dataMin = data[0].epoch;
+    return [Math.min(start, dataMin), end];
+  };
 
 
   if (loading && data.length === 0) {
@@ -278,7 +299,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
                     tickLine={false}
                     axisLine={false}
                     type="number"
-                    domain={['dataMin', 'dataMax']}
+                    domain={getXAxisDomain()}
                     allowDataOverflow={true}
                 />
                 <YAxis
