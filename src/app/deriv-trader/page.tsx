@@ -22,9 +22,14 @@ export default function DerivTraderPage() {
   const [chartType, setChartType] = useState<ChartType>('Area');
   const { accountType, setAccountType } = useDerivApi();
 
+  // Se o período for 1m, força o tipo de gráfico para Area
+  if (timePeriod === '1m' && chartType === 'Candle') {
+    setChartType('Area');
+  }
+
   const chartTypes: { label: ChartType, icon: React.ReactNode, disabled: boolean }[] = [
     { label: 'Area', icon: <AreaChart className="w-8 h-8 mx-auto" />, disabled: false },
-    { label: 'Candle', icon: <CandlestickChartIcon className="w-8 h-8 mx-auto" />, disabled: false },
+    { label: 'Candle', icon: <CandlestickChartIcon className="w-8 h-8 mx-auto" />, disabled: timePeriod === '1m' },
   ];
 
   return (

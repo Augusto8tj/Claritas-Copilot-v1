@@ -32,18 +32,19 @@ const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
 
 const timePeriodToSeconds: Record<TimePeriod, number> = {
   '1m': 60,
-  '15m': 15 * 60,
-  '30m': 30 * 60,
-  '1h': 60 * 60,
-  '8h': 8 * 60 * 60,
-  '1d': 24 * 60 * 60,
+  '15m': 4 * 60 * 60,       // 4 hours
+  '30m': 24 * 60 * 60,      // 24 hours
+  '1h': 4 * 24 * 60 * 60,   // 4 days
+  '8h': 7 * 24 * 60 * 60,   // 7 days
+  '1d': 30 * 24 * 60 * 60,  // 30 days
 };
 
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
+    if (timePeriod === '1m') return 0; // Ticks, not candles
     const seconds = timePeriodToSeconds[timePeriod];
-    if (seconds <= 30 * 60) return 60; // 1-minute candles for 30m or less
-    if (seconds <= 8 * 3600) return 300; // 5-minute candles for 8h or less
-    return 3600; // 1-hour candles for 1d
+    if (seconds <= 24 * 3600) return 60; // 1-minute candles for up to 24h
+    if (seconds <= 7 * 24 * 3600) return 300; // 5-minute candles for up to 7 days
+    return 3600; // 1-hour candles for more
 }
 
 
@@ -105,6 +106,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
             "end": "latest",
             "start": startTime,
             "style": "candles",
+            "granularity": getGranularityForTimePeriod(timePeriod)
         };
         ws.send(JSON.stringify(request));
     };
@@ -139,8 +141,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
       if (initialData.length > 0) {
         setData(initialData);
         setLoading(false);
-        // Subscription is not straightforward for candles, so we will rely on re-fetching for now.
-        // For ticks, we subscribe.
+        // For ticks, we subscribe for real-time updates
         if (chartType === 'Area') {
             ws.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
         }
@@ -167,14 +168,13 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
     
     ws.onerror = (event) => {
         console.error("WebSocket connection error:", event);
-        setError("Não foi possível conectar ao servidor de dados em tempo real. Verifique sua conexão com a internet ou a configuração do app_id.");
+        setError("Não foi possível conectar ao servidor de dados em tempo real.");
         setLoading(false);
     }
 
     ws.onclose = (event) => {
-        console.log(`[Deriv WS] Connection closed: Code=${event.code}, Reason=${event.reason.toString()}`);
         if (!event.wasClean && !error) {
-            // setError(`A conexão foi perdida inesperadamente (Código: ${event.code}). Por favor, atualize a página.`);
+           console.warn(`[Deriv WS] A conexão foi perdida inesperadamente (Código: ${event.code}).`);
         }
     }
 
@@ -194,13 +194,14 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   const getDomain = () => {
     if (data.length < 2) return ['dataMin', 'dataMax'];
     const nowInSeconds = Math.floor(Date.now() / 1000);
-    const periodInSeconds = timePeriodToSeconds[timePeriod];
+    // The domain should reflect the chosen display period, not the fetched data period
+    const periodInSeconds = timePeriodToSeconds[timePeriod.split('m')[0]+'m' as TimePeriod] || 60; // fallback to 1m
     const dataMin = nowInSeconds - periodInSeconds;
     return [dataMin, nowInSeconds];
   }
 
 
-  if (loading && data.length === 0) { // Only show full-screen loader on initial load
+  if (loading && data.length === 0) {
     return (
       <div className="h-[400px] w-full flex items-center justify-center">
         <p className="text-muted-foreground">Carregando dados do gráfico em tempo real...</p>
@@ -235,7 +236,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
                 axisLine={false}
                 tickFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                 type="number"
-                domain={getDomain()}
+                domain={['dataMin', 'dataMax']}
                 allowDataOverflow={true}
                 />
                 <YAxis
@@ -277,7 +278,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
                     tickLine={false}
                     axisLine={false}
                     type="number"
-                    domain={getDomain()}
+                    domain={['dataMin', 'dataMax']}
                     allowDataOverflow={true}
                 />
                 <YAxis
