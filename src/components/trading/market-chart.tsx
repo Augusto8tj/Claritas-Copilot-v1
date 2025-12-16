@@ -57,6 +57,13 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
 
 
   useEffect(() => {
+    // Add a guard to ensure symbol is valid before connecting
+    if (!symbol) {
+      setLoading(false);
+      setError("Nenhum ativo selecionado.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setData([]);
