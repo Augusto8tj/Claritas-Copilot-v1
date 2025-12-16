@@ -105,7 +105,6 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
             "end": "latest",
             "start": startTime,
             "style": "candles",
-            "granularity": 0, // Per Deriv API docs, this is the correct way to get candles for a range
         };
         ws.send(JSON.stringify(request));
     };
@@ -311,7 +310,3 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
     </div>
   );
 }
-
-    
-
-    
