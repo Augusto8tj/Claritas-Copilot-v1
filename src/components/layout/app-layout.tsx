@@ -7,7 +7,6 @@ import {
   BarChart3,
   HelpCircle,
   LayoutDashboard,
-  MessageCircle,
   Settings,
   Sparkles,
   Target,
