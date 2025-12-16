@@ -5,7 +5,6 @@ import * as React from "react";
 import { useEffect, useState, useRef } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, BarChart, Bar } from "recharts";
 import type { TimePeriod, ChartType } from "@/app/deriv-trader/page";
-import { CandlestickChartIcon } from "../icons";
 
 type TickData = {
   epoch: number;
@@ -41,7 +40,6 @@ const getHistoryDurationForTimePeriod = (timePeriod: TimePeriod): number => {
         default: return 10 * 60;
     }
 }
-
 
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number | undefined => {
     if (timePeriod === '1m') return undefined; // Ticks don't have granularity
@@ -85,6 +83,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const requestCounter = useRef(0);
 
   useEffect(() => {
     setLoading(true);
@@ -97,31 +96,39 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
 
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     wsRef.current = ws;
+    let accumulatedData: ChartData[] = [];
+
+    const fetchHistoryInChunks = (start: number, end: number, style: 'ticks' | 'candles', granularity?: number) => {
+        const req_id = ++requestCounter.current;
+        const request = {
+            ticks_history: symbol,
+            start,
+            end,
+            style,
+            ...(granularity && { granularity }),
+            req_id,
+        };
+        ws.send(JSON.stringify(request));
+    };
 
     ws.onopen = () => {
-      const historyDuration = getHistoryDurationForTimePeriod(timePeriod);
-      const startTime = Math.floor(Date.now() / 1000) - historyDuration;
+      const totalDuration = getHistoryDurationForTimePeriod(timePeriod);
+      const endTime = Math.floor(Date.now() / 1000);
+      const startTime = endTime - totalDuration;
       
       const isCandleView = chartType === 'Candle' && timePeriod !== '1m';
       const style = isCandleView ? 'candles' : 'ticks';
-      const granularity = getGranularityForTimePeriod(timePeriod);
-
-      const request: any = {
-          "ticks_history": symbol,
-          "end": "latest",
-          "start": startTime,
-          "style": style,
-      };
-
-      if (style === 'candles' && granularity) {
-        request.granularity = granularity;
-      }
+      const granularity = isCandleView ? getGranularityForTimePeriod(timePeriod) : undefined;
       
-      ws.send(JSON.stringify(request));
-
-      // Subscribe to live ticks only for the '1m' area view
-      if (timePeriod === '1m' && chartType === 'Area') {
-        ws.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
+      // For short durations or ticks, fetch all at once. For long candle views, chunk it.
+      const chunkDuration = 24 * 60 * 60; // 1 day in seconds
+      if (style === 'candles' && totalDuration > chunkDuration) {
+          for (let chunkStart = startTime; chunkStart < endTime; chunkStart += chunkDuration) {
+              const chunkEnd = Math.min(chunkStart + chunkDuration, endTime);
+              fetchHistoryInChunks(chunkStart, chunkEnd, style, granularity);
+          }
+      } else {
+         fetchHistoryInChunks(startTime, endTime, style, granularity);
       }
     };
 
@@ -132,18 +139,19 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
         console.error("Deriv API error:", response.error.message);
         setError(response.error.message);
         setLoading(false);
-        ws.close();
+        // Don't close immediately, might have other requests pending
+        // ws.close();
         return;
       }
       
-      let initialData: ChartData[] = [];
+      let receivedData: ChartData[] = [];
       if (response.msg_type === 'history' && response.history) {
-        initialData = response.history.times.map((time: number, index: number) => ({
+        receivedData = response.history.times.map((time: number, index: number) => ({
           epoch: time,
           price: response.history.prices[index],
         }));
       } else if (response.msg_type === 'candles' && response.candles) {
-        initialData = response.candles.map((candle: any) => ({
+        receivedData = response.candles.map((candle: any) => ({
             epoch: candle.epoch,
             open: candle.open,
             high: candle.high,
@@ -152,14 +160,21 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
         })).filter((c: CandleData) => c.open);
       }
       
-      if (initialData.length > 0) {
-        setData(initialData);
-        setLoading(false);
-      } else if (response.msg_type === 'history' || response.msg_type === 'candles') {
-        // This case handles when the API returns an empty history for the requested period.
-        if (data.length === 0) { // Only stop loading if we haven't received any data yet
+      if (receivedData.length > 0) {
+        accumulatedData = [...accumulatedData, ...receivedData].sort((a,b) => a.epoch - b.epoch);
+         // Deduplicate
+        accumulatedData = accumulatedData.filter((item, index, self) =>
+            index === self.findIndex((t) => (t.epoch === item.epoch))
+        );
+        setData([...accumulatedData]); // Update state with a new array
+      }
+
+      if (response.req_id === requestCounter.current) {
           setLoading(false);
-        }
+          // All history is loaded, now subscribe to ticks if needed
+          if (timePeriod === '1m' && chartType === 'Area') {
+            ws.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
+          }
       }
 
       if (response.msg_type === 'tick' && timePeriod === '1m') {
