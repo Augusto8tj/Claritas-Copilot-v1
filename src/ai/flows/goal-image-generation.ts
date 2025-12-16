@@ -18,11 +18,8 @@ const generateGoalImageFlow = ai.defineFlow(
   },
   async ({ goalName }) => {
     const { media } = await ai.generate({
-      model: 'googleai/gemini-2.0-flash-preview-image-generation',
+      model: 'googleai/imagen-4.0-fast-generate-001',
       prompt: `Generate a photorealistic, inspiring image for a financial goal titled "${goalName}". The image should be visually appealing and motivational.`,
-      config: {
-        responseModalities: ['TEXT', 'IMAGE'],
-      },
     });
 
     if (!media?.url) {
