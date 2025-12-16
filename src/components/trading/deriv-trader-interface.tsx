@@ -36,7 +36,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
-import { MarketChart } from "@/components/trading/market-chart";
 import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
 import { executeTradeAction } from "@/app/actions/trading-actions";
 import { useToast } from "@/hooks/use-toast";
@@ -65,7 +64,11 @@ const riseFallSchema = z.object({
 
 type RiseFallFormValues = z.infer<typeof riseFallSchema>;
 
-export function DerivTraderInterface() {
+interface DerivTraderInterfaceProps {
+  symbol: string;
+}
+
+export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<"rise" | "fall" | null>(null);
 
@@ -78,13 +81,13 @@ export function DerivTraderInterface() {
     },
   });
 
-  const handleTrade: SubmitHandler<RiseFallFormValues> = async (
+  const handleTrade = async (
     tradeDirection: "rise" | "fall"
   ) => {
     const data = form.getValues();
     setLoading(tradeDirection);
     const result = await executeTradeAction({
-      symbol: "PETR4", // Atualmente fixo, pode ser alterado
+      symbol: symbol,
       tradeDirection,
       quantity: data.stake,
       allowEquals: data.allowEquals,
@@ -107,159 +110,140 @@ export function DerivTraderInterface() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-headline">
-              Acompanhamento de Ativo (PETR4)
-            </CardTitle>
-            <CardDescription>
-              Visualização do desempenho do ativo em tempo real (simulado).
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <MarketChart />
-          </CardContent>
-        </Card>
-      </div>
-      <div className="lg:col-span-1">
-        <Card>
-          <Tabs defaultValue="options">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="multipliers" disabled>
-                Multiplicadores
-              </TabsTrigger>
-              <TabsTrigger value="options">Opções</TabsTrigger>
-            </TabsList>
+      <Card>
+        <Tabs defaultValue="options">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="multipliers" disabled>
+              Multiplicadores
+            </TabsTrigger>
+            <TabsTrigger value="options">Opções</TabsTrigger>
+          </TabsList>
 
-            {/* Multipliers Tab (Disabled for now) */}
-            <TabsContent value="multipliers">
-              {/* Content can be added here later */}
-            </TabsContent>
+          {/* Multipliers Tab (Disabled for now) */}
+          <TabsContent value="multipliers">
+            {/* Content can be added here later */}
+          </TabsContent>
 
-            {/* Options Tab */}
-            <TabsContent value="options">
-              <CardHeader>
-                <CardTitle className="font-headline">Opções Digitais</CardTitle>
-                <CardDescription>
-                  Preveja o resultado e ganhe um pagamento fixo.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Form {...form}>
-                  <form className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Tipo de Opção</Label>
-                      <Select defaultValue="Rise/Fall" disabled>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o tipo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {digitalOptionsTypes.map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="duration"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Duração</FormLabel>
-                            <FormControl>
-                              <Input {...field} disabled={!!loading} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="stake"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Stake (USD)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                {...field}
-                                disabled={!!loading}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+          {/* Options Tab */}
+          <TabsContent value="options">
+            <CardHeader>
+              <CardTitle className="font-headline">Opções Digitais</CardTitle>
+              <CardDescription>
+                Preveja o resultado e ganhe um pagamento fixo.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Form {...form}>
+                <form className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Tipo de Opção</Label>
+                    <Select defaultValue="Rise/Fall" disabled>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {digitalOptionsTypes.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
-                      name="allowEquals"
+                      name="duration"
                       render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                          <div className="space-y-0.5">
-                            <FormLabel>Permitir Empates</FormLabel>
-                            <p className="text-[0.8rem] text-muted-foreground">
-                              Ganha se o preço de saída for igual ao de entrada.
-                            </p>
-                          </div>
+                        <FormItem>
+                          <FormLabel>Duração</FormLabel>
                           <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                              disabled={!!loading}
-                            />
+                            <Input {...field} disabled={!!loading} />
                           </FormControl>
+                          <FormMessage />
                         </FormItem>
                       )}
                     />
+                    <FormField
+                      control={form.control}
+                      name="stake"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Stake (USD)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              {...field}
+                              disabled={!!loading}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name="allowEquals"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                        <div className="space-y-0.5">
+                          <FormLabel>Permitir Empates</FormLabel>
+                          <p className="text-[0.8rem] text-muted-foreground">
+                            Ganha se o preço de saída for igual ao de entrada.
+                          </p>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            disabled={!!loading}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
 
-                    <div className="space-y-2 pt-2">
-                      <p className="text-sm text-center text-muted-foreground">
-                        Pagamento Potencial: $19.50 (simulado)
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 pt-2">
-                      <Button
-                        variant="outline"
-                        className="h-12 bg-green-50/50 text-green-600 border-green-200 hover:bg-green-100 hover:text-green-700"
-                        onClick={() => handleTrade("rise")}
-                        disabled={!!loading}
-                      >
-                        {loading === "rise" ? (
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                        ) : (
-                          <>
-                            <ArrowUp className="mr-2 h-5 w-5" /> Rise
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="h-12 bg-red-50/50 text-red-600 border-red-200 hover:bg-red-100 hover:text-red-700"
-                        onClick={() => handleTrade("fall")}
-                        disabled={!!loading}
-                      >
-                        {loading === "fall" ? (
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                        ) : (
-                          <>
-                            <ArrowDown className="mr-2 h-5 w-5" /> Fall
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              </CardContent>
-            </TabsContent>
-          </Tabs>
-        </Card>
-      </div>
-    </div>
+                  <div className="space-y-2 pt-2">
+                    <p className="text-sm text-center text-muted-foreground">
+                      Pagamento Potencial: $19.50 (simulado)
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <Button
+                      variant="outline"
+                      className="h-12 bg-green-50/50 text-green-600 border-green-200 hover:bg-green-100 hover:text-green-700"
+                      onClick={() => handleTrade("rise")}
+                      disabled={!!loading}
+                    >
+                      {loading === "rise" ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <>
+                          <ArrowUp className="mr-2 h-5 w-5" /> Rise
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-12 bg-red-50/50 text-red-600 border-red-200 hover:bg-red-100 hover:text-red-700"
+                      onClick={() => handleTrade("fall")}
+                      disabled={!!loading}
+                    >
+                      {loading === "fall" ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <>
+                          <ArrowDown className="mr-2 h-5 w-5" /> Fall
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </CardContent>
+          </TabsContent>
+        </Tabs>
+      </Card>
   );
 }
