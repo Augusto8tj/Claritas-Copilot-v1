@@ -35,7 +35,7 @@ export default function DerivTraderPage() {
                 Acompanhamento de Ativo ({selectedAsset})
                 </CardTitle>
                 <CardDescription>
-                Visualização do desempenho do ativo em tempo real (simulado).
+                Visualização do desempenho do ativo em tempo real.
                 </CardDescription>
             </CardHeader>
             <CardContent>

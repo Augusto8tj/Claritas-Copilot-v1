@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
-import { getHistoricalData } from "@/services/deriv-api-service";
 
 type ChartData = {
-  date: string;
+  epoch: number;
   price: number;
 };
 
@@ -13,25 +12,96 @@ interface MarketChartProps {
   symbol: string;
 }
 
+const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
+
 export function MarketChart({ symbol }: MarketChartProps) {
   const [data, setData] = useState<ChartData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      const historicalData = await getHistoricalData(symbol, "30 dias");
-      setData(historicalData);
-      setLoading(false);
+    setData([]);
+    setLoading(true);
+
+    const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+
+    ws.onopen = () => {
+      // First, get the last 500 ticks to populate the chart
+      ws.send(JSON.stringify({
+        "ticks_history": symbol,
+        "adjust_start_time": 1,
+        "count": 500,
+        "end": "latest",
+        "start": 1,
+        "style": "ticks"
+      }));
     };
 
-    fetchData();
+    let historyLoaded = false;
+
+    ws.onmessage = (event) => {
+      const response = JSON.parse(event.data);
+
+      if (response.error) {
+        console.error("Deriv API error:", response.error.message);
+        setLoading(false);
+        return;
+      }
+      
+      if (response.msg_type === 'history') {
+        const historyData = response.history.times.map((time: number, index: number) => ({
+          epoch: time,
+          price: response.history.prices[index],
+        }));
+        setData(historyData);
+        historyLoaded = true;
+        setLoading(false);
+        
+        // After loading history, subscribe to real-time ticks
+        ws.send(JSON.stringify({
+            "ticks": symbol,
+            "subscribe": 1
+        }));
+      }
+
+      if (response.msg_type === 'tick') {
+        if (!historyLoaded) return; // Don't add ticks before history is loaded
+
+        const tick = response.tick;
+        const newTickData: ChartData = {
+          epoch: tick.epoch,
+          price: tick.quote,
+        };
+        
+        setData(currentData => {
+            const newData = [...currentData, newTickData];
+            // Keep the chart to a reasonable number of data points
+            if (newData.length > 550) {
+                return newData.slice(newData.length - 550);
+            }
+            return newData;
+        });
+      }
+    };
+    
+    ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        setLoading(false);
+    }
+
+    // Cleanup function to close WebSocket connection
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+         ws.send(JSON.stringify({ "forget_all": "ticks" }));
+      }
+      ws.close();
+    };
+
   }, [symbol]);
 
   if (loading) {
     return (
       <div className="h-[400px] w-full flex items-center justify-center">
-        <p className="text-muted-foreground">Carregando dados do gráfico...</p>
+        <p className="text-muted-foreground">Carregando dados do gráfico em tempo real...</p>
       </div>
     );
   }
@@ -42,43 +112,44 @@ export function MarketChart({ symbol }: MarketChartProps) {
         <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis
-              dataKey="date"
+              dataKey="epoch"
               stroke="hsl(var(--muted-foreground))"
               fontSize={12}
               tickLine={false}
               axisLine={false}
-              tickFormatter={(str: string) => {
-                  const date = new Date(str + 'T00:00:00'); // Treat date as local
-                  if (date.getDate() % 5 === 0) { // Show label every 5 days
-                      return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                  }
-                  return '';
+              tickFormatter={(epoch: number) => {
+                  const date = new Date(epoch * 1000);
+                  return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit'});
               }}
+              type="number"
+              domain={['dataMin', 'dataMax']}
             />
             <YAxis
               stroke="hsl(var(--muted-foreground))"
               fontSize={12}
               tickLine={false}
               axisLine={false}
-              domain={['dataMin - 5', 'dataMax + 5']}
+              domain={['dataMin - 1', 'dataMax + 1']}
               tickFormatter={(value) => `$${value.toFixed(2)}`}
             />
             <Tooltip
                 formatter={(value: number) => [`$${value.toFixed(2)}`, "Preço"]}
+                labelFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleString('pt-BR')}
                 labelStyle={{ color: 'hsl(var(--foreground))' }}
                 contentStyle={{
                     backgroundColor: 'hsl(var(--background))',
                     borderColor: 'hsl(var(--border))',
                     borderRadius: 'var(--radius)'
                 }}
+                animationDuration={200}
             />
             <Line
+              isAnimationActive={false}
               type="monotone"
               dataKey="price"
               stroke="hsl(var(--primary))"
               strokeWidth={2}
               dot={false}
-              activeDot={{ r: 6 }}
             />
         </LineChart>
         </ResponsiveContainer>
