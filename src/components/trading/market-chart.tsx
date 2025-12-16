@@ -84,6 +84,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
   useEffect(() => {
     setLoading(true);
     setError(null);
+    setData([]); // Clear previous data
 
     if (wsRef.current) {
       wsRef.current.close();
@@ -153,7 +154,13 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
             if (currentData.length > 0 && (currentData[currentData.length - 1] as TickData).epoch === newTickData.epoch) {
                 return currentData;
             }
-            return [...currentData, newTickData];
+            const newData = [...currentData, newTickData];
+            // Keep the data array from growing indefinitely
+            const maxPoints = 500; 
+            if (newData.length > maxPoints) {
+                return newData.slice(newData.length - maxPoints);
+            }
+            return newData;
         });
       }
     };
@@ -167,7 +174,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
     ws.onclose = (event) => {
         console.log(`[Deriv WS] Connection closed: Code=${event.code}, Reason=${event.reason.toString()}`);
         if (!event.wasClean && !error) {
-            setError(`A conexão foi perdida inesperadamente (Código: ${event.code}). Por favor, atualize a página.`);
+            // setError(`A conexão foi perdida inesperadamente (Código: ${event.code}). Por favor, atualize a página.`);
         }
     }
 
@@ -240,7 +247,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
                 domain={['dataMin - 1', 'dataMax + 1']}
                 tickFormatter={(value) => `$${Number(value).toFixed(2)}`}
                 allowDataOverflow
-                width={60}
+                width={80}
                 />
                 <Tooltip
                     formatter={(value: number, name, props: any) => [`$${(props.payload as TickData).price.toFixed(2)}`, "Preço"]}
@@ -278,8 +285,9 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
-                    domain={['dataMin - 1', 'dataMax + 1']}
+                    domain={['auto', 'auto']}
                     tickFormatter={(value) => `$${Number(value).toFixed(2)}`}
+                    allowDataOverflow
                     width={80}
                 />
                 <Tooltip
