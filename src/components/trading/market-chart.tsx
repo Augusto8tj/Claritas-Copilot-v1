@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
+import type { TimePeriod } from "@/app/deriv-trader/page";
 
 type ChartData = {
   epoch: number;
@@ -11,11 +12,18 @@ type ChartData = {
 
 interface MarketChartProps {
   symbol: string;
+  timePeriod: TimePeriod;
 }
 
 const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
 
-export function MarketChart({ symbol }: MarketChartProps) {
+const timePeriodToCount: Record<TimePeriod, number> = {
+  '1h': 500,
+  '8h': 2000,
+  '1d': 5000, // Max count
+};
+
+export function MarketChart({ symbol, timePeriod }: MarketChartProps) {
   const [data, setData] = useState<ChartData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,13 +34,13 @@ export function MarketChart({ symbol }: MarketChartProps) {
     setError(null);
 
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+    const tickCount = timePeriodToCount[timePeriod];
 
     ws.onopen = () => {
-      // First, get the last 500 ticks to populate the chart
       ws.send(JSON.stringify({
         "ticks_history": symbol,
         "adjust_start_time": 1,
-        "count": 500,
+        "count": tickCount,
         "end": "latest",
         "start": 1,
         "style": "ticks"
@@ -61,7 +69,6 @@ export function MarketChart({ symbol }: MarketChartProps) {
         historyLoaded = true;
         setLoading(false);
         
-        // After loading history, subscribe to real-time ticks
         ws.send(JSON.stringify({
             "ticks": symbol,
             "subscribe": 1
@@ -69,7 +76,7 @@ export function MarketChart({ symbol }: MarketChartProps) {
       }
 
       if (response.msg_type === 'tick') {
-        if (!historyLoaded) return; // Don't add ticks before history is loaded
+        if (!historyLoaded) return;
 
         const tick = response.tick;
         const newTickData: ChartData = {
@@ -79,9 +86,8 @@ export function MarketChart({ symbol }: MarketChartProps) {
         
         setData(currentData => {
             const newData = [...currentData, newTickData];
-            // Keep the chart to a reasonable number of data points
-            if (newData.length > 550) {
-                return newData.slice(newData.length - 550);
+            if (newData.length > tickCount + 50) {
+                return newData.slice(newData.length - (tickCount + 50));
             }
             return newData;
         });
@@ -89,19 +95,18 @@ export function MarketChart({ symbol }: MarketChartProps) {
     };
     
     ws.onerror = (event) => {
-        console.error("WebSocket connection error. See 'onclose' event for details.");
-        setError("Não foi possível conectar ao servidor de dados em tempo real. Verifique sua conexão ou a configuração do app_id.");
+        console.error("WebSocket connection error:", event);
+        setError("Não foi possível conectar ao servidor de dados em tempo real. Verifique sua conexão com a internet ou a configuração do app_id.");
         setLoading(false);
     }
 
     ws.onclose = (event) => {
         console.log(`[Deriv WS] Connection closed: Code=${event.code}, Reason=${event.reason}`);
-        if (!event.wasClean) {
+        if (!event.wasClean && !error) { // Don't show this error if we already have a specific error
             setError(`A conexão foi perdida inesperadamente (Código: ${event.code}). Por favor, atualize a página.`);
         }
     }
 
-    // Cleanup function to close WebSocket connection
     return () => {
       if (ws.readyState === WebSocket.OPEN) {
          ws.send(JSON.stringify({ "forget_all": "ticks" }));
@@ -109,7 +114,7 @@ export function MarketChart({ symbol }: MarketChartProps) {
       }
     };
 
-  }, [symbol]);
+  }, [symbol, timePeriod, error]);
 
   if (loading) {
     return (

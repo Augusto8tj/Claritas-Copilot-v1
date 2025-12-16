@@ -6,9 +6,13 @@ import { DerivTraderInterface } from "@/components/trading/deriv-trader-interfac
 import { AssetSelector } from "@/components/trading/asset-selector";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MarketChart } from "@/components/trading/market-chart";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+
+export type TimePeriod = '1h' | '8h' | '1d';
 
 export default function DerivTraderPage() {
   const [selectedAsset, setSelectedAsset] = useState("1HZ100V");
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('1h');
 
   return (
     <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
@@ -30,16 +34,23 @@ export default function DerivTraderPage() {
       <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
         <div className="lg:col-span-5">
             <Card>
-            <CardHeader>
-                <CardTitle className="font-headline">
-                Acompanhamento de Ativo ({selectedAsset})
-                </CardTitle>
-                <CardDescription>
-                Visualização do desempenho do ativo em tempo real.
-                </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <div>
+                    <CardTitle className="font-headline">
+                    Acompanhamento de Ativo ({selectedAsset})
+                    </CardTitle>
+                    <CardDescription>
+                    Visualização do desempenho do ativo em tempo real.
+                    </CardDescription>
+                </div>
+                <ToggleGroup type="single" value={timePeriod} onValueChange={(value: TimePeriod) => value && setTimePeriod(value)} defaultValue="1h" aria-label="Período do Gráfico">
+                    <ToggleGroupItem value="1h" aria-label="Ver última hora">1H</ToggleGroupItem>
+                    <ToggleGroupItem value="8h" aria-label="Ver últimas 8 horas">8H</ToggleGroupItem>
+                    <ToggleGroupItem value="1d" aria-label="Ver último dia">1D</ToggleGroupItem>
+                </ToggleGroup>
             </CardHeader>
             <CardContent>
-                <MarketChart symbol={selectedAsset} />
+                <MarketChart symbol={selectedAsset} timePeriod={timePeriod} />
             </CardContent>
             </Card>
         </div>
