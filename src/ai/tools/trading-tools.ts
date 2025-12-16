@@ -34,23 +34,38 @@ export const getAccountBalanceTool = ai.defineTool(
   }
 );
 
+
+const marketDataPrompt = ai.definePrompt({
+    name: 'marketDataPrompt',
+    input: { schema: z.object({ query: z.string() }) },
+    output: { schema: z.object({ summary: z.string() }) },
+    prompt: `Você é um analista financeiro. Com base na pergunta do usuário, forneça um resumo conciso do estado atual do mercado financeiro ou do ativo específico mencionado. Inclua índices importantes como IBOVESPA, se relevante.
+
+Pergunta: {{{query}}}
+`,
+});
+
 export const getMarketDataTool = ai.defineTool(
   {
     name: 'getMarketDataTool',
-    description: 'Obtém dados de mercado em tempo real para um ativo específico (ex: preço).',
+    description: 'Obtém um resumo do mercado financeiro ou dados de um ativo específico (ex: preço). Use para perguntas como "como está o mercado hoje?" ou "qual a cotação de PETR4?".',
     inputSchema: z.object({
-      symbol: z.string().describe('O ticker do ativo. Ex: "PETR4", "BTCUSD", "1HZ100V".'),
+      query: z.string().describe('A pergunta do usuário sobre o mercado financeiro ou um ativo.'),
     }),
     outputSchema: z.object({
-      symbol: z.string(),
-      price: z.number(),
-      changePercent: z.number(),
+        summary: z.string(),
     }),
   },
-  async ({ symbol }) => {
-    return getMarketData(symbol);
+  async ({ query }) => {
+    console.log(`[getMarketDataTool] Gerando resumo para a consulta: "${query}"`);
+    const { output } = await marketDataPrompt({ query });
+    if (!output) {
+      throw new Error("Não foi possível gerar um resumo do mercado.");
+    }
+    return output;
   }
 );
+
 
 export const executeTradeTool = ai.defineTool(
   {
@@ -93,3 +108,4 @@ export const getHistoricalDataTool = ai.defineTool(
     return getHistoricalData(symbol, period);
   }
 );
+
