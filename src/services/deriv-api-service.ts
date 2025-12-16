@@ -56,7 +56,7 @@ function callDerivApi<T>(requests: object[]): Promise<T> {
     let requestQueue = [...requests];
 
     ws.on('open', () => {
-      // Send the first request (expected to be authorize)
+      // Send the first request (expected to be authorize or a public request)
       if (requestQueue.length > 0) {
         ws.send(JSON.stringify(requestQueue.shift()));
       }
@@ -154,11 +154,12 @@ export async function getAccountBalance(apiToken: string, accountType: AccountTy
   }
 
   const authorizeRequest = { "authorize": apiToken };
-  const balanceRequest: { [key: string]: any } = { "balance": 1 };
-
-  if (accountType === 'real') {
-    balanceRequest["account"] = "real";
-  }
+  const balanceRequest = { "balance": 1, "subscribe": 1 };
+  
+  // This was incorrect, account is only needed for balance, not for authorize
+  // if (accountType === 'real') {
+  //   authorizeRequest["account"] = "real";
+  // }
 
   try {
     const response: any = await callDerivApi([authorizeRequest, balanceRequest]);
