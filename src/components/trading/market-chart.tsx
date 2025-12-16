@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -45,7 +44,7 @@ const getHistoryDurationForTimePeriod = (timePeriod: TimePeriod): number => {
 
 
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number | undefined => {
-    if (timePeriod === '1m') return undefined; // Ticks, not candles
+    if (timePeriod === '1m') return undefined; // Ticks don't have granularity
     const durationSeconds = getHistoryDurationForTimePeriod(timePeriod);
     if (durationSeconds <= 24 * 3600) return 60; // 1-minute candles for up to 24h
     if (durationSeconds <= 7 * 24 * 3600) return 300; // 5-minute candles for up to 7 days
@@ -103,21 +102,25 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
       const historyDuration = getHistoryDurationForTimePeriod(timePeriod);
       const startTime = Math.floor(Date.now() / 1000) - historyDuration;
       
-      const shouldUseTicks = timePeriod === '1m';
-      const style = shouldUseTicks ? 'ticks' : 'candles';
+      const isCandleView = chartType === 'Candle' && timePeriod !== '1m';
+      const style = isCandleView ? 'candles' : 'ticks';
       const granularity = getGranularityForTimePeriod(timePeriod);
 
-      const request = {
+      const request: any = {
           "ticks_history": symbol,
           "end": "latest",
           "start": startTime,
           "style": style,
-          ...(granularity && { "granularity": granularity })
       };
+
+      if (style === 'candles' && granularity) {
+        request.granularity = granularity;
+      }
+      
       ws.send(JSON.stringify(request));
 
-      // Subscribe to live ticks only for the '1m' view
-      if (shouldUseTicks) {
+      // Subscribe to live ticks only for the '1m' area view
+      if (timePeriod === '1m' && chartType === 'Area') {
         ws.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
       }
     };
@@ -215,6 +218,8 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
         if ('high' in d) return [d.high, d.low];
         return [];
     });
+
+    if (values.length === 0) return ['auto', 'auto'];
 
     const min = Math.min(...values);
     const max = Math.max(...values);
