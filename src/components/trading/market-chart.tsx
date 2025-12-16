@@ -305,3 +305,5 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
     </div>
   );
 }
+
+    
