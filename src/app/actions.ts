@@ -116,7 +116,7 @@ export async function sendFinancialSummaryEmail() {
 
 export async function checkGeminiConnection(): Promise<{ success: boolean, error?: string, models?: any[] }> {
     try {
-        const models = listModels;
+        const models = await listModels();
         // Filtramos para mostrar apenas modelos do Google AI, que são os relevantes para o Gemini
         const googleModels = models.filter(m => m.name.startsWith('googleai/'));
 
@@ -150,3 +150,4 @@ export async function checkDerivConnection(apiToken: string, accountType: Accoun
         return { success: false, error: e.message || "Não foi possível validar o token." };
     }
 }
+
