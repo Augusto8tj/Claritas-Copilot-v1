@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
-import { Loader2, Sparkles, TrendingUp, TrendingDown, HelpCircle, AlertTriangle } from "lucide-react";
+import { Loader2, Sparkles, TrendingUp, TrendingDown, HelpCircle, AlertTriangle, Timer } from "lucide-react";
 import { getAssetAnalysisAction } from "@/app/actions/ai-actions";
 import type { AssetAnalysisOutput } from "@/ai/flows/asset-analysis-flow.types";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
@@ -26,24 +26,28 @@ export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
   const [analysisResult, setAnalysisResult] = useState<AssetAnalysisOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(null);
+  const [timeSinceAnalysis, setTimeSinceAnalysis] = useState<string>("");
   const { accountBalance, operationsLog } = useDerivApi();
+  const analysisIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = async (isAuto: boolean = false) => {
+    if (isAnalyzing) return; // Prevent multiple analyses at once
+
     setIsAnalyzing(true);
-    setAnalysisResult(null);
-    setError(null);
+    if (!isAuto) {
+        setAnalysisResult(null);
+        setError(null);
+    }
     
     try {
-      // 1. Fetch historical data on the client
       const historicalData = await getHistoricalData(symbol, undefined, 120);
       if (!historicalData || historicalData.length === 0) {
         throw new Error(`Não foi possível obter dados históricos para ${symbol}.`);
       }
 
-      // 2. Get form data
       const formData = form.getValues();
 
-      // 3. Call the server action with all the required data
       const result = await getAssetAnalysisAction({
           symbol,
           balance: accountBalance.balance || 0,
@@ -57,6 +61,8 @@ export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
 
       if (result.success) {
           setAnalysisResult(result.success);
+          setLastAnalysisTime(new Date());
+          setError(null); // Clear previous errors on success
       } else {
           setError(result.error || "Ocorreu um erro desconhecido.");
       }
@@ -67,6 +73,50 @@ export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
     setIsAnalyzing(false);
   };
   
+  // Effect for automatic analysis every 60 seconds
+  useEffect(() => {
+    // Clear any existing interval
+    if (analysisIntervalRef.current) {
+      clearInterval(analysisIntervalRef.current);
+    }
+    
+    // Start analysis immediately when symbol changes
+    handleAnalyze(true);
+    
+    // Set up new interval
+    analysisIntervalRef.current = setInterval(() => handleAnalyze(true), 60000);
+
+    // Cleanup on component unmount or symbol change
+    return () => {
+      if (analysisIntervalRef.current) {
+        clearInterval(analysisIntervalRef.current);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbol, accountBalance.balance]);
+
+
+  // Effect to update the "time since analysis" string
+  useEffect(() => {
+    if (!lastAnalysisTime) {
+      setTimeSinceAnalysis("");
+      return;
+    }
+    
+    const timer = setInterval(() => {
+        const seconds = Math.floor((new Date().getTime() - lastAnalysisTime.getTime()) / 1000);
+        if (seconds < 60) {
+            setTimeSinceAnalysis(`${seconds}s atrás`);
+        } else {
+            setTimeSinceAnalysis(`${Math.floor(seconds / 60)}m atrás`);
+        }
+    }, 1000);
+    
+    return () => clearInterval(timer);
+
+  }, [lastAnalysisTime]);
+
+
   const suggestionIcons = {
     RISE: <TrendingUp className="h-6 w-6 text-green-500" />,
     FALL: <TrendingDown className="h-6 w-6 text-red-500" />,
@@ -81,14 +131,14 @@ export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
             Copiloto de Trade
         </CardTitle>
         <CardDescription>
-          Peça à IA uma sugestão de negociação baseada em análise técnica e na sua gestão de risco.
+          Análise automática da IA baseada nos dados mais recentes do mercado.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <Button
           variant="outline"
           className="w-full"
-          onClick={handleAnalyze}
+          onClick={() => handleAnalyze(false)}
           disabled={isAnalyzing || !accountBalance.balance}
         >
           {isAnalyzing ? (
@@ -96,14 +146,14 @@ export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
           ) : (
             <Sparkles className="mr-2 h-4 w-4" />
           )}
-          Analisar {symbol}
+          {isAnalyzing ? 'Analisando...' : 'Atualizar Análise Agora'}
         </Button>
-        {isAnalyzing && (
-            <div className="flex items-center justify-center text-muted-foreground p-4">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                <span>Analisando...</span>
+         {lastAnalysisTime && (
+            <div className="flex items-center justify-center text-xs text-muted-foreground">
+                <Timer className="h-3 w-3 mr-1.5"/>
+                Última análise: {timeSinceAnalysis}
             </div>
-        )}
+         )}
         {error && (
             <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
