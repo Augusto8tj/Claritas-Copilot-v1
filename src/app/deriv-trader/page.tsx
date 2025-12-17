@@ -60,21 +60,6 @@ export default function DerivTraderPage() {
   }, [timePeriod, chartType, setChartType]);
 
 
-  const handleZoom = (direction: 'in' | 'out') => {
-    const currentIndex = timePeriods.indexOf(timePeriod);
-    let nextIndex;
-
-    if (direction === 'in') {
-      nextIndex = Math.max(0, currentIndex - 1);
-    } else { // 'out'
-      nextIndex = Math.min(timePeriods.length - 1, currentIndex + 1);
-    }
-
-    if (nextIndex !== currentIndex) {
-      setTimePeriod(timePeriods[nextIndex]);
-    }
-  };
-
   const chartTypes: { label: ChartType, icon: React.ReactNode, disabled: boolean }[] = [
     { label: 'Area', icon: <AreaChart className="w-8 h-8 mx-auto" />, disabled: false },
     { label: 'Candle', icon: <CandlestickChart className="w-8 h-8 mx-auto" />, disabled: timePeriod === '1m' },
@@ -172,16 +157,6 @@ export default function DerivTraderPage() {
                         </PopoverContent>
                     </Popover>
                     <div className="flex items-center rounded-md border bg-background">
-                         <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleZoom('in')}
-                            disabled={timePeriod === timePeriods[0]}
-                            className="h-9 w-9 rounded-r-none border-r"
-                         >
-                            <Plus className="h-4 w-4" />
-                            <span className="sr-only">Zoom In</span>
-                        </Button>
                         <ToggleGroup type="single" value={timePeriod} onValueChange={(value: TimePeriod) => value && setTimePeriod(value)} aria-label="Período do Gráfico" className="gap-0">
                             {timePeriods.map(period => (
                                 <ToggleGroupItem 
@@ -194,16 +169,6 @@ export default function DerivTraderPage() {
                                 </ToggleGroupItem>
                             ))}
                         </ToggleGroup>
-                         <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleZoom('out')}
-                            disabled={timePeriod === timePeriods[timePeriods.length - 1]}
-                            className="h-9 w-9 rounded-l-none border-l"
-                        >
-                            <Minus className="h-4 w-4" />
-                            <span className="sr-only">Zoom Out</span>
-                        </Button>
                     </div>
                 </div>
             </CardHeader>
