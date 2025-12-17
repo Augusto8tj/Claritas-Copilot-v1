@@ -25,7 +25,7 @@ Contexto do Trader:
 - Trades Recentes: {{{recentTrades}}}
 
 Sua Análise deve seguir estes passos:
-1.  **Análise Técnica:** Analise os dados de preço recentes para identificar a tendência principal (alta, baixa ou lateral). Esta é sua principal fonte para a direção.
+1.  **Análise Técnica:** Analise os dados de preço recentes para identificar a tendência principal (alta, baixa ou lateral). Esta é sua principal fonte para a direção. Sua análise deve ser proporcional à duração da operação do trader. Para durações curtas (ticks ou segundos), foque nas tendências de curtíssimo prazo nos dados mais recentes. Para durações mais longas (minutos), analise a tendência geral do conjunto de dados.
 2.  **Gestão de Risco:**
     - Compare o valor da aposta (stake) com o saldo total. Se a aposta for superior a 5% do saldo, considere-a de alto risco.
     - Analise os trades recentes. Se houver uma sequência de 3 ou mais perdas, o trader pode estar a operar emocionalmente.
