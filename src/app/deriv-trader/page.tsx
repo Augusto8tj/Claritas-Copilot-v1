@@ -16,6 +16,7 @@ import { useDerivApi, type AccountType, type ActiveContract } from "@/hooks/use-
 import { Skeleton } from "@/components/ui/skeleton";
 import type { TradeResult } from "@/services/deriv-api-service";
 import { OperationsLog } from "@/components/trading/operations-log";
+import { AIAnalysisInterface } from "@/components/trading/ai-analysis-interface";
 
 
 export type TimePeriod = '1m' | '15m' | '30m' | '1h' | '8h' | '1d';
@@ -94,8 +95,8 @@ export default function DerivTraderPage() {
       </p>
       
        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-4 xl:col-span-4">
-            <Card>
+        <div className="lg:col-span-8 space-y-6">
+             <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
                 <div>
                     <CardTitle className="font-headline">
@@ -158,15 +159,14 @@ export default function DerivTraderPage() {
                 />
             </CardContent>
             </Card>
-        </div>
-        <div className="lg:col-span-4 xl:col-span-4">
             <OperationsLog operations={operationsLog} />
         </div>
-         <div className="lg:col-span-4 xl:col-span-4">
+         <div className="lg:col-span-4 space-y-6">
             <DerivTraderInterface 
                 symbol={selectedAsset}
                 onTradeSuccess={handleTradeSuccess}
             />
+            <AIAnalysisInterface />
         </div>
       </div>
     </div>
