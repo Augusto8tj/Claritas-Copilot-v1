@@ -5,7 +5,7 @@
  * - goalProjection - A function that handles the goal projection process.
  */
 
-import {ai, flash, pro} from '@/ai/genkit';
+import {ai} from '@/ai/genkit';
 import { GoalProjectionInputSchema, GoalProjectionOutputSchema, type GoalProjectionInput } from './goal-projection.types';
 
 
@@ -31,16 +31,9 @@ const goalProjectionFlow = ai.defineFlow(
     outputSchema: GoalProjectionOutputSchema,
   },
   async input => {
-    try {
-      // First, try the fast model
-      const { output } = await prompt(input, { model: flash });
-      return output!;
-    } catch (e) {
-      console.warn(`[Flow] Model '${flash}' failed, trying '${pro}'. Error:`, e);
-      // If it fails, fallback to the more robust model
-      const { output } = await prompt(input, { model: pro });
-      return output!;
-    }
+    const { output } = await prompt(input);
+    if (!output) throw new Error("Could not generate goal projection.");
+    return output;
   }
 );
 

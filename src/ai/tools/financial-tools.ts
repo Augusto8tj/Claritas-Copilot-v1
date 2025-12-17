@@ -3,7 +3,7 @@
  * @fileOverview Defines the tools available to the financial AI chatbot.
  */
 
-import { ai, flash, pro } from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import { addGoal, addTransaction, getFinancialSummary, getBudgetData } from '@/services/financial-data-service';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
@@ -48,18 +48,9 @@ export const getFinancialInsightsTool = ai.defineTool(
     const financialData = await getFinancialSummary();
     const financialDataString = `Renda: ${financialData.income}, Despesas: ${financialData.expenses}, Saldo: ${financialData.balance}`;
     
-    try {
-        // First, try the fast model
-        const { output } = await insightsPrompt({ financialData: financialDataString }, { model: flash });
-        if (!output) throw new Error("Insights generation with Flash model returned empty.");
-        return output.insights.join('\n');
-    } catch (e) {
-        console.warn(`[Tool] Model '${flash}' failed for insights, trying '${pro}'. Error:`, e);
-        // If it fails, fallback to the more robust model
-        const { output } = await insightsPrompt({ financialData: financialDataString }, { model: pro });
-        if (!output) return 'Não foi possível gerar insights no momento.';
-        return output.insights.join('\n');
-    }
+    const { output } = await insightsPrompt({ financialData: financialDataString });
+    if (!output) return 'Não foi possível gerar insights no momento.';
+    return output.insights.join('\n');
   }
 );
 

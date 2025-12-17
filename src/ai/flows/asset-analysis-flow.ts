@@ -6,7 +6,7 @@
  * - getAssetAnalysis - The main flow function.
  */
 
-import { ai, flash, pro } from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { AssetAnalysisInputSchema, AssetAnalysisOutputSchema, type AssetAnalysisInput, type AssetAnalysisOutput } from './asset-analysis-flow.types';
 
@@ -63,16 +63,9 @@ const getAssetAnalysisFlow = ai.defineFlow(
       recentTrades: recentTradesJson,
     };
 
-    try {
-      const { output } = await analysisPrompt(promptInput, { model: flash });
-      if (!output) throw new Error("A análise com o modelo Flash retornou uma saída vazia.");
-      return output;
-    } catch (e) {
-      console.warn(`[Flow] Model '${flash}' failed for asset analysis, trying '${pro}'. Error:`, e);
-      const { output } = await analysisPrompt(promptInput, { model: pro });
-      if (!output) throw new Error("A IA não conseguiu analisar o ativo.");
-      return output;
-    }
+    const { output } = await analysisPrompt(promptInput);
+    if (!output) throw new Error("A IA não conseguiu analisar o ativo.");
+    return output;
   }
 );
 

@@ -6,7 +6,7 @@
  * - analyzeOperations - The main flow function.
  */
 
-import { ai, flash, pro } from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { OperationAnalysisInputSchema, OperationAnalysisOutputSchema, type OperationAnalysisInput } from './operation-analysis-flow.types';
 
@@ -45,18 +45,9 @@ const analyzeOperationsFlow = ai.defineFlow(
     // Converte o array de operações para uma string JSON antes de passar para o prompt.
     const operationsJson = JSON.stringify(operations, null, 2);
 
-    try {
-      // Use the fast model for this kind of analysis
-      const { output } = await analyzerPrompt({ operationsJson }, { model: flash });
-      if (!output) throw new Error("A análise com o modelo Flash retornou uma saída vazia.");
-      return output;
-    } catch (e) {
-      console.warn(`[Flow] Model '${flash}' failed for operation analysis, trying '${pro}'. Error:`, e);
-      // Fallback to the more robust model if needed
-      const { output } = await analyzerPrompt({ operationsJson }, { model: pro });
-      if (!output) throw new Error("A IA não conseguiu analisar o histórico de operações.");
-      return output;
-    }
+    const { output } = await analyzerPrompt({ operationsJson });
+    if (!output) throw new Error("A IA não conseguiu analisar o histórico de operações.");
+    return output;
   }
 );
 

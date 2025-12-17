@@ -1,10 +1,9 @@
-
 'use server';
 
 /**
  * @fileOverview Defines AI tools for interacting with a brokerage API.
  */
-import { ai, flash, pro } from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import { getAccountBalance, getMarketData, getHistoricalData } from '@/services/deriv-api-service';
 import { executeTradeAction } from '@/app/actions/trading-actions';
 import { z } from 'zod';
@@ -59,18 +58,9 @@ export const getMarketDataTool = ai.defineTool(
   },
   async ({ query }) => {
     console.log(`[getMarketDataTool] Gerando resumo para a consulta: "${query}"`);
-    try {
-        // First, try the fast model
-        const { output } = await marketDataPrompt({ query }, { model: flash });
-        if (!output) throw new Error("Market data summary generation with Flash model returned empty.");
-        return output;
-    } catch (e) {
-        console.warn(`[Tool] Model '${flash}' failed for market data summary, trying '${pro}'. Error:`, e);
-        // If it fails, fallback to the more robust model
-        const { output } = await marketDataPrompt({ query }, { model: pro });
-        if (!output) throw new Error("Não foi possível gerar um resumo do mercado.");
-        return output;
-    }
+    const { output } = await marketDataPrompt({ query });
+    if (!output) throw new Error("Não foi possível gerar um resumo do mercado.");
+    return output;
   }
 );
 

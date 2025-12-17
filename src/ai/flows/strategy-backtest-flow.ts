@@ -6,7 +6,7 @@
  * - runStrategyBacktest - The main flow function.
  */
 
-import { ai, flash, pro } from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { getHistoricalDataTool } from '../tools/trading-tools';
 import { StrategyBacktestInputSchema, StrategyBacktestOutputSchema, type StrategyBacktestInput } from './strategy-backtest-flow.types';
@@ -120,17 +120,8 @@ const runStrategyBacktestFlow = ai.defineFlow(
   async ({ strategyDescription }) => {
     
     // Step 1: AI extracts parameters
-    let strategyParams;
-    try {
-        const { output } = await strategyParsingPrompt({ strategyDescription }, { model: flash });
-        if (!output) throw new Error("A análise inicial com o modelo Flash retornou uma saída vazia.");
-        strategyParams = output;
-    } catch (e) {
-        console.warn(`[Flow] Model '${flash}' failed for strategy parsing, trying '${pro}'. Error:`, e);
-        const { output } = await strategyParsingPrompt({ strategyDescription }, { model: pro });
-        if (!output) throw new Error("A IA não conseguiu extrair os parâmetros da estratégia.");
-        strategyParams = output;
-    }
+    const { output: strategyParams } = await strategyParsingPrompt({ strategyDescription });
+    if (!strategyParams) throw new Error("A IA não conseguiu extrair os parâmetros da estratégia.");
     
     const symbolMatch = strategyDescription.match(/\b([A-Z]{4}\d{1,2})\b/);
     const symbol = symbolMatch ? symbolMatch[0] : 'PETR4';
@@ -147,17 +138,8 @@ const runStrategyBacktestFlow = ai.defineFlow(
     const simulationResult = runSimulation(historicalData, strategyParams);
 
     // Step 4: AI analyzes simulation results and creates summary
-    let analysisResult;
-    try {
-        const { output } = await backtestAnalysisPrompt({ simulationResult, strategy: strategyParams }, { model: flash });
-        if (!output) throw new Error("A análise do backtest com o modelo Flash retornou uma saída vazia.");
-        analysisResult = output;
-    } catch (e) {
-        console.warn(`[Flow] Model '${flash}' failed for backtest analysis, trying '${pro}'. Error:`, e);
-        const { output } = await backtestAnalysisPrompt({ simulationResult, strategy: strategyParams }, { model: pro });
-        if (!output) throw new Error("A IA não conseguiu gerar a análise do backtest.");
-        analysisResult = output;
-    }
+    const { output: analysisResult } = await backtestAnalysisPrompt({ simulationResult, strategy: strategyParams });
+    if (!analysisResult) throw new Error("A IA não conseguiu gerar a análise do backtest.");
 
     return analysisResult;
   }

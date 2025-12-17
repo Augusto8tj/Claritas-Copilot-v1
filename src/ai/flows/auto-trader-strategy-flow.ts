@@ -6,7 +6,7 @@
  * - getAutotraderStrategy - The main flow function.
  */
 
-import { ai, pro } from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import { AutoTraderStrategyInputSchema, AutoTraderStrategyOutputSchema, type AutoTraderStrategyInput, type AutoTraderStrategyOutput } from './auto-trader-strategy-flow.types';
 
 
@@ -72,8 +72,7 @@ const getAutotraderStrategyFlow = ai.defineFlow(
       recentTrades: recentTradesJson,
     };
 
-    // Use a more powerful model for strategy definition as it's a more complex task
-    const { output } = await strategyPrompt(promptInput, { model: pro });
+    const { output } = await strategyPrompt(promptInput);
     if (!output) throw new Error("A IA não conseguiu definir uma estratégia para o piloto automático.");
     
     return output;
