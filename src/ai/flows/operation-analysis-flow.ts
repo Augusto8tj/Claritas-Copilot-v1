@@ -43,13 +43,13 @@ const analyzeOperationsFlow = ai.defineFlow(
   async ({ operations }) => {
     try {
       // Use the fast model for this kind of analysis
-      const { output } = await prompt({ operations }, { model: flash });
+      const { output } = await analyzerPrompt({ operations }, { model: flash });
       if (!output) throw new Error("A análise com o modelo Flash retornou uma saída vazia.");
       return output;
     } catch (e) {
       console.warn(`[Flow] Model '${flash}' failed for operation analysis, trying '${pro}'. Error:`, e);
       // Fallback to the more robust model if needed
-      const { output } = await prompt({ operations }, { model: pro });
+      const { output } = await analyzerPrompt({ operations }, { model: pro });
       if (!output) throw new Error("A IA não conseguiu analisar o histórico de operações.");
       return output;
     }
