@@ -210,7 +210,3 @@ export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
     </div>
   );
 }
-
-    
-
-    

@@ -54,7 +54,7 @@ export default function DerivTraderPage() {
   useEffect(() => {
     if (timePeriod !== '1m' && chartType === 'Area') {
         // Area chart is only for 1m (ticks), switch to candle for others
-        // setChartType('Candle');
+        setChartType('Candle');
     } else if (timePeriod === '1m' && chartType === 'Candle') {
         // Candle chart is not available for 1m, switch to Area
         setChartType('Area');
@@ -221,7 +221,3 @@ export default function DerivTraderPage() {
     </div>
   );
 }
-
-    
-
-    
