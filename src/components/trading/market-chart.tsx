@@ -60,10 +60,14 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
 
 const Candlestick = (props: any) => {
     const { x, y, width, height, payload } = props;
-    const { open, close } = payload;
     
-    if ([x, y, width, height, open, close].some(val => val === undefined || isNaN(val))) {
+    if ([x, y, width, height].some(val => val === undefined || isNaN(val)) || !payload) {
         return null; // Don't render if any value is invalid
+    }
+    
+    const { open, close } = payload;
+     if ([open, close].some(val => val === undefined || isNaN(val))) {
+        return null;
     }
 
     const isBullish = close > open;
@@ -86,6 +90,7 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [duration, setDuration] = useState(getHistoryDurationForTimePeriod(timePeriod));
+  const { ws: wsFromContext, addPriceTick } = useDerivApi();
   const wsRef = useRef<WebSocket | null>(null);
 
   const fetchData = useCallback((currentDuration: number) => {
@@ -112,21 +117,29 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
     };
 
     wsRef.current.send(JSON.stringify(request));
+    
+    // Always subscribe to ticks for autopilot logic
+    wsRef.current.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
 
   }, [symbol, chartType, timePeriod]);
 
   useEffect(() => {
-    if (!symbol) return;
+    // Use the WebSocket instance from context if available
+    if (wsFromContext && wsFromContext.readyState === WebSocket.OPEN) {
+        wsRef.current = wsFromContext;
+    } else if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+        wsRef.current = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+    }
 
-    wsRef.current = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+    const ws = wsRef.current;
 
-    wsRef.current.onopen = () => {
-      console.log("[Deriv WS] Conexão estabelecida.");
+    const handleOpen = () => {
+      console.log("[Deriv Chart WS] Conexão estabelecida.");
       fetchData(duration);
     };
-
-    wsRef.current.onmessage = (event) => {
-      const response = JSON.parse(event.data);
+    
+    const handleMessage = (event: MessageEvent) => {
+       const response = JSON.parse(event.data);
 
       if (response.error) {
         console.error("Deriv API error:", response.error.message);
@@ -142,11 +155,7 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
         }));
         setData(historyData);
         setLoading(false);
-        
-        // Subscribe to live ticks only for line charts.
-        if (chartType === 'Area' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
-        }
+        historyData.forEach(tick => addPriceTick(tick));
       } else if (response.msg_type === 'candles') {
           const candleData: CandleData[] = response.candles.map((candle: any) => ({
                 epoch: candle.epoch,
@@ -159,23 +168,25 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
           setLoading(false);
       }
 
-
       if (response.msg_type === 'tick') {
         const tick = response.tick;
         const newTickData: TickData = { epoch: tick.epoch, price: tick.quote };
+        
+        // Update the context for other components
+        addPriceTick(newTickData);
+
+        // Update local chart data only if it's a line chart
         setData(currentData => {
             if (currentData.length > 0 && currentData[0].hasOwnProperty('open')) {
-                // If current data is candles, don't update with ticks.
-                return currentData;
+                return currentData; // Don't update candle chart with ticks
             }
-            // Create a sliding window: remove the oldest tick and add the new one
             const newData = [...currentData.slice(1), newTickData];
             return newData;
         });
       }
-    };
+    }
     
-    wsRef.current.onerror = (event: Event) => {
+    const handleError = (event: Event) => {
         if ('message' in event) {
             console.error("WebSocket connection error:", event);
             setError("Não foi possível conectar ao servidor de dados em tempo real.");
@@ -183,25 +194,23 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
         }
     }
 
-    wsRef.current.onclose = () => {
-        console.log("[Deriv WS] A conexão foi fechada.");
+    if (ws.readyState === WebSocket.OPEN) {
+        handleOpen();
+    } else {
+        ws.addEventListener('open', handleOpen);
     }
+    
+    ws.addEventListener('message', handleMessage);
+    ws.addEventListener('error', handleError);
+
 
     return () => {
-      if (wsRef.current) {
-         try {
-            if (wsRef.current.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({ "forget_all": "ticks" }));
-                 wsRef.current.send(JSON.stringify({ "forget_all": "candles" }));
-            }
-            wsRef.current.close();
-            console.log("[Deriv WS] Conexão limpa e fechada.");
-         } catch (e) {
-            console.warn("[Deriv WS] WebSocket já fechado ou com erro na limpeza.");
-         }
-      }
+       ws.removeEventListener('open', handleOpen);
+       ws.removeEventListener('message', handleMessage);
+       ws.removeEventListener('error', handleError);
+       // Don't close the WebSocket here, as it's managed by the context
     };
-  }, [symbol, duration, fetchData, chartType]);
+  }, [symbol, duration, fetchData, wsFromContext, addPriceTick]);
 
 
   useEffect(() => {

@@ -2,6 +2,8 @@
 
 import { getAssetAnalysis, type AssetAnalysisOutput } from '@/ai/flows/asset-analysis-flow';
 import { AssetAnalysisInputSchema, type AssetAnalysisInput } from '@/ai/flows/asset-analysis-flow.types';
+import { getAutotraderStrategy } from '@/ai/flows/auto-trader-strategy-flow';
+import { AutoTraderStrategyInputSchema, type AutoTraderStrategyInput, type AutoTraderStrategyOutput } from '@/ai/flows/auto-trader-strategy-flow.types';
 
 
 export async function getAssetAnalysisAction(input: AssetAnalysisInput): Promise<{ success?: AssetAnalysisOutput; error?: string }> {
@@ -11,8 +13,6 @@ export async function getAssetAnalysisAction(input: AssetAnalysisInput): Promise
   if (!validatedInput.success) {
     return { error: `Dados de entrada inválidos: ${validatedInput.error.message}` };
   }
-
-  // The historical data is already included in validatedInput.data, so no need to fetch it again.
   
   try {
     const result = await getAssetAnalysis(validatedInput.data);
@@ -21,4 +21,19 @@ export async function getAssetAnalysisAction(input: AssetAnalysisInput): Promise
     console.error("[Action] Erro ao obter análise do ativo:", e);
     return { error: e.message || "Ocorreu um erro inesperado durante a análise da IA." };
   }
+}
+
+export async function getAutotraderStrategyAction(input: AutoTraderStrategyInput): Promise<{ success?: AutoTraderStrategyOutput; error?: string }> {
+    const validatedInput = AutoTraderStrategyInputSchema.safeParse(input);
+    if (!validatedInput.success) {
+        return { error: `Dados de entrada inválidos para a estratégia: ${validatedInput.error.message}` };
+    }
+
+    try {
+        const result = await getAutotraderStrategy(validatedInput.data);
+        return { success: result };
+    } catch (e: any) {
+        console.error("[Action] Erro ao definir estratégia do piloto automático:", e);
+        return { error: e.message || "Ocorreu um erro inesperado ao definir a estratégia." };
+    }
 }

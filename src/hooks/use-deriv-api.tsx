@@ -30,6 +30,11 @@ export interface ActiveContract {
   exit_tick?: number;
 }
 
+export interface PriceTick {
+    epoch: number;
+    price: number;
+}
+
 
 interface DerivApiContextType {
   ws: WebSocket | null;
@@ -43,6 +48,8 @@ interface DerivApiContextType {
   accountBalance: AccountBalance;
   activeContracts: ActiveContract[];
   operationsLog: Operation[];
+  priceTicks: PriceTick[];
+  addPriceTick: (tick: PriceTick) => void;
   setAccountType: (type: AccountType) => void;
   setTokens: (tokens: { demo?: string; real?: string }) => void;
   disconnect: (type: AccountType) => void;
@@ -63,6 +70,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [activeContracts, setActiveContracts] = useState<ActiveContract[]>([]);
   const [operationsLog, setOperationsLog] = useState<Operation[]>([]);
+  const [priceTicks, setPriceTicks] = useState<PriceTick[]>([]);
   const { toast } = useToast();
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -89,6 +97,18 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   }, []);
   
   const activeToken = accountType === 'demo' ? demoToken : realToken;
+  
+  const addPriceTick = (tick: PriceTick) => {
+    setPriceTicks(prevTicks => {
+        const newTicks = [...prevTicks, tick];
+        // Keep only the last 200 ticks to avoid memory issues
+        if (newTicks.length > 200) {
+            return newTicks.slice(newTicks.length - 200);
+        }
+        return newTicks;
+    });
+  };
+
 
   useEffect(() => {
     if (!activeToken || isLoading) {
@@ -114,6 +134,9 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     ws.onopen = () => {
       console.log("[Deriv WS Provider] Connection opened. Authorizing...");
       ws.send(JSON.stringify({ "authorize": activeToken }));
+      // Set connecting false right after opening, authorization will determine final connected state
+      setIsConnecting(false);
+      // We are technically connected to the server, but not yet authorized
     };
 
     ws.onmessage = (event) => {
@@ -128,7 +151,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         } else if (response.msg_type === 'authorize') {
             setConnectionError(response.error.message);
             setIsConnected(false);
-            setIsConnecting(false);
         }
         return;
       }
@@ -143,7 +165,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
 
       if (response.msg_type === 'authorize') {
         console.log("[Deriv WS Provider] Authorized successfully.");
-        setIsConnecting(false);
         setIsConnected(true);
         ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
         ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 }));
@@ -179,6 +200,9 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({ "balance": 1 }));
           }
+      } else if (response.msg_type === 'tick') {
+        const tick = response.tick;
+        addPriceTick({ epoch: tick.epoch, price: tick.quote });
       }
     };
 
@@ -320,6 +344,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     accountBalance,
     activeContracts,
     operationsLog,
+    priceTicks,
+    addPriceTick,
     refreshBalance,
     executeTrade,
     clearActiveContracts,
