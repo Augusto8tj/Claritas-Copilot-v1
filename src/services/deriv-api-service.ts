@@ -155,15 +155,17 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
 /**
  * Fetches the user's account balance from the broker.
  * @param apiToken - The user's API token for authentication.
+ * @param accountType - The type of account ('demo' or 'real').
  */
-export async function getAccountBalance(apiToken: string): Promise<AccountBalance> {
-  console.log(`[Deriv Service] Fetching account balance...`);
+export async function getAccountBalance(apiToken: string, accountType?: AccountType): Promise<AccountBalance> {
+  console.log(`[Deriv Service] Fetching account balance for ${accountType} account...`);
   
   if (!apiToken) {
     throw new Error("API token is required.");
   }
 
-  const balanceRequest = { "balance": 1, "account": "all" };
+  // A simple balance request will return the balance for the authorized account.
+  const balanceRequest = { "balance": 1 };
 
   try {
     const response: any = await callDerivApi([balanceRequest], apiToken);

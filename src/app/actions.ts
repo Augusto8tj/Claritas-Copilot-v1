@@ -133,7 +133,3 @@ export async function checkDerivConnection(apiToken: string, accountType: Accoun
         return { success: false, error: e.message || "Não foi possível validar o token." };
     }
 }
-
-
-
-
