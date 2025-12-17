@@ -3,7 +3,7 @@
 "use client";
 
 import * as React from "react";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Label, BarChart, Bar, ComposedChart } from "recharts";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Label, BarChart, Bar, ComposedChart, ReferenceDot } from "recharts";
 import { useDerivApi, type ActiveContract } from "@/hooks/use-deriv-api";
 import { Loader2 } from "lucide-react";
 import type { CandleData, TickData } from '@/hooks/use-deriv-api';
@@ -98,24 +98,29 @@ export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
                         strokeWidth={2}
                         dot={false}
                     />
-                    {activeContracts.map(contract => (
-                        (typeof contract.entryTick === 'number') && (
-                        <ReferenceLine
-                            key={contract.contractId}
-                            y={contract.entryTick}
-                            stroke="hsl(var(--accent))"
-                            strokeDasharray="3 3"
-                            strokeWidth={2}
-                        >
-                            <Label 
-                                value={`Entrada: ${contract.entryTick.toFixed(4)}`}
-                                position="right"
+                     {activeContracts.map(contract => (
+                        <React.Fragment key={contract.contractId}>
+                            {/* Entry Dot */}
+                            <ReferenceDot
+                                x={contract.entryTime}
+                                y={contract.entryTick}
+                                r={5}
                                 fill="hsl(var(--accent))"
-                                fontSize={12}
-                                className="font-semibold"
+                                stroke="white"
+                                strokeWidth={2}
                             />
-                        </ReferenceLine>
-                        )
+                            {/* Exit Dot */}
+                            {contract.status !== 'open' && contract.exitTime && contract.exitTick && (
+                                <ReferenceDot
+                                    x={contract.exitTime}
+                                    y={contract.exitTick}
+                                    r={5}
+                                    fill={contract.status === 'won' ? 'hsl(120, 70%, 50%)' : 'hsl(0, 70%, 50%)'}
+                                    stroke="white"
+                                    strokeWidth={2}
+                                />
+                            )}
+                        </React.Fragment>
                     ))}
                 </LineChart>
             </ResponsiveContainer>
@@ -166,24 +171,27 @@ export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
                          contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
                     />
                      <Bar dataKey="close" shape={<Candlestick />} />
-                      {activeContracts.map(contract => (
-                        (typeof contract.entryTick === 'number') && (
-                        <ReferenceLine
-                        key={contract.contractId}
-                        y={contract.entryTick}
-                        stroke="hsl(var(--accent))"
-                        strokeDasharray="3 3"
-                        strokeWidth={2}
-                        >
-                        <Label 
-                            value={`Entrada: ${contract.entryTick.toFixed(4)}`}
-                            position="right"
-                            fill="hsl(var(--accent))"
-                            fontSize={12}
-                            className="font-semibold"
-                        />
-                        </ReferenceLine>
-                        )
+                     {activeContracts.map(contract => (
+                        <React.Fragment key={contract.contractId}>
+                            <ReferenceDot
+                                x={contract.entryTime}
+                                y={contract.entryTick}
+                                r={5}
+                                fill="hsl(var(--accent))"
+                                stroke="white"
+                                strokeWidth={2}
+                            />
+                            {contract.status !== 'open' && contract.exitTime && contract.exitTick && (
+                                <ReferenceDot
+                                    x={contract.exitTime}
+                                    y={contract.exitTick}
+                                    r={5}
+                                    fill={contract.status === 'won' ? 'hsl(120, 70%, 50%)' : 'hsl(0, 70%, 50%)'}
+                                    stroke="white"
+                                    strokeWidth={2}
+                                />
+                            )}
+                        </React.Fragment>
                     ))}
                 </BarChart>
             </ResponsiveContainer>
@@ -231,23 +239,26 @@ export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
                     dot={false}
                 />
                 {activeContracts.map(contract => (
-                    (typeof contract.entryTick === 'number') && (
-                    <ReferenceLine
-                        key={contract.contractId}
-                        y={contract.entryTick}
-                        stroke="hsl(var(--accent))"
-                        strokeDasharray="3 3"
-                        strokeWidth={2}
-                    >
-                        <Label 
-                            value={`Entrada: ${contract.entryTick.toFixed(4)}`}
-                            position="right"
+                    <React.Fragment key={contract.contractId}>
+                        <ReferenceDot
+                            x={contract.entryTime}
+                            y={contract.entryTick}
+                            r={5}
                             fill="hsl(var(--accent))"
-                            fontSize={12}
-                            className="font-semibold"
+                            stroke="white"
+                            strokeWidth={2}
                         />
-                    </ReferenceLine>
-                    )
+                        {contract.status !== 'open' && contract.exitTime && contract.exitTick && (
+                            <ReferenceDot
+                                x={contract.exitTime}
+                                y={contract.exitTick}
+                                r={5}
+                                fill={contract.status === 'won' ? 'hsl(120, 70%, 50%)' : 'hsl(0, 70%, 50%)'}
+                                stroke="white"
+                                strokeWidth={2}
+                            />
+                        )}
+                    </React.Fragment>
                 ))}
             </LineChart>
         </ResponsiveContainer>

@@ -30,8 +30,10 @@ export interface ActiveContract {
   entryTick: number;
   entryTime: number;
   status?: 'open' | 'won' | 'lost';
-  exit_tick?: number;
+  exitTick?: number;
+  exitTime?: number;
 }
+
 
 export type TickData = {
   epoch: number;
@@ -212,7 +214,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
             console.warn(`[Deriv WS Provider] Already subscribed to ${subId}. Forgetting and re-subscribing.`);
             if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
                 wsRef.current.send(JSON.stringify({ "forget": subId }));
-                // The main subscription logic will handle the new subscription
             }
             return;
         }
@@ -276,7 +277,11 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
               )
             );
           
-          setActiveContracts(prev => prev.filter(c => c.contractId !== contract.contract_id));
+          setActiveContracts(prev => prev.map(c => 
+            c.contractId === contract.contract_id 
+              ? { ...c, status: profit >= 0 ? 'won' : 'lost', exitTick: parseFloat(contract.exit_tick_display_value), exitTime: contract.exit_tick_time }
+              : c
+          ));
 
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({ "balance": 1 }));
@@ -549,7 +554,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     chartType,
     timePeriod,
     setChartType,
-    setTimePeriod,
+setTimePeriod,
     addPriceTick,
     refreshBalance,
     executeTrade,
