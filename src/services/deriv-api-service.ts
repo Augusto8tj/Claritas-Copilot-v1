@@ -48,8 +48,8 @@ function callDerivApi<T>(request: object, apiToken: string): Promise<T> {
         ws.send(JSON.stringify({ "authorize": apiToken }));
     };
 
-    ws.onmessage = (data: WebSocket.Data) => {
-      const response = JSON.parse(data.toString());
+    ws.onmessage = (data: MessageEvent) => {
+      const response = JSON.parse(data.data);
       if (response.error) {
         reject(new Error(response.error.message));
         ws.close();
@@ -89,7 +89,7 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
             ws.send(JSON.stringify({ "active_symbols": "full", "product_type": "basic" }));
         };
         ws.onmessage = (data) => {
-            const res = JSON.parse(data.toString());
+            const res = JSON.parse(data.data);
             if (res.error) reject(res.error);
             else resolve(res);
             ws.close();
@@ -148,12 +148,12 @@ export async function getAccountBalance(apiToken: string, accountType: AccountTy
           ws.send(JSON.stringify({ "authorize": apiToken }));
       };
       ws.onmessage = (data) => {
-          const response = JSON.parse(data.toString());
+          const response = JSON.parse(data.data);
           if (response.error) {
               reject(new Error(response.error.message));
           } else if (response.authorize) {
               // After authorize, send balance request on the same connection
-              ws.send(JSON.stringify({ "balance": 1 }));
+              ws.send(JSON.stringify({ "balance": 1, "account": "all" }));
           } else if (response.balance) {
               resolve({
                   balance: response.balance.balance,
@@ -184,7 +184,7 @@ export async function getMarketData(symbol: string): Promise<MarketData> {
             ws.send(JSON.stringify({ "ticks": symbol }));
          };
          ws.onmessage = (data) => {
-            const res = JSON.parse(data.toString());
+            const res = JSON.parse(data.data);
             if (res.error) reject(res.error);
             else resolve(res);
             ws.close();
