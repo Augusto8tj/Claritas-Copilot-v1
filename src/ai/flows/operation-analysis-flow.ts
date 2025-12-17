@@ -10,9 +10,10 @@ import { ai, flash, pro } from '@/ai/genkit';
 import { z } from 'zod';
 import { OperationAnalysisInputSchema, OperationAnalysisOutputSchema, type OperationAnalysisInput } from './operation-analysis-flow.types';
 
+// O prompt agora espera uma string JSON em vez de um objeto complexo.
 const analyzerPrompt = ai.definePrompt({
   name: 'operationAnalyzerPrompt',
-  input: { schema: OperationAnalysisInputSchema },
+  input: { schema: z.object({ operationsJson: z.string() }) },
   output: { schema: OperationAnalysisOutputSchema },
   system: `Você é um analista de performance e risco, especialista em mercado financeiro. Sua tarefa é analisar um histórico de operações de trading e fornecer um resumo estatístico e insights valiosos em português.
 Seja conciso e direto.
@@ -29,7 +30,7 @@ Se não houver operações concluídas, informe que não há dados suficientes p
 Por favor, analise o seguinte histórico de operações de trading da sessão atual:
 
 \'\'\'json
-{{{jsonStringify operations}}}
+{{{operationsJson}}}
 \'\'\'
 `
 });
@@ -41,15 +42,18 @@ const analyzeOperationsFlow = ai.defineFlow(
     outputSchema: OperationAnalysisOutputSchema,
   },
   async ({ operations }) => {
+    // Converte o array de operações para uma string JSON antes de passar para o prompt.
+    const operationsJson = JSON.stringify(operations, null, 2);
+
     try {
       // Use the fast model for this kind of analysis
-      const { output } = await analyzerPrompt({ operations }, { model: flash });
+      const { output } = await analyzerPrompt({ operationsJson }, { model: flash });
       if (!output) throw new Error("A análise com o modelo Flash retornou uma saída vazia.");
       return output;
     } catch (e) {
       console.warn(`[Flow] Model '${flash}' failed for operation analysis, trying '${pro}'. Error:`, e);
       // Fallback to the more robust model if needed
-      const { output } = await analyzerPrompt({ operations }, { model: pro });
+      const { output } = await analyzerPrompt({ operationsJson }, { model: pro });
       if (!output) throw new Error("A IA não conseguiu analisar o histórico de operações.");
       return output;
     }
