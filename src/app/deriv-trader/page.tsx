@@ -94,81 +94,83 @@ export default function DerivTraderPage() {
       </p>
       
        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-6 xl:col-span-7">
-            <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <div>
-                    <CardTitle className="font-headline">
-                    Acompanhamento de Ativo ({selectedAsset})
-                    </CardTitle>
-                    <CardDescription>
-                    Visualização do desempenho do ativo em tempo real.
-                    </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                    {activeContracts.length > 0 && (
-                      <Button variant="outline" size="icon" className="h-10 w-10" onClick={clearActiveContracts}>
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Limpar linhas de negociação</span>
-                      </Button>
-                    )}
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant="outline" className="w-11 h-10 p-0">
-                                {chartType === 'Area' ? <AreaChart className="w-5 h-5" /> : <CandlestickChartIcon className="w-5 h-5" />}
-                                <span className="sr-only">Alterar tipo de gráfico</span>
+        <div className="lg:col-span-9 xl:col-span-9">
+             <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+                <div className="xl:col-span-3">
+                    <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                        <div>
+                            <CardTitle className="font-headline">
+                            Acompanhamento ({selectedAsset})
+                            </CardTitle>
+                            <CardDescription>
+                            Desempenho em tempo real.
+                            </CardDescription>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {activeContracts.length > 0 && (
+                            <Button variant="outline" size="icon" className="h-10 w-10" onClick={clearActiveContracts}>
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">Limpar linhas de negociação</span>
                             </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-2">
-                            <div className="grid grid-cols-2 gap-2">
-                                {chartTypes.map(type => (
-                                    <Button
-                                        key={type.label}
-                                        variant="ghost"
-                                        className={cn(
-                                            "flex flex-col h-auto p-2",
-                                            chartType === type.label && "bg-accent"
-                                        )}
-                                        onClick={() => setChartType(type.label)}
-                                        disabled={type.disabled}
-                                    >
-                                        {type.icon}
-                                        <span className="text-xs mt-1">{type.label}</span>
+                            )}
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className="w-11 h-10 p-0">
+                                        {chartType === 'Area' ? <AreaChart className="w-5 h-5" /> : <CandlestickChartIcon className="w-5 h-5" />}
+                                        <span className="sr-only">Alterar tipo de gráfico</span>
                                     </Button>
-                                ))}
-                            </div>
-                        </PopoverContent>
-                    </Popover>
-                    <ToggleGroup type="single" value={timePeriod} onValueChange={(value: TimePeriod) => value && setTimePeriod(value)} defaultValue="1m" aria-label="Período do Gráfico">
-                        <ToggleGroupItem value="1m" aria-label="Ver último minuto">1M</ToggleGroupItem>
-                        <ToggleGroupItem value="15m" aria-label="Ver últimos 15 minutos">15M</ToggleGroupItem>
-                        <ToggleGroupItem value="30m" aria-label="Ver últimos 30 minutos">30M</ToggleGroupItem>
-                        <ToggleGroupItem value="1h" aria-label="Ver última hora">1H</ToggleGroupItem>
-                        <ToggleGroupItem value="8h" aria-label="Ver últimas 8 horas">8H</ToggleGroupItem>
-                        <ToggleGroupItem value="1d" aria-label="Ver último dia">1D</ToggleGroupItem>
-                    </ToggleGroup>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-2">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {chartTypes.map(type => (
+                                            <Button
+                                                key={type.label}
+                                                variant="ghost"
+                                                className={cn(
+                                                    "flex flex-col h-auto p-2",
+                                                    chartType === type.label && "bg-accent"
+                                                )}
+                                                onClick={() => setChartType(type.label)}
+                                                disabled={type.disabled}
+                                            >
+                                                {type.icon}
+                                                <span className="text-xs mt-1">{type.label}</span>
+                                            </Button>
+                                        ))}
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
+                            <ToggleGroup type="single" value={timePeriod} onValueChange={(value: TimePeriod) => value && setTimePeriod(value)} defaultValue="1m" aria-label="Período do Gráfico">
+                                <ToggleGroupItem value="1m" aria-label="Ver último minuto">1M</ToggleGroupItem>
+                                <ToggleGroupItem value="15m" aria-label="Ver últimos 15 minutos">15M</ToggleGroupItem>
+                                <ToggleGroupItem value="30m" aria-label="Ver últimos 30 minutos">30M</ToggleGroupItem>
+                                <ToggleGroupItem value="1h" aria-label="Ver última hora">1H</ToggleGroupItem>
+                                <ToggleGroupItem value="8h" aria-label="Ver últimas 8 horas">8H</ToggleGroupItem>
+                                <ToggleGroupItem value="1d" aria-label="Ver último dia">1D</ToggleGroupItem>
+                            </ToggleGroup>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <MarketChart 
+                            symbol={selectedAsset} 
+                            timePeriod={timePeriod} 
+                            chartType={chartType} 
+                            activeContracts={activeContracts}
+                        />
+                    </CardContent>
+                    </Card>
                 </div>
-            </CardHeader>
-            <CardContent>
-                <MarketChart 
-                    symbol={selectedAsset} 
-                    timePeriod={timePeriod} 
-                    chartType={chartType} 
-                    activeContracts={activeContracts}
-                />
-            </CardContent>
-            </Card>
+                 <div className="xl:col-span-2">
+                     <OperationsLog operations={operationsLog} />
+                </div>
+            </div>
         </div>
-         <div className="lg:col-span-6 xl:col-span-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
-            <div className="md:col-span-1">
-                <OperationsLog operations={operationsLog} />
-            </div>
-            <div className="md:col-span-1">
-                 <DerivTraderInterface 
-                    symbol={selectedAsset}
-                    onTradeSuccess={handleTradeSuccess}
-                />
-            </div>
+         <div className="lg:col-span-3 xl:col-span-3">
+            <DerivTraderInterface 
+                symbol={selectedAsset}
+                onTradeSuccess={handleTradeSuccess}
+            />
         </div>
       </div>
     </div>
