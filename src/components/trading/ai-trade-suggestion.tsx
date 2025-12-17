@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -20,7 +20,7 @@ import { getHistoricalData } from "@/services/deriv-api-service";
 
 interface AITradeSuggestionProps {
   symbol: string;
-  form: any; // Pass the form instance from the parent
+  form: any;
 }
 
 export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
