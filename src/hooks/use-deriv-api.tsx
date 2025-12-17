@@ -113,8 +113,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
 
     ws.onopen = () => {
       console.log("[Deriv WS Provider] Connection opened. Authorizing...");
-      setIsConnecting(false);
-      setIsConnected(true);
       ws.send(JSON.stringify({ "authorize": activeToken }));
     };
 
@@ -130,6 +128,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         } else if (response.msg_type === 'authorize') {
             setConnectionError(response.error.message);
             setIsConnected(false);
+            setIsConnecting(false);
         }
         return;
       }
@@ -144,7 +143,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
 
       if (response.msg_type === 'authorize') {
         console.log("[Deriv WS Provider] Authorized successfully.");
-        // Connection is already set to true on 'open'
+        setIsConnecting(false);
+        setIsConnected(true);
         ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
         ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 }));
       } else if (response.msg_type === 'balance') {
