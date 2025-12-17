@@ -20,6 +20,15 @@ interface OperationsLogProps {
   operations: Operation[];
 }
 
+const durationUnitLabels: { [key: string]: string } = {
+  t: "ticks",
+  s: "segundos",
+  m: "minutos",
+  h: "horas",
+  d: "dias",
+};
+
+
 export function OperationsLog({ operations }: OperationsLogProps) {
 
   const dailySummary = useMemo(() => {
@@ -69,7 +78,7 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                       {op.asset} - {op.direction === "rise" ? "Rise" : "Fall"}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Entrada: ${op.stake.toFixed(2)}
+                      Entrada: ${op.stake.toFixed(2)} | Duração: {op.duration} {durationUnitLabels[op.durationUnit] || op.durationUnit}
                     </p>
                   </div>
                   <div
