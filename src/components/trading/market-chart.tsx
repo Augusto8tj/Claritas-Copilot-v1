@@ -69,9 +69,8 @@ const Candlestick = (props: any) => {
     const isBullish = close > open;
     const color = isBullish ? 'hsl(var(--primary))' : 'hsl(var(--destructive))';
 
-    const yRatio = height / (high - low);
-    const bodyHeight = Math.abs(open - close) * yRatio;
-    const bodyY = isBullish ? y + (high - close) * yRatio : y + (high - open) * yRatio;
+    const bodyHeight = Math.abs(y - (y + height * (close - open) / (high - low)))
+    const bodyY = isBullish ? y + (height * (high - close) / (high-low)) : y + (height * (high - open) / (high-low));
     
     return (
         <g>
@@ -170,7 +169,8 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
                 // If current data is candles, don't update with ticks.
                 return currentData;
             }
-            const newData = [...currentData, newTickData].slice(-5000); // Keep the array size manageable
+            // Create a sliding window: remove the oldest tick and add the new one
+            const newData = [...currentData.slice(1), newTickData];
             return newData;
         });
       }
@@ -225,6 +225,10 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
   const renderChart = () => {
      if (chartType === 'Candle' && data.length > 0 && 'open' in data[0]) {
         const candleData = data as CandleData[];
+        const yDomain = [
+            Math.min(...candleData.map(d => d.low)) - 0.0005,
+            Math.max(...candleData.map(d => d.high)) + 0.0005
+        ];
         return (
             <ResponsiveContainer width="100%" height="100%">
                  <BarChart data={candleData}>
@@ -238,7 +242,7 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
                         fontSize={12}
                     />
                     <YAxis 
-                        domain={['dataMin - 0.0005', 'dataMax + 0.0005']}
+                        domain={yDomain}
                         tickFormatter={(val) => Number(val).toFixed(4)}
                         orientation="right"
                         stroke="hsl(var(--muted-foreground))"
@@ -257,7 +261,7 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
                         }}
                          contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
                     />
-                     <Bar dataKey="candle" shape={<Candlestick />} />
+                     <Bar dataKey="close" shape={<Candlestick />} />
                       {activeContracts.map(contract => (
                         (typeof contract.entryTick === 'number') && (
                         <ReferenceLine
@@ -270,7 +274,7 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
                         <Label 
                             value={`Entrada: ${contract.entryTick.toFixed(4)}`}
                             position="right"
-                            fill="hsl(var(--accent-foreground))"
+                            fill="hsl(var(--accent))"
                             fontSize={12}
                             className="font-semibold"
                         />
@@ -336,7 +340,7 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
                         <Label 
                             value={`Entrada: ${contract.entryTick.toFixed(2)}`}
                             position="right"
-                            fill="hsl(var(--accent-foreground))"
+                            fill="hsl(var(--accent))"
                             fontSize={12}
                             className="font-semibold"
                         />
