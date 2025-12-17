@@ -363,7 +363,7 @@ export function DerivTraderInterface({ symbol, onTradeSuccess, isConnected }: De
             </CardContent>
             </Card>
         </FormProvider>
-        <AITradeSuggestion symbol={symbol} form={form} />
+        <AITradeSuggestion symbol={symbol} form={form} onExecuteTrade={handleTrade}/>
     </div>
   );
 }

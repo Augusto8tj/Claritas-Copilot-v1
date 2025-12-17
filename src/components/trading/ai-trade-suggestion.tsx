@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -10,28 +10,37 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
-import { Loader2, Sparkles, TrendingUp, TrendingDown, HelpCircle, AlertTriangle, Timer } from "lucide-react";
+import { Loader2, Sparkles, TrendingUp, TrendingDown, HelpCircle, AlertTriangle, Timer, Zap } from "lucide-react";
 import { getAssetAnalysisAction } from "@/app/actions/ai-actions";
 import type { AssetAnalysisOutput } from "@/ai/flows/asset-analysis-flow.types";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { cn } from "@/lib/utils";
 import { useDerivApi } from "@/hooks/use-deriv-api";
 import { getHistoricalData } from "@/services/deriv-api-service";
+import { useToast } from "@/hooks/use-toast";
+import { Switch } from "../ui/switch";
+import { Label } from "../ui/label";
 
 interface AITradeSuggestionProps {
   symbol: string;
   form: any;
+  onExecuteTrade: (tradeDirection: 'rise' | 'fall') => void;
 }
 
-export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
+export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSuggestionProps) {
   const [analysisResult, setAnalysisResult] = useState<AssetAnalysisOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isExecuting, setIsExecuting] = useState(false);
   const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(null);
   const [timeSinceAnalysis, setTimeSinceAnalysis] = useState<string>("");
   const { accountBalance, operationsLog } = useDerivApi();
+  const { toast } = useToast();
+  const [autoExecute, setAutoExecute] = useState(false);
 
-  const handleAnalyze = async () => {
+  const CONFIDENCE_THRESHOLD = 70;
+
+  const handleAnalyze = useCallback(async () => {
     setIsAnalyzing(true);
     setAnalysisResult(null);
     setError(null);
@@ -58,7 +67,14 @@ export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
       if (result.success) {
           setAnalysisResult(result.success);
           setLastAnalysisTime(new Date());
-          setError(null); // Clear previous errors on success
+          setError(null);
+          
+          // Auto-execute logic
+          if (autoExecute && result.success.confidenceScore >= CONFIDENCE_THRESHOLD && (result.success.suggestion === 'RISE' || result.success.suggestion === 'FALL')) {
+              toast({ title: "Auto-Execução Ativada!", description: `Confiança de ${result.success.confidenceScore.toFixed(0)}% é alta. Executando ordem de ${result.success.suggestion}...` });
+              handleExecute(result.success.suggestion.toLowerCase() as 'rise' | 'fall');
+          }
+
       } else {
           setError(result.error || "Ocorreu um erro desconhecido.");
       }
@@ -67,28 +83,30 @@ export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
     }
 
     setIsAnalyzing(false);
-  };
+  }, [symbol, form, accountBalance, operationsLog, autoExecute]);
   
-  // Effect to update the "time since analysis" string
+  const handleExecute = async (direction: 'rise' | 'fall') => {
+    setIsExecuting(true);
+    await onExecuteTrade(direction);
+    
+    // Give feedback and then reset
+    setTimeout(() => {
+        setAnalysisResult(null); 
+        setIsExecuting(false);
+    }, 1000);
+  }
+
   useEffect(() => {
     if (!lastAnalysisTime) {
       setTimeSinceAnalysis("");
       return;
     }
-    
     const timer = setInterval(() => {
         const seconds = Math.floor((new Date().getTime() - lastAnalysisTime.getTime()) / 1000);
-        if (seconds < 60) {
-            setTimeSinceAnalysis(`${seconds}s atrás`);
-        } else {
-            setTimeSinceAnalysis(`${Math.floor(seconds / 60)}m atrás`);
-        }
+        setTimeSinceAnalysis(seconds < 60 ? `${seconds}s atrás` : `${Math.floor(seconds / 60)}m atrás`);
     }, 1000);
-    
     return () => clearInterval(timer);
-
   }, [lastAnalysisTime]);
-
 
   const suggestionIcons = {
     RISE: <TrendingUp className="h-6 w-6 text-green-500" />,
@@ -99,12 +117,18 @@ export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Copiloto de Trade
-        </CardTitle>
+        <div className="flex justify-between items-center">
+            <CardTitle className="font-headline flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                Copiloto de Trade
+            </CardTitle>
+            <div className="flex items-center space-x-2">
+                <Switch id="auto-execute-switch" checked={autoExecute} onCheckedChange={setAutoExecute} />
+                <Label htmlFor="auto-execute-switch" className="text-xs">Auto-Executar</Label>
+            </div>
+        </div>
         <CardDescription>
-          Análise de IA baseada nos dados do mercado.
+          Análise de IA baseada nos dados de mercado e no seu perfil de risco.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -114,14 +138,10 @@ export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
           onClick={handleAnalyze}
           disabled={isAnalyzing || !accountBalance.balance}
         >
-          {isAnalyzing ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Sparkles className="mr-2 h-4 w-4" />
-          )}
+          {isAnalyzing ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}
           {isAnalyzing ? 'Analisando...' : 'Analisar Agora'}
         </Button>
-         {lastAnalysisTime && (
+         {lastAnalysisTime && !isAnalyzing && (
             <div className="flex items-center justify-center text-xs text-muted-foreground">
                 <Timer className="h-3 w-3 mr-1.5"/>
                 Última análise: {timeSinceAnalysis}
@@ -140,7 +160,7 @@ export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
                 <span>Buscando análise...</span>
             </div>
         )}
-        {analysisResult && (
+        {analysisResult && !isAnalyzing && (
           <Alert className={cn(
             analysisResult.suggestion === "RISE" && "border-green-500/50 bg-green-500/10 text-green-700",
             analysisResult.suggestion === "FALL" && "border-red-500/50 bg-red-500/10 text-red-700",
@@ -155,13 +175,25 @@ export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
                 Sugestão: {analysisResult.suggestion}
             </AlertTitle>
             <AlertDescription className="pt-2">
-              {analysisResult.justification}
+              <p>{analysisResult.justification}</p>
+              <p className="font-semibold mt-2">Confiança da IA: {analysisResult.confidenceScore.toFixed(0)}%</p>
             </AlertDescription>
              {(analysisResult.suggestedStake || analysisResult.suggestedDuration) && (
                 <div className="mt-3 pt-2 border-t border-current/30 text-xs">
                     {analysisResult.suggestedStake && <p>Stake Sugerido: <strong>${analysisResult.suggestedStake.toFixed(2)}</strong></p>}
                     {analysisResult.suggestedDuration && <p>Duração Sugerida: <strong>{analysisResult.suggestedDuration} ticks</strong></p>}
                 </div>
+            )}
+             {analysisResult.suggestion !== 'HOLD' && analysisResult.confidenceScore >= CONFIDENCE_THRESHOLD && (
+                <Button
+                    size="sm"
+                    className="w-full mt-4"
+                    onClick={() => handleExecute(analysisResult.suggestion.toLowerCase() as 'rise' | 'fall')}
+                    disabled={isExecuting}
+                >
+                    {isExecuting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
+                    {isExecuting ? 'Executando...' : `Executar ${analysisResult.suggestion} Agora`}
+                </Button>
             )}
           </Alert>
         )}

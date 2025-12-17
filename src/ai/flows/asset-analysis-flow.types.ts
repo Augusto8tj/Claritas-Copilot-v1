@@ -19,6 +19,7 @@ export type AssetAnalysisInput = z.infer<typeof AssetAnalysisInputSchema>;
 export const AssetAnalysisOutputSchema = z.object({
   suggestion: z.enum(['RISE', 'FALL', 'HOLD']).describe("The suggested trading direction: RISE for an expected price increase, FALL for an expected decrease, or HOLD if the direction is unclear."),
   justification: z.string().describe("A brief, clear justification for the trading suggestion based on both technical analysis and user context."),
+  confidenceScore: z.number().min(0).max(100).describe("A score from 0 to 100 indicating the AI's confidence in its suggestion. High confidence (>70) implies a clear trend and low risk."),
   suggestedStake: z.number().optional().describe("An optional suggested stake amount, if the AI recommends a change for risk management."),
   suggestedDuration: z.number().optional().describe("An optional suggested duration, if the AI identifies a better timeframe."),
 });

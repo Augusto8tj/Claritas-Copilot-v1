@@ -31,6 +31,7 @@ Sua Análise deve seguir estes passos:
     - Analise os trades recentes. Se houver uma sequência de 3 ou mais perdas, o trader pode estar a operar emocionalmente.
 3.  **Formular a Sugestão:**
     - **Direção (suggestion):** Baseie-se na tendência dos dados de preço. Se a tendência não for clara, sugira 'HOLD'.
+    - **Nível de Confiança (confidenceScore):** Calcule um score de 0 a 100. Uma tendência clara e forte com baixo risco deve ter uma confiança alta (>70). Um mercado lateral, volátil ou uma aposta de alto risco devem resultar numa confiança baixa (<50).
     - **Stake Sugerido (suggestedStake):** Se a aposta atual for de alto risco, sugira um valor mais seguro (ex: 2% do saldo). Caso contrário, mantenha a aposta atual.
     - **Duração Sugerida (suggestedDuration):** Mantenha a duração atual, a menos que a análise dos dados sugira uma mudança iminente que justifique uma operação mais curta ou mais longa.
     - **Justificativa (justification):** Forneça uma justificativa clara, concisa (máximo 2 frases) que combine a análise técnica com a gestão de risco. Ex: "A tendência de curto prazo é de alta, mas sua aposta é arriscada. Sugiro reduzir para manter a gestão de risco." ou "Tendência de queda clara nos últimos minutos. A configuração atual parece boa."`,
