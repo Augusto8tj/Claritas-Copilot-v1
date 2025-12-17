@@ -132,9 +132,14 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
     };
     
     wsRef.current.onerror = (event) => {
-        console.error("WebSocket connection error:", event);
-        setError("Não foi possível conectar ao servidor de dados em tempo real.");
-        setLoading(false);
+        // This can sometimes fire with an empty event object in React's strict mode
+        // due to the rapid connect/disconnect cycle. We only log/set an error if
+        // there's a meaningful error message.
+        if ('message' in event) {
+            console.error("WebSocket connection error:", event);
+            setError("Não foi possível conectar ao servidor de dados em tempo real.");
+            setLoading(false);
+        }
     }
 
     wsRef.current.onclose = () => {
