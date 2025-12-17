@@ -1,8 +1,6 @@
 
+'use client';
 
-'use server';
-
-import WebSocket from 'ws';
 import type { AccountType } from '@/hooks/use-deriv-api';
 import type { MutableRefObject } from 'react';
 
@@ -42,28 +40,39 @@ export interface AssetGroup {
 const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
 
 // This is a generic function now, for simple, single-request API calls.
-function callDerivApi<T>(request: object): Promise<T> {
+function callDerivApi<T>(request: object, apiToken: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     
-    ws.on('open', () => {
-        ws.send(JSON.stringify(request));
-    });
+    ws.onopen = () => {
+        ws.send(JSON.stringify({ "authorize": apiToken }));
+    };
 
-    ws.on('message', (data: WebSocket.Data) => {
+    ws.onmessage = (data: WebSocket.Data) => {
       const response = JSON.parse(data.toString());
       if (response.error) {
         reject(new Error(response.error.message));
+        ws.close();
+        return;
+      }
+
+      if (response.msg_type === 'authorize') {
+          if(response.authorize) {
+            ws.send(JSON.stringify(request));
+          } else {
+             reject(new Error("Authorization failed."));
+             ws.close();
+          }
       } else {
         resolve(response as T);
+        ws.close();
       }
-      ws.close();
-    });
+    };
 
-    ws.on('error', (error) => {
+    ws.onerror = (error) => {
       reject(error);
       ws.close();
-    });
+    };
   });
 }
 
@@ -74,12 +83,19 @@ function callDerivApi<T>(request: object): Promise<T> {
 export async function getAvailableAssets(): Promise<AssetGroup[]> {
   console.log("[Deriv Service] Fetching available assets...");
   try {
-    const response: any = await callDerivApi(
-      {
-        "active_symbols": "full",
-        "product_type": "basic"
-      }
-    );
+    const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+    const response: any = await new Promise((resolve, reject) => {
+        ws.onopen = () => {
+            ws.send(JSON.stringify({ "active_symbols": "full", "product_type": "basic" }));
+        };
+        ws.onmessage = (data) => {
+            const res = JSON.parse(data.toString());
+            if (res.error) reject(res.error);
+            else resolve(res);
+            ws.close();
+        };
+        ws.onerror = (err) => reject(err);
+    });
 
     if (!response.active_symbols) {
       throw new Error("Invalid response from active_symbols");
@@ -119,8 +135,8 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
  * Fetches the user's account balance from the broker.
  * @param apiToken - The user's API token for authentication.
  */
-export async function getAccountBalance(apiToken: string): Promise<AccountBalance> {
-  console.log(`[Deriv Service] Fetching account balance...`);
+export async function getAccountBalance(apiToken: string, accountType: AccountType): Promise<AccountBalance> {
+  console.log(`[Deriv Service] Fetching account balance for ${accountType} account...`);
   
   if (!apiToken) {
     throw new Error("API token is required.");
@@ -136,14 +152,20 @@ export async function getAccountBalance(apiToken: string): Promise<AccountBalanc
           if (response.error) {
               reject(new Error(response.error.message));
           } else if (response.authorize) {
+              // After authorize, send balance request on the same connection
+              ws.send(JSON.stringify({ "balance": 1 }));
+          } else if (response.balance) {
               resolve({
-                  balance: response.authorize.balance,
-                  currency: response.authorize.currency,
+                  balance: response.balance.balance,
+                  currency: response.balance.currency,
               });
+              ws.close();
           }
-          ws.close();
       };
-      ws.onerror = (err) => reject(err);
+      ws.onerror = (err) => {
+        reject(err);
+        ws.close();
+      };
   });
 }
 
@@ -156,11 +178,19 @@ export async function getMarketData(symbol: string): Promise<MarketData> {
   console.log(`[Deriv Service] Fetching market data for: ${symbol}`);
   
   try {
-    const response: any = await callDerivApi(
-        {
-            "ticks": symbol
-        }
-    );
+     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+     const response: any = await new Promise((resolve, reject) => {
+         ws.onopen = () => {
+            ws.send(JSON.stringify({ "ticks": symbol }));
+         };
+         ws.onmessage = (data) => {
+            const res = JSON.parse(data.toString());
+            if (res.error) reject(res.error);
+            else resolve(res);
+            ws.close();
+         };
+         ws.onerror = (err) => reject(err);
+     });
 
     if (response.tick) {
         return {
