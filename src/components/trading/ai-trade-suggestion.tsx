@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -16,6 +17,8 @@ import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { cn } from "@/lib/utils";
 import { useDerivApi } from "@/hooks/use-deriv-api";
 import { getHistoricalData } from "@/services/deriv-api-service";
+import { Switch } from "../ui/switch";
+import { Label } from "../ui/label";
 
 interface AITradeSuggestionProps {
   symbol: string;
@@ -28,11 +31,12 @@ export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(null);
   const [timeSinceAnalysis, setTimeSinceAnalysis] = useState<string>("");
+  const [isAutoAnalysisOn, setIsAutoAnalysisOn] = useState(false);
   const { accountBalance, operationsLog } = useDerivApi();
   const analysisIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleAnalyze = async (isAuto: boolean = false) => {
-    if (isAnalyzing) return; // Prevent multiple analyses at once
+    if (isAnalyzing && isAuto) return; // Prevent multiple auto analyses piling up
 
     setIsAnalyzing(true);
     if (!isAuto) {
@@ -73,27 +77,29 @@ export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
     setIsAnalyzing(false);
   };
   
-  // Effect for automatic analysis every 60 seconds
+  // Effect for automatic analysis
   useEffect(() => {
-    // Clear any existing interval
+    // Clear any existing interval when settings change
     if (analysisIntervalRef.current) {
       clearInterval(analysisIntervalRef.current);
     }
-    
-    // Start analysis immediately when symbol changes
-    handleAnalyze(true);
-    
-    // Set up new interval
-    analysisIntervalRef.current = setInterval(() => handleAnalyze(true), 60000);
 
-    // Cleanup on component unmount or symbol change
+    if (isAutoAnalysisOn) {
+      // Start analysis immediately when toggled on or symbol changes
+      handleAnalyze(true);
+      
+      // Set up new interval
+      analysisIntervalRef.current = setInterval(() => handleAnalyze(true), 60000);
+    }
+
+    // Cleanup on component unmount or settings change
     return () => {
       if (analysisIntervalRef.current) {
         clearInterval(analysisIntervalRef.current);
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbol, accountBalance.balance]);
+  }, [symbol, isAutoAnalysisOn, accountBalance.balance]);
 
 
   // Effect to update the "time since analysis" string
@@ -126,13 +132,25 @@ export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Copiloto de Trade
-        </CardTitle>
-        <CardDescription>
-          Análise automática da IA baseada nos dados mais recentes do mercado.
-        </CardDescription>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle className="font-headline flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                Copiloto de Trade
+            </CardTitle>
+            <CardDescription>
+              Análise de IA baseada nos dados do mercado.
+            </CardDescription>
+          </div>
+           <div className="flex items-center space-x-2">
+              <Switch 
+                id="auto-analysis-switch" 
+                checked={isAutoAnalysisOn}
+                onCheckedChange={setIsAutoAnalysisOn}
+              />
+              <Label htmlFor="auto-analysis-switch">Auto</Label>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <Button
@@ -141,12 +159,12 @@ export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
           onClick={() => handleAnalyze(false)}
           disabled={isAnalyzing || !accountBalance.balance}
         >
-          {isAnalyzing ? (
+          {isAnalyzing && !isAutoAnalysisOn ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <Sparkles className="mr-2 h-4 w-4" />
           )}
-          {isAnalyzing ? 'Analisando...' : 'Atualizar Análise Agora'}
+          {isAnalyzing && !isAutoAnalysisOn ? 'Analisando...' : 'Analisar Agora'}
         </Button>
          {lastAnalysisTime && (
             <div className="flex items-center justify-center text-xs text-muted-foreground">
@@ -160,6 +178,12 @@ export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
                 <AlertTitle>Erro na Análise</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
             </Alert>
+        )}
+        {isAnalyzing && isAutoAnalysisOn && !analysisResult && !error && (
+            <div className="flex items-center justify-center text-muted-foreground p-4">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <span>Buscando primeira análise...</span>
+            </div>
         )}
         {analysisResult && (
           <Alert className={cn(
