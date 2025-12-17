@@ -153,6 +153,7 @@ export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
                         orientation="right"
                         stroke="hsl(var(--muted-foreground))"
                         fontSize={12}
+                        width={80}
                     />
                     <Tooltip
                         labelFormatter={(label) => new Date(label * 1000).toLocaleString('pt-BR')}
