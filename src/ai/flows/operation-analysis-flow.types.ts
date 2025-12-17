@@ -9,7 +9,7 @@ const OperationSchema = z.object({
   stake: z.number(),
   status: OperationStatusSchema,
   result: z.number().optional(),
-  timestamp: z.date(),
+  timestamp: z.string().datetime().describe("The ISO 8601 timestamp of when the operation was created."),
 });
 
 export const OperationAnalysisInputSchema = z.object({

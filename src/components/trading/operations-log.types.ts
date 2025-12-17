@@ -8,5 +8,5 @@ export interface Operation {
   stake: number;
   status: OperationStatus;
   result?: number; // Profit or loss amount
-  timestamp: Date;
+  timestamp: string; // Changed to string (ISO format)
 }

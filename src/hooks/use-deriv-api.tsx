@@ -270,7 +270,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
             direction: tradeDirection,
             stake: quantity,
             status: 'pending',
-            timestamp: new Date(),
+            timestamp: new Date().toISOString(),
         };
         setOperationsLog(prevLog => [newOperation, ...prevLog]);
 

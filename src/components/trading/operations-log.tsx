@@ -26,7 +26,7 @@ export function OperationsLog({ operations }: OperationsLogProps) {
     today.setHours(0, 0, 0, 0);
 
     return operations
-      .filter(op => op.status !== 'pending' && new Date(op.timestamp) >= today)
+      .filter(op => op.status !== 'pending' && new Date(op.timestamp).toDateString() === today.toDateString())
       .reduce((sum, op) => sum + (op.result || 0), 0);
   }, [operations]);
 
