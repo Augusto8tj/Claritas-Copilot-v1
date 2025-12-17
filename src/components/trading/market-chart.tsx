@@ -59,12 +59,17 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
 
 
 const Candlestick = (props: any) => {
-    const { x, y, width, height, low, high, open, close } = props;
+    const { x, y, width, height, payload } = props;
+    const { open, high, low, close } = payload;
+    
+    if ([x, y, width, height, open, high, low, close].some(val => val === undefined || isNaN(val))) {
+        return null; // Don't render if any value is invalid
+    }
+
     const isBullish = close > open;
     const color = isBullish ? 'hsl(var(--primary))' : 'hsl(var(--destructive))';
-    const bodyHeight = Math.abs(y - (isBullish ? y + (open-close) * (height/(high-low)) : y + (open-close) * (height/(high-low)) ));
+    const bodyHeight = Math.max(1, Math.abs(y - (isBullish ? y + (open-close) * (height/(high-low)) : y + (open-close) * (height/(high-low)) )));
     
-    // Correction for y position when it's a bearish candle
     const bodyY = isBullish ? y + (high-close)*(height/(high-low)) : y + (high-open)*(height/(high-low));
 
     return (
