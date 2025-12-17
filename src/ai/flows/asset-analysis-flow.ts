@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview An AI flow for analyzing a trading asset and suggesting a trade direction.
+ * @fileOverview An AI flow for analyzing a trading asset and suggesting a trade.
  * 
  * - getAssetAnalysis - The main flow function.
  */
@@ -14,15 +14,28 @@ import { AssetAnalysisInputSchema, AssetAnalysisOutputSchema, type AssetAnalysis
 // 1. Create the Prompt
 const analysisPrompt = ai.definePrompt({
   name: 'assetAnalysisPrompt',
-  input: { schema: z.object({ historicalDataJson: z.string(), symbol: z.string() }) },
+  input: { schema: AssetAnalysisInputSchema },
   output: { schema: AssetAnalysisOutputSchema },
-  system: `Você é um analista técnico de mercado financeiro. Sua tarefa é analisar os dados de preços recentes de um ativo e fornecer uma sugestão de negociação (RISE, FALL, ou HOLD) com uma justificativa curta e direta.
-- Identifique a tendência principal nos dados (alta, baixa ou lateral).
-- Baseie sua sugestão na tendência mais recente.
-- Se a tendência não for clara, sugira 'HOLD'.
-- A justificativa deve ter no máximo uma frase. Ex: "O ativo mostra uma clara tendência de alta nos últimos pontos de dados."`,
+  system: `Você é um copiloto de negociação e gestor de risco. Sua tarefa é analisar os dados do ativo, o contexto do trader e fornecer uma sugestão de negociação inteligente e segura.
+
+Contexto do Trader:
+- Saldo da Conta: {{{balance}}} {{{currency}}}
+- Aposta Atual (Stake): {{{stake}}} {{{currency}}}
+- Duração da Operação: {{{duration}}} {{{durationUnit}}}
+- Trades Recentes: {{{recentTrades}}}
+
+Sua Análise deve seguir estes passos:
+1.  **Análise Técnica:** Analise os dados de preço recentes para identificar a tendência principal (alta, baixa ou lateral). Esta é sua principal fonte para a direção.
+2.  **Gestão de Risco:**
+    - Compare o valor da aposta (stake) com o saldo total. Se a aposta for superior a 5% do saldo, considere-a de alto risco.
+    - Analise os trades recentes. Se houver uma sequência de 3 ou mais perdas, o trader pode estar a operar emocionalmente.
+3.  **Formular a Sugestão:**
+    - **Direção (suggestion):** Baseie-se na tendência dos dados de preço. Se a tendência não for clara, sugira 'HOLD'.
+    - **Stake Sugerido (suggestedStake):** Se a aposta atual for de alto risco, sugira um valor mais seguro (ex: 2% do saldo). Caso contrário, mantenha a aposta atual.
+    - **Duração Sugerida (suggestedDuration):** Mantenha a duração atual, a menos que a análise dos dados sugira uma mudança iminente que justifique uma operação mais curta ou mais longa.
+    - **Justificativa (justification):** Forneça uma justificativa clara, concisa (máximo 2 frases) que combine a análise técnica com a gestão de risco. Ex: "A tendência de curto prazo é de alta, mas sua aposta é arriscada. Sugiro reduzir para manter a gestão de risco." ou "Tendência de queda clara nos últimos minutos. A configuração atual parece boa."`,
   prompt: `
-Analise os seguintes dados de preço para o ativo {{{symbol}}} e forneça uma sugestão de negociação.
+Analise os seguintes dados de preço para o ativo {{{symbol}}} e forneça uma sugestão de negociação considerando o contexto do trader.
 
 Dados de Preço Recentes (JSON):
 \'\'\'json
@@ -39,20 +52,24 @@ const getAssetAnalysisFlow = ai.defineFlow(
     inputSchema: AssetAnalysisInputSchema,
     outputSchema: AssetAnalysisOutputSchema,
   },
-  async ({ symbol, historicalData }) => {
+  async (input) => {
     
-    // Convert historical data to a JSON string to pass to the prompt
-    const historicalDataJson = JSON.stringify(historicalData); 
+    const historicalDataJson = JSON.stringify(input.historicalData);
+    const recentTradesJson = JSON.stringify(input.recentTrades);
+
+    const promptInput = {
+      ...input,
+      historicalDataJson,
+      recentTrades: recentTradesJson,
+    };
 
     try {
-      // Use the fast model for this kind of analysis
-      const { output } = await analysisPrompt({ historicalDataJson, symbol }, { model: flash });
+      const { output } = await analysisPrompt(promptInput, { model: flash });
       if (!output) throw new Error("A análise com o modelo Flash retornou uma saída vazia.");
       return output;
     } catch (e) {
       console.warn(`[Flow] Model '${flash}' failed for asset analysis, trying '${pro}'. Error:`, e);
-      // Fallback to the more robust model if needed
-      const { output } = await analysisPrompt({ historicalDataJson, symbol }, { model: pro });
+      const { output } = await analysisPrompt(promptInput, { model: pro });
       if (!output) throw new Error("A IA não conseguiu analisar o ativo.");
       return output;
     }

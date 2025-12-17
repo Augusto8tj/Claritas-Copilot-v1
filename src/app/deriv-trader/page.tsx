@@ -16,8 +16,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { TradeResult } from "@/services/deriv-api-service";
 import { OperationsLog } from "@/components/trading/operations-log";
 import { AIAnalysisInterface } from "@/components/trading/ai-analysis-interface";
-import { AITradeSuggestion } from "@/components/trading/ai-trade-suggestion";
-
 
 export type TimePeriod = '1m' | '15m' | '30m' | '1h' | '8h' | '1d';
 export type ChartType = 'Area' | 'Candle';
@@ -169,7 +167,6 @@ export default function DerivTraderPage() {
                 onTradeSuccess={handleTradeSuccess}
                 isConnected={isConnected && !!activeToken}
             />
-            <AITradeSuggestion symbol={selectedAsset} />
             <AIAnalysisInterface />
         </div>
       </div>

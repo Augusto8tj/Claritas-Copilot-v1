@@ -2,23 +2,29 @@
 
 import { getHistoricalDataTool } from '@/ai/tools/trading-tools';
 import { getAssetAnalysis, type AssetAnalysisOutput } from '@/ai/flows/asset-analysis-flow';
+import { AssetAnalysisInputSchema, type AssetAnalysisInput } from '@/ai/flows/asset-analysis-flow.types';
 
 
-export async function getAssetAnalysisAction(symbol: string): Promise<{ success?: AssetAnalysisOutput; error?: string }> {
-  if (!symbol) {
-    return { error: "O símbolo do ativo é obrigatório." };
+export async function getAssetAnalysisAction(input: AssetAnalysisInput): Promise<{ success?: AssetAnalysisOutput; error?: string }> {
+  
+  const validatedInput = AssetAnalysisInputSchema.safeParse(input);
+  if (!validatedInput.success) {
+    return { error: `Dados de entrada inválidos: ${validatedInput.error.message}` };
   }
+  
+  const { symbol } = validatedInput.data;
 
   try {
-    // 1. Fetch recent historical data (last 120 ticks/points) using the existing tool
     const historicalData = await getHistoricalDataTool({ symbol, count: 120 });
     
     if (!historicalData || historicalData.length === 0) {
       return { error: `Não foi possível obter dados históricos para ${symbol}.` };
     }
 
-    // 2. Run the analysis flow with the fetched data
-    const result = await getAssetAnalysis({ symbol, historicalData });
+    const result = await getAssetAnalysis({ 
+        ...validatedInput.data,
+        historicalData 
+    });
     
     return { success: result };
   } catch (e: any) {

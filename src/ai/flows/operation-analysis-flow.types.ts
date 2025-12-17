@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const OperationStatusSchema = z.enum(['pending', 'won', 'lost']);
 
-const OperationSchema = z.object({
+export const OperationSchema = z.object({
   id: z.number(),
   asset: z.string(),
   direction: z.enum(['rise', 'fall']),
@@ -11,6 +11,7 @@ const OperationSchema = z.object({
   result: z.number().optional(),
   timestamp: z.string().datetime().describe("The ISO 8601 timestamp of when the operation was created."),
 });
+export type Operation = z.infer<typeof OperationSchema>;
 
 export const OperationAnalysisInputSchema = z.object({
   operations: z.array(OperationSchema).describe('An array of trading operations from the current session.'),

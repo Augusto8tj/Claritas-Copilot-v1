@@ -11,24 +11,41 @@ import {
 import { Button } from "../ui/button";
 import { Loader2, Sparkles, TrendingUp, TrendingDown, HelpCircle, AlertTriangle } from "lucide-react";
 import { getAssetAnalysisAction } from "@/app/actions/ai-actions";
-import type { AssetAnalysisOutput } from "@/ai/flows/asset-analysis-flow";
+import type { AssetAnalysisOutput } from "@/ai/flows/asset-analysis-flow.types";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { cn } from "@/lib/utils";
+import { useDerivApi } from "@/hooks/use-deriv-api";
+import { useFormContext, useWatch } from "react-hook-form"; // Assumindo que o formulário principal está num contexto
 
 interface AITradeSuggestionProps {
   symbol: string;
+  form: any; // Pass the form instance from the parent
 }
 
-export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
+export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
   const [analysisResult, setAnalysisResult] = useState<AssetAnalysisOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const { accountBalance, operationsLog } = useDerivApi();
 
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
     setAnalysisResult(null);
     setError(null);
-    const result = await getAssetAnalysisAction(symbol);
+    
+    const formData = form.getValues();
+
+    const result = await getAssetAnalysisAction({
+        symbol,
+        balance: accountBalance.balance || 0,
+        currency: accountBalance.currency || 'USD',
+        stake: formData.stake,
+        duration: formData.duration,
+        durationUnit: formData.duration_unit,
+        recentTrades: operationsLog.slice(0, 5), // Envia os últimos 5 trades
+        historicalData: [] // Dados históricos serão buscados na action
+    });
+
     if (result.success) {
         setAnalysisResult(result.success);
     } else {
@@ -51,7 +68,7 @@ export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
             Copiloto de Trade
         </CardTitle>
         <CardDescription>
-          Peça à IA uma sugestão de negociação para o ativo atual com base na análise técnica.
+          Peça à IA uma sugestão de negociação baseada em análise técnica e na sua gestão de risco.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -59,7 +76,7 @@ export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
           variant="outline"
           className="w-full"
           onClick={handleAnalyze}
-          disabled={isAnalyzing}
+          disabled={isAnalyzing || !accountBalance.balance}
         >
           {isAnalyzing ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -71,7 +88,7 @@ export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
         {isAnalyzing && (
             <div className="flex items-center justify-center text-muted-foreground p-4">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                <span>Analisando dados recentes...</span>
+                <span>Analisando...</span>
             </div>
         )}
         {error && (
@@ -98,6 +115,12 @@ export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
             <AlertDescription className="pt-2">
               {analysisResult.justification}
             </AlertDescription>
+             {(analysisResult.suggestedStake || analysisResult.suggestedDuration) && (
+                <div className="mt-3 pt-2 border-t border-current/30 text-xs">
+                    {analysisResult.suggestedStake && <p>Stake Sugerido: <strong>${analysisResult.suggestedStake.toFixed(2)}</strong></p>}
+                    {analysisResult.suggestedDuration && <p>Duração Sugerida: <strong>{analysisResult.suggestedDuration} ticks</strong></p>}
+                </div>
+            )}
           </Alert>
         )}
       </CardContent>
