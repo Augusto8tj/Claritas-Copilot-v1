@@ -90,12 +90,12 @@ const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined
 
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
-        case '1m': return 0; // For ticks stream, API expects 0 or undefined
-        case '15m': return 60 * 1; // 1-minute candles
-        case '30m': return 60 * 2; // 2-minute candles
-        case '1h': return 60 * 5; // 5-minute candles
-        case '8h': return 60 * 30; // 30-minute candles
-        case '1d': return 60 * 60; // 1-hour candles
+        case '1m': return 0;
+        case '15m': return 60; // 1-minute candles
+        case '30m': return 120; // 2-minute candles
+        case '1h': return 300; // 5-minute candles
+        case '8h': return 1800; // 30-minute candles
+        case '1d': return 3600; // 1-hour candles
         default: return 0;
     }
 }
