@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 import { useDerivApi, type AccountType, type ActiveContract } from "@/hooks/use-deriv-api";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { TradeResult } from "@/services/deriv-api-service";
+import { OperationsLog } from "@/components/trading/operations-log";
+
 
 export type TimePeriod = '1m' | '15m' | '30m' | '1h' | '8h' | '1d';
 export type ChartType = 'Area' | 'Candle';
@@ -23,7 +25,15 @@ export default function DerivTraderPage() {
   const [selectedAsset, setSelectedAsset] = useState("1HZ100V");
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('1m');
   const [chartType, setChartType] = useState<ChartType>('Area');
-  const { accountType, setAccountType, accountBalance, activeContracts, clearActiveContracts, addActiveContract } = useDerivApi();
+  const { 
+    accountType, 
+    setAccountType, 
+    accountBalance, 
+    activeContracts, 
+    clearActiveContracts, 
+    addActiveContract,
+    operationsLog
+  } = useDerivApi();
 
 
   useEffect(() => {
@@ -83,8 +93,8 @@ export default function DerivTraderPage() {
         Nossa plataforma integrada para negociação de Opções e Multiplicadores.
       </p>
       
-      <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
-        <div className="lg:col-span-5">
+       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-6 xl:col-span-7">
             <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
                 <div>
@@ -149,11 +159,16 @@ export default function DerivTraderPage() {
             </CardContent>
             </Card>
         </div>
-        <div className="lg:col-span-2">
-            <DerivTraderInterface 
-                symbol={selectedAsset}
-                onTradeSuccess={handleTradeSuccess}
-             />
+         <div className="lg:col-span-6 xl:col-span-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
+            <div className="md:col-span-1">
+                <OperationsLog operations={operationsLog} />
+            </div>
+            <div className="md:col-span-1">
+                 <DerivTraderInterface 
+                    symbol={selectedAsset}
+                    onTradeSuccess={handleTradeSuccess}
+                />
+            </div>
         </div>
       </div>
     </div>

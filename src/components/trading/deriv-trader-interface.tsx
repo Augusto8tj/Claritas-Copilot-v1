@@ -139,7 +139,7 @@ export function DerivTraderInterface({ symbol, onTradeSuccess }: DerivTraderInte
         return;
     }
 
-    const result = await executeTrade(contractType, data.stake, symbol);
+    const result = await executeTrade(contractType, data.stake, symbol, tradeDirection);
     setLoading(null);
 
     if (result.success) {

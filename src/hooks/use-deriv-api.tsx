@@ -5,6 +5,8 @@ import { createContext, useContext, useState, useEffect, type ReactNode, useCall
 import { requestProposal, buyContract } from '@/services/deriv-api-service';
 import type { TradeResult } from '@/services/deriv-api-service';
 import { useToast } from './use-toast';
+import type { Operation } from '@/components/trading/operations-log.types';
+
 
 const DERIV_DEMO_TOKEN_KEY = 'derivDemoApiToken';
 const DERIV_REAL_TOKEN_KEY = 'derivRealApiToken';
@@ -23,7 +25,10 @@ export interface ActiveContract {
   contractId: number;
   entryTick: number;
   entryTime: number;
+  status?: 'open' | 'won' | 'lost';
+  exit_tick?: number;
 }
+
 
 interface DerivApiContextType {
   ws: WebSocket | null;
@@ -36,11 +41,12 @@ interface DerivApiContextType {
   accountType: AccountType;
   accountBalance: AccountBalance;
   activeContracts: ActiveContract[];
+  operationsLog: Operation[];
   setAccountType: (type: AccountType) => void;
   setTokens: (tokens: { demo?: string; real?: string }) => void;
   disconnect: (type: AccountType) => void;
   refreshBalance: () => void;
-  executeTrade: (contractType: string, quantity: number, symbol: string) => Promise<TradeResult>;
+  executeTrade: (contractType: string, quantity: number, symbol: string, tradeDirection: 'rise' | 'fall') => Promise<TradeResult>;
   clearActiveContracts: () => void;
   addActiveContract: (contract: ActiveContract) => void;
 }
@@ -54,6 +60,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   const [accountBalance, setAccountBalance] = useState<AccountBalance>({ balance: null, currency: null, loading: true });
   const [isLoading, setIsLoading] = useState(true);
   const [activeContracts, setActiveContracts] = useState<ActiveContract[]>([]);
+  const [operationsLog, setOperationsLog] = useState<Operation[]>([]);
   const { toast } = useToast();
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -148,18 +155,24 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
           if (!contract || !contract.is_sold) return;
           
           const profit = parseFloat(contract.profit);
-          const profitLossMessage = profit >= 0 ? `Resultado: Lucro de ${contract.currency} ${profit.toFixed(2)}` : `Resultado: Prejuízo de ${contract.currency} ${Math.abs(profit).toFixed(2)}`;
+          const profitLossMessage = profit >= 0 ? `Lucro de ${contract.currency} ${profit.toFixed(2)}` : `Prejuízo de ${contract.currency} ${Math.abs(profit).toFixed(2)}`;
 
           toast({
               title: "Negociação Encerrada",
               description: `Contrato ${contract.contract_id}: ${profitLossMessage}`,
               variant: profit >= 0 ? "default" : "destructive",
           });
+
+           setOperationsLog(prevLog =>
+              prevLog.map(op =>
+                op.id === contract.contract_id
+                  ? { ...op, status: profit >= 0 ? 'won' : 'lost', result: profit }
+                  : op
+              )
+            );
           
-          // Remove from active contracts list
           setActiveContracts(prev => prev.filter(c => c.contractId !== contract.contract_id));
 
-          // Refresh balance
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({ "balance": 1 }));
           }
@@ -234,7 +247,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     wsRef.current.send(JSON.stringify({ "balance": 1 }));
   }, []);
 
-  const executeTrade = useCallback(async (contractType: string, quantity: number, symbol: string): Promise<TradeResult> => {
+ const executeTrade = useCallback(async (contractType: string, quantity: number, symbol: string, tradeDirection: 'rise' | 'fall'): Promise<TradeResult> => {
       if (!wsRef.current || !isConnected) {
         throw new Error("A conexão com a Deriv API não está ativa.");
       }
@@ -248,6 +261,17 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         
         const buyResponse = await buyContract(wsRef.current, proposal.id, proposal.ask_price, promisesRef);
         const buyResult = buyResponse.buy;
+        
+        const newOperation: Operation = {
+            id: buyResult.contract_id,
+            asset: symbol,
+            direction: tradeDirection,
+            stake: quantity,
+            status: 'pending',
+            timestamp: new Date(),
+        };
+        setOperationsLog(prevLog => [newOperation, ...prevLog]);
+
 
         return {
           success: true,
@@ -283,6 +307,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     disconnect,
     accountBalance,
     activeContracts,
+    operationsLog,
     refreshBalance,
     executeTrade,
     clearActiveContracts,

@@ -1,0 +1,80 @@
+
+"use client";
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
+import type { Operation } from "./operations-log.types";
+import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
+
+interface OperationsLogProps {
+  operations: Operation[];
+}
+
+export function OperationsLog({ operations }: OperationsLogProps) {
+  return (
+    <Card className="h-full flex flex-col">
+      <CardHeader>
+        <CardTitle className="font-headline">Operações</CardTitle>
+        <CardDescription>
+          Histórico e status das suas negociações.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex-1 p-0">
+        <ScrollArea className="h-[280px] sm:h-[320px] lg:h-[calc(100%-1rem)]">
+          <div className="p-6 pt-0 space-y-4">
+            {operations.length === 0 ? (
+              <div className="text-center text-muted-foreground pt-10">
+                <p>Nenhuma operação recente.</p>
+              </div>
+            ) : (
+              operations.map((op) => (
+                <div key={op.id} className="flex items-center">
+                  <div className="flex-1 space-y-1">
+                    <p className="text-sm font-medium leading-none">
+                      {op.asset} - {op.direction === "rise" ? "Rise" : "Fall"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Entrada: ${op.stake.toFixed(2)}
+                    </p>
+                  </div>
+                  <div
+                    className={cn(
+                      "flex items-center gap-1.5 text-sm font-semibold",
+                      op.status === "pending" && "text-muted-foreground",
+                      op.status === "won" && "text-green-600",
+                      op.status === "lost" && "text-destructive"
+                    )}
+                  >
+                    {op.status === "pending" ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span>Em Andamento</span>
+                      </>
+                    ) : op.status === "won" ? (
+                      <>
+                        <ArrowUp className="h-4 w-4" />
+                        <span>+${op.result?.toFixed(2)}</span>
+                      </>
+                    ) : (
+                      <>
+                        <ArrowDown className="h-4 w-4" />
+                        <span>-${op.stake.toFixed(2)}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
+  );
+}
