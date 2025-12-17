@@ -34,12 +34,20 @@ export default function DerivTraderPage() {
     addActiveContract,
     operationsLog,
     isConnected,
-    activeToken
+    activeToken,
+    subscribeToSymbol, // Get the new function from the hook
   } = useDerivApi();
 
+  // Effect to subscribe to symbol changes
+  useEffect(() => {
+    if (isConnected && selectedAsset) {
+      subscribeToSymbol(selectedAsset, timePeriod, chartType);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, selectedAsset, timePeriod, chartType]);
 
   useEffect(() => {
-    // Se o período for 1m, força o tipo de gráfico para Area
+    // If time period is '1m', force chart type to 'Area'
     if (timePeriod === '1m' && chartType === 'Candle') {
       setChartType('Area');
     }
@@ -71,7 +79,7 @@ export default function DerivTraderPage() {
             selectedAsset={selectedAsset} 
             onAssetChange={(asset) => {
               setSelectedAsset(asset);
-              clearActiveContracts(); // Limpa as linhas ao trocar de ativo
+              clearActiveContracts(); // Clear lines when changing asset
             }} 
             />
         </div>
@@ -153,9 +161,6 @@ export default function DerivTraderPage() {
             </CardHeader>
             <CardContent>
                 <MarketChart 
-                    symbol={selectedAsset} 
-                    timePeriod={timePeriod} 
-                    chartType={chartType} 
                     activeContracts={activeContracts}
                 />
             </CardContent>
@@ -172,7 +177,7 @@ export default function DerivTraderPage() {
                 onTradeSuccess={handleTradeSuccess}
                 isConnected={isConnected && !!activeToken}
             />
-            <AIAnalysisInterface />
+            <AIAnalysisInterface symbol={selectedAsset} />
         </div>
       </div>
     </div>

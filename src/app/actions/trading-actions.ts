@@ -71,6 +71,9 @@ export async function analyzeOperationsAction(data: OperationAnalysisInput): Pro
     if (!validatedData.success) {
         return { error: "Dados de operações inválidos." };
     }
+     if (validatedData.data.operations.length === 0) {
+        return { error: "Não há operações para analisar." };
+    }
 
     try {
         const result = await analyzeOperations(validatedData.data);

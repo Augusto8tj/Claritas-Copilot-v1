@@ -14,7 +14,11 @@ import { Loader2, Sparkles, BrainCircuit } from "lucide-react";
 import { useDerivApi } from "@/hooks/use-deriv-api";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 
-export function AIAnalysisInterface() {
+interface AIAnalysisInterfaceProps {
+    symbol: string;
+}
+
+export function AIAnalysisInterface({ symbol }: AIAnalysisInterfaceProps) {
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { getAnalysis, operationsLog } = useDerivApi();
@@ -22,7 +26,7 @@ export function AIAnalysisInterface() {
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
     setAnalysisResult(null);
-    const result = await getAnalysis();
+    const result = await getAnalysis(symbol);
     setAnalysisResult(result);
     setIsAnalyzing(false);
   };
