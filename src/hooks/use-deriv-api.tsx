@@ -90,12 +90,12 @@ const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined
 
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
-        case '1m': return 0;
-        case '15m': return 60; // 1-minute candles
-        case '30m': return 120; // 2-minute candles
-        case '1h': return 300; // 5-minute candles
-        case '8h': return 1800; // 30-minute candles
-        case '1d': return 3600; // 1-hour candles
+        case '1m': return 0; // Ticks
+        case '15m': return 60; 
+        case '30m': return 120;
+        case '1h': return 300;
+        case '8h': return 1800;
+        case '1d': return 3600;
         default: return 0;
     }
 }
@@ -207,10 +207,18 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       const response = JSON.parse(event.data);
       
       if (response.error) {
-        // Ignore "AlreadySubscribed" error as it's handled by our logic
-        if (response.error.code !== 'AlreadySubscribed') {
-           console.error("[Deriv WS Provider] Error received:", response.error.message);
+        if (response.error.code === 'AlreadySubscribed') {
+            const subId = response.subscription.id;
+            console.warn(`[Deriv WS Provider] Already subscribed to ${subId}. Forgetting and re-subscribing.`);
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ "forget": subId }));
+                // The main subscription logic will handle the new subscription
+            }
+            return;
         }
+
+        console.error("[Deriv WS Provider] Error received:", response.error.message);
+        
         const reqId = response.req_id;
         if (reqId && promisesRef.current.has(String(reqId))) {
             promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
@@ -221,7 +229,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         } else if (response.msg_type === 'ticks_history' || response.msg_type === 'candles') {
              setChartError(response.error.message);
              setIsChartLoading(false);
-        } else if (response.error.code !== 'AlreadySubscribed') {
+        } else {
            console.error("[Deriv WS Provider] Unhandled error:", response.error.message);
         }
         return;
@@ -322,6 +330,9 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
           }));
           setChartData(historyData);
           setIsChartLoading(false);
+      } else if (response.msg_type === 'forget') {
+        // Successfully forgot a subscription. This is good.
+        console.log(`[Deriv WS Provider] Successfully forgot subscription ID.`);
       }
     };
 
@@ -338,8 +349,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         return;
     }
     
-    // If we are already subscribed to this symbol and period, do nothing.
-    if (activeSymbolRef.current === symbol && newTimePeriod === timePeriod && newChartType === chartType && chartData.length > 0) {
+    if (activeSymbolRef.current === symbol && newTimePeriod === timePeriod && newChartType === chartType) {
         return;
     }
 
@@ -373,13 +383,11 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     activeSymbolRef.current = symbol;
 
     const requestAndSubscribe = () => {
-      // For '1m', always subscribe to ticks.
       if (newTimePeriod === '1m') {
           console.log(`[Deriv WS Provider] Subscribing to ticks for ${symbol}`);
           setPriceTicks([]);
           ws.send(JSON.stringify({ "ticks_history": symbol, "end": "latest", "count": 200, "style": "ticks", "subscribe": 1 }));
       } else {
-          // For any other period, subscribe to candles.
           const granularity = getGranularityForTimePeriod(newTimePeriod);
           console.log(`[Deriv WS Provider] Subscribing to candles for ${symbol} with granularity ${granularity}`);
           ws.send(JSON.stringify({
@@ -395,7 +403,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     
     requestAndSubscribe();
     
-}, [timePeriod, chartType, chartData]);
+}, [timePeriod, chartType]);
 
 
   const setAccountType = (type: AccountType) => {
@@ -462,7 +470,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
             contractType, 
             quantity, 
             symbol,
-            duration: duration,
+            duration,
             duration_unit: durationUnit,
         }, promisesRef);
 
