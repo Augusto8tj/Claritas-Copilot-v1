@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from "react";
@@ -7,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { MarketChart } from "@/components/trading/market-chart";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Button } from "@/components/ui/button";
-import { AreaChart, Trash2 } from "lucide-react";
+import { AreaChart, Trash2, Plus, Minus } from "lucide-react";
 import { CandlestickChartIcon } from "@/components/icons";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,8 @@ import { AutoTraderInterface } from "@/components/trading/auto-trader-interface"
 
 export type TimePeriod = '1m' | '15m' | '30m' | '1h' | '8h' | '1d';
 export type ChartType = 'Area' | 'Candle';
+
+const timePeriods: TimePeriod[] = ['1m', '15m', '30m', '1h', '8h', '1d'];
 
 export default function DerivTraderPage() {
   const [selectedAsset, setSelectedAsset] = useState("1HZ100V");
@@ -35,23 +38,35 @@ export default function DerivTraderPage() {
     operationsLog,
     isConnected,
     activeToken,
-    subscribeToSymbol, // Get the new function from the hook
+    subscribeToSymbol,
   } = useDerivApi();
 
-  // Effect to subscribe to symbol changes
   useEffect(() => {
     if (isConnected && selectedAsset) {
       subscribeToSymbol(selectedAsset, timePeriod, chartType);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected, selectedAsset, timePeriod, chartType]);
+  }, [isConnected, selectedAsset, timePeriod, chartType, subscribeToSymbol]);
 
   useEffect(() => {
-    // If time period is '1m', force chart type to 'Area'
     if (timePeriod === '1m' && chartType === 'Candle') {
       setChartType('Area');
     }
   }, [timePeriod, chartType]);
+
+  const handleZoom = (direction: 'in' | 'out') => {
+    const currentIndex = timePeriods.indexOf(timePeriod);
+    let nextIndex;
+
+    if (direction === 'in') {
+      nextIndex = Math.max(0, currentIndex - 1);
+    } else { // 'out'
+      nextIndex = Math.min(timePeriods.length - 1, currentIndex + 1);
+    }
+
+    if (nextIndex !== currentIndex) {
+      setTimePeriod(timePeriods[nextIndex]);
+    }
+  };
 
   const chartTypes: { label: ChartType, icon: React.ReactNode, disabled: boolean }[] = [
     { label: 'Area', icon: <AreaChart className="w-8 h-8 mx-auto" />, disabled: false },
@@ -79,7 +94,7 @@ export default function DerivTraderPage() {
             selectedAsset={selectedAsset} 
             onAssetChange={(asset) => {
               setSelectedAsset(asset);
-              clearActiveContracts(); // Clear lines when changing asset
+              clearActiveContracts();
             }} 
             />
         </div>
@@ -149,14 +164,40 @@ export default function DerivTraderPage() {
                             </div>
                         </PopoverContent>
                     </Popover>
-                    <ToggleGroup type="single" value={timePeriod} onValueChange={(value: TimePeriod) => value && setTimePeriod(value)} defaultValue="1m" aria-label="Período do Gráfico">
-                        <ToggleGroupItem value="1m" aria-label="Ver último minuto">1M</ToggleGroupItem>
-                        <ToggleGroupItem value="15m" aria-label="Ver últimos 15 minutos">15M</ToggleGroupItem>
-                        <ToggleGroupItem value="30m" aria-label="Ver últimos 30 minutos">30M</ToggleGroupItem>
-                        <ToggleGroupItem value="1h" aria-label="Ver última hora">1H</ToggleGroupItem>
-                        <ToggleGroupItem value="8h" aria-label="Ver últimas 8 horas">8H</ToggleGroupItem>
-                        <ToggleGroupItem value="1d" aria-label="Ver último dia">1D</ToggleGroupItem>
-                    </ToggleGroup>
+                    <div className="flex items-center rounded-md border bg-background">
+                         <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleZoom('out')}
+                            disabled={timePeriod === timePeriods[timePeriods.length - 1]}
+                            className="h-9 w-9 rounded-r-none border-r"
+                         >
+                            <Minus className="h-4 w-4" />
+                            <span className="sr-only">Zoom Out</span>
+                        </Button>
+                        <ToggleGroup type="single" value={timePeriod} onValueChange={(value: TimePeriod) => value && setTimePeriod(value)} aria-label="Período do Gráfico" className="gap-0">
+                            {timePeriods.map(period => (
+                                <ToggleGroupItem 
+                                    key={period}
+                                    value={period} 
+                                    aria-label={`Ver ${period}`}
+                                    className="rounded-none data-[state=on]:bg-accent/50"
+                                >
+                                    {period.toUpperCase()}
+                                </ToggleGroupItem>
+                            ))}
+                        </ToggleGroup>
+                         <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleZoom('in')}
+                            disabled={timePeriod === timePeriods[0]}
+                            className="h-9 w-9 rounded-l-none border-l"
+                        >
+                            <Plus className="h-4 w-4" />
+                            <span className="sr-only">Zoom In</span>
+                        </Button>
+                    </div>
                 </div>
             </CardHeader>
             <CardContent>
