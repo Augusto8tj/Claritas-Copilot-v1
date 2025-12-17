@@ -61,23 +61,29 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
 const Candlestick = (props: any) => {
     const { x, y, width, height, payload } = props;
     const { open, high, low, close } = payload;
-    
+
     if ([x, y, width, height, open, high, low, close].some(val => val === undefined || isNaN(val))) {
         return null; // Don't render if any value is invalid
     }
 
     const isBullish = close > open;
-    const color = isBullish ? 'hsl(var(--primary))' : 'hsl(var(--destructive))';
-
-    const bodyHeight = Math.abs(y - (y + height * (close - open) / (high - low)))
-    const bodyY = isBullish ? y + (height * (high - close) / (high-low)) : y + (height * (high - open) / (high-low));
+    const color = isBullish ? 'hsl(142.1 76.2% 41.2%)' : 'hsl(0 84.2% 60.2%)'; // Green for bullish, Red for bearish
     
+    // Y-coordinates on the screen
+    const yHigh = y;
+    const yLow = y + height;
+    
+    // The main wick line
+    const wick = <line x1={x + width / 2} y1={yHigh} x2={x + width / 2} y2={yLow} stroke={color} strokeWidth="1" />;
+
+    // Calculate body position
+    const bodyY = isBullish ? y + (height * (high - close) / (high - low)) : y + (height * (high - open) / (high - low));
+    const bodyHeight = Math.abs( (height * (open - close)) / (high - low) );
+
     return (
         <g>
-            {/* Wick */}
-            <line x1={x + width / 2} y1={y} x2={x + width / 2} y2={y + height} stroke={color} strokeWidth="1" />
-            {/* Body */}
-            <rect x={x} y={bodyY} width={width} height={bodyHeight} fill={color} />
+            {wick}
+            <rect x={x} y={bodyY} width={width} height={Math.max(bodyHeight, 1)} fill={color} />
         </g>
     );
 };
@@ -226,16 +232,16 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
      if (chartType === 'Candle' && data.length > 0 && 'open' in data[0]) {
         const candleData = data as CandleData[];
         const yDomain = [
-            Math.min(...candleData.map(d => d.low)) - 0.0005,
-            Math.max(...candleData.map(d => d.high)) + 0.0005
+            Math.min(...candleData.map(d => d.low)) * 0.999,
+            Math.max(...candleData.map(d => d.high)) * 1.001,
         ];
         return (
             <ResponsiveContainer width="100%" height="100%">
-                 <BarChart data={candleData}>
+                 <BarChart data={candleData} barGap={-3} barCategoryGap="30%">
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis 
                         dataKey="epoch" 
-                        tickFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleTimeString('pt-BR')} 
+                        tickFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit'})} 
                         type="number"
                         domain={['dataMin', 'dataMax']}
                         stroke="hsl(var(--muted-foreground))"
@@ -251,13 +257,16 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
                     <Tooltip
                         labelFormatter={(label) => new Date(label * 1000).toLocaleString('pt-BR')}
                         formatter={(value, name, props) => {
-                            const { open, high, low, close } = props.payload;
-                            return [
-                                `Abertura: ${open}`,
-                                `Máxima: ${high}`,
-                                `Mínima: ${low}`,
-                                `Fechamento: ${close}`
-                            ];
+                            if (props.payload) {
+                                const { open, high, low, close } = props.payload;
+                                return [
+                                    `Abertura: ${open.toFixed(4)}`,
+                                    `Máxima: ${high.toFixed(4)}`,
+                                    `Mínima: ${low.toFixed(4)}`,
+                                    `Fechamento: ${close.toFixed(4)}`
+                                ];
+                            }
+                            return [value];
                         }}
                          contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
                     />
@@ -385,3 +394,5 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
     </div>
   );
 }
+
+    
