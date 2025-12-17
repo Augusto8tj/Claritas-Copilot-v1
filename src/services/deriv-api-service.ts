@@ -215,7 +215,7 @@ export async function getMarketData(symbol: string): Promise<MarketData> {
   }
 }
 
-type ProposalRequest = {
+export type ProposalRequest = {
     contractType: string;
     quantity: number;
     symbol: string;

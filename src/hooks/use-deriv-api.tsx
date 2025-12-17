@@ -90,13 +90,13 @@ const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined
 
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
-        case '1m': return 0;
-        case '15m': return 60;
-        case '30m': return 120;
-        case '1h': return 300;
-        case '8h': return 1800;
-        case '1d': return 3600;
-        default: return 0;
+        case '1m': return 0; // This is for ticks, so granularity is not applicable in the same way, but API expects a value.
+        case '15m': return 60 * 15;
+        case '30m': return 60 * 30;
+        case '1h': return 60 * 60;
+        case '8h': return 60 * 60 * 8;
+        case '1d': return 60 * 60 * 24;
+        default: return 60; // Default to 1-minute candles
     }
 }
 
@@ -464,7 +464,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
             contractType, 
             quantity, 
             symbol,
-            duration,
+            duration: duration,
             duration_unit: durationUnit,
         }, promisesRef);
 
