@@ -52,11 +52,9 @@ export default function DerivTraderPage() {
   }, [isConnected, selectedAsset, timePeriod, chartType, subscribeToSymbol]);
 
   useEffect(() => {
-    if (timePeriod !== '1m' && chartType === 'Area') {
-        // Area chart is only for 1m (ticks), switch to candle for others
-        setChartType('Candle');
-    } else if (timePeriod === '1m' && chartType === 'Candle') {
-        // Candle chart is not available for 1m, switch to Area
+    // If user selects a period other than 1m, and the current chart is Area, it's fine.
+    // But if they select 1m, the chart MUST be Area, as there's no candle data for ticks.
+    if (timePeriod === '1m' && chartType !== 'Area') {
         setChartType('Area');
     }
   }, [timePeriod, chartType, setChartType]);

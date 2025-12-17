@@ -90,13 +90,13 @@ const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined
 
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
-        case '1m': return 0; // This is for ticks, so granularity is not applicable in the same way, but API expects a value.
-        case '15m': return 60 * 1;
-        case '30m': return 60 * 5;
-        case '1h': return 60 * 15;
-        case '8h': return 60 * 60;
-        case '1d': return 60 * 60 * 24;
-        default: return 0; // Default to ticks
+        case '1m': return 0; // For ticks stream, API expects 0 or undefined
+        case '15m': return 60 * 1; // 1-minute candles
+        case '30m': return 60 * 2; // 2-minute candles
+        case '1h': return 60 * 5; // 5-minute candles
+        case '8h': return 60 * 30; // 30-minute candles
+        case '1d': return 60 * 60; // 1-hour candles
+        default: return 0;
     }
 }
 
@@ -280,9 +280,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         }
         const newTick = { epoch: tick.epoch, price: tick.quote };
         addPriceTick(newTick);
-        if(chartType === 'Area') {
-            setChartData(prev => [...prev.slice(-199), newTick]);
-        }
+        setChartData(prev => [...prev.slice(-199), newTick]);
       } else if (response.msg_type === 'ohlc') {
          const candle = response.ohlc;
          if (candle.subscription) {
@@ -331,7 +329,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     return () => {
       // Don't add removeEventListener here as it's managed once per connection
     };
-  }, [activeToken, isLoading, isConnected, toast, chartType]);
+  }, [activeToken, isLoading, isConnected, toast]);
 
  const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {
     const ws = wsRef.current;
@@ -339,49 +337,49 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         console.warn("[Deriv WS Provider] Cannot subscribe, WS not open or ready.");
         return;
     }
+    
+    // If we are already subscribed to this symbol and period, do nothing.
+    if (activeSymbolRef.current === symbol && newTimePeriod === timePeriod && newChartType === chartType && chartData.length > 0) {
+        return;
+    }
 
     setChartData([]);
     setIsChartLoading(true);
     setChartError(null);
 
-    // Encapsulate forget request in a promise
     const forgetPreviousSubscription = () => {
         if (activeSubscriptionId.current) {
-            console.log(`[Deriv WS Provider] Forgetting old subscription: ${activeSubscriptionId.current}`);
+            const subId = activeSubscriptionId.current;
+            activeSubscriptionId.current = null;
+            console.log(`[Deriv WS Provider] Forgetting old subscription: ${subId}`);
             const req_id = Date.now();
             return new Promise((resolve, reject) => {
                 promisesRef.current.set(String(req_id), { resolve, reject });
-                ws.send(JSON.stringify({ "forget": activeSubscriptionId.current, "req_id": req_id }));
-                
-                // Timeout to prevent getting stuck
+                ws.send(JSON.stringify({ "forget": subId, "req_id": req_id }));
                 setTimeout(() => {
                     if (promisesRef.current.has(String(req_id))) {
                         console.warn("Forget request timed out.");
                         promisesRef.current.delete(String(req_id));
-                        resolve(null); // Resolve anyway to continue the flow
+                        resolve(null);
                     }
-                }, 3000);
+                }, 2000);
             });
         }
         return Promise.resolve(null);
     };
 
-    try {
-        await forgetPreviousSubscription();
-        activeSubscriptionId.current = null;
-        console.log("[Deriv WS Provider] Old subscription forgotten. Subscribing to new symbol...");
-    } catch (e) {
-        console.warn("[Deriv WS Provider] Could not forget previous subscription, proceeding anyway.", e);
-    }
+    await forgetPreviousSubscription();
     
     activeSymbolRef.current = symbol;
 
     const requestAndSubscribe = () => {
-      if (newChartType === 'Area') {
+      // For '1m', always subscribe to ticks.
+      if (newTimePeriod === '1m') {
           console.log(`[Deriv WS Provider] Subscribing to ticks for ${symbol}`);
           setPriceTicks([]);
           ws.send(JSON.stringify({ "ticks_history": symbol, "end": "latest", "count": 200, "style": "ticks", "subscribe": 1 }));
       } else {
+          // For any other period, subscribe to candles.
           const granularity = getGranularityForTimePeriod(newTimePeriod);
           console.log(`[Deriv WS Provider] Subscribing to candles for ${symbol} with granularity ${granularity}`);
           ws.send(JSON.stringify({
@@ -397,7 +395,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     
     requestAndSubscribe();
     
-}, []);
+}, [timePeriod, chartType, chartData]);
 
 
   const setAccountType = (type: AccountType) => {
