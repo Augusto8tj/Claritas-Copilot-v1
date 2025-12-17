@@ -5,6 +5,7 @@ import * as React from "react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Label } from "recharts";
 import type { TimePeriod, ChartType } from "@/app/deriv-trader/page";
+import { useDerivApi } from "@/hooks/use-deriv-api";
 import { Button } from "@/components/ui/button";
 import { Plus, Minus, Loader2 } from "lucide-react";
 
@@ -21,18 +22,10 @@ type CandleData = {
   close: number;
 };
 
-export type ActiveContract = {
-  contractId: number;
-  entryTick: number;
-  entryTime: number;
-  status: 'open' | 'won' | 'lost';
-};
-
 interface MarketChartProps {
   symbol: string;
   timePeriod: TimePeriod;
   chartType: ChartType;
-  activeContracts: ActiveContract[];
 }
 
 const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
@@ -50,12 +43,13 @@ const getHistoryDurationForTimePeriod = (timePeriod: TimePeriod): number => {
 }
 
 
-export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: MarketChartProps) {
+export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps) {
   const [data, setData] = useState<TickData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [duration, setDuration] = useState(getHistoryDurationForTimePeriod(timePeriod));
   const wsRef = useRef<WebSocket | null>(null);
+  const { activeContracts } = useDerivApi();
 
   const fetchData = useCallback((currentDuration: number) => {
     if (!symbol || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -65,7 +59,6 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
     setLoading(true);
     setError(null);
     
-    // Unsubscribe from previous streams to avoid multiple streams
     wsRef.current.send(JSON.stringify({ "forget_all": "ticks" }));
     wsRef.current.send(JSON.stringify({ "forget_all": "candles" }));
 
@@ -81,7 +74,6 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
     );
   }, [symbol, chartType]);
 
-  // Effect for WebSocket connection management
   useEffect(() => {
     if (!symbol) return;
 
@@ -109,7 +101,6 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
         }));
         setData(historyData);
         setLoading(false);
-        // Subscribe to live ticks only if we are in the '1m' view
         if (timePeriod === '1m' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
           wsRef.current.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
         }
@@ -130,18 +121,14 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
         const tick = response.tick;
         const newTickData: TickData = { epoch: tick.epoch, price: tick.quote };
         setData(currentData => {
-            // Add new tick and remove the oldest one to keep the window size
             const newData = [...currentData.slice(1), newTickData];
             return newData;
         });
       }
     };
     
-    wsRef.current.onerror = (event) => {
-        // This can sometimes fire with an empty event object in React's strict mode
-        // due to the rapid connect/disconnect cycle. We only log/set an error if
-        // there's a meaningful error message.
-        if (event && 'message' in event) {
+    wsRef.current.onerror = (event: Event) => {
+        if ('message' in event) {
             console.error("WebSocket connection error:", event);
             setError("Não foi possível conectar ao servidor de dados em tempo real.");
             setLoading(false);
@@ -152,7 +139,6 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
         console.log("[Deriv WS] A conexão foi fechada.");
     }
 
-    // Cleanup function
     return () => {
       if (wsRef.current) {
          try {
@@ -170,7 +156,6 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
   }, [symbol, duration, fetchData, timePeriod]);
 
 
-  // Effect for handling changes in timePeriod
   useEffect(() => {
     setDuration(getHistoryDurationForTimePeriod(timePeriod));
   }, [timePeriod]);
@@ -178,8 +163,8 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
   const handleZoom = (factor: number) => {
     setDuration(currentDuration => {
       const newDuration = Math.round(currentDuration * factor);
-      const minDuration = 60; // 1 minute
-      const maxDuration = 90 * 24 * 60 * 60; // 90 days
+      const minDuration = 60;
+      const maxDuration = 90 * 24 * 60 * 60;
       
       if (newDuration < minDuration) return minDuration;
       if (newDuration > maxDuration) return maxDuration;
@@ -187,6 +172,15 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
       return newDuration;
     });
   };
+
+  const getStrokeColor = (status: 'open' | 'won' | 'lost') => {
+    switch (status) {
+        case 'won': return '#22c55e'; // green-500
+        case 'lost': return '#ef4444'; // red-500
+        case 'open':
+        default: return 'hsl(var(--accent))';
+    }
+  }
 
 
   if (loading && data.length === 0) {
@@ -248,10 +242,10 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
             labelFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleString('pt-BR')}
             labelStyle={{ color: 'hsl(var(--foreground))' }}
             contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
-            animationDuration={0} // Disable animation for smoother live updates
+            animationDuration={0}
           />
           <Line
-            isAnimationActive={false} // Important for performance with live data
+            isAnimationActive={false}
             type="monotone"
             dataKey="price"
             stroke="hsl(var(--primary))"
@@ -262,14 +256,16 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
             <ReferenceLine
               key={contract.contractId}
               y={contract.entryTick}
-              stroke="hsl(var(--accent))"
-              strokeDasharray="3 3"
+              stroke={getStrokeColor(contract.status)}
+              strokeDasharray={contract.status === 'open' ? "3 3" : "0"}
               strokeWidth={2}
             >
               <Label 
-                value={`Entrada: ${contract.entryTick.toFixed(2)}`}
+                value={contract.status === 'open' ? `Entrada: ${contract.entryTick.toFixed(2)}` : contract.status === 'won' ? `Ganho` : 'Perda'}
                 position="right"
-                style={{ fill: 'hsl(var(--accent-foreground))', fontSize: 12, background: 'hsl(var(--accent))', padding: '2px 4px', borderRadius: '3px' }} 
+                fill={getStrokeColor(contract.status)}
+                fontSize={12}
+                className="font-semibold"
               />
             </ReferenceLine>
           ))}

@@ -28,7 +28,6 @@ import { useDerivApi } from "@/hooks/use-deriv-api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
-import type { TradeResult } from "@/services/deriv-api-service";
 
 type DurationUnit = 't' | 's' | 'm' | 'h' | 'd';
 type TradeType = 'rise_fall' | 'higher_lower' | 'touch_no_touch';
@@ -50,7 +49,6 @@ type RiseFallFormValues = z.infer<typeof riseFallSchema>;
 
 interface DerivTraderInterfaceProps {
   symbol: string;
-  onTradeSuccess: (result: TradeResult) => void;
 }
 
 const durationUnitLabels: Record<DurationUnit, string> = {
@@ -75,10 +73,10 @@ const tradeTypeLabels: Record<TradeType, string> = {
   touch_no_touch: "Touch/No Touch",
 };
 
-export function DerivTraderInterface({ symbol, onTradeSuccess }: DerivTraderInterfaceProps) {
+export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<"rise" | "fall" | null>(null);
-  const { refreshBalance, executeTrade, isConnected, isConnecting } = useDerivApi();
+  const { executeTrade, isConnected, isConnecting } = useDerivApi();
   const [tradeType, setTradeType] = useState<TradeType>('rise_fall');
 
   const form = useForm<RiseFallFormValues>({
@@ -140,8 +138,7 @@ export function DerivTraderInterface({ symbol, onTradeSuccess }: DerivTraderInte
         title: "Ordem Executada!",
         description: result.message,
       });
-      onTradeSuccess(result);
-      setTimeout(refreshBalance, 2000); 
+      // The state update is handled by the provider now
     } else {
       toast({
         variant: "destructive",

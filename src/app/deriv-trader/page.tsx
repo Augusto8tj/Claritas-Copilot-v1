@@ -2,17 +2,17 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DerivTraderInterface } from "@/components/trading/deriv-trader-interface";
 import { AssetSelector } from "@/components/trading/asset-selector";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { MarketChart, type ActiveContract } from "@/components/trading/market-chart";
+import { MarketChart } from "@/components/trading/market-chart";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Button } from "@/components/ui/button";
-import { AreaChart, CandlestickChart as CandlestickChartIcon } from "lucide-react";
+import { AreaChart, CandlestickChart as CandlestickChartIcon, Trash2 } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { useDerivApi, type AccountType } from "@/hooks/use-deriv-api";
+import { useDerivApi, type AccountType, type ActiveContract } from "@/hooks/use-deriv-api";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { TradeResult } from "@/services/deriv-api-service";
 
@@ -23,25 +23,15 @@ export default function DerivTraderPage() {
   const [selectedAsset, setSelectedAsset] = useState("1HZ100V");
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('1m');
   const [chartType, setChartType] = useState<ChartType>('Area');
-  const [activeContracts, setActiveContracts] = useState<ActiveContract[]>([]);
-  const { accountType, setAccountType, accountBalance } = useDerivApi();
+  const { accountType, setAccountType, accountBalance, activeContracts, clearActiveContracts } = useDerivApi();
 
-  const handleTradeSuccess = (result: TradeResult) => {
-    if (result.contractId && result.entryTick) {
-      const newContract: ActiveContract = {
-        contractId: result.contractId,
-        entryTick: result.entryTick,
-        entryTime: result.entryTime || Math.floor(Date.now() / 1000), // Fallback to now
-        status: 'open',
-      };
-      setActiveContracts(prev => [...prev, newContract]);
+
+  useEffect(() => {
+    // Se o período for 1m, força o tipo de gráfico para Area
+    if (timePeriod === '1m' && chartType === 'Candle') {
+      setChartType('Area');
     }
-  };
-
-  // Se o período for 1m, força o tipo de gráfico para Area
-  if (timePeriod === '1m' && chartType === 'Candle') {
-    setChartType('Area');
-  }
+  }, [timePeriod, chartType]);
 
   const chartTypes: { label: ChartType, icon: React.ReactNode, disabled: boolean }[] = [
     { label: 'Area', icon: <AreaChart className="w-8 h-8 mx-auto" />, disabled: false },
@@ -57,7 +47,10 @@ export default function DerivTraderPage() {
             </h1>
             <AssetSelector 
             selectedAsset={selectedAsset} 
-            onAssetChange={setSelectedAsset} 
+            onAssetChange={(asset) => {
+              setSelectedAsset(asset);
+              clearActiveContracts(); // Limpa as linhas ao trocar de ativo
+            }} 
             />
         </div>
         <div className="flex flex-col items-end">
@@ -93,6 +86,12 @@ export default function DerivTraderPage() {
                     </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
+                    {activeContracts.length > 0 && (
+                      <Button variant="outline" size="icon" className="h-10 w-10" onClick={clearActiveContracts}>
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Limpar linhas de negociação</span>
+                      </Button>
+                    )}
                     <Popover>
                         <PopoverTrigger asChild>
                             <Button variant="outline" className="w-11 h-10 p-0">
@@ -135,7 +134,6 @@ export default function DerivTraderPage() {
                     symbol={selectedAsset} 
                     timePeriod={timePeriod} 
                     chartType={chartType} 
-                    activeContracts={activeContracts}
                 />
             </CardContent>
             </Card>
@@ -143,7 +141,6 @@ export default function DerivTraderPage() {
         <div className="lg:col-span-2">
             <DerivTraderInterface 
                 symbol={selectedAsset}
-                onTradeSuccess={handleTradeSuccess}
              />
         </div>
       </div>

@@ -2,7 +2,8 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
-import { getAccountBalance, requestProposal, buyContract, type TradeResult } from '@/services/deriv-api-service';
+import { requestProposal, buyContract } from '@/services/deriv-api-service';
+import type { TradeResult } from '@/services/deriv-api-service';
 
 const DERIV_DEMO_TOKEN_KEY = 'derivDemoApiToken';
 const DERIV_REAL_TOKEN_KEY = 'derivRealApiToken';
@@ -17,6 +18,18 @@ interface AccountBalance {
   loading: boolean;
 }
 
+export type ContractStatus = 'open' | 'won' | 'lost';
+
+export interface ActiveContract {
+  contractId: number;
+  entryTick: number;
+  entryTime: number;
+  status: ContractStatus;
+  exitTime?: number;
+  exitTick?: number;
+  isSold?: boolean;
+}
+
 interface DerivApiContextType {
   ws: WebSocket | null;
   isConnected: boolean;
@@ -27,11 +40,13 @@ interface DerivApiContextType {
   activeToken: string | null;
   accountType: AccountType;
   accountBalance: AccountBalance;
+  activeContracts: ActiveContract[];
   setAccountType: (type: AccountType) => void;
   setTokens: (tokens: { demo?: string; real?: string }) => void;
   disconnect: (type: AccountType) => void;
   refreshBalance: () => void;
   executeTrade: (contractType: string, quantity: number, symbol: string) => Promise<TradeResult>;
+  clearActiveContracts: () => void;
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
@@ -42,15 +57,15 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   const [accountType, setAccountTypeState] = useState<AccountType>('demo');
   const [accountBalance, setAccountBalance] = useState<AccountBalance>({ balance: null, currency: null, loading: true });
   const [isLoading, setIsLoading] = useState(true);
+  const [activeContracts, setActiveContracts] = useState<ActiveContract[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const proposalPromisesRef = useRef<Map<string, { resolve: (value: any) => void, reject: (reason?: any) => void }>>(new Map());
+  const promisesRef = useRef<Map<string, { resolve: (value: any) => void, reject: (reason?: any) => void }>>(new Map());
 
 
-  // Load tokens from localStorage on initial render
   useEffect(() => {
     try {
       const storedDemoToken = localStorage.getItem(DERIV_DEMO_TOKEN_KEY);
@@ -69,7 +84,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   
   const activeToken = accountType === 'demo' ? demoToken : realToken;
 
-  // Manage WebSocket connection
   useEffect(() => {
     if (!activeToken || isLoading) {
       if (wsRef.current) {
@@ -82,8 +96,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     }
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        // If token changes, we need to re-authorize on the same connection or reconnect.
-        // For simplicity, let's reconnect.
         wsRef.current.close();
     }
 
@@ -102,44 +114,69 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       
       if (response.error) {
         console.error("[Deriv WS Provider] Error received:", response.error.message);
-        if (response.msg_type === 'authorize') {
+        const reqId = response.req_id;
+        if (reqId && promisesRef.current.has(String(reqId))) {
+            promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
+            promisesRef.current.delete(String(reqId));
+        } else if (response.msg_type === 'authorize') {
             setConnectionError(response.error.message);
             setIsConnected(false);
             setIsConnecting(false);
         }
-        // Handle promise rejections for proposals
-        const proposalReqId = response.req_id;
-        if (proposalReqId && proposalPromisesRef.current.has(String(proposalReqId))) {
-            proposalPromisesRef.current.get(String(proposalReqId))?.reject(new Error(response.error.message));
-            proposalPromisesRef.current.delete(String(proposalReqId));
-        }
         return;
       }
+
+      const reqId = response.req_id;
+      if (reqId && promisesRef.current.has(String(reqId))) {
+          promisesRef.current.get(String(reqId))?.resolve(response);
+          promisesRef.current.delete(String(reqId));
+          return; // It was a response to a specific promise.
+      }
+
 
       if (response.msg_type === 'authorize') {
         console.log("[Deriv WS Provider] Authorized successfully.");
         setIsConnected(true);
         setIsConnecting(false);
+        ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
+        ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 })); // Subscribe to contract updates
+      } else if (response.msg_type === 'balance') {
         setAccountBalance({
-            balance: response.authorize.balance,
-            currency: response.authorize.currency,
+            balance: response.balance.balance,
+            currency: response.balance.currency,
             loading: false
         });
+      } else if (response.msg_type === 'proposal_open_contract') {
+          const contract = response.proposal_open_contract;
+          if (!contract) return;
+          
+          setActiveContracts(prevContracts => {
+            const existingContractIndex = prevContracts.findIndex(c => c.contractId === contract.contract_id);
+            if (existingContractIndex > -1) {
+              const updatedContracts = [...prevContracts];
+              const existingContract = updatedContracts[existingContractIndex];
+              
+              if(contract.is_sold) {
+                  existingContract.status = contract.is_valid_to_sell && contract.status === 'won' ? 'won' : 'lost';
+                  existingContract.exitTick = contract.sell_price || contract.exit_tick;
+                  existingContract.exitTime = contract.sell_time || contract.exit_tick_time;
+                  existingContract.isSold = true;
+                  
+                   // Auto-clear won/lost contracts after a delay to clean the chart
+                  setTimeout(() => {
+                    setActiveContracts(prev => prev.filter(c => c.contractId !== contract.contract_id));
+                    // Refresh balance after contract is settled
+                    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                      wsRef.current.send(JSON.stringify({ "balance": 1 }));
+                    }
+                  }, 7000);
+              }
+              
+              return updatedContracts;
+            }
+            return prevContracts;
+          });
       }
-
-      // Handle proposal responses
-       const proposalReqId = response.req_id;
-       if (response.msg_type === 'proposal' && proposalReqId && proposalPromisesRef.current.has(String(proposalReqId))) {
-            proposalPromisesRef.current.get(String(proposalReqId))?.resolve(response.proposal);
-            proposalPromisesRef.current.delete(String(proposalReqId));
-       }
-       // Handle buy responses
-       const buyReqId = response.req_id;
-       if (response.msg_type === 'buy' && buyReqId && proposalPromisesRef.current.has(String(buyReqId))) {
-           proposalPromisesRef.current.get(String(buyReqId))?.resolve(response.buy);
-           proposalPromisesRef.current.delete(String(buyReqId));
-       }
-
     };
 
     ws.onclose = () => {
@@ -201,7 +238,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     }
   };
   
-  const fetchBalance = useCallback(async () => {
+  const refreshBalance = useCallback(() => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.warn("[Deriv WS Provider] Cannot fetch balance, WS not open.");
       return;
@@ -216,14 +253,23 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        console.log("[Deriv Hook] Requesting proposal...");
-        const proposal = await requestProposal(wsRef.current, { contractType, quantity, symbol }, proposalPromisesRef);
+        const proposalResponse = await requestProposal(wsRef.current, { contractType, quantity, symbol }, promisesRef);
+        const proposal = proposalResponse.proposal;
         if (!proposal || !proposal.id) {
           throw new Error("Falha ao obter uma proposta de negociação da API.");
         }
         
-        console.log(`[Deriv Hook] Proposal received: ${proposal.id}. Buying...`);
-        const buyResult = await buyContract(wsRef.current, proposal.id, proposal.ask_price, proposalPromisesRef);
+        const buyResponse = await buyContract(wsRef.current, proposal.id, proposal.ask_price, promisesRef);
+        const buyResult = buyResponse.buy;
+
+        // Add to active contracts locally to start tracking
+        const newContract: ActiveContract = {
+            contractId: buyResult.contract_id,
+            entryTick: buyResult.entry_tick,
+            entryTime: buyResult.entry_tick_time,
+            status: 'open',
+        };
+        setActiveContracts(prev => [...prev, newContract]);
 
         return {
           success: true,
@@ -237,8 +283,9 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
          const message = error instanceof Error ? error.message : "Um erro desconhecido ocorreu.";
          return { success: false, message };
       }
-
   }, [isConnected]);
+
+  const clearActiveContracts = () => setActiveContracts([]);
 
   const contextValue: DerivApiContextType = {
     ws: wsRef.current,
@@ -253,12 +300,14 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     setTokens,
     disconnect,
     accountBalance,
-    refreshBalance: fetchBalance,
+    activeContracts,
+    refreshBalance,
     executeTrade,
+    clearActiveContracts
   };
 
   if (isLoading) {
-    return null; // Or a loading spinner for the whole app
+    return null;
   }
   
   return (
