@@ -12,19 +12,45 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { Operation } from "./operations-log.types";
 import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
+import { useMemo } from "react";
 
 interface OperationsLogProps {
   operations: Operation[];
 }
 
 export function OperationsLog({ operations }: OperationsLogProps) {
+
+  const dailySummary = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return operations
+      .filter(op => op.status !== 'pending' && new Date(op.timestamp) >= today)
+      .reduce((sum, op) => sum + (op.result || 0), 0);
+  }, [operations]);
+
+
   return (
     <Card className="h-full flex flex-col">
       <CardHeader>
-        <CardTitle className="font-headline">Operações</CardTitle>
-        <CardDescription>
-          Histórico e status das suas negociações.
-        </CardDescription>
+        <div className="flex justify-between items-start">
+            <div>
+                <CardTitle className="font-headline">Operações</CardTitle>
+                <CardDescription>
+                Histórico e status das suas negociações.
+                </CardDescription>
+            </div>
+             <div className="text-right">
+                <p className="text-xs text-muted-foreground">Resultado do Dia</p>
+                <p className={cn(
+                    "text-lg font-bold",
+                    dailySummary > 0 && "text-green-600",
+                    dailySummary < 0 && "text-destructive"
+                )}>
+                    {dailySummary.toLocaleString('pt-BR', { style: 'currency', currency: 'USD' })}
+                </p>
+            </div>
+        </div>
       </CardHeader>
       <CardContent className="flex-1 p-0">
         <ScrollArea className="h-[280px] sm:h-[320px] lg:h-[calc(100%-1rem)]">
