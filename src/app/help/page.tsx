@@ -90,19 +90,45 @@ export default function HelpPage() {
                 </ul>
               </AccordionContent>
             </AccordionItem>
-
-            <AccordionItem value="item-9">
+            
+            <AccordionItem value="item-10">
               <AccordionTrigger className="text-lg font-semibold">
-                Integração com Corretora (Plano Futuro)
+                Deriv Trader e Copiloto de IA
               </AccordionTrigger>
               <AccordionContent className="text-base leading-relaxed space-y-2">
-                <p>Esta é a próxima grande evolução do Claritas Copilot: transformar-se em um agente financeiro que pode interagir com o mercado. A arquitetura para isso está sendo construída:</p>
-                 <ol className="list-decimal pl-6 space-y-2">
-                    <li><strong>Conexão Segura:</strong> Na página de <strong>Configurações</strong>, você pode inserir seu token de API de uma corretora como a Deriv. Este token é a chave que permite ao Claritas acessar sua conta de forma segura e com permissões controladas por você (ex: apenas leitura ou negociação).</li>
-                    <li><strong>Serviço Dedicado:</strong> Um serviço interno (`deriv-api-service.ts`) será responsável por toda a comunicação com a API da corretora, como buscar saldos, histórico e executar ordens.</li>
-                    <li><strong>Ferramentas de Negociação para a IA:</strong> A Claritas IA receberá novas ferramentas (`trading-tools`) para interagir com o serviço da corretora. Ela poderá, por exemplo, verificar sua carteira ou executar uma ordem de compra/venda (sempre com sua aprovação final).</li>
-                    <li><strong>Agente Inteligente:</strong> Com essas ferramentas, a IA poderá testar estratégias ("backtesting"), simular investimentos e até mesmo sugerir operações com base em análises de mercado, transformando-se em um verdadeiro copiloto de investimentos.</li>
+                <p>A página <strong>Deriv Trader</strong> é o nosso ambiente integrado de negociação, transformando o Claritas num verdadeiro copiloto financeiro. Veja como funciona:</p>
+                 <ol className="list-decimal pl-6 space-y-3">
+                    <li>
+                      <strong>Conexão Segura:</strong> Antes de tudo, na página de <strong>Configurações</strong>, você deve inserir seu token de API da corretora Deriv. Este token permite que nosso aplicativo se comunique com sua conta de negociação de forma segura.
+                    </li>
+                    <li>
+                      <strong>Plataforma de Negociação:</strong> A página principal do Deriv Trader apresenta um gráfico em tempo real (de linha ou velas), um painel para executar ordens (Rise/Fall) e um histórico de suas operações na sessão.
+                    </li>
+                    <li>
+                      <strong>O Copiloto de Trade em Ação:</strong> Esta é a principal funcionalidade da IA nesta secção. Ao clicar em <strong>"Analisar Ativo"</strong>, o sistema:
+                      <ul className="list-disc pl-6 mt-1">
+                          <li>Busca os dados de preços mais recentes do ativo selecionado.</li>
+                          <li>Envia esses dados para um fluxo de IA treinado para atuar como um analista técnico.</li>
+                          <li>A IA analisa os dados para identificar tendências e retorna uma sugestão (RISE, FALL, ou HOLD) com uma breve justificação.</li>
+                      </ul>
+                    </li>
+                     <li>
+                      <strong>Análise de Desempenho:</strong> Ao clicar em <strong>"Analisar Desempenho"</strong>, o sistema envia o seu histórico de operações da sessão atual para outra IA, que calcula métricas como lucro/prejuízo e taxa de acerto, fornecendo um resumo da sua performance.
+                    </li>
                  </ol>
+              </AccordionContent>
+            </AccordionItem>
+            
+            <AccordionItem value="item-9">
+              <AccordionTrigger className="text-lg font-semibold">
+                Teste de Estratégias (Backtesting)
+              </AccordionTrigger>
+              <AccordionContent className="text-base leading-relaxed space-y-2">
+                <p>A página de <strong>Backtesting</strong> permite que você use a IA para simular estratégias de investimento antes de arriscar capital real.</p>
+                <ul className="list-disc pl-6 space-y-2">
+                    <li><strong>Descreva sua Estratégia:</strong> Você pode descrever uma estratégia em linguagem natural (ex: "Comprar PETR4 se a média móvel de 10 dias cruzar acima da de 30 dias"). A IA irá interpretar, buscar os dados históricos e simular o resultado.</li>
+                    <li><strong>Analisar Robô MQL5:</strong> Se você já tem um robô de negociação (Expert Advisor) para a plataforma MetaTrader 5, pode colar o código-fonte (MQL5). A IA irá analisar o código, extrair a lógica da estratégia e preencher a descrição para que você possa simulá-la.</li>
+                </ul>
               </AccordionContent>
             </AccordionItem>
 
@@ -113,7 +139,7 @@ export default function HelpPage() {
               <AccordionContent className="text-base leading-relaxed space-y-2">
                 <p>Na página de <strong>Configurações</strong>, você pode personalizar sua experiência:</p>
                  <ul className="list-disc pl-6 space-y-1">
-                  <li><strong>Conexão com Corretora:</strong> Insira seu token de API para habilitar futuras funcionalidades de trading.</li>
+                  <li><strong>Conexão com Corretora:</strong> Insira seu token de API para habilitar funcionalidades de trading.</li>
                   <li><strong>Notificações:</strong> Gerencie suas preferências e envie um email de teste (registrado no console).</li>
                   <li><strong>Aparência:</strong> Altere o tema de cores e a fonte do aplicativo.</li>
                 </ul>
