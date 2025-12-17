@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -72,6 +73,8 @@ interface DerivApiContextType {
   addActiveContract: (contract: ActiveContract) => void;
   getAnalysis: (symbol: string) => Promise<string>;
   subscribeToSymbol: (symbol: string, timePeriod: TimePeriod, chartType: ChartType) => void;
+  setChartType: (type: ChartType) => void;
+  setTimePeriod: (period: TimePeriod) => void;
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
@@ -268,6 +271,30 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         if(chartType === 'Area') {
             setChartData(prev => [...prev.slice(-199), newTick]);
         }
+      } else if (response.msg_type === 'ohlc') {
+         const candle = response.ohlc;
+         if (candle.subscription) {
+             activeSubscriptionId.current = candle.subscription;
+         }
+         const newCandle: CandleData = {
+            epoch: candle.epoch,
+            open: parseFloat(candle.open),
+            high: parseFloat(candle.high),
+            low: parseFloat(candle.low),
+            close: parseFloat(candle.close),
+         };
+         setChartData(prev => {
+            const data = prev as CandleData[];
+            if (data.length > 0 && data[data.length - 1].epoch === newCandle.epoch) {
+                // Update last candle
+                const newData = [...data];
+                newData[newData.length - 1] = newCandle;
+                return newData;
+            } else {
+                // Add new candle
+                return [...data.slice(-499), newCandle];
+            }
+        });
       } else if (response.msg_type === 'candles') {
          const candleData: CandleData[] = response.candles.map((candle: any) => ({
             epoch: candle.epoch,
@@ -278,6 +305,13 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         }));
         setChartData(candleData);
         setIsChartLoading(false);
+      } else if (response.msg_type === 'history') {
+          const historyData = response.history.prices.map((price: number, index: number) => ({
+              epoch: response.history.times[index],
+              price: price,
+          }));
+          setChartData(historyData);
+          setIsChartLoading(false);
       }
     };
 
@@ -291,28 +325,21 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     
-    setChartType(newChartType);
-    setTimePeriod(newTimePeriod);
     setChartData([]);
     setIsChartLoading(true);
     setChartError(null);
 
-
-    // Forget previous subscription if it exists and is different
+    // Forget previous subscription if it exists
     if (activeSubscriptionId.current) {
         ws.send(JSON.stringify({ "forget": activeSubscriptionId.current }));
         activeSubscriptionId.current = null;
-    }
-     if (activeSymbolRef.current && activeSymbolRef.current !== symbol) {
-        ws.send(JSON.stringify({ "forget_all": "candles" }));
     }
 
     activeSymbolRef.current = symbol;
 
     if (newChartType === 'Area') {
         setPriceTicks([]); // Clear old ticks when subscribing to a new symbol
-        ws.send(JSON.stringify({ "ticks_history": symbol, "end": "latest", "count": 200 }));
-        ws.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
+        ws.send(JSON.stringify({ "ticks_history": symbol, "end": "latest", "count": 200, "subscribe": 1 }));
     } else {
         const granularity = getGranularityForTimePeriod(newTimePeriod);
         ws.send(JSON.stringify({
@@ -453,19 +480,17 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     chartError,
     chartType,
     timePeriod,
+    setChartType,
+    setTimePeriod,
     addPriceTick,
     refreshBalance,
     executeTrade,
     clearActiveContracts,
     addActiveContract,
     getAnalysis,
-    subscribeToSymbol,
+    subscribeToSymbol
   };
 
-  if (isLoading) {
-    return null;
-  }
-  
   return (
     <DerivApiContext.Provider value={contextValue}>
       {children}

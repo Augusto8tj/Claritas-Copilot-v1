@@ -5,7 +5,7 @@ import * as React from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Label, BarChart, Bar } from "recharts";
 import { useDerivApi, type ActiveContract } from "@/hooks/use-deriv-api";
 import { Loader2 } from "lucide-react";
-import type { ChartData, CandleData, TickData } from '@/hooks/use-deriv-api';
+import type { CandleData, TickData } from '@/hooks/use-deriv-api';
 
 
 const Candlestick = (props: any) => {
@@ -15,21 +15,21 @@ const Candlestick = (props: any) => {
         return null;
     }
     
-    const { open, close } = payload;
-     if ([open, close].some(val => val === undefined || isNaN(val))) {
+    const { open, close, high, low } = payload;
+     if ([open, close, high, low].some(val => val === undefined || isNaN(val))) {
         return null;
     }
 
     const isBullish = close > open;
     const color = isBullish ? 'hsl(142.1 76.2% 41.2%)' : 'hsl(0 84.2% 60.2%)';
 
-    const bodyY = isBullish ? y + (height * (payload.high - close) / (payload.high - payload.low)) : y + (height * (payload.high - open) / (payload.high - payload.low));
-    const bodyHeight = Math.abs((height * (open - close)) / (payload.high - payload.low));
+    const bodyY = isBullish ? y + (height * (high - close) / (high - low)) : y + (height * (high - open) / (high - low));
+    const bodyHeight = Math.max(1, Math.abs((height * (open - close)) / (high - low)));
 
     return (
         <g>
             <line x1={x + width / 2} y1={y} x2={x + width / 2} y2={y + height} stroke={color} strokeWidth="1" />
-            <rect x={x} y={bodyY} width={width} height={Math.max(bodyHeight, 1)} fill={color} />
+            <rect x={x} y={bodyY} width={width} height={bodyHeight} fill={color} />
         </g>
     );
 };
@@ -41,15 +41,15 @@ interface MarketChartProps {
 
 
 export function MarketChart({ activeContracts }: MarketChartProps) {
-  const { chartData, isChartLoading, chartError, chartType, timePeriod } = useDerivApi();
+  const { chartData, isChartLoading, chartError, chartType } = useDerivApi();
   
   const renderChart = () => {
      if (chartType === 'Candle' && chartData.length > 0 && 'open' in chartData[0]) {
         const candleData = chartData as CandleData[];
-        const yDomain = [
-            Math.min(...candleData.map(d => d.low)) * 0.999,
-            Math.max(...candleData.map(d => d.high)) * 1.001,
-        ];
+        const yDomain = candleData.length > 0
+            ? [Math.min(...candleData.map(d => d.low)) * 0.999, Math.max(...candleData.map(d => d.high)) * 1.001]
+            : ['auto', 'auto'];
+
         return (
             <ResponsiveContainer width="100%" height="100%">
                  <BarChart data={candleData} barGap={-3} barCategoryGap="30%">
@@ -111,9 +111,12 @@ export function MarketChart({ activeContracts }: MarketChartProps) {
      }
      
      // Default to Line Chart
+     const tickData = chartData as TickData[];
+     const xDomain = tickData.length > 0 ? [tickData[0].epoch, tickData[tickData.length - 1].epoch] : [0, 0];
+     
      return (
         <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData as TickData[]}>
+            <LineChart data={tickData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis
                     dataKey="epoch"
@@ -123,7 +126,7 @@ export function MarketChart({ activeContracts }: MarketChartProps) {
                     axisLine={false}
                     tickFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleTimeString('pt-BR')}
                     type="number"
-                    domain={['dataMin', 'dataMax']}
+                    domain={xDomain}
                 />
                 <YAxis
                     dataKey="price"
@@ -133,7 +136,6 @@ export function MarketChart({ activeContracts }: MarketChartProps) {
                     axisLine={false}
                     domain={['dataMin - 0.0005', 'dataMax + 0.0005']}
                     tickFormatter={(value) => Number(value).toFixed(4)}
-                    allowDataOverflow
                     orientation="right"
                     width={80}
                 />
@@ -199,3 +201,5 @@ export function MarketChart({ activeContracts }: MarketChartProps) {
     </div>
   );
 }
+
+    
