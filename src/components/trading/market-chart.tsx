@@ -90,73 +90,98 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [duration, setDuration] = useState(getHistoryDurationForTimePeriod(timePeriod));
-  const { ws: wsFromContext, addPriceTick } = useDerivApi();
+  const { ws: wsFromContext, priceTicks, addPriceTick } = useDerivApi();
   const wsRef = useRef<WebSocket | null>(null);
+  const currentSymbolRef = useRef<string | null>(null);
 
-  const fetchData = useCallback((currentDuration: number) => {
+  useEffect(() => {
+    // Only use the ticks from the context for the live area chart
+    if (chartType === 'Area') {
+        const tickData = priceTicks.map(tick => ({ epoch: tick.epoch, price: tick.price }));
+        setData(tickData);
+    }
+  }, [priceTicks, chartType]);
+
+
+  const fetchData = useCallback(() => {
     if (!symbol || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       return;
     }
+    // Only fetch historical data for candle charts, as ticks are now streamed from context
+    if (chartType === 'Area') {
+        setLoading(false);
+        setError(null);
+        return;
+    }
 
-    setData([]); // Limpa os dados antigos para evitar renderização incorreta
+    setData([]); 
     setLoading(true);
     setError(null);
     
-    wsRef.current.send(JSON.stringify({ "forget_all": "ticks" }));
     wsRef.current.send(JSON.stringify({ "forget_all": "candles" }));
 
     const granularity = getGranularityForTimePeriod(timePeriod);
     const request = {
         ticks_history: symbol,
-        start: Math.floor(Date.now() / 1000) - currentDuration,
+        start: Math.floor(Date.now() / 1000) - duration,
         end: "latest",
-        style: chartType === 'Area' ? 'ticks' : 'candles',
-        granularity: chartType === 'Candle' ? granularity : undefined,
+        style: 'candles',
+        granularity: granularity,
         adjust_start_time: 1,
         count: 5000,
     };
 
     wsRef.current.send(JSON.stringify(request));
-    
-    // Always subscribe to ticks for autopilot logic
-    wsRef.current.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
 
-  }, [symbol, chartType, timePeriod]);
+  }, [symbol, chartType, timePeriod, duration]);
 
   useEffect(() => {
     // Use the WebSocket instance from context if available
     if (wsFromContext && wsFromContext.readyState === WebSocket.OPEN) {
         wsRef.current = wsFromContext;
     } else if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+        // This fallback might be less common now with the central provider
         wsRef.current = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     }
 
     const ws = wsRef.current;
+    
+    const forgetPreviousSubscription = () => {
+        if (ws.readyState === WebSocket.OPEN && currentSymbolRef.current) {
+            ws.send(JSON.stringify({ "forget_all": "ticks" }));
+        }
+    };
+
+    const subscribeToSymbol = () => {
+         if (ws.readyState === WebSocket.OPEN && symbol !== currentSymbolRef.current) {
+            forgetPreviousSubscription();
+            console.log(`[MarketChart] Subscribing to ${symbol}`);
+            ws.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
+            currentSymbolRef.current = symbol;
+            fetchData();
+        } else if (ws.readyState === WebSocket.OPEN) {
+            fetchData();
+        }
+    }
 
     const handleOpen = () => {
-      console.log("[Deriv Chart WS] Conexão estabelecida.");
-      fetchData(duration);
+      console.log("[MarketChart] WS Connection is open.");
+      subscribeToSymbol();
     };
     
     const handleMessage = (event: MessageEvent) => {
        const response = JSON.parse(event.data);
 
       if (response.error) {
-        console.error("Deriv API error:", response.error.message);
-        setError(response.error.message);
+        if (response.error.code !== 'AlreadySubscribed') {
+            console.error("Deriv API error (MarketChart):", response.error.message);
+            setError(response.error.message);
+        }
         setLoading(false);
         return;
       }
       
-      if (response.msg_type === 'history') {
-        const historyData: TickData[] = response.history.times.map((time: number, index: number) => ({
-          epoch: time,
-          price: response.history.prices[index],
-        }));
-        setData(historyData);
-        setLoading(false);
-        historyData.forEach(tick => addPriceTick(tick));
-      } else if (response.msg_type === 'candles') {
+      if (response.msg_type === 'candles') {
           const candleData: CandleData[] = response.candles.map((candle: any) => ({
                 epoch: candle.epoch,
                 open: candle.open,
@@ -166,23 +191,6 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
             }));
           setData(candleData);
           setLoading(false);
-      }
-
-      if (response.msg_type === 'tick') {
-        const tick = response.tick;
-        const newTickData: TickData = { epoch: tick.epoch, price: tick.quote };
-        
-        // Update the context for other components
-        addPriceTick(newTickData);
-
-        // Update local chart data only if it's a line chart
-        setData(currentData => {
-            if (currentData.length > 0 && currentData[0].hasOwnProperty('open')) {
-                return currentData; // Don't update candle chart with ticks
-            }
-            const newData = [...currentData.slice(1), newTickData];
-            return newData;
-        });
       }
     }
     
@@ -208,14 +216,18 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
        ws.removeEventListener('open', handleOpen);
        ws.removeEventListener('message', handleMessage);
        ws.removeEventListener('error', handleError);
-       // Don't close the WebSocket here, as it's managed by the context
+       // We don't close the websocket as it's managed by the provider
     };
-  }, [symbol, duration, fetchData, wsFromContext, addPriceTick]);
+  }, [symbol, duration, fetchData, wsFromContext]);
 
 
   useEffect(() => {
     setDuration(getHistoryDurationForTimePeriod(timePeriod));
-  }, [timePeriod, chartType]);
+    // When time period changes, we might need to refetch candle data
+    if (chartType === 'Candle') {
+        fetchData();
+    }
+  }, [timePeriod, chartType, fetchData]);
   
   const handleZoom = (factor: number) => {
     setDuration(currentDuration => {
@@ -319,13 +331,14 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
-                    domain={['dataMin - 0.01', 'dataMax + 0.01']}
-                    tickFormatter={(value) => `$${Number(value).toFixed(2)}`}
+                    domain={['dataMin - 0.0005', 'dataMax + 0.0005']}
+                    tickFormatter={(value) => Number(value).toFixed(4)}
                     allowDataOverflow
+                    orientation="right"
                     width={80}
                 />
                 <Tooltip
-                    formatter={(value: number, name, props: any) => [`$${Number(value).toFixed(2)}`, "Preço"]}
+                    formatter={(value: number, name, props: any) => [Number(value).toFixed(4), "Preço"]}
                     labelFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleString('pt-BR')}
                     labelStyle={{ color: 'hsl(var(--foreground))' }}
                     contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
@@ -349,7 +362,7 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
                         strokeWidth={2}
                     >
                         <Label 
-                            value={`Entrada: ${contract.entryTick.toFixed(2)}`}
+                            value={`Entrada: ${contract.entryTick.toFixed(4)}`}
                             position="right"
                             fill="hsl(var(--accent))"
                             fontSize={12}

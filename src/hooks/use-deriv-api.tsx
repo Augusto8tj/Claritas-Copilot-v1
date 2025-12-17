@@ -78,6 +78,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const promisesRef = useRef<Map<string, { resolve: (value: any) => void, reject: (reason?: any) => void }>>(new Map());
+  const activeSubscriptionId = useRef<string | null>(null);
 
 
   useEffect(() => {
@@ -134,16 +135,16 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     ws.onopen = () => {
       console.log("[Deriv WS Provider] Connection opened. Authorizing...");
       ws.send(JSON.stringify({ "authorize": activeToken }));
-      // Set connecting false right after opening, authorization will determine final connected state
       setIsConnecting(false);
-      // We are technically connected to the server, but not yet authorized
     };
 
     ws.onmessage = (event) => {
       const response = JSON.parse(event.data);
       
       if (response.error) {
-        console.error("[Deriv WS Provider] Error received:", response.error.message);
+         if (response.error.code !== 'AlreadySubscribed') {
+            console.error("[Deriv WS Provider] Error received:", response.error.message);
+         }
         const reqId = response.req_id;
         if (reqId && promisesRef.current.has(String(reqId))) {
             promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
@@ -159,9 +160,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       if (reqId && promisesRef.current.has(String(reqId))) {
           promisesRef.current.get(String(reqId))?.resolve(response);
           promisesRef.current.delete(String(reqId));
-          return; // It was a response to a specific promise.
+          return;
       }
-
 
       if (response.msg_type === 'authorize') {
         console.log("[Deriv WS Provider] Authorized successfully.");
@@ -202,6 +202,9 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
           }
       } else if (response.msg_type === 'tick') {
         const tick = response.tick;
+        if (tick.subscription) {
+            activeSubscriptionId.current = tick.subscription;
+        }
         addPriceTick({ epoch: tick.epoch, price: tick.quote });
       }
     };
@@ -211,6 +214,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       setIsConnected(false);
       setIsConnecting(false);
       wsRef.current = null;
+      activeSubscriptionId.current = null;
     };
 
     ws.onerror = () => {
