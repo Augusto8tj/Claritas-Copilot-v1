@@ -91,12 +91,12 @@ const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
         case '1m': return 0; // This is for ticks, so granularity is not applicable in the same way, but API expects a value.
-        case '15m': return 60 * 15;
-        case '30m': return 60 * 30;
-        case '1h': return 60 * 60;
-        case '8h': return 60 * 60 * 8;
+        case '15m': return 60 * 1;
+        case '30m': return 60 * 5;
+        case '1h': return 60 * 15;
+        case '8h': return 60 * 60;
         case '1d': return 60 * 60 * 24;
-        default: return 60; // Default to 1-minute candles
+        default: return 0; // Default to ticks
     }
 }
 
@@ -493,7 +493,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
           success: true,
           message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${quantity} USD executada com sucesso.`,
           contractId: buyResult.contract_id,
-          entryTick: buyResult.entry_tick_price,
+          entryTick: buyResult.entry_tick,
           entryTime: buyResult.entry_tick_time,
         };
       } catch (error) {
