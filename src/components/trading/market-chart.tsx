@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Label } from "recharts";
 import type { TimePeriod, ChartType } from "@/app/deriv-trader/page";
 import { Button } from "@/components/ui/button";
 import { Plus, Minus, Loader2 } from "lucide-react";
@@ -21,12 +21,18 @@ type CandleData = {
   close: number;
 };
 
-type ChartData = TickData | CandleData;
+export type ActiveContract = {
+  contractId: number;
+  entryTick: number;
+  entryTime: number;
+  status: 'open' | 'won' | 'lost';
+};
 
 interface MarketChartProps {
   symbol: string;
   timePeriod: TimePeriod;
   chartType: ChartType;
+  activeContracts: ActiveContract[];
 }
 
 const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
@@ -44,7 +50,7 @@ const getHistoryDurationForTimePeriod = (timePeriod: TimePeriod): number => {
 }
 
 
-export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps) {
+export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: MarketChartProps) {
   const [data, setData] = useState<TickData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -135,7 +141,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
         // This can sometimes fire with an empty event object in React's strict mode
         // due to the rapid connect/disconnect cycle. We only log/set an error if
         // there's a meaningful error message.
-        if ('message' in event) {
+        if (event && 'message' in event) {
             console.error("WebSocket connection error:", event);
             setError("Não foi possível conectar ao servidor de dados em tempo real.");
             setLoading(false);
@@ -232,7 +238,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
             fontSize={12}
             tickLine={false}
             axisLine={false}
-            domain={['dataMin', 'dataMax']}
+            domain={['dataMin - 0.01', 'dataMax + 0.01']}
             tickFormatter={(value) => `$${Number(value).toFixed(2)}`}
             allowDataOverflow
             width={80}
@@ -252,6 +258,21 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
             strokeWidth={2}
             dot={false}
           />
+           {activeContracts.map(contract => (
+            <ReferenceLine
+              key={contract.contractId}
+              y={contract.entryTick}
+              stroke="hsl(var(--accent))"
+              strokeDasharray="3 3"
+              strokeWidth={2}
+            >
+              <Label 
+                value={`Entrada: ${contract.entryTick.toFixed(2)}`}
+                position="right"
+                style={{ fill: 'hsl(var(--accent-foreground))', fontSize: 12, background: 'hsl(var(--accent))', padding: '2px 4px', borderRadius: '3px' }} 
+              />
+            </ReferenceLine>
+          ))}
         </LineChart>
       </ResponsiveContainer>
     </div>

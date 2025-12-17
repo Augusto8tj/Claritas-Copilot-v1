@@ -13,6 +13,7 @@ import {
 import { MqlAnalyzerInputSchema, type MqlAnalyzerInput } from '@/ai/flows/mql-analyzer-flow.types';
 import { executeTrade as executeTradeInService } from '@/services/deriv-api-service';
 import { z } from 'zod';
+import type { TradeResult } from '@/services/deriv-api-service';
 
 const executeTradeSchema = z.object({
   symbol: z.string(),
@@ -59,7 +60,7 @@ export async function analyzeMqlCodeAction(data: MqlAnalyzerInput): Promise<{ su
 }
 
 
-export async function executeTradeAction(data: ExecuteTradeInput): Promise<{ success?: string; error?: string }> {
+export async function executeTradeAction(data: ExecuteTradeInput): Promise<{ success?: TradeResult; error?: string }> {
   const validatedData = executeTradeSchema.safeParse(data);
   if (!validatedData.success) {
     const fieldErrors = validatedData.error.flatten().fieldErrors;
@@ -80,7 +81,7 @@ export async function executeTradeAction(data: ExecuteTradeInput): Promise<{ suc
     const result = await executeTradeInService(apiToken, symbol, contractType, quantity);
 
     if(result.success) {
-      return { success: result.message };
+      return { success: result };
     } else {
       return { error: result.message };
     }

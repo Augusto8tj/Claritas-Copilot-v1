@@ -20,10 +20,12 @@ interface MarketData {
   changePercent: number;
 }
 
-interface TradeResult {
+export interface TradeResult {
   success: boolean;
-  orderId?: string;
   message: string;
+  contractId?: number;
+  entryTick?: number;
+  entryTime?: number;
 }
 
 export interface Asset {
@@ -49,13 +51,11 @@ function callDerivApi<T>(requests: object[], apiToken?: string): Promise<T> {
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     let requestQueue = [...requests];
     
-    // If a token is provided, prepend the authorize request.
-    if (apiToken) {
-        requestQueue.unshift({ "authorize": apiToken });
-    }
-
     ws.on('open', () => {
-      if (requestQueue.length > 0) {
+      // If a token is provided, prepend the authorize request.
+      if (apiToken) {
+          ws.send(JSON.stringify({ "authorize": apiToken }));
+      } else {
         ws.send(JSON.stringify(requestQueue.shift()));
       }
     });
@@ -70,9 +70,16 @@ function callDerivApi<T>(requests: object[], apiToken?: string): Promise<T> {
       }
       
       // If this was the authorize response, just continue to the next request.
-      if (response.msg_type === 'authorize' && requestQueue.length > 0) {
-        ws.send(JSON.stringify(requestQueue.shift()));
-        return;
+      if (response.msg_type === 'authorize') {
+        if (requestQueue.length > 0) {
+            ws.send(JSON.stringify(requestQueue.shift()));
+            return;
+        } else {
+            // If only authorize was sent, resolve with its response
+            resolve(response as T);
+            ws.close();
+            return;
+        }
       }
       
       // If this was the last expected response, resolve and close.
@@ -148,7 +155,6 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
 /**
  * Fetches the user's account balance from the broker.
  * @param apiToken - The user's API token for authentication.
- * @param accountType - The type of account to fetch balance for ('demo' or 'real').
  */
 export async function getAccountBalance(apiToken: string): Promise<AccountBalance> {
   console.log(`[Deriv Service] Fetching account balance...`);
@@ -157,7 +163,7 @@ export async function getAccountBalance(apiToken: string): Promise<AccountBalanc
     throw new Error("API token is required.");
   }
 
-  const balanceRequest = { "balance": 1 };
+  const balanceRequest = { "balance": 1, "account": "all" };
 
   try {
     const response: any = await callDerivApi([balanceRequest], apiToken);
@@ -167,8 +173,15 @@ export async function getAccountBalance(apiToken: string): Promise<AccountBalanc
             balance: response.balance.balance,
             currency: response.balance.currency,
         };
-    } else {
-        console.warn("[Deriv Service] Balance not found in response.");
+    } else if (response.authorize && response.authorize.balance) {
+        // Sometimes balance comes in the authorize response itself
+        return {
+            balance: response.authorize.balance,
+            currency: response.authorize.currency,
+        }
+    }
+    else {
+        console.warn("[Deriv Service] Balance not found in response.", response);
         throw new Error("Balance information not available in API response.");
     }
   } catch (error) {
@@ -227,51 +240,79 @@ export async function executeTrade(apiToken: string, symbol: string, contractTyp
     throw new Error('O token da API da Deriv não é válido ou não foi configurado.');
   }
 
-  try {
-    // Step 1: Get a proposal
-    const proposalRequest = {
-      "proposal": 1,
-      "amount": quantity,
-      "basis": "stake",
-      "contract_type": contractType,
-      "currency": "USD",
-      "duration": 5,
-      "duration_unit": "t",
-      "symbol": symbol,
-    };
-    
-    console.log("[Deriv Service] Requesting proposal...");
-    const proposalResponse: any = await callDerivApi([proposalRequest], apiToken);
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+    let proposalId: string | null = null;
+    let entryTick: number | null = null;
+    let entryTime: number | null = null;
 
-    if (!proposalResponse.proposal || !proposalResponse.proposal.id) {
-      throw new Error("Falha ao obter uma proposta de negociação da API.");
-    }
+    ws.on('open', () => {
+      console.log('[Deriv WS] Trade connection open. Authorizing...');
+      ws.send(JSON.stringify({ "authorize": apiToken }));
+    });
 
-    const proposalId = proposalResponse.proposal.id;
-    const price = proposalResponse.proposal.ask_price;
-    console.log(`[Deriv Service] Proposal received: ${proposalId}. Buying contract...`);
+    ws.on('message', (data: WebSocket.Data) => {
+      const response = JSON.parse(data.toString());
 
-    // Step 2: Buy the contract using the proposal ID
-    const buyRequest = { "buy": proposalId, "price": price };
-    const buyResponse: any = await callDerivApi([buyRequest], apiToken);
+      if (response.error) {
+        console.error('[Deriv WS] Trade error:', response.error.message);
+        reject(new Error(response.error.message));
+        ws.close();
+        return;
+      }
 
-    if (buyResponse.buy && buyResponse.buy.contract_id) {
-      console.log('[Deriv Service] Trade successful.');
-      return {
-          success: true,
-          orderId: buyResponse.buy.contract_id,
-          message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${quantity} USD executada com sucesso.`,
-      };
-    } else {
-      throw new Error("A resposta da compra não continha um ID de contrato válido.");
-    }
-  } catch (error) {
-    console.error('[Deriv Service] Erro durante a execução da negociação:', error);
-    if (error instanceof Error) {
-        throw error;
-    }
-    throw new Error("Ocorreu um erro desconhecido durante a negociação.");
-  }
+      if (response.msg_type === 'authorize') {
+        console.log('[Deriv WS] Authorized. Requesting proposal...');
+        const proposalRequest = {
+          "proposal": 1,
+          "amount": quantity,
+          "basis": "stake",
+          "contract_type": contractType,
+          "currency": "USD",
+          "duration": 5,
+          "duration_unit": "t",
+          "symbol": symbol,
+        };
+        ws.send(JSON.stringify(proposalRequest));
+      } else if (response.msg_type === 'proposal') {
+        if (!response.proposal || !response.proposal.id) {
+          reject(new Error("Falha ao obter uma proposta de negociação da API."));
+          ws.close();
+          return;
+        }
+        proposalId = response.proposal.id;
+        const price = response.proposal.ask_price;
+        console.log(`[Deriv WS] Proposal received: ${proposalId}. Buying...`);
+        ws.send(JSON.stringify({ "buy": proposalId, "price": price }));
+      } else if (response.msg_type === 'buy') {
+        if (response.buy && response.buy.contract_id) {
+          console.log('[Deriv WS] Trade successful.');
+          entryTick = response.buy.entry_tick;
+          entryTime = response.buy.entry_tick_time;
+          resolve({
+              success: true,
+              message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${quantity} USD executada com sucesso.`,
+              contractId: response.buy.contract_id,
+              entryTick: entryTick,
+              entryTime: entryTime,
+          });
+        } else {
+          reject(new Error("A resposta da compra não continha um ID de contrato válido."));
+        }
+        ws.close();
+      }
+    });
+
+     ws.on('error', (error) => {
+      console.error('[Deriv WS] Trade connection error:', error);
+      reject(error);
+      ws.close();
+    });
+
+    ws.on('close', (code, reason) => {
+      console.log(`[Deriv WS] Trade connection closed: ${code} ${reason.toString()}`);
+    });
+  });
 }
 
 

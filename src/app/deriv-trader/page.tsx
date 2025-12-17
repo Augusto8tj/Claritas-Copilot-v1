@@ -6,7 +6,7 @@ import { useState } from "react";
 import { DerivTraderInterface } from "@/components/trading/deriv-trader-interface";
 import { AssetSelector } from "@/components/trading/asset-selector";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { MarketChart } from "@/components/trading/market-chart";
+import { MarketChart, type ActiveContract } from "@/components/trading/market-chart";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Button } from "@/components/ui/button";
 import { AreaChart, CandlestickChart as CandlestickChartIcon } from "lucide-react";
@@ -14,6 +14,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { useDerivApi, type AccountType } from "@/hooks/use-deriv-api";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { TradeResult } from "@/services/deriv-api-service";
 
 export type TimePeriod = '1m' | '15m' | '30m' | '1h' | '8h' | '1d';
 export type ChartType = 'Area' | 'Candle';
@@ -22,7 +23,20 @@ export default function DerivTraderPage() {
   const [selectedAsset, setSelectedAsset] = useState("1HZ100V");
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('1m');
   const [chartType, setChartType] = useState<ChartType>('Area');
+  const [activeContracts, setActiveContracts] = useState<ActiveContract[]>([]);
   const { accountType, setAccountType, accountBalance } = useDerivApi();
+
+  const handleTradeSuccess = (result: TradeResult) => {
+    if (result.contractId && result.entryTick) {
+      const newContract: ActiveContract = {
+        contractId: result.contractId,
+        entryTick: result.entryTick,
+        entryTime: result.entryTime || Math.floor(Date.now() / 1000), // Fallback to now
+        status: 'open',
+      };
+      setActiveContracts(prev => [...prev, newContract]);
+    }
+  };
 
   // Se o período for 1m, força o tipo de gráfico para Area
   if (timePeriod === '1m' && chartType === 'Candle') {
@@ -117,12 +131,20 @@ export default function DerivTraderPage() {
                 </div>
             </CardHeader>
             <CardContent>
-                <MarketChart symbol={selectedAsset} timePeriod={timePeriod} chartType={chartType} />
+                <MarketChart 
+                    symbol={selectedAsset} 
+                    timePeriod={timePeriod} 
+                    chartType={chartType} 
+                    activeContracts={activeContracts}
+                />
             </CardContent>
             </Card>
         </div>
         <div className="lg:col-span-2">
-            <DerivTraderInterface symbol={selectedAsset} />
+            <DerivTraderInterface 
+                symbol={selectedAsset}
+                onTradeSuccess={handleTradeSuccess}
+             />
         </div>
       </div>
     </div>
