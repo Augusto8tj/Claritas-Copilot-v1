@@ -8,25 +8,10 @@
 
 import { ai, flash, pro } from '@/ai/genkit';
 import { z } from 'zod';
-
-// 1. Define Input/Output Schemas
-export const AssetAnalysisInputSchema = z.object({
-  symbol: z.string().describe("The trading symbol of the asset to be analyzed."),
-  historicalData: z.array(z.object({
-    date: z.string(),
-    price: z.number(),
-  })).describe("An array of recent historical price data for the asset."),
-});
-export type AssetAnalysisInput = z.infer<typeof AssetAnalysisInputSchema>;
-
-export const AssetAnalysisOutputSchema = z.object({
-  suggestion: z.enum(['RISE', 'FALL', 'HOLD']).describe("The suggested trading direction: RISE for an expected price increase, FALL for an expected decrease, or HOLD if the direction is unclear."),
-  justification: z.string().describe("A brief, clear justification for the trading suggestion based on the provided data."),
-});
-export type AssetAnalysisOutput = z.infer<typeof AssetAnalysisOutputSchema>;
+import { AssetAnalysisInputSchema, AssetAnalysisOutputSchema, type AssetAnalysisInput, type AssetAnalysisOutput } from './asset-analysis-flow.types';
 
 
-// 2. Create the Prompt
+// 1. Create the Prompt
 const analysisPrompt = ai.definePrompt({
   name: 'assetAnalysisPrompt',
   input: { schema: z.object({ historicalDataJson: z.string(), symbol: z.string() }) },
@@ -47,7 +32,7 @@ Dados de Preço Recentes (JSON):
 });
 
 
-// 3. Define the Flow
+// 2. Define the Flow
 const getAssetAnalysisFlow = ai.defineFlow(
   {
     name: 'getAssetAnalysisFlow',
@@ -74,7 +59,7 @@ const getAssetAnalysisFlow = ai.defineFlow(
   }
 );
 
-// 4. Export a wrapper function
+// 3. Export a wrapper function
 export async function getAssetAnalysis(input: AssetAnalysisInput): Promise<AssetAnalysisOutput> {
     return getAssetAnalysisFlow(input);
 }
