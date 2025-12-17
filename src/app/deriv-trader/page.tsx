@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState } from "react";
@@ -25,6 +26,7 @@ const timePeriods: TimePeriod[] = ['1m', '15m', '30m', '1h', '8h', '1d'];
 
 export default function DerivTraderPage() {
   const [selectedAsset, setSelectedAsset] = useState("1HZ100V");
+  const [zoomLevel, setZoomLevel] = useState(100); // Representa o número de pontos de dados a serem mostrados.
   
   const { 
     accountType, 
@@ -74,6 +76,18 @@ export default function DerivTraderPage() {
           });
       }
   }
+
+  const handleZoom = (direction: 'in' | 'out') => {
+    setZoomLevel(prevZoom => {
+        let newZoom;
+        if (direction === 'in') {
+            newZoom = Math.max(20, prevZoom - 20); // Zoom in, show fewer points, min 20
+        } else {
+            newZoom = Math.min(500, prevZoom + 20); // Zoom out, show more points, max 500
+        }
+        return newZoom;
+    });
+  };
 
   return (
     <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
@@ -172,10 +186,21 @@ export default function DerivTraderPage() {
                     </div>
                 </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="relative">
                 <MarketChart 
                     activeContracts={activeContracts}
+                    zoomLevel={zoomLevel}
                 />
+                 <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2">
+                    <Button variant="outline" size="icon" onClick={() => handleZoom('in')} disabled={zoomLevel <= 20}>
+                        <Plus className="h-4 w-4" />
+                        <span className="sr-only">Zoom In</span>
+                    </Button>
+                    <Button variant="outline" size="icon" onClick={() => handleZoom('out')} disabled={zoomLevel >= 500}>
+                        <Minus className="h-4 w-4" />
+                        <span className="sr-only">Zoom Out</span>
+                    </Button>
+                </div>
             </CardContent>
             </Card>
             <OperationsLog operations={operationsLog} />
@@ -196,5 +221,7 @@ export default function DerivTraderPage() {
     </div>
   );
 }
+
+    
 
     

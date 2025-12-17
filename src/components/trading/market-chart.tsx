@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -37,15 +38,23 @@ const Candlestick = (props: any) => {
 
 interface MarketChartProps {
   activeContracts: ActiveContract[];
+  zoomLevel: number;
 }
 
 
-export function MarketChart({ activeContracts }: MarketChartProps) {
+export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
   const { chartData, isChartLoading, chartError, chartType } = useDerivApi();
+
+  const visibleData = React.useMemo(() => {
+    if (chartData.length > zoomLevel) {
+        return chartData.slice(chartData.length - zoomLevel);
+    }
+    return chartData;
+  }, [chartData, zoomLevel]);
   
   const renderChart = () => {
-     if (chartType === 'Candle' && chartData.length > 0 && 'open' in chartData[0]) {
-        const candleData = chartData as CandleData[];
+     if (chartType === 'Candle' && visibleData.length > 0 && 'open' in visibleData[0]) {
+        const candleData = visibleData as CandleData[];
         const yDomain = candleData.length > 0
             ? [Math.min(...candleData.map(d => d.low)) * 0.999, Math.max(...candleData.map(d => d.high)) * 1.001]
             : ['auto', 'auto'];
@@ -111,7 +120,7 @@ export function MarketChart({ activeContracts }: MarketChartProps) {
      }
      
      // Default to Line Chart
-     const tickData = chartData as TickData[];
+     const tickData = visibleData as TickData[];
      const xDomain = tickData.length > 0 ? [tickData[0].epoch, tickData[tickData.length - 1].epoch] : [0, 0];
      
      return (
@@ -178,7 +187,7 @@ export function MarketChart({ activeContracts }: MarketChartProps) {
      )
   }
 
-  if (isChartLoading && chartData.length === 0) {
+  if (isChartLoading && visibleData.length === 0) {
     return (
       <div className="h-[400px] w-full flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -201,5 +210,7 @@ export function MarketChart({ activeContracts }: MarketChartProps) {
     </div>
   );
 }
+
+    
 
     
