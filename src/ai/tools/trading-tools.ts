@@ -108,17 +108,18 @@ export const executeTradeTool = ai.defineTool(
 export const getHistoricalDataTool = ai.defineTool(
   {
     name: 'getHistoricalDataTool',
-    description: 'Obtém dados de preços históricos para um ativo, para fins de backtesting.',
+    description: 'Obtém dados de preços históricos para um ativo, para fins de backtesting ou análise.',
     inputSchema: z.object({
         symbol: z.string().describe("O ticker do ativo para o qual obter dados históricos."),
-        period: z.string().describe("O período para os dados históricos, ex: '1 ano', '6 meses'."),
+        period: z.string().optional().describe("O período para os dados históricos, ex: '1 ano', '6 meses'. Usado para simulações longas."),
+        count: z.number().optional().describe("O número de pontos de dados recentes a serem buscados. Ideal para análises de curto prazo."),
     }),
     outputSchema: z.array(z.object({
         date: z.string(),
         price: z.number(),
     })),
   },
-  async ({ symbol, period }) => {
-    return getHistoricalData(symbol, period);
+  async ({ symbol, period, count }) => {
+    return getHistoricalData(symbol, period, count);
   }
 );

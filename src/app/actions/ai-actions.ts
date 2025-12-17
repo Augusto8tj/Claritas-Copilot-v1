@@ -10,8 +10,8 @@ export async function getAssetAnalysisAction(symbol: string): Promise<{ success?
   }
 
   try {
-    // 1. Fetch historical data using the existing tool
-    const historicalData = await getHistoricalDataTool({ symbol, period: '5 dias' }); // Fetch recent data
+    // 1. Fetch recent historical data (last 120 ticks/points) using the existing tool
+    const historicalData = await getHistoricalDataTool({ symbol, count: 120 });
     
     if (!historicalData || historicalData.length === 0) {
       return { error: `Não foi possível obter dados históricos para ${symbol}.` };

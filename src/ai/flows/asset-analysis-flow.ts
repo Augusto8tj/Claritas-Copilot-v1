@@ -42,7 +42,7 @@ const getAssetAnalysisFlow = ai.defineFlow(
   async ({ symbol, historicalData }) => {
     
     // Convert historical data to a JSON string to pass to the prompt
-    const historicalDataJson = JSON.stringify(historicalData.slice(-20)); // Use last 20 data points for recent trend
+    const historicalDataJson = JSON.stringify(historicalData); 
 
     try {
       // Use the fast model for this kind of analysis

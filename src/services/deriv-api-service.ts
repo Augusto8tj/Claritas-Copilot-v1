@@ -259,40 +259,63 @@ export async function buyContract(
 
 
 /**
- * Simulates fetching historical data for backtesting.
+ * Fetches historical data. Prefers fetching by `count` for recent ticks, 
+ * but falls back to `period` for longer-term simulations.
  * @param symbol The asset ticker.
  * @param period The time period (e.g., '1 year').
+ * @param count The number of recent ticks to fetch.
  */
-export async function getHistoricalData(symbol: string, period: string): Promise<any[]> {
-  console.log(`[Deriv Service] Fetching historical data for ${symbol} over ${period}.`);
-  await new Promise(resolve => setTimeout(resolve, 1200));
-
-  const data = [];
-  const endDate = new Date();
-  
-  let days;
-  if (period.includes("ano") || period.includes("year")) {
-      days = 365;
-  } else if (period.includes("mes") || period.includes("month")) {
-      days = 30 * (parseInt(period) || 1);
-  } else {
-      days = 30;
-  }
-
-  let price = Math.random() * 200 + 50; 
-
-  for (let i = 0; i < days; i++) {
-    const date = new Date(endDate);
-    date.setDate(date.getDate() - (days - i - 1));
+export async function getHistoricalData(symbol: string, period?: string, count?: number): Promise<any[]> {
+    console.log(`[Deriv Service] Fetching historical data for ${symbol}. Count: ${count}, Period: ${period}.`);
     
-    const trend = Math.sin(i / 50) * 0.5;
-    const volatility = (Math.random() - 0.5) * 4;
-    price += trend + volatility;
+    // Prioritize count for high-frequency data
+    if (count) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // Shorter delay for ticks
+        const data = [];
+        let price = Math.random() * 200 + 50;
+        
+        for (let i = 0; i < count; i++) {
+            const date = new Date();
+            date.setSeconds(date.getSeconds() - (count - i));
+            
+            const trend = Math.sin(i / 20) * 0.1; // Short-term trend
+            const volatility = (Math.random() - 0.5) * 0.5;
+            price += trend + volatility;
+            
+            if (price < 1) price = 1;
+            
+            data.push({ date: date.toISOString(), price: parseFloat(price.toFixed(4)) });
+        }
+        return data;
+    }
 
-    if (price < 5) price = 5;
+    // Fallback to period-based data for longer simulations
+    await new Promise(resolve => setTimeout(resolve, 1200));
+    const data = [];
+    const endDate = new Date();
     
-    data.push({ date: date.toISOString().split('T')[0], price: parseFloat(price.toFixed(2)) });
-  }
+    let days;
+    if (period && (period.includes("ano") || period.includes("year"))) {
+        days = 365;
+    } else if (period && (period.includes("mes") || period.includes("month"))) {
+        days = 30 * (parseInt(period) || 1);
+    } else {
+        days = 30; // Default to 30 days if period is unclear
+    }
 
-  return data;
+    let price = Math.random() * 200 + 50;
+
+    for (let i = 0; i < days; i++) {
+        const date = new Date(endDate);
+        date.setDate(date.getDate() - (days - i - 1));
+        
+        const trend = Math.sin(i / 50) * 0.5;
+        const volatility = (Math.random() - 0.5) * 4;
+        price += trend + volatility;
+
+        if (price < 5) price = 5;
+        
+        data.push({ date: date.toISOString().split('T')[0], price: parseFloat(price.toFixed(2)) });
+    }
+    return data;
 }
