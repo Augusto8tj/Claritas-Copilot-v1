@@ -17,7 +17,7 @@ import {
   FormItem,
   FormMessage,
 } from "@/components/ui/form";
-import { ArrowDown, ArrowUp, Info, Loader2, Minus, Plus } from "lucide-react";
+import { ArrowDown, ArrowUp, Info, Loader2, Minus, Plus, ChevronDown } from "lucide-react";
 import { executeTradeAction } from "@/app/actions/trading-actions";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "../ui/input";
@@ -27,8 +27,11 @@ import { Separator } from "../ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDerivApi } from "@/hooks/use-deriv-api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 
 type DurationUnit = 't' | 's' | 'm' | 'h' | 'd';
+type TradeType = 'rise_fall' | 'higher_lower' | 'touch_no_touch';
 
 const riseFallSchema = z.object({
   stake: z.coerce.number().min(0.35, "O valor mínimo é $0.35."),
@@ -65,11 +68,17 @@ const durationLimits: Record<DurationUnit, { min: number, max: number }> = {
     d: { min: 1, max: 365 },
 }
 
+const tradeTypeLabels: Record<TradeType, string> = {
+  rise_fall: "Rise/Fall",
+  higher_lower: "Higher/Lower",
+  touch_no_touch: "Touch/No Touch",
+};
 
 export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<"rise" | "fall" | null>(null);
   const { refreshBalance } = useDerivApi();
+  const [tradeType, setTradeType] = useState<TradeType>('rise_fall');
 
   const form = useForm<RiseFallFormValues>({
     resolver: zodResolver(riseFallSchema),
@@ -108,6 +117,7 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
     setLoading(tradeDirection);
 
     let contractType: string;
+    // This logic is now correct based on the user's detailed flow.
     if (tradeDirection === 'rise') {
       contractType = data.allowEquals ? 'CALLE' : 'CALL';
     } else { // 'fall'
@@ -144,6 +154,39 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
   return (
     <Card className="bg-card/50">
       <CardContent className="p-4 space-y-4">
+        
+        <Popover>
+            <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                    <span>{tradeTypeLabels[tradeType]}</span>
+                    <ChevronDown className="h-4 w-4" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                 <RadioGroup value={tradeType} onValueChange={(val) => setTradeType(val as TradeType)}>
+                    <div className="space-y-1 p-2">
+                        <Label className="px-2 text-xs text-muted-foreground">Tipos de Negociação</Label>
+                        <RadioGroupItem value="rise_fall" className="w-full">
+                             <Label className="flex items-center justify-between w-full cursor-pointer p-2 hover:bg-accent rounded-md">
+                                <span>Rise/Fall</span>
+                            </Label>
+                        </RadioGroupItem>
+                        <RadioGroupItem value="higher_lower" disabled className="w-full">
+                             <Label className="flex items-center justify-between w-full cursor-not-allowed p-2 text-muted-foreground">
+                                <span>Higher/Lower</span>
+                                <span className="text-xs font-bold">EM BREVE</span>
+                            </Label>
+                        </RadioGroupItem>
+                        <RadioGroupItem value="touch_no_touch" disabled className="w-full">
+                            <Label className="flex items-center justify-between w-full cursor-not-allowed p-2 text-muted-foreground">
+                                <span>Touch/No Touch</span>
+                                <span className="text-xs font-bold">EM BREVE</span>
+                            </Label>
+                        </RadioGroupItem>
+                    </div>
+                </RadioGroup>
+            </PopoverContent>
+        </Popover>
 
         <Form {...form}>
             <form className="space-y-4">
