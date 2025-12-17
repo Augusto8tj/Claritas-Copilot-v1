@@ -60,29 +60,21 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
 
 const Candlestick = (props: any) => {
     const { x, y, width, height, payload } = props;
-    const { open, high, low, close } = payload;
-
-    if ([x, y, width, height, open, high, low, close].some(val => val === undefined || isNaN(val))) {
+    const { open, close } = payload;
+    
+    if ([x, y, width, height, open, close].some(val => val === undefined || isNaN(val))) {
         return null; // Don't render if any value is invalid
     }
 
     const isBullish = close > open;
-    const color = isBullish ? 'hsl(142.1 76.2% 41.2%)' : 'hsl(0 84.2% 60.2%)'; // Green for bullish, Red for bearish
-    
-    // Y-coordinates on the screen
-    const yHigh = y;
-    const yLow = y + height;
-    
-    // The main wick line
-    const wick = <line x1={x + width / 2} y1={yHigh} x2={x + width / 2} y2={yLow} stroke={color} strokeWidth="1" />;
+    const color = isBullish ? 'hsl(142.1 76.2% 41.2%)' : 'hsl(0 84.2% 60.2%)';
 
-    // Calculate body position
-    const bodyY = isBullish ? y + (height * (high - close) / (high - low)) : y + (height * (high - open) / (high - low));
-    const bodyHeight = Math.abs( (height * (open - close)) / (high - low) );
+    const bodyY = isBullish ? y + (height * (payload.high - close) / (payload.high - payload.low)) : y + (height * (payload.high - open) / (payload.high - payload.low));
+    const bodyHeight = Math.abs((height * (open - close)) / (payload.high - payload.low));
 
     return (
         <g>
-            {wick}
+            <line x1={x + width / 2} y1={y} x2={x + width / 2} y2={y + height} stroke={color} strokeWidth="1" />
             <rect x={x} y={bodyY} width={width} height={Math.max(bodyHeight, 1)} fill={color} />
         </g>
     );
@@ -150,6 +142,7 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
         }));
         setData(historyData);
         setLoading(false);
+        
         // Subscribe to live ticks only for line charts.
         if (chartType === 'Area' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
           wsRef.current.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
@@ -394,5 +387,3 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
     </div>
   );
 }
-
-    
