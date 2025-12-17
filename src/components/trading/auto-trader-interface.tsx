@@ -105,7 +105,7 @@ export function AutoTraderInterface({ symbol, onTradeSuccess }: AutoTraderInterf
                 currency: accountBalance.currency || 'USD',
                 stake: 10, // Using a default stake for strategy definition
                 duration: 5,
-                duration_unit: 't',
+                durationUnit: 't',
                 recentTrades: operationsLog.slice(0, 5),
             });
 
