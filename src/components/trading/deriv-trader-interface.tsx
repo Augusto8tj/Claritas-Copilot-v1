@@ -28,6 +28,7 @@ import { useDerivApi } from "@/hooks/use-deriv-api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
+import type { TradeResult } from "@/services/deriv-api-service";
 
 type DurationUnit = 't' | 's' | 'm' | 'h' | 'd';
 type TradeType = 'rise_fall' | 'higher_lower' | 'touch_no_touch';
@@ -49,6 +50,7 @@ type RiseFallFormValues = z.infer<typeof riseFallSchema>;
 
 interface DerivTraderInterfaceProps {
   symbol: string;
+  onTradeSuccess: (result: TradeResult) => void;
 }
 
 const durationUnitLabels: Record<DurationUnit, string> = {
@@ -73,7 +75,7 @@ const tradeTypeLabels: Record<TradeType, string> = {
   touch_no_touch: "Touch/No Touch",
 };
 
-export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
+export function DerivTraderInterface({ symbol, onTradeSuccess }: DerivTraderInterfaceProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<"rise" | "fall" | null>(null);
   const { executeTrade, isConnected, isConnecting } = useDerivApi();
@@ -124,10 +126,17 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
     setLoading(tradeDirection);
 
     let contractType: string;
-    if (tradeDirection === 'rise') {
-      contractType = data.allowEquals ? 'CALLE' : 'CALL';
-    } else { // 'fall'
-      contractType = data.allowEquals ? 'PUTE' : 'PUT';
+    if (tradeType === 'rise_fall') {
+      if (tradeDirection === 'rise') {
+        contractType = data.allowEquals ? 'CALLE' : 'CALL';
+      } else { // 'fall'
+        contractType = data.allowEquals ? 'PUTE' : 'PUT';
+      }
+    } else {
+        // Logic for other trade types can be added here
+        toast({ variant: "destructive", title: "Em breve", description: "Este tipo de negociação ainda não está implementado." });
+        setLoading(null);
+        return;
     }
 
     const result = await executeTrade(contractType, data.stake, symbol);
@@ -136,9 +145,9 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
     if (result.success) {
       toast({
         title: "Ordem Executada!",
-        description: result.message,
+        description: `Sua negociação para ${symbol} foi aberta.`,
       });
-      // The state update is handled by the provider now
+      onTradeSuccess(result);
     } else {
       toast({
         variant: "destructive",
@@ -304,7 +313,7 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
         
         <div className="space-y-2 pt-2">
              <div className="text-xs text-muted-foreground flex items-center justify-between">
-                <span>Pagamento</span>
+                <span>Pagamento Potencial</span>
                 <span className="font-semibold text-foreground">{payout} USD</span>
              </div>
              <Button
@@ -325,7 +334,7 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
             </Button>
             
              <div className="text-xs text-muted-foreground flex items-center justify-between pt-2">
-                <span>Pagamento</span>
+                <span>Pagamento Potencial</span>
                 <span className="font-semibold text-foreground">{payout} USD</span>
              </div>
             <Button

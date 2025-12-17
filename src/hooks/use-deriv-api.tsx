@@ -4,6 +4,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
 import { requestProposal, buyContract } from '@/services/deriv-api-service';
 import type { TradeResult } from '@/services/deriv-api-service';
+import { useToast } from './use-toast';
 
 const DERIV_DEMO_TOKEN_KEY = 'derivDemoApiToken';
 const DERIV_REAL_TOKEN_KEY = 'derivRealApiToken';
@@ -18,16 +19,10 @@ interface AccountBalance {
   loading: boolean;
 }
 
-export type ContractStatus = 'open' | 'won' | 'lost';
-
 export interface ActiveContract {
   contractId: number;
   entryTick: number;
   entryTime: number;
-  status: ContractStatus;
-  exitTime?: number;
-  exitTick?: number;
-  isSold?: boolean;
 }
 
 interface DerivApiContextType {
@@ -47,6 +42,7 @@ interface DerivApiContextType {
   refreshBalance: () => void;
   executeTrade: (contractType: string, quantity: number, symbol: string) => Promise<TradeResult>;
   clearActiveContracts: () => void;
+  addActiveContract: (contract: ActiveContract) => void;
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
@@ -58,6 +54,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   const [accountBalance, setAccountBalance] = useState<AccountBalance>({ balance: null, currency: null, loading: true });
   const [isLoading, setIsLoading] = useState(true);
   const [activeContracts, setActiveContracts] = useState<ActiveContract[]>([]);
+  const { toast } = useToast();
 
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -148,34 +145,24 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         });
       } else if (response.msg_type === 'proposal_open_contract') {
           const contract = response.proposal_open_contract;
-          if (!contract) return;
+          if (!contract || !contract.is_sold) return;
           
-          setActiveContracts(prevContracts => {
-            const existingContractIndex = prevContracts.findIndex(c => c.contractId === contract.contract_id);
-            if (existingContractIndex > -1) {
-              const updatedContracts = [...prevContracts];
-              const existingContract = updatedContracts[existingContractIndex];
-              
-              if(contract.is_sold) {
-                  existingContract.status = contract.is_valid_to_sell && contract.status === 'won' ? 'won' : 'lost';
-                  existingContract.exitTick = contract.sell_price || contract.exit_tick;
-                  existingContract.exitTime = contract.sell_time || contract.exit_tick_time;
-                  existingContract.isSold = true;
-                  
-                   // Auto-clear won/lost contracts after a delay to clean the chart
-                  setTimeout(() => {
-                    setActiveContracts(prev => prev.filter(c => c.contractId !== contract.contract_id));
-                    // Refresh balance after contract is settled
-                    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                      wsRef.current.send(JSON.stringify({ "balance": 1 }));
-                    }
-                  }, 7000);
-              }
-              
-              return updatedContracts;
-            }
-            return prevContracts;
+          const profit = parseFloat(contract.profit);
+          const profitLossMessage = profit >= 0 ? `Resultado: Lucro de ${contract.currency} ${profit.toFixed(2)}` : `Resultado: Prejuízo de ${contract.currency} ${Math.abs(profit).toFixed(2)}`;
+
+          toast({
+              title: "Negociação Encerrada",
+              description: `Contrato ${contract.contract_id}: ${profitLossMessage}`,
+              variant: profit >= 0 ? "default" : "destructive",
           });
+          
+          // Remove from active contracts list
+          setActiveContracts(prev => prev.filter(c => c.contractId !== contract.contract_id));
+
+          // Refresh balance
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ "balance": 1 }));
+          }
       }
     };
 
@@ -197,7 +184,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         ws.close();
       }
     };
-  }, [activeToken, isLoading]);
+  }, [activeToken, isLoading, toast]);
 
 
   const setAccountType = (type: AccountType) => {
@@ -262,15 +249,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         const buyResponse = await buyContract(wsRef.current, proposal.id, proposal.ask_price, promisesRef);
         const buyResult = buyResponse.buy;
 
-        // Add to active contracts locally to start tracking
-        const newContract: ActiveContract = {
-            contractId: buyResult.contract_id,
-            entryTick: buyResult.entry_tick,
-            entryTime: buyResult.entry_tick_time,
-            status: 'open',
-        };
-        setActiveContracts(prev => [...prev, newContract]);
-
         return {
           success: true,
           message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${quantity} USD executada com sucesso.`,
@@ -286,6 +264,10 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   }, [isConnected]);
 
   const clearActiveContracts = () => setActiveContracts([]);
+  
+  const addActiveContract = (contract: ActiveContract) => {
+    setActiveContracts(prev => [...prev, contract]);
+  }
 
   const contextValue: DerivApiContextType = {
     ws: wsRef.current,
@@ -303,7 +285,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     activeContracts,
     refreshBalance,
     executeTrade,
-    clearActiveContracts
+    clearActiveContracts,
+    addActiveContract,
   };
 
   if (isLoading) {

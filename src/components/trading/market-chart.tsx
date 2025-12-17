@@ -5,7 +5,7 @@ import * as React from "react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Label } from "recharts";
 import type { TimePeriod, ChartType } from "@/app/deriv-trader/page";
-import { useDerivApi } from "@/hooks/use-deriv-api";
+import { useDerivApi, type ActiveContract } from "@/hooks/use-deriv-api";
 import { Button } from "@/components/ui/button";
 import { Plus, Minus, Loader2 } from "lucide-react";
 
@@ -26,6 +26,7 @@ interface MarketChartProps {
   symbol: string;
   timePeriod: TimePeriod;
   chartType: ChartType;
+  activeContracts: ActiveContract[];
 }
 
 const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
@@ -43,13 +44,12 @@ const getHistoryDurationForTimePeriod = (timePeriod: TimePeriod): number => {
 }
 
 
-export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps) {
+export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: MarketChartProps) {
   const [data, setData] = useState<TickData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [duration, setDuration] = useState(getHistoryDurationForTimePeriod(timePeriod));
   const wsRef = useRef<WebSocket | null>(null);
-  const { activeContracts } = useDerivApi();
 
   const fetchData = useCallback((currentDuration: number) => {
     if (!symbol || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -173,16 +173,6 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
     });
   };
 
-  const getStrokeColor = (status: 'open' | 'won' | 'lost') => {
-    switch (status) {
-        case 'won': return '#22c55e'; // green-500
-        case 'lost': return '#ef4444'; // red-500
-        case 'open':
-        default: return 'hsl(var(--accent))';
-    }
-  }
-
-
   if (loading && data.length === 0) {
     return (
       <div className="h-[400px] w-full flex items-center justify-center">
@@ -253,18 +243,18 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
             dot={false}
           />
            {activeContracts.map(contract => (
-            (typeof contract.entryTick === 'number') && (
+             (typeof contract.entryTick === 'number') && (
             <ReferenceLine
               key={contract.contractId}
               y={contract.entryTick}
-              stroke={getStrokeColor(contract.status)}
-              strokeDasharray={contract.status === 'open' ? "3 3" : "0"}
+              stroke="hsl(var(--accent))"
+              strokeDasharray="3 3"
               strokeWidth={2}
             >
               <Label 
-                value={contract.status === 'open' ? `Entrada: ${contract.entryTick.toFixed(2)}` : contract.status === 'won' ? `Ganho` : 'Perda'}
+                value={`Entrada: ${contract.entryTick.toFixed(2)}`}
                 position="right"
-                fill={getStrokeColor(contract.status)}
+                fill="hsl(var(--accent-foreground))"
                 fontSize={12}
                 className="font-semibold"
               />
@@ -276,4 +266,3 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
     </div>
   );
 }
-

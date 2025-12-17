@@ -5,7 +5,8 @@
  * @fileOverview Defines AI tools for interacting with a brokerage API.
  */
 import { ai, flash, pro } from '@/ai/genkit';
-import { getAccountBalance, getMarketData, executeTrade, getHistoricalData } from '@/services/deriv-api-service';
+import { getAccountBalance, getMarketData, getHistoricalData } from '@/services/deriv-api-service';
+import { executeTradeAction } from '@/app/actions/trading-actions';
 import { z } from 'zod';
 import type { AccountType } from '@/hooks/use-deriv-api';
 
@@ -99,7 +100,7 @@ export const executeTradeTool = ai.defineTool(
       contractType = allowEquals ? 'CALLE' : 'CALL';
     }
     
-    return executeTrade(API_TOKEN, symbol, contractType, quantity);
+    return executeTradeAction(API_TOKEN, contractType, quantity, symbol);
   }
 );
 

@@ -11,6 +11,8 @@ import {
   analyzeMqlCode,
 } from '@/ai/flows/mql-analyzer-flow';
 import { MqlAnalyzerInputSchema, type MqlAnalyzerInput } from '@/ai/flows/mql-analyzer-flow.types';
+import { executeTrade as executeTradeService } from '@/services/deriv-api-service';
+import type { TradeResult } from '@/services/deriv-api-service';
 
 
 export async function runStrategyBacktestAction(data: StrategyBacktestInput): Promise<{ success?: string; error?: string }> {
@@ -45,4 +47,19 @@ export async function analyzeMqlCodeAction(data: MqlAnalyzerInput): Promise<{ su
     console.error("Erro ao analisar o código MQL5:", e);
     return { error: e.message || "Ocorreu um erro inesperado durante a análise do código." };
   }
+}
+
+export async function executeTradeAction(
+    apiToken: string,
+    contractType: string,
+    quantity: number,
+    symbol: string
+): Promise<TradeResult> {
+    try {
+        const result = await executeTradeService(apiToken, contractType, quantity, symbol);
+        return result;
+    } catch(e: any) {
+        console.error("[Action] Erro ao executar a negociação:", e);
+        return { success: false, message: e.message || "Um erro inesperado ocorreu na ação de negociação." };
+    }
 }

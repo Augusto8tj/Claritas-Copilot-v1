@@ -23,7 +23,7 @@ export default function DerivTraderPage() {
   const [selectedAsset, setSelectedAsset] = useState("1HZ100V");
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('1m');
   const [chartType, setChartType] = useState<ChartType>('Area');
-  const { accountType, setAccountType, accountBalance, activeContracts, clearActiveContracts } = useDerivApi();
+  const { accountType, setAccountType, accountBalance, activeContracts, clearActiveContracts, addActiveContract } = useDerivApi();
 
 
   useEffect(() => {
@@ -37,6 +37,16 @@ export default function DerivTraderPage() {
     { label: 'Area', icon: <AreaChart className="w-8 h-8 mx-auto" />, disabled: false },
     { label: 'Candle', icon: <CandlestickChartIcon className="w-8 h-8 mx-auto" />, disabled: timePeriod === '1m' },
   ];
+  
+  const handleTradeSuccess = (tradeResult: TradeResult) => {
+      if (tradeResult.success && tradeResult.contractId && tradeResult.entryTick && tradeResult.entryTime) {
+          addActiveContract({
+              contractId: tradeResult.contractId,
+              entryTick: tradeResult.entryTick,
+              entryTime: tradeResult.entryTime,
+          });
+      }
+  }
 
   return (
     <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
@@ -134,6 +144,7 @@ export default function DerivTraderPage() {
                     symbol={selectedAsset} 
                     timePeriod={timePeriod} 
                     chartType={chartType} 
+                    activeContracts={activeContracts}
                 />
             </CardContent>
             </Card>
@@ -141,6 +152,7 @@ export default function DerivTraderPage() {
         <div className="lg:col-span-2">
             <DerivTraderInterface 
                 symbol={selectedAsset}
+                onTradeSuccess={handleTradeSuccess}
              />
         </div>
       </div>
