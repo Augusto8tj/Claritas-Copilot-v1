@@ -11,8 +11,9 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { Operation } from "./operations-log.types";
-import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { useMemo } from "react";
+import { PendingOperationCounter } from "./pending-operation-counter";
 
 
 interface OperationsLogProps {
@@ -80,10 +81,11 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                     )}
                   >
                     {op.status === "pending" ? (
-                      <>
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        <span>Em Andamento</span>
-                      </>
+                      <PendingOperationCounter 
+                        duration={op.duration} 
+                        durationUnit={op.durationUnit}
+                        entryTime={new Date(op.timestamp).getTime()}
+                      />
                     ) : op.status === "won" ? (
                       <>
                         <ArrowUp className="h-4 w-4" />

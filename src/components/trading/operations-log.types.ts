@@ -1,4 +1,7 @@
 
+
+import type { DurationUnit } from "./deriv-trader-interface";
+
 export type OperationStatus = 'pending' | 'won' | 'lost';
 
 export interface Operation {
@@ -9,4 +12,6 @@ export interface Operation {
   status: OperationStatus;
   result?: number; // Profit or loss amount
   timestamp: string; // Changed to string (ISO format)
+  duration: number;
+  durationUnit: DurationUnit;
 }

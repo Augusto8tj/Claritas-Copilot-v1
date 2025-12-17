@@ -1,8 +1,11 @@
 
+
 'use client';
 
 import type { AccountType } from '@/hooks/use-deriv-api';
 import type { MutableRefObject } from 'react';
+import type { DurationUnit } from '@/components/trading/deriv-trader-interface';
+
 
 /**
  * @fileOverview Service for interacting with the Deriv brokerage API.
@@ -216,6 +219,8 @@ type ProposalRequest = {
     contractType: string;
     quantity: number;
     symbol: string;
+    duration: number;
+    duration_unit: DurationUnit;
 };
 
 // Helper function to send a proposal request and get the response
@@ -231,8 +236,8 @@ export async function requestProposal(
         "basis": "stake",
         "contract_type": params.contractType,
         "currency": "USD",
-        "duration": 5,
-        "duration_unit": "t",
+        "duration": params.duration,
+        "duration_unit": params.duration_unit,
         "symbol": params.symbol,
         "req_id": req_id
     };

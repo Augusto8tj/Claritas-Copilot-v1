@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -31,7 +32,7 @@ import type { TradeResult } from "@/services/deriv-api-service";
 import { AITradeSuggestion } from "./ai-trade-suggestion";
 
 
-type DurationUnit = 't' | 's' | 'm' | 'h' | 'd';
+export type DurationUnit = 't' | 's' | 'm' | 'h' | 'd';
 type TradeType = 'rise_fall' | 'higher_lower' | 'touch_no_touch';
 
 const riseFallSchema = z.object({
@@ -141,7 +142,7 @@ export function DerivTraderInterface({ symbol, onTradeSuccess, isConnected }: De
         return;
     }
 
-    const result = await executeTrade(contractType, data.stake, symbol, tradeDirection);
+    const result = await executeTrade(contractType, data.stake, symbol, tradeDirection, data.duration, data.duration_unit);
     setLoading(null);
 
     if (result.success) {
