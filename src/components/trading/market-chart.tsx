@@ -124,7 +124,6 @@ export function MarketChart({ activeContracts }: MarketChartProps) {
                     tickFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleTimeString('pt-BR')}
                     type="number"
                     domain={['dataMin', 'dataMax']}
-                    allowDataOverflow={true}
                 />
                 <YAxis
                     dataKey="price"
