@@ -11,14 +11,23 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { Operation } from "./operations-log.types";
-import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
-import { useMemo } from "react";
+import { ArrowDown, ArrowUp, Loader2, Sparkles, BrainCircuit } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Button } from "../ui/button";
+import { useDerivApi } from "@/hooks/use-deriv-api";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
+
 
 interface OperationsLogProps {
   operations: Operation[];
 }
 
 export function OperationsLog({ operations }: OperationsLogProps) {
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { getAnalysis } = useDerivApi();
 
   const dailySummary = useMemo(() => {
     const today = new Date();
@@ -28,9 +37,18 @@ export function OperationsLog({ operations }: OperationsLogProps) {
       .filter(op => op.status !== 'pending' && new Date(op.timestamp) >= today)
       .reduce((sum, op) => sum + (op.result || 0), 0);
   }, [operations]);
+  
+  const handleAnalyze = async () => {
+    setIsAnalyzing(true);
+    const result = await getAnalysis();
+    setAnalysisResult(result);
+    setIsModalOpen(true);
+    setIsAnalyzing(false);
+  }
 
 
   return (
+    <>
     <Card className="h-full flex flex-col">
       <CardHeader>
         <div className="flex justify-between items-start">
@@ -50,6 +68,16 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                     {dailySummary.toLocaleString('pt-BR', { style: 'currency', currency: 'USD' })}
                 </p>
             </div>
+        </div>
+        <div className="mt-4">
+            <Button variant="outline" size="sm" onClick={handleAnalyze} disabled={isAnalyzing || operations.length === 0}>
+                {isAnalyzing ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                    <Sparkles className="mr-2 h-4 w-4" />
+                )}
+                Analisar Performance com IA
+            </Button>
         </div>
       </CardHeader>
       <CardContent className="flex-1 p-0">
@@ -102,5 +130,28 @@ export function OperationsLog({ operations }: OperationsLogProps) {
         </ScrollArea>
       </CardContent>
     </Card>
+
+    <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle className="font-headline flex items-center gap-2">
+                    <BrainCircuit className="h-5 w-5 text-primary" />
+                    Análise de Performance da IA
+                </DialogTitle>
+                <DialogDescription>
+                    Um resumo estatístico do seu desempenho de negociação na sessão atual.
+                </DialogDescription>
+            </DialogHeader>
+            <Alert variant={analysisResult?.startsWith("Erro") ? "destructive" : "default"} className={analysisResult?.startsWith("Erro") ? "" : "bg-primary/5 border-primary/20"}>
+                 <AlertTitle className={analysisResult?.startsWith("Erro") ? "" : "text-primary"}>
+                    {analysisResult?.startsWith("Erro") ? "Erro na Análise" : "Resumo do Copiloto"}
+                 </AlertTitle>
+                <AlertDescription className="whitespace-pre-wrap">
+                    {analysisResult || "Nenhum resultado para exibir."}
+                </AlertDescription>
+            </Alert>
+        </DialogContent>
+    </Dialog>
+    </>
   );
 }

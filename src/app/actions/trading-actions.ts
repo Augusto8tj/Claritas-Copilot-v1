@@ -13,6 +13,8 @@ import {
 import { MqlAnalyzerInputSchema, type MqlAnalyzerInput } from '@/ai/flows/mql-analyzer-flow.types';
 import { executeTrade as executeTradeService } from '@/services/deriv-api-service';
 import type { TradeResult } from '@/services/deriv-api-service';
+import { analyzeOperations } from '@/ai/flows/operation-analysis-flow';
+import { OperationAnalysisInputSchema, type OperationAnalysisInput } from '@/ai/flows/operation-analysis-flow.types';
 
 
 export async function runStrategyBacktestAction(data: StrategyBacktestInput): Promise<{ success?: string; error?: string }> {
@@ -61,5 +63,20 @@ export async function executeTradeAction(
     } catch(e: any) {
         console.error("[Action] Erro ao executar a negociação:", e);
         return { success: false, message: e.message || "Um erro inesperado ocorreu na ação de negociação." };
+    }
+}
+
+export async function analyzeOperationsAction(data: OperationAnalysisInput): Promise<{ success?: string; error?: string }> {
+    const validatedData = OperationAnalysisInputSchema.safeParse(data);
+    if (!validatedData.success) {
+        return { error: "Dados de operações inválidos." };
+    }
+
+    try {
+        const result = await analyzeOperations(validatedData.data);
+        return { success: result.analysis };
+    } catch (e: any) {
+        console.error("Erro ao analisar operações:", e);
+        return { error: e.message || "Ocorreu um erro inesperado durante a análise." };
     }
 }

@@ -6,6 +6,7 @@ import { requestProposal, buyContract } from '@/services/deriv-api-service';
 import type { TradeResult } from '@/services/deriv-api-service';
 import { useToast } from './use-toast';
 import type { Operation } from '@/components/trading/operations-log.types';
+import { analyzeOperationsAction } from '@/app/actions/trading-actions';
 
 
 const DERIV_DEMO_TOKEN_KEY = 'derivDemoApiToken';
@@ -49,6 +50,7 @@ interface DerivApiContextType {
   executeTrade: (contractType: string, quantity: number, symbol: string, tradeDirection: 'rise' | 'fall') => Promise<TradeResult>;
   clearActiveContracts: () => void;
   addActiveContract: (contract: ActiveContract) => void;
+  getAnalysis: () => Promise<string>;
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
@@ -293,6 +295,14 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     setActiveContracts(prev => [...prev, contract]);
   }
 
+  const getAnalysis = async (): Promise<string> => {
+    const response = await analyzeOperationsAction({ operations: operationsLog });
+    if (response.success) {
+      return response.success;
+    }
+    return `Erro: ${response.error || 'Falha ao obter análise.'}`;
+  };
+
   const contextValue: DerivApiContextType = {
     ws: wsRef.current,
     isConnected,
@@ -312,6 +322,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     executeTrade,
     clearActiveContracts,
     addActiveContract,
+    getAnalysis,
   };
 
   if (isLoading) {
