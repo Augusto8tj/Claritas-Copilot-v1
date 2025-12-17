@@ -15,7 +15,7 @@ import type { AssetAnalysisOutput } from "@/ai/flows/asset-analysis-flow.types";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { cn } from "@/lib/utils";
 import { useDerivApi } from "@/hooks/use-deriv-api";
-import { useFormContext, useWatch } from "react-hook-form"; // Assumindo que o formulário principal está num contexto
+import { getHistoricalData } from "@/services/deriv-api-service";
 
 interface AITradeSuggestionProps {
   symbol: string;
@@ -33,24 +33,37 @@ export function AITradeSuggestion({ symbol, form }: AITradeSuggestionProps) {
     setAnalysisResult(null);
     setError(null);
     
-    const formData = form.getValues();
+    try {
+      // 1. Fetch historical data on the client
+      const historicalData = await getHistoricalData(symbol, undefined, 120);
+      if (!historicalData || historicalData.length === 0) {
+        throw new Error(`Não foi possível obter dados históricos para ${symbol}.`);
+      }
 
-    const result = await getAssetAnalysisAction({
-        symbol,
-        balance: accountBalance.balance || 0,
-        currency: accountBalance.currency || 'USD',
-        stake: formData.stake,
-        duration: formData.duration,
-        durationUnit: formData.duration_unit,
-        recentTrades: operationsLog.slice(0, 5), // Envia os últimos 5 trades
-        historicalData: [] // Dados históricos serão buscados na action
-    });
+      // 2. Get form data
+      const formData = form.getValues();
 
-    if (result.success) {
-        setAnalysisResult(result.success);
-    } else {
-        setError(result.error || "Ocorreu um erro desconhecido.");
+      // 3. Call the server action with all the required data
+      const result = await getAssetAnalysisAction({
+          symbol,
+          balance: accountBalance.balance || 0,
+          currency: accountBalance.currency || 'USD',
+          stake: formData.stake,
+          duration: formData.duration,
+          durationUnit: formData.duration_unit,
+          recentTrades: operationsLog.slice(0, 5),
+          historicalData: historicalData 
+      });
+
+      if (result.success) {
+          setAnalysisResult(result.success);
+      } else {
+          setError(result.error || "Ocorreu um erro desconhecido.");
+      }
+    } catch (e: any) {
+       setError(e.message || "Ocorreu um erro ao buscar dados para análise.");
     }
+
     setIsAnalyzing(false);
   };
   
