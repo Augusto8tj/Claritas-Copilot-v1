@@ -198,10 +198,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       const response = JSON.parse(event.data);
       
       if (response.error) {
-        // Ignore "AlreadySubscribed" error as it's handled by our logic
-        if (response.error.code !== 'AlreadySubscribed') {
-           console.error("[Deriv WS Provider] Error received:", response.error.message);
-        }
         const reqId = response.req_id;
         if (reqId && promisesRef.current.has(String(reqId))) {
             promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
@@ -209,9 +205,11 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         } else if (response.msg_type === 'authorize') {
             setConnectionError(response.error.message);
             setIsConnected(false);
-        } else if (response.msg_type === 'ticks_history') {
+        } else if (response.msg_type === 'ticks_history' || response.msg_type === 'candles') {
              setChartError(response.error.message);
              setIsChartLoading(false);
+        } else {
+           console.error("[Deriv WS Provider] Error received:", response.error.message);
         }
         return;
       }
@@ -322,36 +320,61 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     };
   }, [activeToken, isLoading, isConnected, toast, chartType]);
 
- const subscribeToSymbol = useCallback((symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {
+ const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    
+
     setChartData([]);
     setIsChartLoading(true);
     setChartError(null);
 
-    // Forget previous subscription if it exists
-    if (activeSubscriptionId.current) {
-        ws.send(JSON.stringify({ "forget": activeSubscriptionId.current }));
-        activeSubscriptionId.current = null;
-    }
+    // Encapsulate forget request in a promise
+    const forgetPreviousSubscription = () => {
+        if (activeSubscriptionId.current) {
+            const req_id = Date.now();
+            return new Promise((resolve, reject) => {
+                promisesRef.current.set(String(req_id), { resolve, reject });
+                ws.send(JSON.stringify({ "forget": activeSubscriptionId.current, "req_id": req_id }));
+                 // Timeout to prevent getting stuck
+                setTimeout(() => {
+                    if (promisesRef.current.has(String(req_id))) {
+                        reject(new Error("Forget request timed out."));
+                        promisesRef.current.delete(String(req_id));
+                    }
+                }, 5000);
+            });
+        }
+        return Promise.resolve();
+    };
 
+    try {
+        await forgetPreviousSubscription();
+        activeSubscriptionId.current = null;
+    } catch (e) {
+        console.warn("Could not forget previous subscription, proceeding anyway.", e);
+    }
+    
     activeSymbolRef.current = symbol;
 
-    if (newChartType === 'Area') {
-        setPriceTicks([]); // Clear old ticks when subscribing to a new symbol
-        ws.send(JSON.stringify({ "ticks_history": symbol, "end": "latest", "count": 200, "subscribe": 1 }));
-    } else {
-        const granularity = getGranularityForTimePeriod(newTimePeriod);
-        ws.send(JSON.stringify({
-            ticks_history: symbol,
-            style: 'candles',
-            end: 'latest',
-            count: 500,
-            granularity: granularity,
-            subscribe: 1
-        }));
+    const requestAndSubscribe = () => {
+      if (newChartType === 'Area') {
+          setPriceTicks([]);
+          ws.send(JSON.stringify({ "ticks_history": symbol, "end": "latest", "count": 200, "subscribe": 1 }));
+      } else {
+          const granularity = getGranularityForTimePeriod(newTimePeriod);
+          ws.send(JSON.stringify({
+              ticks_history: symbol,
+              style: 'candles',
+              end: 'latest',
+              count: 500,
+              granularity: granularity,
+              subscribe: 1
+          }));
+      }
     }
+    
+    requestAndSubscribe();
+    
 }, []);
 
 
