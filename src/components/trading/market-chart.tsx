@@ -96,6 +96,7 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
       return;
     }
 
+    setData([]); // Limpa os dados antigos para evitar renderização incorreta
     setLoading(true);
     setError(null);
     
