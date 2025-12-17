@@ -1,12 +1,13 @@
 
 'use client';
 
-import { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react';
-import { getAccountBalance } from '@/services/deriv-api-service';
+import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
+import { getAccountBalance, requestProposal, buyContract, type TradeResult } from '@/services/deriv-api-service';
 
 const DERIV_DEMO_TOKEN_KEY = 'derivDemoApiToken';
 const DERIV_REAL_TOKEN_KEY = 'derivRealApiToken';
 const DERIV_ACCOUNT_TYPE_KEY = 'derivAccountType';
+const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
 
 export type AccountType = 'demo' | 'real';
 
@@ -17,16 +18,20 @@ interface AccountBalance {
 }
 
 interface DerivApiContextType {
+  ws: WebSocket | null;
+  isConnected: boolean;
+  isConnecting: boolean;
+  connectionError: string | null;
   demoToken: string | null;
   realToken: string | null;
   activeToken: string | null;
   accountType: AccountType;
-  isConnected: boolean;
   accountBalance: AccountBalance;
   setAccountType: (type: AccountType) => void;
   setTokens: (tokens: { demo?: string; real?: string }) => void;
   disconnect: (type: AccountType) => void;
   refreshBalance: () => void;
+  executeTrade: (contractType: string, quantity: number, symbol: string) => Promise<TradeResult>;
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
@@ -36,8 +41,16 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   const [realToken, setRealToken] = useState<string | null>(null);
   const [accountType, setAccountTypeState] = useState<AccountType>('demo');
   const [accountBalance, setAccountBalance] = useState<AccountBalance>({ balance: null, currency: null, loading: true });
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
+  const wsRef = useRef<WebSocket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const proposalPromisesRef = useRef<Map<string, { resolve: (value: any) => void, reject: (reason?: any) => void }>>(new Map());
+
+
+  // Load tokens from localStorage on initial render
   useEffect(() => {
     try {
       const storedDemoToken = localStorage.getItem(DERIV_DEMO_TOKEN_KEY);
@@ -51,8 +64,104 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Failed to access localStorage:", error);
     }
-    setLoading(false);
+    setIsLoading(false);
   }, []);
+  
+  const activeToken = accountType === 'demo' ? demoToken : realToken;
+
+  // Manage WebSocket connection
+  useEffect(() => {
+    if (!activeToken || isLoading) {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      setIsConnected(false);
+      setAccountBalance({ balance: null, currency: null, loading: false });
+      return;
+    }
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        // If token changes, we need to re-authorize on the same connection or reconnect.
+        // For simplicity, let's reconnect.
+        wsRef.current.close();
+    }
+
+    setIsConnecting(true);
+    setConnectionError(null);
+    const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("[Deriv WS Provider] Connection opened. Authorizing...");
+      ws.send(JSON.stringify({ "authorize": activeToken }));
+    };
+
+    ws.onmessage = (event) => {
+      const response = JSON.parse(event.data);
+      
+      if (response.error) {
+        console.error("[Deriv WS Provider] Error received:", response.error.message);
+        if (response.msg_type === 'authorize') {
+            setConnectionError(response.error.message);
+            setIsConnected(false);
+            setIsConnecting(false);
+        }
+        // Handle promise rejections for proposals
+        const proposalReqId = response.req_id;
+        if (proposalReqId && proposalPromisesRef.current.has(String(proposalReqId))) {
+            proposalPromisesRef.current.get(String(proposalReqId))?.reject(new Error(response.error.message));
+            proposalPromisesRef.current.delete(String(proposalReqId));
+        }
+        return;
+      }
+
+      if (response.msg_type === 'authorize') {
+        console.log("[Deriv WS Provider] Authorized successfully.");
+        setIsConnected(true);
+        setIsConnecting(false);
+        setAccountBalance({
+            balance: response.authorize.balance,
+            currency: response.authorize.currency,
+            loading: false
+        });
+      }
+
+      // Handle proposal responses
+       const proposalReqId = response.req_id;
+       if (response.msg_type === 'proposal' && proposalReqId && proposalPromisesRef.current.has(String(proposalReqId))) {
+            proposalPromisesRef.current.get(String(proposalReqId))?.resolve(response.proposal);
+            proposalPromisesRef.current.delete(String(proposalReqId));
+       }
+       // Handle buy responses
+       const buyReqId = response.req_id;
+       if (response.msg_type === 'buy' && buyReqId && proposalPromisesRef.current.has(String(buyReqId))) {
+           proposalPromisesRef.current.get(String(buyReqId))?.resolve(response.buy);
+           proposalPromisesRef.current.delete(String(buyReqId));
+       }
+
+    };
+
+    ws.onclose = () => {
+      console.log("[Deriv WS Provider] Connection closed.");
+      setIsConnected(false);
+      setIsConnecting(false);
+      wsRef.current = null;
+    };
+
+    ws.onerror = () => {
+      console.error("[Deriv WS Provider] WebSocket error occurred.");
+      setConnectionError("Failed to connect to Deriv API.");
+      setIsConnecting(false);
+    };
+
+    return () => {
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+        ws.close();
+      }
+    };
+  }, [activeToken, isLoading]);
+
 
   const setAccountType = (type: AccountType) => {
     try {
@@ -92,44 +201,64 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     }
   };
   
-  const activeToken = accountType === 'demo' ? demoToken : realToken;
-
   const fetchBalance = useCallback(async () => {
-    if (!activeToken) {
-      setAccountBalance({ balance: null, currency: null, loading: false });
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.warn("[Deriv WS Provider] Cannot fetch balance, WS not open.");
       return;
     }
     setAccountBalance(prev => ({...prev, loading: true}));
-    try {
-      const { balance, currency } = await getAccountBalance(activeToken);
-      setAccountBalance({ balance, currency, loading: false });
-    } catch (error) {
-      console.error("Failed to fetch account balance:", error);
-      setAccountBalance({ balance: null, currency: null, loading: false });
-    }
-  }, [activeToken]);
+    wsRef.current.send(JSON.stringify({ "balance": 1 }));
+  }, []);
 
-  useEffect(() => {
-    if(!loading) {
-        fetchBalance();
-    }
-  }, [activeToken, fetchBalance, loading]);
+  const executeTrade = useCallback(async (contractType: string, quantity: number, symbol: string): Promise<TradeResult> => {
+      if (!wsRef.current || !isConnected) {
+        throw new Error("A conexão com a Deriv API não está ativa.");
+      }
 
-  const contextValue = {
+      try {
+        console.log("[Deriv Hook] Requesting proposal...");
+        const proposal = await requestProposal(wsRef.current, { contractType, quantity, symbol }, proposalPromisesRef);
+        if (!proposal || !proposal.id) {
+          throw new Error("Falha ao obter uma proposta de negociação da API.");
+        }
+        
+        console.log(`[Deriv Hook] Proposal received: ${proposal.id}. Buying...`);
+        const buyResult = await buyContract(wsRef.current, proposal.id, proposal.ask_price, proposalPromisesRef);
+
+        return {
+          success: true,
+          message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${quantity} USD executada com sucesso.`,
+          contractId: buyResult.contract_id,
+          entryTick: buyResult.entry_tick,
+          entryTime: buyResult.entry_tick_time,
+        };
+      } catch (error) {
+         console.error("[Deriv Hook] Erro durante a negociação:", error);
+         const message = error instanceof Error ? error.message : "Um erro desconhecido ocorreu.";
+         return { success: false, message };
+      }
+
+  }, [isConnected]);
+
+  const contextValue: DerivApiContextType = {
+    ws: wsRef.current,
+    isConnected,
+    isConnecting,
+    connectionError,
     demoToken,
     realToken,
     activeToken,
     accountType,
-    isConnected: !!activeToken,
     setAccountType,
     setTokens,
     disconnect,
     accountBalance,
-    refreshBalance: fetchBalance
+    refreshBalance: fetchBalance,
+    executeTrade,
   };
 
-  if (loading) {
-    return null;
+  if (isLoading) {
+    return null; // Or a loading spinner for the whole app
   }
   
   return (

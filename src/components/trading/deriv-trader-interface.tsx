@@ -18,7 +18,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { ArrowDown, ArrowUp, Info, Loader2, Minus, Plus, ChevronDown } from "lucide-react";
-import { executeTradeAction } from "@/app/actions/trading-actions";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "../ui/input";
 import { Checkbox } from "../ui/checkbox";
@@ -79,7 +78,7 @@ const tradeTypeLabels: Record<TradeType, string> = {
 export function DerivTraderInterface({ symbol, onTradeSuccess }: DerivTraderInterfaceProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<"rise" | "fall" | null>(null);
-  const { refreshBalance } = useDerivApi();
+  const { refreshBalance, executeTrade, isConnected, isConnecting } = useDerivApi();
   const [tradeType, setTradeType] = useState<TradeType>('rise_fall');
 
   const form = useForm<RiseFallFormValues>({
@@ -114,39 +113,40 @@ export function DerivTraderInterface({ symbol, onTradeSuccess }: DerivTraderInte
         });
         return;
     }
+     if (!isConnected) {
+      toast({
+        variant: "destructive",
+        title: "Não Conectado",
+        description: "Não é possível negociar. Verifique sua conexão e token de API.",
+      });
+      return;
+    }
 
     const data = form.getValues();
     setLoading(tradeDirection);
 
     let contractType: string;
-    // This logic is now correct based on the user's detailed flow.
     if (tradeDirection === 'rise') {
       contractType = data.allowEquals ? 'CALLE' : 'CALL';
     } else { // 'fall'
       contractType = data.allowEquals ? 'PUTE' : 'PUT';
     }
 
-    const result = await executeTradeAction({
-      symbol: symbol,
-      tradeDirection,
-      quantity: data.stake,
-      allowEquals: data.allowEquals,
-      contractType,
-    });
+    const result = await executeTrade(contractType, data.stake, symbol);
     setLoading(null);
 
     if (result.success) {
       toast({
         title: "Ordem Executada!",
-        description: result.success.message,
+        description: result.message,
       });
-      onTradeSuccess(result.success);
-      setTimeout(refreshBalance, 1000); 
+      onTradeSuccess(result);
+      setTimeout(refreshBalance, 2000); 
     } else {
       toast({
         variant: "destructive",
         title: "Falha na Negociação",
-        description: result.error || "Não foi possível executar a ordem. Tente novamente.",
+        description: result.message || "Não foi possível executar a ordem. Tente novamente.",
       });
     }
   };
@@ -291,7 +291,7 @@ export function DerivTraderInterface({ symbol, onTradeSuccess }: DerivTraderInte
                             <Checkbox
                                 checked={field.value}
                                 onCheckedChange={field.onChange}
-                                disabled={!!loading}
+                                disabled={!!loading || isConnecting}
                                 id="allowEquals"
                             />
                         </FormControl>
@@ -314,7 +314,7 @@ export function DerivTraderInterface({ symbol, onTradeSuccess }: DerivTraderInte
                 variant="outline"
                 className="w-full h-14 bg-green-500/10 text-green-600 border-green-500/30 hover:bg-green-500/20 hover:text-green-700 flex justify-between items-center"
                 onClick={() => handleTrade("rise")}
-                disabled={!!loading}
+                disabled={!!loading || isConnecting || !isConnected}
             >
                 {loading === "rise" ? ( <Loader2 className="h-5 w-5 animate-spin" /> ) : (
                     <>
@@ -335,7 +335,7 @@ export function DerivTraderInterface({ symbol, onTradeSuccess }: DerivTraderInte
                 variant="outline"
                 className="w-full h-14 bg-red-500/10 text-red-600 border-red-500/30 hover:bg-red-500/20 hover:text-red-700 flex justify-between items-center"
                 onClick={() => handleTrade("fall")}
-                disabled={!!loading}
+                disabled={!!loading || isConnecting || !isConnected}
             >
                 {loading === "fall" ? ( <Loader2 className="h-5 w-5 animate-spin" /> ) : (
                     <>
