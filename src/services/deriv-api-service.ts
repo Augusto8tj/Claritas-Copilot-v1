@@ -8,35 +8,6 @@ import type { MutableRefObject } from 'react';
  * @fileOverview Service for interacting with the Deriv brokerage API.
  */
 
-interface AccountBalance {
-  balance: number;
-  currency: string;
-}
-
-interface MarketData {
-  symbol: string;
-  price: number;
-  changePercent: number;
-}
-
-export interface TradeResult {
-  success: boolean;
-  message: string;
-  contractId?: number;
-  entryTick?: number;
-  entryTime?: number;
-}
-
-export interface Asset {
-  value: string;
-  label: string;
-}
-
-export interface AssetGroup {
-  label: string;
-  options: Asset[];
-}
-
 const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
 
 // This is a generic function now, for simple, single-request API calls.
@@ -74,6 +45,35 @@ function callDerivApi<T>(request: object, apiToken: string): Promise<T> {
       ws.close();
     };
   });
+}
+
+interface AccountBalance {
+  balance: number;
+  currency: string;
+}
+
+interface MarketData {
+  symbol: string;
+  price: number;
+  changePercent: number;
+}
+
+export interface TradeResult {
+  success: boolean;
+  message: string;
+  contractId?: number;
+  entryTick?: number;
+  entryTime?: number;
+}
+
+export interface Asset {
+  value: string;
+  label: string;
+}
+
+export interface AssetGroup {
+  label: string;
+  options: Asset[];
 }
 
 

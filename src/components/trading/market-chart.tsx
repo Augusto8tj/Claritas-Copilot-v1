@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Label } from "recharts";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Label, BarChart, Bar } from "recharts";
 import type { TimePeriod, ChartType } from "@/app/deriv-trader/page";
 import { useDerivApi, type ActiveContract } from "@/hooks/use-deriv-api";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,9 @@ type CandleData = {
   low: number;
   close: number;
 };
+
+type ChartData = TickData | CandleData;
+
 
 interface MarketChartProps {
   symbol: string;
@@ -43,9 +46,40 @@ const getHistoryDurationForTimePeriod = (timePeriod: TimePeriod): number => {
     }
 }
 
+const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
+    switch(timePeriod) {
+        case '15m': return 60; // 1-minute candles
+        case '30m': return 120; // 2-minute candles
+        case '1h': return 300; // 5-minute candles
+        case '8h': return 1800; // 30-minute candles
+        case '1d': return 3600; // 1-hour candles
+        default: return 60;
+    }
+}
+
+
+const Candlestick = (props: any) => {
+    const { x, y, width, height, low, high, open, close } = props;
+    const isBullish = close > open;
+    const color = isBullish ? 'hsl(var(--primary))' : 'hsl(var(--destructive))';
+    const bodyHeight = Math.abs(y - (isBullish ? y + (open-close) * (height/(high-low)) : y + (open-close) * (height/(high-low)) ));
+    
+    // Correction for y position when it's a bearish candle
+    const bodyY = isBullish ? y + (high-close)*(height/(high-low)) : y + (high-open)*(height/(high-low));
+
+    return (
+        <g>
+            {/* Wick */}
+            <line x1={x + width / 2} y1={y} x2={x + width / 2} y2={y + height} stroke={color} strokeWidth="1" />
+            {/* Body */}
+            <rect x={x} y={bodyY} width={width} height={bodyHeight} fill={color} />
+        </g>
+    );
+};
+
 
 export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: MarketChartProps) {
-  const [data, setData] = useState<TickData[]>([]);
+  const [data, setData] = useState<ChartData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [duration, setDuration] = useState(getHistoryDurationForTimePeriod(timePeriod));
@@ -62,17 +96,19 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
     wsRef.current.send(JSON.stringify({ "forget_all": "ticks" }));
     wsRef.current.send(JSON.stringify({ "forget_all": "candles" }));
 
-    wsRef.current.send(
-      JSON.stringify({
+    const request = {
         ticks_history: symbol,
         start: Math.floor(Date.now() / 1000) - currentDuration,
         end: "latest",
         style: chartType === 'Area' ? 'ticks' : 'candles',
+        granularity: chartType === 'Candle' ? getGranularityForTimePeriod(timePeriod) : undefined,
         adjust_start_time: 1,
         count: 5000,
-      })
-    );
-  }, [symbol, chartType]);
+    };
+
+    wsRef.current.send(JSON.stringify(request));
+
+  }, [symbol, chartType, timePeriod]);
 
   useEffect(() => {
     if (!symbol) return;
@@ -112,7 +148,7 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
                 low: candle.low,
                 close: candle.close,
             }));
-          setData(candleData as any);
+          setData(candleData);
           setLoading(false);
       }
 
@@ -121,6 +157,10 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
         const tick = response.tick;
         const newTickData: TickData = { epoch: tick.epoch, price: tick.quote };
         setData(currentData => {
+            if (currentData.length > 0 && currentData[0].hasOwnProperty('open')) {
+                // If current data is candles, don't update with ticks.
+                return currentData;
+            }
             const newData = [...currentData.slice(1), newTickData];
             return newData;
         });
@@ -158,7 +198,7 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
 
   useEffect(() => {
     setDuration(getHistoryDurationForTimePeriod(timePeriod));
-  }, [timePeriod]);
+  }, [timePeriod, chartType]);
   
   const handleZoom = (factor: number) => {
     setDuration(currentDuration => {
@@ -172,6 +212,135 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
       return newDuration;
     });
   };
+
+  const renderChart = () => {
+     if (chartType === 'Candle' && data.length > 0 && 'open' in data[0]) {
+        const candleData = data as CandleData[];
+        return (
+            <ResponsiveContainer width="100%" height="100%">
+                 <BarChart data={candleData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis 
+                        dataKey="epoch" 
+                        tickFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleTimeString('pt-BR')} 
+                        type="number"
+                        domain={['dataMin', 'dataMax']}
+                        stroke="hsl(var(--muted-foreground))"
+                        fontSize={12}
+                    />
+                    <YAxis 
+                        domain={['dataMin - 0.0005', 'dataMax + 0.0005']}
+                        tickFormatter={(val) => Number(val).toFixed(4)}
+                        orientation="right"
+                        stroke="hsl(var(--muted-foreground))"
+                        fontSize={12}
+                    />
+                    <Tooltip
+                        labelFormatter={(label) => new Date(label * 1000).toLocaleString('pt-BR')}
+                        formatter={(value, name, props) => {
+                            if (name === 'candle') {
+                                const { open, high, low, close } = props.payload;
+                                return [
+                                    `Abertura: ${open}`,
+                                    `Máxima: ${high}`,
+                                    `Mínima: ${low}`,
+                                    `Fechamento: ${close}`
+                                ];
+                            }
+                            return [value, name];
+                        }}
+                         contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
+                    />
+                     <Bar dataKey="candle" shape={<Candlestick />} />
+                      {activeContracts.map(contract => (
+                        (typeof contract.entryTick === 'number') && (
+                        <ReferenceLine
+                        key={contract.contractId}
+                        y={contract.entryTick}
+                        stroke="hsl(var(--accent))"
+                        strokeDasharray="3 3"
+                        strokeWidth={2}
+                        >
+                        <Label 
+                            value={`Entrada: ${contract.entryTick.toFixed(4)}`}
+                            position="right"
+                            fill="hsl(var(--accent-foreground))"
+                            fontSize={12}
+                            className="font-semibold"
+                        />
+                        </ReferenceLine>
+                        )
+                    ))}
+                </BarChart>
+            </ResponsiveContainer>
+        );
+     }
+     
+     // Default to Line Chart
+     return (
+        <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data as TickData[]}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis
+                    dataKey="epoch"
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleTimeString('pt-BR')}
+                    type="number"
+                    domain={['dataMin', 'dataMax']}
+                    allowDataOverflow={true}
+                />
+                <YAxis
+                    dataKey="price"
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    domain={['dataMin - 0.01', 'dataMax + 0.01']}
+                    tickFormatter={(value) => `$${Number(value).toFixed(2)}`}
+                    allowDataOverflow
+                    width={80}
+                />
+                <Tooltip
+                    formatter={(value: number, name, props: any) => [`$${Number(value).toFixed(2)}`, "Preço"]}
+                    labelFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleString('pt-BR')}
+                    labelStyle={{ color: 'hsl(var(--foreground))' }}
+                    contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
+                    animationDuration={0}
+                />
+                <Line
+                    isAnimationActive={false}
+                    type="monotone"
+                    dataKey="price"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    dot={false}
+                />
+                {activeContracts.map(contract => (
+                    (typeof contract.entryTick === 'number') && (
+                    <ReferenceLine
+                        key={contract.contractId}
+                        y={contract.entryTick}
+                        stroke="hsl(var(--accent))"
+                        strokeDasharray="3 3"
+                        strokeWidth={2}
+                    >
+                        <Label 
+                            value={`Entrada: ${contract.entryTick.toFixed(2)}`}
+                            position="right"
+                            fill="hsl(var(--accent-foreground))"
+                            fontSize={12}
+                            className="font-semibold"
+                        />
+                    </ReferenceLine>
+                    )
+                ))}
+            </LineChart>
+        </ResponsiveContainer>
+     )
+  }
 
   if (loading && data.length === 0) {
     return (
@@ -202,67 +371,7 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
           <span className="sr-only">Ampliar zoom</span>
         </Button>
       </div>
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis
-            dataKey="epoch"
-            stroke="hsl(var(--muted-foreground))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-            tickFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleTimeString('pt-BR')}
-            type="number"
-            domain={['dataMin', 'dataMax']}
-            allowDataOverflow={true}
-          />
-          <YAxis
-            dataKey="price"
-            stroke="hsl(var(--muted-foreground))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-            domain={['dataMin - 0.01', 'dataMax + 0.01']}
-            tickFormatter={(value) => `$${Number(value).toFixed(2)}`}
-            allowDataOverflow
-            width={80}
-          />
-          <Tooltip
-            formatter={(value: number, name, props: any) => [`$${Number(value).toFixed(2)}`, "Preço"]}
-            labelFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleString('pt-BR')}
-            labelStyle={{ color: 'hsl(var(--foreground))' }}
-            contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
-            animationDuration={0}
-          />
-          <Line
-            isAnimationActive={false}
-            type="monotone"
-            dataKey="price"
-            stroke="hsl(var(--primary))"
-            strokeWidth={2}
-            dot={false}
-          />
-           {activeContracts.map(contract => (
-             (typeof contract.entryTick === 'number') && (
-            <ReferenceLine
-              key={contract.contractId}
-              y={contract.entryTick}
-              stroke="hsl(var(--accent))"
-              strokeDasharray="3 3"
-              strokeWidth={2}
-            >
-              <Label 
-                value={`Entrada: ${contract.entryTick.toFixed(2)}`}
-                position="right"
-                fill="hsl(var(--accent-foreground))"
-                fontSize={12}
-                className="font-semibold"
-              />
-            </ReferenceLine>
-            )
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
+      {renderChart()}
     </div>
   );
 }

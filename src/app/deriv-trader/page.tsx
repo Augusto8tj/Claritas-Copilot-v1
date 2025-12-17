@@ -9,7 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { MarketChart } from "@/components/trading/market-chart";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Button } from "@/components/ui/button";
-import { AreaChart, CandlestickChart as CandlestickChartIcon, Trash2 } from "lucide-react";
+import { AreaChart, Trash2 } from "lucide-react";
+import { CandlestickChartIcon } from "@/components/icons";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useDerivApi, type AccountType, type ActiveContract } from "@/hooks/use-deriv-api";
