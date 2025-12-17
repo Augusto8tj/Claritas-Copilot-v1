@@ -53,7 +53,7 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
         case '1h': return 300; // 5-minute candles
         case '8h': return 1800; // 30-minute candles
         case '1d': return 3600; // 1-hour candles
-        default: return 60;
+        default: return 0; // default for ticks
     }
 }
 
@@ -68,10 +68,11 @@ const Candlestick = (props: any) => {
 
     const isBullish = close > open;
     const color = isBullish ? 'hsl(var(--primary))' : 'hsl(var(--destructive))';
-    const bodyHeight = Math.max(1, Math.abs(y - (isBullish ? y + (open-close) * (height/(high-low)) : y + (open-close) * (height/(high-low)) )));
-    
-    const bodyY = isBullish ? y + (high-close)*(height/(high-low)) : y + (high-open)*(height/(high-low));
 
+    const yRatio = height / (high - low);
+    const bodyHeight = Math.abs(open - close) * yRatio;
+    const bodyY = isBullish ? y + (high - close) * yRatio : y + (high - open) * yRatio;
+    
     return (
         <g>
             {/* Wick */}
@@ -101,12 +102,13 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
     wsRef.current.send(JSON.stringify({ "forget_all": "ticks" }));
     wsRef.current.send(JSON.stringify({ "forget_all": "candles" }));
 
+    const granularity = getGranularityForTimePeriod(timePeriod);
     const request = {
         ticks_history: symbol,
         start: Math.floor(Date.now() / 1000) - currentDuration,
         end: "latest",
         style: chartType === 'Area' ? 'ticks' : 'candles',
-        granularity: chartType === 'Candle' ? getGranularityForTimePeriod(timePeriod) : undefined,
+        granularity: chartType === 'Candle' ? granularity : undefined,
         adjust_start_time: 1,
         count: 5000,
     };
@@ -142,7 +144,8 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
         }));
         setData(historyData);
         setLoading(false);
-        if (timePeriod === '1m' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        // Subscribe to live ticks only for line charts.
+        if (chartType === 'Area' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
           wsRef.current.send(JSON.stringify({ "ticks": symbol, "subscribe": 1 }));
         }
       } else if (response.msg_type === 'candles') {
@@ -166,7 +169,7 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
                 // If current data is candles, don't update with ticks.
                 return currentData;
             }
-            const newData = [...currentData.slice(1), newTickData];
+            const newData = [...currentData, newTickData].slice(-5000); // Keep the array size manageable
             return newData;
         });
       }
@@ -198,7 +201,7 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
          }
       }
     };
-  }, [symbol, duration, fetchData, timePeriod]);
+  }, [symbol, duration, fetchData, chartType]);
 
 
   useEffect(() => {
@@ -243,16 +246,13 @@ export function MarketChart({ symbol, timePeriod, chartType, activeContracts }: 
                     <Tooltip
                         labelFormatter={(label) => new Date(label * 1000).toLocaleString('pt-BR')}
                         formatter={(value, name, props) => {
-                            if (name === 'candle') {
-                                const { open, high, low, close } = props.payload;
-                                return [
-                                    `Abertura: ${open}`,
-                                    `Máxima: ${high}`,
-                                    `Mínima: ${low}`,
-                                    `Fechamento: ${close}`
-                                ];
-                            }
-                            return [value, name];
+                            const { open, high, low, close } = props.payload;
+                            return [
+                                `Abertura: ${open}`,
+                                `Máxima: ${high}`,
+                                `Mínima: ${low}`,
+                                `Fechamento: ${close}`
+                            ];
                         }}
                          contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
                     />
