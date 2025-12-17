@@ -78,7 +78,7 @@ const tradeTypeLabels: Record<TradeType, string> = {
 export function DerivTraderInterface({ symbol, onTradeSuccess }: DerivTraderInterfaceProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<"rise" | "fall" | null>(null);
-  const { executeTrade, isConnected, isConnecting } = useDerivApi();
+  const { executeTrade, isConnected, isConnecting, activeToken } = useDerivApi();
   const [tradeType, setTradeType] = useState<TradeType>('rise_fall');
 
   const form = useForm<RiseFallFormValues>({
@@ -159,6 +159,7 @@ export function DerivTraderInterface({ symbol, onTradeSuccess }: DerivTraderInte
 
   const payout = (form.watch('stake') * 1.942).toFixed(2);
   const payoutPercentage = "94.20%";
+  const isButtonDisabled = !!loading || isConnecting || !isConnected || !activeToken;
 
   return (
     <Card className="bg-card/50">
@@ -297,7 +298,7 @@ export function DerivTraderInterface({ symbol, onTradeSuccess }: DerivTraderInte
                             <Checkbox
                                 checked={field.value}
                                 onCheckedChange={field.onChange}
-                                disabled={!!loading || isConnecting}
+                                disabled={isButtonDisabled}
                                 id="allowEquals"
                             />
                         </FormControl>
@@ -320,7 +321,7 @@ export function DerivTraderInterface({ symbol, onTradeSuccess }: DerivTraderInte
                 variant="outline"
                 className="w-full h-14 bg-green-500/10 text-green-600 border-green-500/30 hover:bg-green-500/20 hover:text-green-700 flex justify-between items-center"
                 onClick={() => handleTrade("rise")}
-                disabled={!!loading || isConnecting || !isConnected}
+                disabled={isButtonDisabled}
             >
                 {loading === "rise" ? ( <Loader2 className="h-5 w-5 animate-spin" /> ) : (
                     <>
@@ -341,7 +342,7 @@ export function DerivTraderInterface({ symbol, onTradeSuccess }: DerivTraderInte
                 variant="outline"
                 className="w-full h-14 bg-red-500/10 text-red-600 border-red-500/30 hover:bg-red-500/20 hover:text-red-700 flex justify-between items-center"
                 onClick={() => handleTrade("fall")}
-                disabled={!!loading || isConnecting || !isConnected}
+                disabled={isButtonDisabled}
             >
                 {loading === "fall" ? ( <Loader2 className="h-5 w-5 animate-spin" /> ) : (
                     <>

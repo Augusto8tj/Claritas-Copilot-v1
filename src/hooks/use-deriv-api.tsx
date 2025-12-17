@@ -94,9 +94,9 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     if (!activeToken || isLoading) {
       if (wsRef.current) {
         wsRef.current.close();
-        wsRef.current = null;
       }
       setIsConnected(false);
+      setIsConnecting(false);
       setAccountBalance({ balance: null, currency: null, loading: false });
       return;
     }
@@ -106,12 +106,15 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     }
 
     setIsConnecting(true);
+    setIsConnected(false);
     setConnectionError(null);
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     wsRef.current = ws;
 
     ws.onopen = () => {
       console.log("[Deriv WS Provider] Connection opened. Authorizing...");
+      setIsConnecting(false);
+      setIsConnected(true);
       ws.send(JSON.stringify({ "authorize": activeToken }));
     };
 
@@ -127,7 +130,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         } else if (response.msg_type === 'authorize') {
             setConnectionError(response.error.message);
             setIsConnected(false);
-            setIsConnecting(false);
         }
         return;
       }
@@ -142,10 +144,9 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
 
       if (response.msg_type === 'authorize') {
         console.log("[Deriv WS Provider] Authorized successfully.");
-        setIsConnected(true);
-        setIsConnecting(false);
+        // Connection is already set to true on 'open'
         ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
-        ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 })); // Subscribe to contract updates
+        ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 }));
       } else if (response.msg_type === 'balance') {
         setAccountBalance({
             balance: response.balance.balance,
@@ -192,6 +193,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       console.error("[Deriv WS Provider] WebSocket error occurred.");
       setConnectionError("Failed to connect to Deriv API.");
       setIsConnecting(false);
+      setIsConnected(false);
     };
 
     return () => {
