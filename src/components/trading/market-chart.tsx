@@ -253,6 +253,7 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
             dot={false}
           />
            {activeContracts.map(contract => (
+            (typeof contract.entryTick === 'number') && (
             <ReferenceLine
               key={contract.contractId}
               y={contract.entryTick}
@@ -268,9 +269,11 @@ export function MarketChart({ symbol, timePeriod, chartType }: MarketChartProps)
                 className="font-semibold"
               />
             </ReferenceLine>
+            )
           ))}
         </LineChart>
       </ResponsiveContainer>
     </div>
   );
 }
+
