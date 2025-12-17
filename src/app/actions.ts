@@ -12,8 +12,6 @@ import { z } from "zod";
 import { getFinancialSummary, getInsights } from "@/services/financial-data-service";
 import { auth } from "@/lib/firebase";
 import { type GoalProjectionInput } from "@/ai/flows/goal-projection.types";
-import { getAccountBalance } from "@/services/deriv-api-service";
-import { AccountType } from "@/hooks/use-deriv-api";
 
 
 const goalProjectionSchema = z.object({
@@ -116,20 +114,5 @@ export async function checkGeminiConnection(): Promise<{ success: boolean; error
     } catch (e: any) {
         console.error("[Health Check] Gemini API error:", e);
         return { success: false, error: e.message || "Ocorreu um erro desconhecido ao contatar a API do Gemini." };
-    }
-}
-
-
-export async function checkDerivConnection(apiToken: string, accountType: AccountType): Promise<{ success: boolean, error?: string }> {
-    try {
-        if (!apiToken) {
-            return { success: false, error: "O token da API não foi fornecido." };
-        }
-        // A função getAccountBalance agora aceita o accountType
-        await getAccountBalance(apiToken, accountType);
-        return { success: true };
-    } catch (e: any) {
-        console.error("[Health Check] Deriv API error:", e.message);
-        return { success: false, error: e.message || "Não foi possível validar o token." };
     }
 }

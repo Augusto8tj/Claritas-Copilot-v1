@@ -1,12 +1,12 @@
 import { HealthCheckCard } from "@/components/status/health-check-card";
-import { checkDerivConnection, checkGeminiConnection } from "@/app/actions";
+import { checkGeminiConnection } from "@/app/actions";
 import { ListModelsCard } from "@/components/status/list-models-card";
 
 export const revalidate = 0; // Disable cache for this page
 
 export default async function StatusPage() {
   
-  // As server components, these will run on the server each time the page is loaded.
+  // As a server component, this will run on the server each time the page is loaded.
   const geminiResult = await checkGeminiConnection();
   
   return (
@@ -30,11 +30,10 @@ export default async function StatusPage() {
           configurePath="/settings"
         />
         
-        {/* The Deriv check is client-side because it needs the token from localStorage */}
+        {/* The Deriv check is fully client-side now, consuming state from the useDerivApi hook */}
         <HealthCheckCard
           isClientSide
           serviceName="API Deriv (Corretora)"
-          clientCheckAction={checkDerivConnection}
           description="Necessária para negociação, consulta de saldo e dados de mercado em tempo real."
           successMessage="A conexão com a API da Deriv está funcionando corretamente."
           failureMessage="O token da API da Deriv não está configurado ou é inválido."

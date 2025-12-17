@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, AlertTriangle, Loader2, Settings } from "lucide-react";
 import Link from "next/link";
-import { useDerivApi, type AccountType } from "@/hooks/use-deriv-api";
+import { useDerivApi } from "@/hooks/use-deriv-api";
 
 type CheckResult = {
   success: boolean;
@@ -21,7 +21,6 @@ interface HealthCheckCardProps {
   configurePath: string;
   checkResult?: CheckResult; // For server-side checks
   isClientSide?: boolean; // Flag for client-side checks
-  clientCheckAction?: (token: string, accountType: AccountType) => Promise<CheckResult>; // Action for client-side checks
 }
 
 export function HealthCheckCard({
@@ -32,45 +31,52 @@ export function HealthCheckCard({
   configurePath,
   checkResult,
   isClientSide = false,
-  clientCheckAction
 }: HealthCheckCardProps) {
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
-  const [errorMessage, setErrorMessage] = useState<string | undefined>(failureMessage);
   
-  const { demoToken, realToken, accountType } = useDerivApi();
-  const activeToken = accountType === 'demo' ? demoToken : realToken;
+  // Client-side state for the Deriv API check
+  const { isConnected, isConnecting, connectionError, activeToken } = useDerivApi();
+  
+  // Generic state for display purposes
+  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
+  const [displayMessage, setDisplayMessage] = useState<string>("");
 
   useEffect(() => {
-    const runCheck = async () => {
-      setStatus("loading");
-      if (isClientSide) {
-        if (!activeToken) {
-          setErrorMessage("Nenhum token (demo ou real) configurado no navegador.");
-          setStatus("error");
-          return;
-        }
-        if (clientCheckAction) {
-          const result = await clientCheckAction(activeToken, accountType);
-          if (result.success) {
-            setStatus("success");
-          } else {
-            setErrorMessage(result.error || failureMessage);
-            setStatus("error");
-          }
-        }
+    if (isClientSide) {
+      // Logic for Deriv API check, which is client-side
+      if (isConnecting) {
+        setStatus("loading");
+        setDisplayMessage("Verificando...");
+      } else if (isConnected) {
+        setStatus("success");
+        setDisplayMessage(successMessage);
       } else {
-        // Server-side check result is passed as prop
-        if (checkResult?.success) {
-          setStatus("success");
+        setStatus("error");
+        if (!activeToken) {
+           setDisplayMessage("Nenhum token (demo ou real) configurado no navegador.");
         } else {
-          setErrorMessage(checkResult?.error || failureMessage);
-          setStatus("error");
+           setDisplayMessage(connectionError || failureMessage);
         }
       }
-    };
-
-    runCheck();
-  }, [checkResult, isClientSide, clientCheckAction, activeToken, accountType, failureMessage]);
+    } else {
+      // Logic for server-side checks (like Gemini)
+      if (checkResult?.success) {
+        setStatus("success");
+        setDisplayMessage(successMessage);
+      } else {
+        setStatus("error");
+        setDisplayMessage(checkResult?.error || failureMessage);
+      }
+    }
+  }, [
+      isClientSide, 
+      checkResult, 
+      isConnected, 
+      isConnecting, 
+      connectionError, 
+      activeToken,
+      successMessage, 
+      failureMessage
+  ]);
 
 
   const StatusInfo = () => {
@@ -88,7 +94,7 @@ export function HealthCheckCard({
             <CheckCircle className="h-6 w-6" />
             <div>
                 <p className="font-semibold">Conectado</p>
-                <p className="text-xs text-green-600/80">{successMessage}</p>
+                <p className="text-xs text-green-600/80">{displayMessage}</p>
             </div>
           </div>
         );
@@ -98,7 +104,7 @@ export function HealthCheckCard({
             <XCircle className="h-6 w-6" />
              <div>
                 <p className="font-semibold">Falha na Conexão</p>
-                <p className="text-xs text-destructive/80">{errorMessage}</p>
+                <p className="text-xs text-destructive/80">{displayMessage}</p>
             </div>
           </div>
         );
