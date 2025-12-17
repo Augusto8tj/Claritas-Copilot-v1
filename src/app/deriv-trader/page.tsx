@@ -1,6 +1,4 @@
-
-
-"use client";
+'use client';
 
 import { useEffect, useState } from "react";
 import { DerivTraderInterface } from "@/components/trading/deriv-trader-interface";
@@ -18,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { TradeResult } from "@/services/deriv-api-service";
 import { OperationsLog } from "@/components/trading/operations-log";
 import { AIAnalysisInterface } from "@/components/trading/ai-analysis-interface";
+import { AITradeSuggestion } from "@/components/trading/ai-trade-suggestion";
 
 
 export type TimePeriod = '1m' | '15m' | '30m' | '1h' | '8h' | '1d';
@@ -34,7 +33,9 @@ export default function DerivTraderPage() {
     activeContracts, 
     clearActiveContracts, 
     addActiveContract,
-    operationsLog
+    operationsLog,
+    isConnected,
+    activeToken
   } = useDerivApi();
 
 
@@ -166,7 +167,9 @@ export default function DerivTraderPage() {
             <DerivTraderInterface 
                 symbol={selectedAsset}
                 onTradeSuccess={handleTradeSuccess}
+                isConnected={isConnected && !!activeToken}
             />
+            <AITradeSuggestion symbol={selectedAsset} />
             <AIAnalysisInterface />
         </div>
       </div>

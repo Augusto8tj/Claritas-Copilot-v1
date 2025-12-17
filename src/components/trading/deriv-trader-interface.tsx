@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -51,6 +50,7 @@ type RiseFallFormValues = z.infer<typeof riseFallSchema>;
 interface DerivTraderInterfaceProps {
   symbol: string;
   onTradeSuccess: (result: TradeResult) => void;
+  isConnected: boolean;
 }
 
 const durationUnitLabels: Record<DurationUnit, string> = {
@@ -75,10 +75,10 @@ const tradeTypeLabels: Record<TradeType, string> = {
   touch_no_touch: "Touch/No Touch",
 };
 
-export function DerivTraderInterface({ symbol, onTradeSuccess }: DerivTraderInterfaceProps) {
+export function DerivTraderInterface({ symbol, onTradeSuccess, isConnected }: DerivTraderInterfaceProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<"rise" | "fall" | null>(null);
-  const { executeTrade, isConnected, isConnecting, activeToken } = useDerivApi();
+  const { executeTrade, isConnecting, activeToken } = useDerivApi();
   const [tradeType, setTradeType] = useState<TradeType>('rise_fall');
 
   const form = useForm<RiseFallFormValues>({
@@ -159,7 +159,7 @@ export function DerivTraderInterface({ symbol, onTradeSuccess }: DerivTraderInte
 
   const payout = (form.watch('stake') * 1.942).toFixed(2);
   const payoutPercentage = "94.20%";
-  const isButtonDisabled = !!loading || isConnecting || !isConnected || !activeToken;
+  const isButtonDisabled = !!loading || isConnecting || !isConnected;
 
   return (
     <Card className="bg-card/50">
