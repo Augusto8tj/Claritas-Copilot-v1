@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
-import { Loader2, Sparkles, TrendingUp, TrendingDown, HelpCircle, AlertTriangle, Timer, Zap } from "lucide-react";
+import { Loader2, Sparkles, TrendingUp, TrendingDown, HelpCircle, AlertTriangle, Timer, Zap, Hourglass } from "lucide-react";
 import { getAssetAnalysisAction } from "@/app/actions/ai-actions";
 import type { AssetAnalysisOutput } from "@/ai/flows/asset-analysis-flow.types";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
@@ -27,6 +27,12 @@ interface AITradeSuggestionProps {
   onExecuteTrade: (tradeDirection: 'rise' | 'fall') => void;
 }
 
+type AwaitingEntryState = {
+    direction: 'rise' | 'fall';
+    startTime: number;
+    initialPrices: number[];
+};
+
 export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSuggestionProps) {
   const [analysisResult, setAnalysisResult] = useState<AssetAnalysisOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,16 +40,19 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
   const [isExecuting, setIsExecuting] = useState(false);
   const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(null);
   const [timeSinceAnalysis, setTimeSinceAnalysis] = useState<string>("");
-  const { accountBalance, operationsLog } = useDerivApi();
+  const { accountBalance, operationsLog, priceTicks } = useDerivApi();
   const { toast } = useToast();
   const [autoExecute, setAutoExecute] = useState(false);
+  const [isAwaitingEntry, setIsAwaitingEntry] = useState<AwaitingEntryState | null>(null);
 
   const CONFIDENCE_THRESHOLD = 80;
+  const AWAIT_TIMEOUT = 10000; // 10 seconds to wait for an entry point
 
   const handleAnalyze = useCallback(async () => {
     setIsAnalyzing(true);
     setAnalysisResult(null);
     setError(null);
+    setIsAwaitingEntry(null);
     
     try {
       const historicalData = await getHistoricalData(symbol, undefined, 120);
@@ -69,10 +78,13 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
           setLastAnalysisTime(new Date());
           setError(null);
           
-          // Auto-execute logic
           if (autoExecute && result.success.confidenceScore >= CONFIDENCE_THRESHOLD && (result.success.suggestion === 'RISE' || result.success.suggestion === 'FALL')) {
-              toast({ title: "Auto-Execução Ativada!", description: `Confiança de ${result.success.confidenceScore.toFixed(0)}% é alta. Executando ordem de ${result.success.suggestion}...` });
-              handleExecute(result.success.suggestion.toLowerCase() as 'rise' | 'fall');
+              toast({ title: "Análise de Alta Confiança!", description: `Aguardando ponto de entrada para ${result.success.suggestion}...` });
+              setIsAwaitingEntry({
+                  direction: result.success.suggestion.toLowerCase() as 'rise' | 'fall',
+                  startTime: Date.now(),
+                  initialPrices: priceTicks.slice(-5).map(p => p.price), // Store last 5 prices
+              });
           }
 
       } else {
@@ -83,18 +95,57 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
     }
 
     setIsAnalyzing(false);
-  }, [symbol, form, accountBalance, operationsLog, autoExecute]);
+  }, [symbol, form, accountBalance, operationsLog, autoExecute, priceTicks]);
   
   const handleExecute = async (direction: 'rise' | 'fall') => {
     setIsExecuting(true);
     await onExecuteTrade(direction);
     
-    // Give feedback and then reset
     setTimeout(() => {
         setAnalysisResult(null); 
         setIsExecuting(false);
+        setIsAwaitingEntry(null);
     }, 1000);
   }
+
+  // Effect to handle the "awaiting entry" logic
+  useEffect(() => {
+    if (!isAwaitingEntry || priceTicks.length < 2) return;
+
+    // Timeout check
+    if (Date.now() - isAwaitingEntry.startTime > AWAIT_TIMEOUT) {
+        toast({
+            variant: "destructive",
+            title: "Entrada Expirada",
+            description: "Não foi encontrado um ponto de entrada ideal a tempo.",
+        });
+        setIsAwaitingEntry(null);
+        return;
+    }
+
+    const currentPrice = priceTicks[priceTicks.length - 1].price;
+    const prevPrice = priceTicks[priceTicks.length - 2].price;
+
+    let entryConditionMet = false;
+    if (isAwaitingEntry.direction === 'rise' && currentPrice < prevPrice) {
+        // Suggested RISE, wait for a dip
+        entryConditionMet = true;
+    } else if (isAwaitingEntry.direction === 'fall' && currentPrice > prevPrice) {
+        // Suggested FALL, wait for a spike
+        entryConditionMet = true;
+    }
+
+    if (entryConditionMet) {
+        toast({
+            title: "Ponto de Entrada Encontrado!",
+            description: `Executando ordem de ${isAwaitingEntry.direction.toUpperCase()}.`,
+        });
+        handleExecute(isAwaitingEntry.direction);
+        setIsAwaitingEntry(null); // Stop awaiting
+    }
+
+  }, [priceTicks, isAwaitingEntry]);
+
 
   useEffect(() => {
     if (!lastAnalysisTime) {
@@ -160,7 +211,13 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
                 <span>Buscando análise...</span>
             </div>
         )}
-        {analysisResult && !isAnalyzing && (
+        {isAwaitingEntry && (
+             <div className="flex items-center justify-center text-primary p-4">
+                <Hourglass className="mr-2 h-4 w-4 animate-spin" />
+                <span>Aguardando entrada ideal...</span>
+            </div>
+        )}
+        {analysisResult && !isAnalyzing && !isAwaitingEntry && (
           <Alert className={cn(
             analysisResult.suggestion === "RISE" && "border-green-500/50 bg-green-500/10 text-green-700",
             analysisResult.suggestion === "FALL" && "border-red-500/50 bg-red-500/10 text-red-700",
@@ -184,7 +241,7 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
                     {analysisResult.suggestedDuration && <p>Duração Sugerida: <strong>{analysisResult.suggestedDuration} ticks</strong></p>}
                 </div>
             )}
-             {analysisResult.suggestion !== 'HOLD' && analysisResult.confidenceScore >= CONFIDENCE_THRESHOLD && (
+             {analysisResult.suggestion !== 'HOLD' && (
                 <Button
                     size="sm"
                     className="w-full mt-4"
@@ -201,3 +258,5 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
     </Card>
   );
 }
+
+    
