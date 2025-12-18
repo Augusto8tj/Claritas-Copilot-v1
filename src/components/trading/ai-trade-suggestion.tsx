@@ -95,7 +95,7 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
     }
 
     setIsAnalyzing(false);
-  }, [symbol, form, accountBalance, operationsLog, autoExecute, priceTicks]);
+  }, [symbol, form, accountBalance, operationsLog, autoExecute, priceTicks, toast]);
   
   const handleExecute = async (direction: 'rise' | 'fall') => {
     setIsExecuting(true);
@@ -144,7 +144,7 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
         setIsAwaitingEntry(null); // Stop awaiting
     }
 
-  }, [priceTicks, isAwaitingEntry]);
+  }, [priceTicks, isAwaitingEntry, toast]);
 
 
   useEffect(() => {
@@ -233,7 +233,12 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
             </AlertTitle>
             <AlertDescription className="pt-2">
               <p>{analysisResult.justification}</p>
-              <p className="font-semibold mt-2">Confiança da IA: {analysisResult.confidenceScore.toFixed(0)}%</p>
+              <div className="space-y-1 mt-2">
+                <p className="font-semibold">Confiança da IA: {analysisResult.confidenceScore.toFixed(0)}%</p>
+                {analysisResult.analysisDataPointsCount && (
+                  <p className="text-xs italic">Análise baseada nos últimos {analysisResult.analysisDataPointsCount} preços.</p>
+                )}
+              </div>
             </AlertDescription>
              {(analysisResult.suggestedStake || analysisResult.suggestedDuration) && (
                 <div className="mt-3 pt-2 border-t border-current/30 text-xs">
@@ -258,5 +263,3 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
     </Card>
   );
 }
-
-    

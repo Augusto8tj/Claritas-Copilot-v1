@@ -22,5 +22,6 @@ export const AssetAnalysisOutputSchema = z.object({
   confidenceScore: z.number().min(0).max(100).describe("A score from 0 to 100 indicating the AI's confidence in its suggestion. High confidence (>70) implies a clear trend and low risk."),
   suggestedStake: z.number().optional().describe("An optional suggested stake amount, if the AI recommends a change for risk management."),
   suggestedDuration: z.number().optional().describe("An optional suggested duration, if the AI identifies a better timeframe."),
+  analysisDataPointsCount: z.number().optional().describe("The number of historical data points used for the analysis."),
 });
 export type AssetAnalysisOutput = z.infer<typeof AssetAnalysisOutputSchema>;

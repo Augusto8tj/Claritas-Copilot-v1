@@ -66,6 +66,10 @@ const getAssetAnalysisFlow = ai.defineFlow(
 
     const { output } = await analysisPrompt(promptInput);
     if (!output) throw new Error("A IA não conseguiu analisar o ativo.");
+    
+    // Add the data points count to the output
+    output.analysisDataPointsCount = input.historicalData.length;
+    
     return output;
   }
 );
