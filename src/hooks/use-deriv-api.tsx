@@ -209,12 +209,11 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       const response = JSON.parse(event.data);
       
       if (response.error) {
+        // This specific error can happen during rapid re-subscriptions. We can handle it gracefully.
         if (response.error.code === 'AlreadySubscribed') {
-            const subId = response.subscription.id;
-            console.warn(`[Deriv WS Provider] Already subscribed to ${subId}. Forgetting and re-subscribing.`);
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({ "forget": subId }));
-            }
+            const subId = response.subscription?.id;
+            console.warn(`[Deriv WS Provider] Already subscribed to ${subId || 'unknown'}. This is usually safe to ignore.`);
+            // No need to re-forget, just let the new subscription proceed.
             return;
         }
 
