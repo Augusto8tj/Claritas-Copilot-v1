@@ -38,7 +38,7 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
   const { toast } = useToast();
   const [autoExecute, setAutoExecute] = useState(false);
 
-  const CONFIDENCE_THRESHOLD = 70;
+  const CONFIDENCE_THRESHOLD = 80;
 
   const handleAnalyze = useCallback(async () => {
     setIsAnalyzing(true);
