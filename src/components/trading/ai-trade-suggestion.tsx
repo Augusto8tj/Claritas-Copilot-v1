@@ -55,12 +55,29 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
     setIsAwaitingEntry(null);
     
     try {
-      const historicalData = await getHistoricalData(symbol, undefined, 120);
+      const formData = form.getValues();
+      
+      // Determine the amount of historical data to fetch based on duration unit
+      let dataCount;
+      switch (formData.duration_unit) {
+        case 't': // ticks
+        case 's': // seconds
+          dataCount = 200;
+          break;
+        case 'm': // minutes
+        case 'h': // hours
+        case 'd': // days
+          dataCount = 1000;
+          break;
+        default:
+          dataCount = 200;
+      }
+
+      const historicalData = await getHistoricalData(symbol, undefined, dataCount);
       if (!historicalData || historicalData.length === 0) {
         throw new Error(`Não foi possível obter dados históricos para ${symbol}.`);
       }
 
-      const formData = form.getValues();
 
       const result = await getAssetAnalysisAction({
           symbol,
@@ -263,3 +280,5 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
     </Card>
   );
 }
+
+    
