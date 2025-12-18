@@ -1,0 +1,18 @@
+import { z } from "zod";
+
+export const riseFallSchema = z.object({
+  stake: z.coerce.number().min(0.35, "O valor mínimo é $0.35."),
+  duration: z.coerce.number().min(1, "A duração deve ser de pelo menos 1."),
+  duration_unit: z.nativeEnum({
+    t: 't',
+    s: 's',
+    m: 'm',
+    h: 'h',
+    d: 'd',
+  }),
+  allowEquals: z.boolean().default(false),
+});
+
+export type RiseFallFormValues = z.infer<typeof riseFallSchema>;
+
+export type DurationUnit = 't' | 's' | 'm' | 'h' | 'd';

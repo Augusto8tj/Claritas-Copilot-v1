@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -28,27 +27,12 @@ import { useDerivApi } from "@/hooks/use-deriv-api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
-import type { TradeResult } from "@/services/deriv-api-service";
+import type { TradeResult } from '@/services/deriv-api-service';
 import { AITradeSuggestion } from "./ai-trade-suggestion";
+import { riseFallSchema, type RiseFallFormValues, type DurationUnit } from "./deriv-trader-interface.types";
 
 
-export type DurationUnit = 't' | 's' | 'm' | 'h' | 'd';
 type TradeType = 'rise_fall' | 'higher_lower' | 'touch_no_touch';
-
-const riseFallSchema = z.object({
-  stake: z.coerce.number().min(0.35, "O valor mínimo é $0.35."),
-  duration: z.coerce.number().min(1, "A duração deve ser de pelo menos 1."),
-  duration_unit: z.nativeEnum({
-    t: 't',
-    s: 's',
-    m: 'm',
-    h: 'h',
-    d: 'd',
-  }),
-  allowEquals: z.boolean().default(false),
-});
-
-export type RiseFallFormValues = z.infer<typeof riseFallSchema>;
 
 interface DerivTraderInterfaceProps {
   symbol: string;
