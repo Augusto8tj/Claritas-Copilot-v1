@@ -354,59 +354,47 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         return;
     }
     
-    if (activeSymbolRef.current === symbol && newTimePeriod === timePeriod && newChartType === chartType) {
-        return;
+    // Always forget previous subscription if there is one
+    if (activeSubscriptionId.current) {
+        const subIdToForget = activeSubscriptionId.current;
+        activeSubscriptionId.current = null;
+        console.log(`[Deriv WS Provider] Forgetting old subscription: ${subIdToForget}`);
+        const req_id = Date.now();
+        const forgetPromise = new Promise((resolve, reject) => {
+            promisesRef.current.set(String(req_id), { resolve, reject });
+            ws.send(JSON.stringify({ "forget": subIdToForget, "req_id": req_id }));
+            setTimeout(() => {
+                if (promisesRef.current.has(String(req_id))) {
+                    console.warn("Forget request timed out, continuing anyway.");
+                    promisesRef.current.delete(String(req_id));
+                    resolve(null);
+                }
+            }, 2000);
+        });
+        await forgetPromise;
     }
-
+    
     setChartData([]);
     setIsChartLoading(true);
     setChartError(null);
-
-    const forgetPreviousSubscription = () => {
-        if (activeSubscriptionId.current) {
-            const subId = activeSubscriptionId.current;
-            activeSubscriptionId.current = null;
-            console.log(`[Deriv WS Provider] Forgetting old subscription: ${subId}`);
-            const req_id = Date.now();
-            return new Promise((resolve, reject) => {
-                promisesRef.current.set(String(req_id), { resolve, reject });
-                ws.send(JSON.stringify({ "forget": subId, "req_id": req_id }));
-                setTimeout(() => {
-                    if (promisesRef.current.has(String(req_id))) {
-                        console.warn("Forget request timed out.");
-                        promisesRef.current.delete(String(req_id));
-                        resolve(null);
-                    }
-                }, 2000);
-            });
-        }
-        return Promise.resolve(null);
-    };
-
-    await forgetPreviousSubscription();
-    
     activeSymbolRef.current = symbol;
 
-    const requestAndSubscribe = () => {
-      if (newTimePeriod === '1m') {
-          console.log(`[Deriv WS Provider] Subscribing to ticks for ${symbol}`);
-          setPriceTicks([]);
-          ws.send(JSON.stringify({ "ticks_history": symbol, "end": "latest", "count": 200, "style": "ticks", "subscribe": 1 }));
-      } else {
-          const granularity = getGranularityForTimePeriod(newTimePeriod);
-          console.log(`[Deriv WS Provider] Subscribing to candles for ${symbol} with granularity ${granularity}`);
-          ws.send(JSON.stringify({
-              ticks_history: symbol,
-              style: 'candles',
-              end: 'latest',
-              count: 500,
-              granularity: granularity,
-              subscribe: 1
-          }));
-      }
+    if (newTimePeriod === '1m') {
+        console.log(`[Deriv WS Provider] Subscribing to ticks for ${symbol}`);
+        setPriceTicks([]);
+        ws.send(JSON.stringify({ "ticks_history": symbol, "end": "latest", "count": 200, "style": "ticks", "subscribe": 1 }));
+    } else {
+        const granularity = getGranularityForTimePeriod(newTimePeriod);
+        console.log(`[Deriv WS Provider] Subscribing to candles for ${symbol} with granularity ${granularity}`);
+        ws.send(JSON.stringify({
+            ticks_history: symbol,
+            style: 'candles',
+            end: 'latest',
+            count: 500,
+            granularity: granularity,
+            subscribe: 1
+        }));
     }
-    
-    requestAndSubscribe();
     
 }, [timePeriod, chartType]);
 
@@ -475,7 +463,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
             contractType, 
             quantity, 
             symbol,
-            duration,
+            duration: duration,
             duration_unit: durationUnit,
         }, promisesRef);
 
