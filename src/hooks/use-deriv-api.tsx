@@ -73,9 +73,9 @@ interface DerivApiContextType {
   disconnect: (type: AccountType) => void;
   refreshBalance: () => void;
   executeTrade: (
-    contractType: string, 
-    quantity: number, 
-    symbol: string, 
+    contractType: string,
+    stake: number,
+    symbol: string,
     tradeDirection: 'rise' | 'fall',
     duration: number,
     durationUnit: DurationUnit
@@ -126,7 +126,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   const promisesRef = useRef<Map<string, { resolve: (value: any) => void, reject: (reason?: any) => void }>>(new Map());
   
   const activeSubscriptionId = useRef<string | null>(null);
-  const activeSymbolRef = useRef<string | null>(null);
 
 
   useEffect(() => {
@@ -191,7 +190,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
           setIsConnecting(false);
           wsRef.current = null;
           activeSubscriptionId.current = null;
-          activeSymbolRef.current = null;
         };
 
         ws.onerror = () => {
@@ -213,7 +211,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         if (response.error.code === 'AlreadySubscribed') {
             const subId = response.subscription?.id;
             console.warn(`[Deriv WS Provider] Already subscribed to ${subId || 'unknown'}. This is usually safe to ignore.`);
-            // No need to re-forget, just let the new subscription proceed.
             return;
         }
 
@@ -353,22 +350,25 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         return;
     }
     
-    // Always forget previous subscription if there is one
     if (activeSubscriptionId.current) {
         const subIdToForget = activeSubscriptionId.current;
         activeSubscriptionId.current = null;
         console.log(`[Deriv WS Provider] Forgetting old subscription: ${subIdToForget}`);
         const req_id = Date.now();
         const forgetPromise = new Promise((resolve, reject) => {
-            promisesRef.current.set(String(req_id), { resolve, reject });
-            ws.send(JSON.stringify({ "forget": subIdToForget, "req_id": req_id }));
-            setTimeout(() => {
-                if (promisesRef.current.has(String(req_id))) {
-                    console.warn("Forget request timed out, continuing anyway.");
-                    promisesRef.current.delete(String(req_id));
-                    resolve(null);
-                }
-            }, 2000);
+            if (ws.readyState === WebSocket.OPEN) {
+                promisesRef.current.set(String(req_id), { resolve, reject });
+                ws.send(JSON.stringify({ "forget": subIdToForget, "req_id": req_id }));
+                setTimeout(() => {
+                    if (promisesRef.current.has(String(req_id))) {
+                        console.warn("Forget request timed out, continuing anyway.");
+                        promisesRef.current.delete(String(req_id));
+                        resolve(null);
+                    }
+                }, 2000);
+            } else {
+                resolve(null); // If WS is not open, just resolve.
+            }
         });
         await forgetPromise;
     }
@@ -376,7 +376,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     setChartData([]);
     setIsChartLoading(true);
     setChartError(null);
-    activeSymbolRef.current = symbol;
 
     if (newTimePeriod === '1m') {
         console.log(`[Deriv WS Provider] Subscribing to ticks for ${symbol}`);
@@ -446,9 +445,9 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   }, []);
 
  const executeTrade = useCallback(async (
-    contractType: string, 
-    quantity: number, 
-    symbol: string, 
+    contractType: string,
+    stake: number,
+    symbol: string,
     tradeDirection: 'rise' | 'fall',
     duration: number,
     durationUnit: DurationUnit
@@ -460,7 +459,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       try {
         const proposalResponse = await requestProposal(wsRef.current, { 
             contractType, 
-            quantity, 
+            quantity: stake, 
             symbol,
             duration: duration,
             duration_unit: durationUnit,
@@ -478,7 +477,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
             id: buyResult.contract_id,
             asset: symbol,
             direction: tradeDirection,
-            stake: quantity,
+            stake: stake,
             status: 'pending',
             timestamp: new Date().toISOString(),
             duration: duration,
@@ -489,7 +488,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
 
         return {
           success: true,
-          message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${quantity} USD executada com sucesso.`,
+          message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${stake} USD executada com sucesso.`,
           contractId: buyResult.contract_id,
           entryTick: buyResult.entry_tick,
           entryTime: buyResult.entry_tick_time,
@@ -541,7 +540,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     chartType,
     timePeriod,
     setChartType,
-setTimePeriod,
+    setTimePeriod,
     addPriceTick,
     refreshBalance,
     executeTrade,
