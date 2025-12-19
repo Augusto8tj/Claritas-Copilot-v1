@@ -3,13 +3,14 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
-import { requestProposal, buyContract } from '@/services/deriv-api-service';
+import { requestProposal, buyContract, getHistoricalData as getHistoricalDataFromApi } from '@/services/deriv-api-service';
 import type { TradeResult } from '@/services/deriv-api-service';
 import { useToast } from './use-toast';
 import type { Operation } from '@/components/trading/operations-log.types';
 import { analyzeOperationsAction } from '@/app/actions/trading-actions';
+import { analyzeTradeLoss } from '@/ai/flows/trade-loss-analyzer-flow';
 import type { TimePeriod, ChartType } from '@/app/deriv-trader/page';
-import type { DurationUnit } from '@/components/trading/deriv-trader-interface';
+import type { DurationUnit } from '@/components/trading/deriv-trader-interface.types';
 
 
 const DERIV_DEMO_TOKEN_KEY = 'derivDemoApiToken';
@@ -156,6 +157,33 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     });
   };
 
+   const handleLosingTrade = useCallback(async (losingContract: any) => {
+    console.log("[Loss Analyzer] Analyzing losing trade:", losingContract.contract_id);
+    const operation = operationsLog.find(op => op.id === losingContract.contract_id);
+    if (!operation) return;
+
+    try {
+      const historicalData = await getHistoricalDataFromApi(operation.asset, undefined, 100);
+      
+      const analysisInput = {
+        operation: JSON.stringify(operation),
+        historicalDataJson: JSON.stringify(historicalData),
+        // activeStrategyJson: // We need a way to get this if it was an auto-trade
+      };
+      
+      const result = await analyzeTradeLoss(analysisInput);
+
+      toast({
+        title: `Análise da Perda: ${result.analysis}`,
+        description: `Sugestão da IA: ${result.suggestion}`,
+        variant: "destructive",
+        duration: 10000,
+      });
+
+    } catch (e) {
+      console.error("[Loss Analyzer] Error analyzing trade:", e);
+    }
+  }, [operationsLog, toast]);
 
   useEffect(() => {
     if (!activeToken || isLoading) {
@@ -257,12 +285,14 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
           if (!contract || !contract.is_sold) return;
           
           const profit = parseFloat(contract.profit);
+          const isLoss = profit < 0;
+
           const profitLossMessage = profit >= 0 ? `Lucro de ${contract.currency} ${profit.toFixed(2)}` : `Prejuízo de ${contract.currency} ${Math.abs(profit).toFixed(2)}`;
 
           toast({
               title: "Negociação Encerrada",
               description: `Contrato ${contract.contract_id}: ${profitLossMessage}`,
-              variant: profit >= 0 ? "default" : "destructive",
+              variant: isLoss ? "destructive" : "default",
           });
 
            setOperationsLog(prevLog =>
@@ -278,6 +308,10 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
               ? { ...c, status: profit >= 0 ? 'won' : 'lost', exitTick: parseFloat(contract.exit_tick_display_value), exitTime: contract.exit_tick_time }
               : c
           ));
+
+          if (isLoss) {
+            handleLosingTrade(contract);
+          }
 
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({ "balance": 1 }));
@@ -341,7 +375,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     return () => {
       // Don't add removeEventListener here as it's managed once per connection
     };
-  }, [activeToken, isLoading, isConnected, toast]);
+  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade]);
 
  const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {
     const ws = wsRef.current;

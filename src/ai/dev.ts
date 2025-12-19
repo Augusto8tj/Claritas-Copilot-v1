@@ -11,3 +11,4 @@ import '@/ai/flows/operation-analysis-flow.ts';
 import '@/ai/flows/auto-trader-strategy-flow.ts';
 import '@/app/actions/ai-actions.ts';
 import '@/ai/flows/asset-analysis-flow.ts';
+import '@/ai/flows/trade-loss-analyzer-flow.ts';
