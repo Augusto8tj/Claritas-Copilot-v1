@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -16,7 +17,7 @@ import type { RiseFallFormValues } from './deriv-trader-interface.types';
 
 // --- RSI Calculation Logic ---
 function calculateRSI(prices: number[], period = 14): number | null {
-  if (prices.length < period) {
+  if (prices.length < period + 1) {
     return null;
   }
 
@@ -60,6 +61,26 @@ function calculateRSI(prices: number[], period = 14): number | null {
   return 100 - (100 / (1 + rs));
 }
 
+// --- Stochastic Oscillator Calculation Logic ---
+function calculateStochastic(prices: number[], period = 14): number | null {
+    if (prices.length < period) {
+        return null;
+    }
+
+    const relevantPrices = prices.slice(-period);
+    const currentPrice = relevantPrices[relevantPrices.length - 1];
+    const lowestLow = Math.min(...relevantPrices);
+    const highestHigh = Math.max(...relevantPrices);
+
+    if (highestHigh === lowestLow) {
+        return 50; // Avoid division by zero, return neutral value
+    }
+
+    const k = 100 * ((currentPrice - lowestLow) / (highestHigh - lowestLow));
+    return k;
+}
+
+
 // --- Component ---
 interface AutoTraderInterfaceProps {
     symbol: string;
@@ -71,10 +92,8 @@ export function AutoTraderInterface({ symbol, onTradeSuccess }: AutoTraderInterf
     const [status, setStatus] = useState<'idle' | 'fetching_strategy' | 'running' | 'error' | 'executing'>('idle');
     const [strategy, setStrategy] = useState<AutoTraderStrategyOutput | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [currentRSI, setCurrentRSI] = useState<number | null>(null);
+    const [currentIndicatorValue, setCurrentIndicatorValue] = useState<number | null>(null);
     
-    const form = useFormContext<RiseFallFormValues>();
-
     const { 
         isConnected, 
         activeToken, 
@@ -83,6 +102,7 @@ export function AutoTraderInterface({ symbol, onTradeSuccess }: AutoTraderInterf
         executeTrade,
         priceTicks
     } = useDerivApi();
+    const form = useFormContext<RiseFallFormValues>();
     
     const pricesRef = useRef<number[]>(priceTicks.map(t => t.price));
     const lastTradeTimestampRef = useRef<number>(0);
@@ -128,7 +148,7 @@ export function AutoTraderInterface({ symbol, onTradeSuccess }: AutoTraderInterf
         }
     }, [symbol, accountBalance, operationsLog, form]);
 
-    const stopAutopilot = () => {
+    const stopAutopilot = useCallback(() => {
         if (strategyIntervalRef.current) {
             clearInterval(strategyIntervalRef.current);
             strategyIntervalRef.current = null;
@@ -136,8 +156,9 @@ export function AutoTraderInterface({ symbol, onTradeSuccess }: AutoTraderInterf
         setStatus('idle');
         setStrategy(null);
         setError(null);
+        setCurrentIndicatorValue(null);
         console.log("[AutoTrader] Stopped.");
-    };
+    }, []);
 
     const startAutopilot = useCallback(() => {
         if (!isConnected || !activeToken) {
@@ -153,14 +174,14 @@ export function AutoTraderInterface({ symbol, onTradeSuccess }: AutoTraderInterf
         strategyIntervalRef.current = setInterval(fetchStrategy, 5 * 60 * 1000); // every 5 minutes
     }, [isConnected, activeToken, fetchStrategy]);
 
-    const handleToggleAutopilot = (isOn: boolean) => {
+    const handleToggleAutopilot = useCallback((isOn: boolean) => {
         setIsAutopilotOn(isOn);
         if (isOn) {
             startAutopilot();
         } else {
             stopAutopilot();
         }
-    };
+    }, [startAutopilot, stopAutopilot]);
     
     // Cleanup on unmount
     useEffect(() => {
@@ -182,28 +203,50 @@ export function AutoTraderInterface({ symbol, onTradeSuccess }: AutoTraderInterf
         const prices = pricesRef.current;
         if (prices.length < 15) return;
 
+        let conditionMet = false;
+        let indicatorValue: number | null = null;
+        let tradeDirection: 'RISE' | 'FALL' | null = null;
+
         if (strategy.strategyName === 'RSI_BASIC' && strategy.rsiThreshold) {
-            const rsi = calculateRSI(prices);
-            setCurrentRSI(rsi);
-            
-            if (rsi === null) return;
-            
-            const conditionMet = (strategy.direction === 'RISE' && rsi <= strategy.rsiThreshold) ||
-                                 (strategy.direction === 'FALL' && rsi >= strategy.rsiThreshold);
-
-            if (conditionMet) {
-                setStatus('executing');
-                lastTradeTimestampRef.current = now;
-                console.log(`[AutoTrader] Condition met (RSI: ${rsi.toFixed(2)}). Executing ${strategy.direction}...`);
-
-                const { stake, duration, duration_unit } = form.getValues();
-                const contractType = strategy.direction === 'RISE' ? 'CALL' : 'PUT';
-
-                const result = await executeTrade(contractType, stake, symbol, strategy.direction.toLowerCase() as 'rise' | 'fall', duration, duration_unit);
-                onTradeSuccess(result);
-                
-                setTimeout(() => setStatus('running'), 5000); 
+            indicatorValue = calculateRSI(prices);
+            if (indicatorValue !== null) {
+                setCurrentIndicatorValue(indicatorValue);
+                if (strategy.direction === 'RISE' && indicatorValue <= strategy.rsiThreshold) {
+                    conditionMet = true;
+                    tradeDirection = 'RISE';
+                } else if (strategy.direction === 'FALL' && indicatorValue >= strategy.rsiThreshold) {
+                    conditionMet = true;
+                    tradeDirection = 'FALL';
+                }
             }
+        } else if (strategy.strategyName === 'STOCH_BASIC' && strategy.stochThreshold) {
+             indicatorValue = calculateStochastic(prices);
+            if (indicatorValue !== null) {
+                setCurrentIndicatorValue(indicatorValue);
+                if (strategy.direction === 'RISE' && indicatorValue <= strategy.stochThreshold) {
+                    conditionMet = true;
+                    tradeDirection = 'RISE';
+                } else if (strategy.direction === 'FALL' && indicatorValue >= strategy.stochThreshold) {
+                    conditionMet = true;
+                    tradeDirection = 'FALL';
+                }
+            }
+        }
+
+
+        if (conditionMet && tradeDirection) {
+            setStatus('executing');
+            lastTradeTimestampRef.current = now;
+            console.log(`[AutoTrader] Condition met (${strategy.strategyName}: ${indicatorValue?.toFixed(2)}). Executing ${tradeDirection}...`);
+
+            const { stake, duration, duration_unit } = form.getValues();
+            const contractType = tradeDirection === 'RISE' ? 'CALL' : 'PUT';
+
+            const result = await executeTrade(contractType, stake, symbol, tradeDirection.toLowerCase() as 'rise' | 'fall', duration, duration_unit);
+            onTradeSuccess(result);
+            
+            // Revert to running status after a delay to prevent immediate re-triggering
+            setTimeout(() => setStatus('running'), 5000); 
         }
     }, [status, strategy, executeTrade, onTradeSuccess, symbol, form]);
 
@@ -212,6 +255,25 @@ export function AutoTraderInterface({ symbol, onTradeSuccess }: AutoTraderInterf
             checkAndExecute();
         }
     }, [priceTicks, isAutopilotOn, status, checkAndExecute]);
+    
+    const renderStrategyDetails = () => {
+        if (!strategy) return null;
+
+        const { strategyName, direction, rsiThreshold, stochThreshold } = strategy;
+        let indicatorName = strategyName === 'RSI_BASIC' ? 'RSI' : 'Estocástico';
+        let threshold = strategyName === 'RSI_BASIC' ? rsiThreshold : stochThreshold;
+        
+        return (
+            <>
+                <p className="font-semibold">
+                    Condição: {direction === 'RISE' ? 'Comprar' : 'Vender'} se {indicatorName} {direction === 'RISE' ? '<=' : '>='} {threshold}.
+                </p>
+                <p className="pt-2">
+                    {indicatorName} Atual: {currentIndicatorValue ? currentIndicatorValue.toFixed(2) : 'Calculando...'}
+                </p>
+            </>
+        )
+    }
 
     return (
         <Card>
@@ -266,13 +328,8 @@ export function AutoTraderInterface({ symbol, onTradeSuccess }: AutoTraderInterf
                         <AlertTitle className="text-green-800">Estratégia Ativa: {strategy.strategyName}</AlertTitle>
                         <AlertDescription className="text-green-700 space-y-1 text-xs">
                            <p>{strategy.justification}</p>
-                           <p className="font-semibold">
-                                Condição: {strategy.direction === 'RISE' ? 'Comprar' : 'Vender'} se RSI {strategy.direction === 'RISE' ? '<=' : '>='} {strategy.rsiThreshold}.
-                           </p>
-                            <p className="pt-2">
-                                RSI Atual: {currentRSI ? currentRSI.toFixed(2) : 'Calculando...'}
-                            </p>
-                             {status === 'executing' && <p className="font-bold pt-1">EXECUTANDO ORDEM...</p>}
+                           {renderStrategyDetails()}
+                           {status === 'executing' && <p className="font-bold pt-1">EXECUTANDO ORDEM...</p>}
                         </AlertDescription>
                     </Alert>
                 )}
