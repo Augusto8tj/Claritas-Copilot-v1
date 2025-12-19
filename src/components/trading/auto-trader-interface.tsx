@@ -1,16 +1,18 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useFormContext } from 'react-hook-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
-import { Bot, FileWarning, Info, Loader2, Sparkles, AlertTriangle } from 'lucide-react';
+import { Bot, Info, Loader2, Sparkles, AlertTriangle } from 'lucide-react';
 import { getAutotraderStrategyAction } from '@/app/actions/ai-actions';
 import { useDerivApi } from '@/hooks/use-deriv-api';
 import type { AutoTraderStrategyOutput } from '@/ai/flows/auto-trader-strategy-flow.types';
 import { getHistoricalData } from '@/services/deriv-api-service';
 import type { TradeResult } from '@/services/deriv-api-service';
+import type { RiseFallFormValues } from './deriv-trader-interface.types';
 
 // --- RSI Calculation Logic ---
 function calculateRSI(prices: number[], period = 14): number | null {
@@ -71,27 +73,30 @@ export function AutoTraderInterface({ symbol, onTradeSuccess }: AutoTraderInterf
     const [error, setError] = useState<string | null>(null);
     const [currentRSI, setCurrentRSI] = useState<number | null>(null);
     
+    const form = useFormContext<RiseFallFormValues>();
+
     const { 
         isConnected, 
         activeToken, 
         accountBalance, 
         operationsLog, 
         executeTrade,
-        addPriceTick,
         priceTicks
     } = useDerivApi();
     
     const pricesRef = useRef<number[]>(priceTicks.map(t => t.price));
     const lastTradeTimestampRef = useRef<number>(0);
+    const strategyIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Update internal price buffer when the context ticks change
     useEffect(() => {
         pricesRef.current = priceTicks.map(t => t.price);
     }, [priceTicks]);
 
-    const fetchStrategy = async () => {
+    const fetchStrategy = useCallback(async () => {
         setStatus('fetching_strategy');
         setError(null);
+        console.log("[AutoTrader] Fetching new strategy...");
+
         try {
             const historicalData = await getHistoricalData(symbol, undefined, 200);
             if (!historicalData || historicalData.length === 0) {
@@ -103,54 +108,79 @@ export function AutoTraderInterface({ symbol, onTradeSuccess }: AutoTraderInterf
                 historicalData,
                 balance: accountBalance.balance || 0,
                 currency: accountBalance.currency || 'USD',
-                stake: 10, // Using a default stake for strategy definition
-                duration: 5,
-                durationUnit: 't',
+                stake: form.getValues('stake'),
+                duration: form.getValues('duration'),
+                durationUnit: form.getValues('duration_unit'),
                 recentTrades: operationsLog.slice(0, 5),
             });
 
             if (result.success) {
                 setStrategy(result.success);
                 setStatus('running');
+                console.log("[AutoTrader] New strategy received:", result.success);
             } else {
                 throw new Error(result.error || "Erro desconhecido ao obter estratégia.");
             }
         } catch (e: any) {
             setError(e.message);
             setStatus('error');
-            setIsAutopilotOn(false);
+            setIsAutopilotOn(false); // Turn off if strategy fails
         }
+    }, [symbol, accountBalance, operationsLog, form]);
+
+    const stopAutopilot = () => {
+        if (strategyIntervalRef.current) {
+            clearInterval(strategyIntervalRef.current);
+            strategyIntervalRef.current = null;
+        }
+        setStatus('idle');
+        setStrategy(null);
+        setError(null);
+        console.log("[AutoTrader] Stopped.");
     };
 
-    const handleToggleAutopilot = async (isOn: boolean) => {
+    const startAutopilot = useCallback(() => {
+        if (!isConnected || !activeToken) {
+            setError("A conexão com a corretora não está ativa.");
+            setStatus('error');
+            setIsAutopilotOn(false);
+            return;
+        }
+        
+        fetchStrategy(); // Fetch initial strategy immediately
+        
+        // Then set an interval to refetch it periodically
+        strategyIntervalRef.current = setInterval(fetchStrategy, 5 * 60 * 1000); // every 5 minutes
+    }, [isConnected, activeToken, fetchStrategy]);
+
+    const handleToggleAutopilot = (isOn: boolean) => {
         setIsAutopilotOn(isOn);
         if (isOn) {
-            if (!isConnected || !activeToken) {
-                setError("A conexão com a corretora não está ativa.");
-                setStatus('error');
-                setIsAutopilotOn(false);
-                return;
-            }
-            await fetchStrategy();
+            startAutopilot();
         } else {
-            setStatus('idle');
-            setStrategy(null);
-            setError(null);
+            stopAutopilot();
         }
     };
     
-    // The core execution logic, checks conditions on every price update
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (strategyIntervalRef.current) {
+                clearInterval(strategyIntervalRef.current);
+            }
+        };
+    }, []);
+
     const checkAndExecute = useCallback(async () => {
         if (status !== 'running' || !strategy) return;
         
-        // Cooldown period: Don't trade more than once every 15 seconds
         const now = Date.now();
         if (now - lastTradeTimestampRef.current < 15000) {
             return;
         }
 
         const prices = pricesRef.current;
-        if (prices.length < 15) return; // Need enough data for RSI calculation
+        if (prices.length < 15) return;
 
         if (strategy.strategyName === 'RSI_BASIC' && strategy.rsiThreshold) {
             const rsi = calculateRSI(prices);
@@ -164,18 +194,19 @@ export function AutoTraderInterface({ symbol, onTradeSuccess }: AutoTraderInterf
             if (conditionMet) {
                 setStatus('executing');
                 lastTradeTimestampRef.current = now;
+                console.log(`[AutoTrader] Condition met (RSI: ${rsi.toFixed(2)}). Executing ${strategy.direction}...`);
 
+                const { stake, duration, duration_unit } = form.getValues();
                 const contractType = strategy.direction === 'RISE' ? 'CALL' : 'PUT';
-                const result = await executeTrade(contractType, 10, symbol, strategy.direction.toLowerCase() as 'rise' | 'fall');
+
+                const result = await executeTrade(contractType, stake, symbol, strategy.direction.toLowerCase() as 'rise' | 'fall', duration, duration_unit);
                 onTradeSuccess(result);
                 
-                // After execution, wait a bit before resuming
                 setTimeout(() => setStatus('running'), 5000); 
             }
         }
-    }, [status, strategy, executeTrade, onTradeSuccess, symbol]);
+    }, [status, strategy, executeTrade, onTradeSuccess, symbol, form]);
 
-    // This effect listens to price changes and triggers the execution logic
     useEffect(() => {
         if (isAutopilotOn && status === 'running') {
             checkAndExecute();
@@ -212,7 +243,7 @@ export function AutoTraderInterface({ symbol, onTradeSuccess }: AutoTraderInterf
                         <Info className="h-4 w-4 text-primary" />
                         <AlertTitle className="text-primary font-headline">Como funciona?</AlertTitle>
                         <AlertDescription className="text-primary/90">
-                            Ao ativar, a IA definirá uma estratégia. O sistema então executará ordens automaticamente quando as condições dessa estratégia forem atendidas.
+                           Ao ativar, a IA definirá uma estratégia com base nos seus parâmetros de negociação. O sistema executará ordens automaticamente quando as condições forem atendidas, reavaliando a estratégia a cada 5 minutos.
                         </AlertDescription>
                     </Alert>
                 )}

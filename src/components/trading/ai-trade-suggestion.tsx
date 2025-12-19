@@ -3,6 +3,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useFormContext } from "react-hook-form";
 import {
   Card,
   CardContent,
@@ -21,10 +22,10 @@ import { getHistoricalData } from "@/services/deriv-api-service";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "../ui/switch";
 import { Label } from "../ui/label";
+import type { RiseFallFormValues } from "./deriv-trader-interface.types";
 
 interface AITradeSuggestionProps {
   symbol: string;
-  form: any;
   onExecuteTrade: (tradeDirection: 'rise' | 'fall') => void;
 }
 
@@ -34,7 +35,7 @@ type AwaitingEntryState = {
     initialPrices: number[];
 };
 
-export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSuggestionProps) {
+export function AITradeSuggestion({ symbol, onExecuteTrade }: AITradeSuggestionProps) {
   const [analysisResult, setAnalysisResult] = useState<AssetAnalysisOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -45,6 +46,8 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
   const { toast } = useToast();
   const [autoExecute, setAutoExecute] = useState(false);
   const [isAwaitingEntry, setIsAwaitingEntry] = useState<AwaitingEntryState | null>(null);
+
+  const form = useFormContext<RiseFallFormValues>();
 
   const CONFIDENCE_THRESHOLD = 80;
   const AWAIT_TIMEOUT = 10000; // 10 seconds to wait for an entry point
@@ -58,16 +61,15 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
     try {
       const formData = form.getValues();
       
-      // Determine the amount of historical data to fetch based on duration unit
       let dataCount;
       switch (formData.duration_unit) {
-        case 't': // ticks
-        case 's': // seconds
+        case 't': 
+        case 's': 
           dataCount = 200;
           break;
-        case 'm': // minutes
-        case 'h': // hours
-        case 'd': // days
+        case 'm': 
+        case 'h': 
+        case 'd': 
           dataCount = 1000;
           break;
         default:
@@ -126,11 +128,9 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
     }, 1000);
   }
 
-  // Effect to handle the "awaiting entry" logic
   useEffect(() => {
     if (!isAwaitingEntry || priceTicks.length < 2) return;
 
-    // Timeout check
     if (Date.now() - isAwaitingEntry.startTime > AWAIT_TIMEOUT) {
         toast({
             variant: "destructive",
@@ -146,10 +146,8 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
 
     let entryConditionMet = false;
     if (isAwaitingEntry.direction === 'rise' && currentPrice < prevPrice) {
-        // Suggested RISE, wait for a dip
         entryConditionMet = true;
     } else if (isAwaitingEntry.direction === 'fall' && currentPrice > prevPrice) {
-        // Suggested FALL, wait for a spike
         entryConditionMet = true;
     }
 
@@ -162,7 +160,7 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
         setIsAwaitingEntry(null); // Stop awaiting
     }
 
-  }, [priceTicks, isAwaitingEntry, toast]);
+  }, [priceTicks, isAwaitingEntry, toast, handleExecute]);
 
 
   useEffect(() => {
@@ -281,5 +279,3 @@ export function AITradeSuggestion({ symbol, form, onExecuteTrade }: AITradeSugge
     </Card>
   );
 }
-
-    
