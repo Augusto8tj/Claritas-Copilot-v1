@@ -20,6 +20,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { Separator } from "../ui/separator";
+import type { RiseFallFormValues } from "./deriv-trader-interface.types";
+import type { UseFormReturn } from "react-hook-form";
 
 interface AutoTraderInterfaceProps {
   symbol: string;
@@ -31,7 +33,7 @@ interface AutoTraderInterfaceProps {
     duration: number,
     durationUnit: any
   ) => Promise<any>;
-  form: any;
+  form: UseFormReturn<RiseFallFormValues>;
 }
 
 const STRATEGY_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutos
@@ -127,21 +129,23 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
     } catch (e: any) {
        setError(e.message || "Ocorreu um erro ao definir a estratégia.");
        setStrategy(null);
+       // Turn off autopilot on error to prevent unwanted behavior
+       setIsAutopilotOn(false);
     }
     setIsLoading(false);
   }, [symbol, form, accountBalance, operationsLog, priceTicks, toast]);
 
   const checkAndExecute = useCallback(async () => {
-    if (isExecuting || !isAutopilotOn || !strategy || !currentRSI || !currentStoch) return;
+    if (isExecuting || !isAutopilotOn || !strategy || (currentRSI === null && currentStoch === null)) return;
 
     let conditionMet = false;
-    if (strategy.strategyName === 'RSI_BASIC' && strategy.rsiThreshold) {
+    if (strategy.strategyName === 'RSI_BASIC' && strategy.rsiThreshold && currentRSI !== null) {
         if (strategy.direction === 'RISE' && currentRSI <= strategy.rsiThreshold) {
             conditionMet = true;
         } else if (strategy.direction === 'FALL' && currentRSI >= strategy.rsiThreshold) {
             conditionMet = true;
         }
-    } else if (strategy.strategyName === 'STOCH_BASIC' && strategy.stochThreshold) {
+    } else if (strategy.strategyName === 'STOCH_BASIC' && strategy.stochThreshold && currentStoch !== null) {
         if (strategy.direction === 'RISE' && currentStoch <= strategy.stochThreshold) {
             conditionMet = true;
         } else if (strategy.direction === 'FALL' && currentStoch >= strategy.stochThreshold) {
@@ -151,9 +155,12 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
 
     if (conditionMet) {
         setIsExecuting(true);
-        toast({ title: "Piloto Automático", description: `Condição de ${strategy.direction} atingida! Executando negociação.` });
+        const { allowEquals } = form.getValues();
+        const stake = strategy.suggestedStake;
+        const duration = strategy.suggestedDuration;
         
-        const { stake, duration, duration_unit, allowEquals } = form.getValues();
+        toast({ title: "Piloto Automático", description: `Condição de ${strategy.direction} atingida! Executando com Aposta: $${stake.toFixed(2)} e Duração: ${duration} ticks.` });
+        
         let contractType: string;
         if (strategy.direction === 'RISE') {
             contractType = allowEquals ? 'CALLE' : 'CALL';
@@ -161,10 +168,10 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
             contractType = allowEquals ? 'PUTE' : 'PUT';
         }
 
-        await onExecuteTrade(contractType, stake, symbol, strategy.direction.toLowerCase() as 'rise' | 'fall', duration, duration_unit);
+        await onExecuteTrade(contractType, stake, symbol, strategy.direction.toLowerCase() as 'rise' | 'fall', duration, 't'); // Duration is now in ticks
         
         // Pause for a short while after execution to prevent rapid-fire trades
-        setTimeout(() => setIsExecuting(false), 5000); 
+        setTimeout(() => setIsExecuting(false), 10000); 
     }
   }, [isExecuting, isAutopilotOn, strategy, currentRSI, currentStoch, form, onExecuteTrade, symbol, toast]);
 
@@ -185,6 +192,14 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
         setStrategy(null);
     }
   };
+
+  // Turn off autopilot if connection is lost
+  useEffect(() => {
+      if(!isConnected && isAutopilotOn) {
+          handleToggleAutopilot(false);
+          toast({ variant: "destructive", title: "Piloto Automático Desativado", description: "A conexão com a corretora foi perdida." });
+      }
+  }, [isConnected, isAutopilotOn, toast]);
 
   useEffect(() => {
     if (priceTicks.length > 14) {
@@ -239,7 +254,7 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
                 </div>
             ) : error ? (
                  <Alert variant="destructive">
-                    <AlertTitle>Erro</AlertTitle>
+                    <AlertTitle>Erro na Estratégia</AlertTitle>
                     <AlertDescription>{error}</AlertDescription>
                 </Alert>
             ) : strategy ? (
@@ -251,7 +266,12 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
                     <AlertDescription className="text-primary/90 space-y-2 mt-2">
                         <p>{strategy.justification}</p>
                         <Separator className="bg-primary/20"/>
-                        <p className="font-semibold">Condição: Comprar se {strategy.strategyName === 'RSI_BASIC' ? 'RSI' : 'Estocástico'} {strategy.direction === 'RISE' ? '<=' : '>='} {strategy.rsiThreshold || strategy.stochThreshold}.</p>
+                        <p className="font-semibold">Condição: Comprar {strategy.direction} se {strategy.strategyName === 'RSI_BASIC' ? 'RSI' : 'Estocástico'} {strategy.direction === 'RISE' ? '<=' : '>='} {strategy.rsiThreshold || strategy.stochThreshold}.</p>
+                        <div className="text-xs space-y-1">
+                            <p>Aposta Sugerida: <strong>${strategy.suggestedStake.toFixed(2)}</strong></p>
+                            <p>Duração Sugerida: <strong>{strategy.suggestedDuration} ticks</strong></p>
+                        </div>
+                        <Separator className="bg-primary/20"/>
                         <p className="font-bold">{getActiveIndicatorName()}: {getActiveIndicatorValue()}</p>
                     </AlertDescription>
                 </Alert>
@@ -272,4 +292,3 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
     </Card>
   );
 }
-

@@ -13,6 +13,8 @@ export const AutoTraderStrategyOutputSchema = z.object({
   stochThreshold: z.number().optional().describe("The Stochastic Oscillator threshold (e.g., 20 for oversold, 80 for overbought)."),
   direction: z.enum(['RISE', 'FALL']).describe("The direction to trade when the condition is met."),
   justification: z.string().describe("A brief explanation of why this strategy was chosen."),
+  suggestedStake: z.number().describe("The suggested stake amount for this trade, based on risk analysis. Should be a percentage of the balance, e.g., 1-2%."),
+  suggestedDuration: z.number().describe("The suggested contract duration in ticks, based on market volatility."),
 });
 
 export type AutoTraderStrategyOutput = z.infer<typeof AutoTraderStrategyOutputSchema>;
