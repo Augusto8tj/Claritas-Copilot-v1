@@ -26,6 +26,7 @@ import type { RiseFallFormValues } from "./deriv-trader-interface.types";
 
 interface AITradeSuggestionProps {
   symbol: string;
+  onExecuteTrade: (tradeDirection: 'rise' | 'fall') => Promise<void>;
 }
 
 type AwaitingEntryState = {
@@ -34,7 +35,7 @@ type AwaitingEntryState = {
     initialPrices: number[];
 };
 
-export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
+export function AITradeSuggestion({ symbol, onExecuteTrade }: AITradeSuggestionProps) {
   const [analysisResult, setAnalysisResult] = useState<AssetAnalysisOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -119,23 +120,25 @@ export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
   const handleExecute = useCallback(async (direction: 'rise' | 'fall') => {
     setIsExecuting(true);
 
-    const { stake, duration, duration_unit, allowEquals } = form.getValues();
+    const formValues = form.getValues();
+    const suggestedStake = analysisResult?.suggestedStake ?? formValues.stake;
+    const suggestedDuration = analysisResult?.suggestedDuration ?? formValues.duration;
     
     let contractType: string;
     if (direction === 'rise') {
-        contractType = allowEquals ? 'CALLE' : 'CALL';
+        contractType = formValues.allowEquals ? 'CALLE' : 'CALL';
     } else { // 'fall'
-        contractType = allowEquals ? 'PUTE' : 'PUT';
+        contractType = formValues.allowEquals ? 'PUTE' : 'PUT';
     }
     
-    await executeTrade(contractType, stake, symbol, direction, duration, duration_unit);
+    await executeTrade(contractType, suggestedStake, symbol, direction, suggestedDuration, formValues.duration_unit);
     
     setTimeout(() => {
         setAnalysisResult(null); 
         setIsExecuting(false);
         setIsAwaitingEntry(null);
     }, 1000);
-  }, [executeTrade, form, symbol]);
+  }, [executeTrade, form, symbol, analysisResult]);
 
 
    useEffect(() => {
