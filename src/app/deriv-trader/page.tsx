@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState } from "react";
@@ -19,6 +20,7 @@ import type { TradeResult } from "@/services/deriv-api-service";
 import { OperationsLog } from "@/components/trading/operations-log";
 import { AIAnalysisInterface } from "@/components/trading/ai-analysis-interface";
 import { riseFallSchema, type RiseFallFormValues } from "@/components/trading/deriv-trader-interface.types";
+import { AutoTraderInterface } from "@/components/trading/auto-trader-interface";
 
 export type TimePeriod = '1m' | '15m' | '30m' | '1h' | '8h' | '1d';
 export type ChartType = 'Area' | 'Candle';
@@ -43,7 +45,8 @@ export default function DerivTraderPage() {
     chartType,
     setChartType,
     timePeriod,
-    setTimePeriod
+    setTimePeriod,
+    executeTrade
   } = useDerivApi();
 
   const form = useForm<RiseFallFormValues>({
@@ -218,6 +221,11 @@ export default function DerivTraderPage() {
                   symbol={selectedAsset}
                   onTradeSuccess={handleTradeSuccess}
                   isConnected={isConnected && !!activeToken}
+              />
+              <AutoTraderInterface 
+                symbol={selectedAsset} 
+                onExecuteTrade={executeTrade} 
+                form={form}
               />
               <AIAnalysisInterface symbol={selectedAsset} />
           </div>
