@@ -175,8 +175,10 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
     }
   }, [isExecuting, isAutopilotOn, strategy, currentRSI, currentStoch, form, onExecuteTrade, symbol, toast]);
 
-  const handleToggleAutopilot = (isOn: boolean) => {
-    if (isOn) {
+  const handleToggleAutopilot = () => {
+    const willBeOn = !isAutopilotOn;
+
+    if (willBeOn) {
         if (!isConnected) {
             toast({ variant: "destructive", title: "Piloto Automático", description: "Conecte-se à corretora antes de ativar o piloto automático." });
             return;
@@ -196,9 +198,10 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
   // Turn off autopilot if connection is lost
   useEffect(() => {
       if(!isConnected && isAutopilotOn) {
-          handleToggleAutopilot(false);
+          handleToggleAutopilot();
           toast({ variant: "destructive", title: "Piloto Automático Desativado", description: "A conexão com a corretora foi perdida." });
       }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected, isAutopilotOn, toast]);
 
   useEffect(() => {
