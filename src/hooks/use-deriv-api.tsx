@@ -350,25 +350,25 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
             });
          }
       } else if (response.msg_type === 'candles') {
-         const candleData: CandleData[] = response.candles.map((candle: any) => ({
+        const candleData: CandleData[] = response.candles.map((candle: any) => ({
             epoch: candle.epoch,
             open: candle.open,
             high: candle.high,
             low: candle.low,
             close: candle.close,
         }));
+        activeSubscriptionId.current = response.subscription.id;
         setChartData(candleData);
         setIsChartLoading(false);
-        activeSubscriptionId.current = response.subscription.id;
       } else if (response.msg_type === 'history') {
           const historyData = response.history.prices.map((price: number, index: number) => ({
               epoch: response.history.times[index],
               price: price,
           }));
+          activeSubscriptionId.current = response.subscription.id;
           setChartData(historyData);
           setPriceTicks(historyData);
           setIsChartLoading(false);
-          activeSubscriptionId.current = response.subscription.id;
       } else if (response.msg_type === 'forget') {
         console.log(`[Deriv WS Provider] Successfully forgot subscription ID.`);
       }
@@ -403,8 +403,14 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
                 resolve(null); 
             }
         });
-        await forgetPromise;
-        activeSubscriptionId.current = null;
+        
+        try {
+            await forgetPromise;
+        } catch (error) {
+            console.warn("[Deriv WS Provider] Error forgetting old subscription (can be ignored if sub already expired):", error);
+        } finally {
+            activeSubscriptionId.current = null;
+        }
     }
     
     clearChartData();
