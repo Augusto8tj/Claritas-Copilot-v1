@@ -277,32 +277,52 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     }
   }, [isAutopilotOn, lastAutopilotLossSuggestion, accountBalance, operationsLog, toast]);
 
-    // This useEffect is now the single source of truth for managing the autopilot timer.
+    const handleAutopilotCheck = useCallback(() => {
+        if (!isAutopilotOn || priceTicks.length < 20) return;
+
+        const lastTicks = priceTicks.slice(-100);
+        const prices = lastTicks.map(t => t.price);
+        const maxPrice = Math.max(...prices);
+        const minPrice = Math.min(...prices);
+        const currentPrice = prices[prices.length - 1];
+
+        // Volatility threshold: 0.05% of the current price
+        const VOLATILITY_THRESHOLD = currentPrice * 0.0005;
+
+        if (maxPrice - minPrice > VOLATILITY_THRESHOLD) {
+            console.log(`[Autopilot] Volatility detected (${(maxPrice - minPrice).toFixed(5)} > ${VOLATILITY_THRESHOLD.toFixed(5)}). Fetching new strategy.`);
+            toast({
+                title: "Piloto Automático",
+                description: "Volatilidade detetada. A reavaliar a estratégia.",
+            });
+            fetchAutopilotStrategy();
+        } else {
+            console.log(`[Autopilot] Low volatility. Keeping current strategy.`);
+        }
+    }, [isAutopilotOn, priceTicks, fetchAutopilotStrategy, toast]);
+
     useEffect(() => {
         if (isAutopilotOn) {
-            console.log("[Autopilot] Turned ON. Fetching initial strategy and starting timer.");
+            console.log("[Autopilot] Turned ON. Fetching initial strategy and starting check cycle.");
             fetchAutopilotStrategy(); // Fetch initial strategy
             
-            // Clear any existing interval before setting a new one
             if (strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
             
-            strategyIntervalRef.current = setInterval(fetchAutopilotStrategy, STRATEGY_REFRESH_INTERVAL);
+            strategyIntervalRef.current = setInterval(handleAutopilotCheck, STRATEGY_REFRESH_INTERVAL);
         } else {
-             console.log("[Autopilot] Turned OFF. Clearing timer.");
-            // Clear interval when autopilot is turned off
+             console.log("[Autopilot] Turned OFF. Clearing check cycle.");
             if (strategyIntervalRef.current) {
                 clearInterval(strategyIntervalRef.current);
                 strategyIntervalRef.current = null;
             }
         }
 
-        // Cleanup on component unmount
         return () => {
             if (strategyIntervalRef.current) {
                 clearInterval(strategyIntervalRef.current);
             }
         };
-    }, [isAutopilotOn, fetchAutopilotStrategy]);
+    }, [isAutopilotOn, fetchAutopilotStrategy, handleAutopilotCheck]);
 
 
 
@@ -365,8 +385,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         const reqId = response.req_id;
         if (reqId && promisesRef.current.has(String(reqId))) {
             if (isForgetError) {
-                // This error is not critical. It means we tried to forget a subscription that was already gone.
-                // We resolve the promise to allow the flow to continue.
                 promisesRef.current.get(String(reqId))?.resolve(response);
             } else {
                 promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
@@ -396,7 +414,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         setConnectionError(null);
         ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
         ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 }));
-        // Initialize the active symbol ref on successful connection
         if (!activeSymbolRef.current) {
             activeSymbolRef.current = '1HZ100V';
         }
@@ -436,7 +453,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
           ));
 
           if (isLoss && activeContract?.isAutopilot) {
-            // Check for consecutive losses
             const recentAutopilotTrades = updatedLog.filter(op => op.isAutopilot).slice(-2);
             if(recentAutopilotTrades.length === 2 && recentAutopilotTrades.every(t => t.status === 'lost')) {
                 toast({
@@ -445,8 +461,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
                     variant: "destructive",
                 });
                 if(strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
-                fetchAutopilotStrategy(); // Re-fetch immediately
-                strategyIntervalRef.current = setInterval(fetchAutopilotStrategy, STRATEGY_REFRESH_INTERVAL);
+                fetchAutopilotStrategy();
+                strategyIntervalRef.current = setInterval(handleAutopilotCheck, STRATEGY_REFRESH_INTERVAL);
             } else {
                  handleLosingTrade(contract, activeContract.isAutopilot);
             }
@@ -514,7 +530,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     return () => {
       // Cleanup logic if needed when dependencies change
     };
-  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts, operationsLog, fetchAutopilotStrategy]);
+  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts, operationsLog, fetchAutopilotStrategy, handleAutopilotCheck]);
 
  const clearChartData = useCallback(() => {
     setChartData([]);
