@@ -178,7 +178,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   const promisesRef = useRef<Map<string, { resolve: (value: any) => void, reject: (reason?: any) => void }>>(new Map());
   
   const activeSubscriptionId = useRef<string | null>(null);
-  const activeSymbolRef = useRef<string | null>(null);
+  const activeSymbolRef = useRef<string>("1HZ100V");
   const strategyIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const STRATEGY_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutos
 
@@ -244,8 +244,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     
     console.log("[Autopilot] Fetching new strategy...");
     try {
-        const historicalData = priceTicks.length > 50 ? priceTicks.slice(-200).map(t => ({ date: new Date(t.epoch * 1000).toISOString(), price: t.price })) : [];
-        if(historicalData.length < 50) {
+        const historicalData = await getHistoricalDataFromApi(activeSymbolRef.current, undefined, 200);
+        if(!historicalData || historicalData.length < 50) {
             console.warn("[Autopilot] Not enough price data to define a strategy.");
             return;
         }
@@ -266,6 +266,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         if (result.success) {
             setAutopilotStrategy(result.success);
             toast({ title: "Nova Estratégia do Piloto Automático", description: result.success.justification });
+            // Clear last suggestion after using it
+            setLastAutopilotLossSuggestion(null);
         } else {
             throw new Error(result.error || "Ocorreu um erro desconhecido ao buscar estratégia.");
         }
@@ -273,7 +275,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
        console.error("[Autopilot] Error fetching strategy:", e.message);
        setAutopilotStrategy(null);
     }
-  }, [isAutopilotOn, priceTicks, lastAutopilotLossSuggestion, accountBalance, operationsLog, toast, activeSymbolRef]);
+  }, [isAutopilotOn, lastAutopilotLossSuggestion, accountBalance, operationsLog, toast]);
 
 
   useEffect(() => {
@@ -324,23 +326,24 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
 
     ws.onmessage = (event) => {
       const response = JSON.parse(event.data);
-      const reqId = response.req_id;
       
       if (response.error) {
-        // If the error is for a 'forget' request, we can resolve it as it's not critical.
-        if (reqId && response.echo_req.forget) {
-            console.warn("[Deriv WS Provider] Could not forget subscription (it may have already expired). This is safe to ignore.", response.error);
-            if (promisesRef.current.has(String(reqId))) {
-                promisesRef.current.get(String(reqId))?.resolve(response);
-                promisesRef.current.delete(String(reqId));
-            }
-            return;
-        }
+        const isForgetError = !!response.echo_req?.forget;
 
-        console.error("[Deriv WS Provider] Error received:", response.error.message);
+        if (isForgetError) {
+            console.warn("[Deriv WS Provider] Could not forget subscription (it may have already expired). This is safe to ignore.", response.error);
+        } else {
+            console.error("[Deriv WS Provider] Error received:", response.error.message);
+        }
         
+        const reqId = response.req_id;
         if (reqId && promisesRef.current.has(String(reqId))) {
-            promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
+            if(isForgetError) {
+                // Resolve the promise for 'forget' errors so the flow can continue
+                promisesRef.current.get(String(reqId))?.resolve(response);
+            } else {
+                promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
+            }
             promisesRef.current.delete(String(reqId));
         } else if (response.msg_type === 'authorize') {
             setConnectionError(response.error.message);
@@ -348,12 +351,11 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         } else if (response.msg_type === 'ticks_history' || response.msg_type === 'candles') {
              setChartError(response.error.message);
              setIsChartLoading(false);
-        } else {
-           console.error("[Deriv WS Provider] Unhandled error:", response);
         }
         return;
       }
 
+      const reqId = response.req_id;
       if (reqId && promisesRef.current.has(String(reqId))) {
           promisesRef.current.get(String(reqId))?.resolve(response);
           promisesRef.current.delete(String(reqId));
@@ -367,6 +369,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         setConnectionError(null);
         ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
         ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 }));
+        // Initialize the active symbol ref on successful connection
+        activeSymbolRef.current = activeSymbolRef.current || '1HZ100V';
       } else if (response.msg_type === 'balance') {
         setAccountBalance({
             balance: response.balance.balance,
@@ -403,7 +407,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
           ));
 
           if (isLoss && activeContract?.isAutopilot) {
-            handleLosingTrade(contract, activeContract.isAutopilot);
             // Check for consecutive losses
             const recentAutopilotTrades = updatedLog.filter(op => op.isAutopilot).slice(0, 2);
             if(recentAutopilotTrades.length === 2 && recentAutopilotTrades.every(t => t.status === 'lost')) {
@@ -413,8 +416,10 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
                     variant: "destructive",
                 });
                 if(strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
-                fetchAutopilotStrategy();
+                fetchAutopilotStrategy(); // Re-fetch immediately
                 strategyIntervalRef.current = setInterval(fetchAutopilotStrategy, STRATEGY_REFRESH_INTERVAL);
+            } else {
+                 handleLosingTrade(contract, activeContract.isAutopilot);
             }
           }
 
@@ -478,6 +483,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
 
 
     return () => {
+      // Cleanup logic if needed when dependencies change
     };
   }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts, operationsLog, fetchAutopilotStrategy]);
 
@@ -513,6 +519,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         
         try {
             await forgetPromise;
+            console.log("[Deriv WS Provider] Old subscription successfully forgotten.");
         } catch (error) {
             console.warn("[Deriv WS Provider] Error forgetting old subscription (can be ignored if sub already expired):", error);
         } finally {
@@ -540,7 +547,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         }));
     }
     
-}, [clearChartData]);
+}, [clearChartData, timePeriod, chartType]);
 
 
   const setAccountType = (type: AccountType) => {
