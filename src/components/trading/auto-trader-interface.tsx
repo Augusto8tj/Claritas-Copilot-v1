@@ -35,121 +35,42 @@ interface AutoTraderInterfaceProps {
   form: UseFormReturn<RiseFallFormValues>;
 }
 
-const STRATEGY_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutos
-
-const calculateRSI = (ticks: { price: number }[], period = 14) => {
-    if (ticks.length < period) return null;
-
-    const prices = ticks.map(t => t.price);
-    let gains = 0;
-    let losses = 0;
-
-    for (let i = 1; i <= period; i++) {
-        const difference = prices[prices.length - i] - prices[prices.length - i - 1];
-        if (difference >= 0) {
-            gains += difference;
-        } else {
-            losses -= difference;
-        }
-    }
-
-    let avgGain = gains / period;
-    let avgLoss = losses / period;
-
-    for (let i = period + 1; i < prices.length; i++) {
-        const difference = prices[i] - prices[i - 1];
-        if (difference >= 0) {
-            avgGain = (avgGain * (period - 1) + difference) / period;
-            avgLoss = (avgLoss * (period - 1)) / period;
-        } else {
-            avgLoss = (avgLoss * (period - 1) - difference) / period;
-            avgGain = (avgGain * (period - 1)) / period;
-        }
-    }
-
-    if (avgLoss === 0) return 100;
-    const rs = avgGain / avgLoss;
-    return 100 - (100 / (1 + rs));
-};
-
-const calculateStochastic = (ticks: { price: number }[], period = 14) => {
-    if (ticks.length < period) return null;
-
-    const relevantTicks = ticks.slice(-period);
-    const lowestLow = Math.min(...relevantTicks.map(t => t.price));
-    const highestHigh = Math.max(...relevantTicks.map(t => t.price));
-    const currentClose = relevantTicks[relevantTicks.length - 1].price;
-
-    if (highestHigh === lowestLow) return 50;
-
-    return 100 * ((currentClose - lowestLow) / (highestHigh - lowestLow));
-};
 
 export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTraderInterfaceProps) {
-  const [strategy, setStrategy] = useState<AutoTraderStrategyOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
-  const [isAutopilotOn, setIsAutopilotOn] = useState(false);
-  const [currentRSI, setCurrentRSI] = useState<number | null>(null);
-  const [currentStoch, setCurrentStoch] = useState<number | null>(null);
   
   const { toast } = useToast();
-  const { accountBalance, operationsLog, priceTicks, isConnected, lastAutopilotLossSuggestion } = useDerivApi();
+  const { 
+    isConnected, 
+    priceTicks, 
+    isAutopilotOn,
+    setIsAutopilotOn,
+    autopilotStrategy,
+    fetchAutopilotStrategy,
+    currentRSI,
+    currentStoch
+  } = useDerivApi();
+  
   const strategyIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const STRATEGY_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutos
 
-  const fetchStrategy = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-        const formData = form.getValues();
-        const historicalData = priceTicks.length > 50 ? priceTicks.slice(-200).map(t => ({ date: new Date(t.epoch * 1000).toISOString(), price: t.price })) : [];
-        if(historicalData.length === 0) {
-            throw new Error("Dados de preço insuficientes para definir uma estratégia.");
-        }
-        
-        console.log(`[Autopilot] Fetching strategy. Last loss suggestion:`, lastAutopilotLossSuggestion);
-        const result = await getAutotraderStrategyAction({
-            symbol,
-            balance: accountBalance.balance || 0,
-            currency: accountBalance.currency || 'USD',
-            stake: formData.stake,
-            duration: formData.duration,
-            durationUnit: formData.duration_unit,
-            recentTrades: operationsLog.slice(0, 5),
-            historicalData: historicalData,
-            lastLossAnalysisSuggestion: lastAutopilotLossSuggestion ?? undefined,
-        });
-
-        if (result.success) {
-            setStrategy(result.success);
-            toast({ title: "Nova Estratégia do Piloto Automático", description: result.success.justification });
-        } else {
-            throw new Error(result.error || "Ocorreu um erro desconhecido.");
-        }
-    } catch (e: any) {
-       setError(e.message || "Ocorreu um erro ao definir a estratégia.");
-       setStrategy(null);
-       // Turn off autopilot on error to prevent unwanted behavior
-       setIsAutopilotOn(false);
-    }
-    setIsLoading(false);
-  }, [symbol, form, accountBalance, operationsLog, priceTicks, toast, lastAutopilotLossSuggestion]);
 
   const checkAndExecute = useCallback(async () => {
-    if (isExecuting || !isAutopilotOn || !strategy || (currentRSI === null && currentStoch === null)) return;
+    if (isExecuting || !isAutopilotOn || !autopilotStrategy || (currentRSI === null && currentStoch === null)) return;
 
     let conditionMet = false;
-    if (strategy.strategyName === 'RSI_BASIC' && strategy.rsiThreshold && currentRSI !== null) {
-        if (strategy.direction === 'RISE' && currentRSI <= strategy.rsiThreshold) {
+    if (autopilotStrategy.strategyName === 'RSI_BASIC' && autopilotStrategy.rsiThreshold && currentRSI !== null) {
+        if (autopilotStrategy.direction === 'RISE' && currentRSI <= autopilotStrategy.rsiThreshold) {
             conditionMet = true;
-        } else if (strategy.direction === 'FALL' && currentRSI >= strategy.rsiThreshold) {
+        } else if (autopilotStrategy.direction === 'FALL' && currentRSI >= autopilotStrategy.rsiThreshold) {
             conditionMet = true;
         }
-    } else if (strategy.strategyName === 'STOCH_BASIC' && strategy.stochThreshold && currentStoch !== null) {
-        if (strategy.direction === 'RISE' && currentStoch <= strategy.stochThreshold) {
+    } else if (autopilotStrategy.strategyName === 'STOCH_BASIC' && autopilotStrategy.stochThreshold && currentStoch !== null) {
+        if (autopilotStrategy.direction === 'RISE' && currentStoch <= autopilotStrategy.stochThreshold) {
             conditionMet = true;
-        } else if (strategy.direction === 'FALL' && currentStoch >= strategy.stochThreshold) {
+        } else if (autopilotStrategy.direction === 'FALL' && currentStoch >= autopilotStrategy.stochThreshold) {
             conditionMet = true;
         }
     }
@@ -157,24 +78,24 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
     if (conditionMet) {
         setIsExecuting(true);
         const { allowEquals } = form.getValues();
-        const stake = strategy.suggestedStake;
-        const duration = strategy.suggestedDuration;
+        const stake = autopilotStrategy.suggestedStake;
+        const duration = autopilotStrategy.suggestedDuration;
         
-        toast({ title: "Piloto Automático", description: `Condição de ${strategy.direction} atingida! Executando com Aposta: $${stake.toFixed(2)} e Duração: ${duration} ticks.` });
+        toast({ title: "Piloto Automático", description: `Condição de ${autopilotStrategy.direction} atingida! Executando com Aposta: $${stake.toFixed(2)} e Duração: ${duration} ticks.` });
         
         let contractType: string;
-        if (strategy.direction === 'RISE') {
+        if (autopilotStrategy.direction === 'RISE') {
             contractType = allowEquals ? 'CALLE' : 'CALL';
         } else { // 'FALL'
             contractType = allowEquals ? 'PUTE' : 'PUT';
         }
 
-        await onExecuteTrade(contractType, stake, symbol, strategy.direction.toLowerCase() as 'rise' | 'fall', duration, 't', true);
+        await onExecuteTrade(contractType, stake, symbol, autopilotStrategy.direction.toLowerCase() as 'rise' | 'fall', duration, 't', true);
         
         // Pause for a short while after execution to prevent rapid-fire trades
         setTimeout(() => setIsExecuting(false), 10000); 
     }
-  }, [isExecuting, isAutopilotOn, strategy, currentRSI, currentStoch, form, onExecuteTrade, symbol, toast]);
+  }, [isExecuting, isAutopilotOn, autopilotStrategy, currentRSI, currentStoch, form, onExecuteTrade, symbol, toast]);
 
   const handleToggleAutopilot = (isOn: boolean) => {
     if (isOn) {
@@ -183,32 +104,43 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
             return;
         }
         setIsAutopilotOn(true);
-        fetchStrategy(); // Fetch initial strategy
-        strategyIntervalRef.current = setInterval(fetchStrategy, STRATEGY_REFRESH_INTERVAL);
+        fetchAutopilotStrategy(); // Fetch initial strategy
+        if(strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
+        strategyIntervalRef.current = setInterval(fetchAutopilotStrategy, STRATEGY_REFRESH_INTERVAL);
     } else {
         setIsAutopilotOn(false);
         if (strategyIntervalRef.current) {
             clearInterval(strategyIntervalRef.current);
         }
-        setStrategy(null);
     }
   };
+
+  // Effect to manage the strategy refresh interval based on isAutopilotOn state
+  useEffect(() => {
+    if (isAutopilotOn) {
+        // Clear any existing interval before setting a new one
+        if (strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
+        strategyIntervalRef.current = setInterval(fetchAutopilotStrategy, STRATEGY_REFRESH_INTERVAL);
+    } else {
+        // Clear interval when autopilot is turned off
+        if (strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
+    }
+
+    // Cleanup on component unmount
+    return () => {
+        if (strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
+    };
+}, [isAutopilotOn, fetchAutopilotStrategy]);
+
 
   // Turn off autopilot if connection is lost
   useEffect(() => {
       if(!isConnected && isAutopilotOn) {
-          handleToggleAutopilot(false);
+          setIsAutopilotOn(false);
           toast({ variant: "destructive", title: "Piloto Automático Desativado", description: "A conexão com a corretora foi perdida." });
       }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected, isAutopilotOn, toast]);
+  }, [isConnected, isAutopilotOn, toast, setIsAutopilotOn]);
 
-  useEffect(() => {
-    if (priceTicks.length > 14) {
-      setCurrentRSI(calculateRSI(priceTicks));
-      setCurrentStoch(calculateStochastic(priceTicks));
-    }
-  }, [priceTicks]);
 
   useEffect(() => {
     if (isAutopilotOn) {
@@ -217,15 +149,15 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
   }, [isAutopilotOn, checkAndExecute, currentRSI, currentStoch]);
   
   const getActiveIndicatorValue = () => {
-    if (!strategy) return "N/A";
-    if (strategy.strategyName === 'RSI_BASIC') return currentRSI?.toFixed(2) ?? "Calculando...";
-    if (strategy.strategyName === 'STOCH_BASIC') return currentStoch?.toFixed(2) ?? "Calculando...";
+    if (!autopilotStrategy) return "N/A";
+    if (autopilotStrategy.strategyName === 'RSI_BASIC') return currentRSI?.toFixed(2) ?? "Calculando...";
+    if (autopilotStrategy.strategyName === 'STOCH_BASIC') return currentStoch?.toFixed(2) ?? "Calculando...";
     return "N/A";
   }
   const getActiveIndicatorName = () => {
-    if (!strategy) return "Indicador";
-    if (strategy.strategyName === 'RSI_BASIC') return "RSI Atual";
-    if (strategy.strategyName === 'STOCH_BASIC') return "Estocástico Atual";
+    if (!autopilotStrategy) return "Indicador";
+    if (autopilotStrategy.strategyName === 'RSI_BASIC') return "RSI Atual";
+    if (autopilotStrategy.strategyName === 'STOCH_BASIC') return "Estocástico Atual";
     return "Indicador";
   }
 
@@ -259,19 +191,19 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
                     <AlertTitle>Erro na Estratégia</AlertTitle>
                     <AlertDescription>{error}</AlertDescription>
                 </Alert>
-            ) : strategy ? (
+            ) : autopilotStrategy ? (
                 <Alert className="bg-primary/5 border-primary/20">
                     <AlertTitle className="text-primary flex items-center gap-2">
                         <Zap className="h-4 w-4" />
-                        Estratégia Ativa: {strategy.strategyName}
+                        Estratégia Ativa: {autopilotStrategy.strategyName}
                     </AlertTitle>
                     <AlertDescription className="text-primary/90 space-y-2 mt-2">
-                        <p>{strategy.justification}</p>
+                        <p>{autopilotStrategy.justification}</p>
                         <Separator className="bg-primary/20"/>
-                        <p className="font-semibold">Condição: Comprar {strategy.direction} se {strategy.strategyName === 'RSI_BASIC' ? 'RSI' : 'Estocástico'} {strategy.direction === 'RISE' ? '<=' : '>='} {strategy.rsiThreshold || strategy.stochThreshold}.</p>
+                        <p className="font-semibold">Condição: Comprar {autopilotStrategy.direction} se {autopilotStrategy.strategyName === 'RSI_BASIC' ? 'RSI' : 'Estocástico'} {autopilotStrategy.direction === 'RISE' ? '<=' : '>='} {autopilotStrategy.rsiThreshold || autopilotStrategy.stochThreshold}.</p>
                         <div className="text-xs space-y-1">
-                            <p>Aposta Sugerida: <strong>${strategy.suggestedStake.toFixed(2)}</strong></p>
-                            <p>Duração Sugerida: <strong>{strategy.suggestedDuration} ticks</strong></p>
+                            <p>Aposta Sugerida: <strong>${autopilotStrategy.suggestedStake.toFixed(2)}</strong></p>
+                            <p>Duração Sugerida: <strong>{autopilotStrategy.suggestedDuration} ticks</strong></p>
                         </div>
                         <Separator className="bg-primary/20"/>
                         <p className="font-bold">{getActiveIndicatorName()}: {getActiveIndicatorValue()}</p>
