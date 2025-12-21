@@ -329,9 +329,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       
       if (response.error) {
         const isForgetError = !!response.echo_req?.forget;
-
         if (isForgetError) {
-            console.warn("[Deriv WS Provider] Could not forget subscription (it may have already expired). This is safe to ignore.", response.error);
+          console.warn("[Deriv WS Provider] Could not forget subscription (it may have already expired). This is safe to ignore.", response.error);
         } else {
             console.error("[Deriv WS Provider] Error received:", response.error.message);
         }
@@ -408,7 +407,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
 
           if (isLoss && activeContract?.isAutopilot) {
             // Check for consecutive losses
-            const recentAutopilotTrades = updatedLog.filter(op => op.isAutopilot).slice(0, 2);
+            const recentAutopilotTrades = updatedLog.filter(op => op.isAutopilot).slice(-2);
             if(recentAutopilotTrades.length === 2 && recentAutopilotTrades.every(t => t.status === 'lost')) {
                 toast({
                     title: "Alerta do Piloto Automático",
@@ -449,7 +448,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
                 const data = prev as CandleData[];
                 if (data.length > 0 && data[data.length - 1].epoch === newCandle.epoch) {
                     const newData = [...data];
-                    newData[newData.length - 1] = newCandle;
+                    newData[data.length - 1] = newCandle;
                     return newData;
                 } else {
                     return [...data.slice(-499), newCandle];
@@ -547,7 +546,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         }));
     }
     
-}, [clearChartData, timePeriod, chartType]);
+}, [clearChartData]);
 
 
   const setAccountType = (type: AccountType) => {
