@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
 import { Loader2, Zap, BrainCircuit, Bot, Power, Info } from "lucide-react";
-import { getAutotraderStrategyAction } from "@/app/actions/ai-actions";
 import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { useDerivApi } from "@/hooks/use-deriv-api";
@@ -21,6 +20,7 @@ import { Separator } from "../ui/separator";
 import type { RiseFallFormValues } from "./deriv-trader-interface.types";
 import type { UseFormReturn } from "react-hook-form";
 import { Badge } from "../ui/badge";
+import { Input } from "../ui/input";
 
 interface AutoTraderInterfaceProps {
   symbol: string;
@@ -53,6 +53,8 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
     currentRSI,
     currentStoch,
     geminiRequestCount,
+    dailyBalance,
+    setDailyBalance,
   } = useDerivApi();
   
   const strategyIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -184,6 +186,19 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="space-y-2">
+            <Label htmlFor="daily-balance">Banca do Dia (USD)</Label>
+            <Input 
+                id="daily-balance"
+                type="number"
+                value={dailyBalance}
+                onChange={(e) => setDailyBalance(Number(e.target.value))}
+                placeholder="Ex: 1000"
+                disabled={isAutopilotOn}
+            />
+            <p className="text-xs text-muted-foreground">O valor que a IA usará para gestão de risco.</p>
+        </div>
+
         <div className="flex justify-between items-center text-xs text-muted-foreground border-t pt-4">
             <span>Requisições à IA (sessão)</span>
             <Badge variant="outline">{geminiRequestCount}</Badge>

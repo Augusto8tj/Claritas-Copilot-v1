@@ -1,11 +1,21 @@
 import { z } from 'zod';
-import { AssetAnalysisInputSchema } from './asset-analysis-flow.types';
 
-// The input is the same as the asset analysis, as it needs the same context.
-// We add an optional field for the feedback from the loss analyzer.
-export const AutoTraderStrategyInputSchema = AssetAnalysisInputSchema.extend({
-    lastLossAnalysisSuggestion: z.string().optional().describe('The suggestion from the last trade loss analysis, to be used for adjusting the strategy.'),
+// We'll create a more focused input schema, removing fields not relevant for the autotrader strategy definition
+export const AutoTraderStrategyInputSchema = z.object({
+  symbol: z.string().describe("The trading symbol of the asset to be analyzed."),
+  historicalData: z.array(z.object({
+    date: z.string(),
+    price: z.number(),
+  })).describe("An array of recent historical price data for the asset."),
+  balance: z.number().describe("The user's designated trading balance for the day. THIS IS THE VALUE TO BE USED FOR RISK MANAGEMENT."),
+  currency: z.string().describe("The currency of the account balance."),
+  stake: z.number().describe("The user's default stake amount (for reference only)."),
+  duration: z.number().describe("The user's default trade duration (for reference only)."),
+  durationUnit: z.string().describe("The unit for the default trade duration."),
+  recentTrades: z.array(z.any()).describe("A list of the user's most recent trades in the current session."), // Using z.any() to avoid circular dependency
+  lastLossAnalysisSuggestion: z.string().optional().describe('The suggestion from the last trade loss analysis, to be used for adjusting the strategy.'),
 });
+
 export type AutoTraderStrategyInput = z.infer<typeof AutoTraderStrategyInputSchema>;
 
 

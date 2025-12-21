@@ -76,6 +76,8 @@ interface DerivApiContextType {
   currentRSI: number | null;
   currentStoch: number | null;
   geminiRequestCount: number;
+  dailyBalance: number;
+  setDailyBalance: (balance: number) => void;
   setAccountType: (type: AccountType) => void;
   setTokens: (tokens: { demo?: string; real?: string }) => void;
   disconnect: (type: AccountType) => void;
@@ -168,6 +170,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   const [currentRSI, setCurrentRSI] = useState<number | null>(null);
   const [currentStoch, setCurrentStoch] = useState<number | null>(null);
   const [geminiRequestCount, setGeminiRequestCount] = useState(0);
+  const [dailyBalance, setDailyBalance] = useState(1000);
 
   const { toast } = useToast();
 
@@ -256,7 +259,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         setGeminiRequestCount(prev => prev + 1);
         const result = await getAutotraderStrategyAction({
             symbol: activeSymbolRef.current,
-            balance: accountBalance.balance || 0,
+            balance: dailyBalance, // Use daily balance for risk management
             currency: accountBalance.currency || 'USD',
             stake: 10, // Default reference, will be overridden by AI
             duration: 5, // Default reference, will be overridden by AI
@@ -278,7 +281,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
        console.error("[Autopilot] Error fetching strategy:", e.message);
        setAutopilotStrategy(null);
     }
-  }, [isAutopilotOn, lastAutopilotLossSuggestion, accountBalance, operationsLog, toast]);
+  }, [isAutopilotOn, lastAutopilotLossSuggestion, dailyBalance, accountBalance.currency, operationsLog, toast]);
 
     const handleAutopilotCheck = useCallback(() => {
         if (!isAutopilotOn || priceTicks.length < 20) return;
@@ -753,6 +756,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     currentRSI,
     currentStoch,
     geminiRequestCount,
+    dailyBalance,
+    setDailyBalance,
     setChartType,
     setTimePeriod,
     refreshBalance,

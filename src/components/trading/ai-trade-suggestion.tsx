@@ -1,6 +1,4 @@
-
-
-"use client";
+'use client';
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useFormContext } from "react-hook-form";
@@ -42,7 +40,7 @@ export function AITradeSuggestion({ symbol, onExecuteTrade }: AITradeSuggestionP
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
   const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(null);
   const [timeSinceAnalysis, setTimeSinceAnalysis] = useState<string>("");
-  const { accountBalance, operationsLog, priceTicks, executeTrade } = useDerivApi();
+  const { accountBalance, operationsLog, priceTicks, executeTrade, dailyBalance } = useDerivApi();
   const { toast } = useToast();
   const [autoExecute, setAutoExecute] = useState(false);
   const [isAwaitingEntry, setIsAwaitingEntry] = useState<AwaitingEntryState | null>(null);
@@ -85,6 +83,7 @@ export function AITradeSuggestion({ symbol, onExecuteTrade }: AITradeSuggestionP
       const result = await getAssetAnalysisAction({
           symbol,
           balance: accountBalance.balance || 0,
+          dailyBalance: dailyBalance,
           currency: accountBalance.currency || 'USD',
           stake: formData.stake,
           duration: formData.duration,
@@ -115,7 +114,7 @@ export function AITradeSuggestion({ symbol, onExecuteTrade }: AITradeSuggestionP
     }
 
     setIsAnalyzing(false);
-  }, [symbol, form, accountBalance, operationsLog, autoExecute, priceTicks, toast]);
+  }, [symbol, form, accountBalance, dailyBalance, operationsLog, autoExecute, priceTicks, toast]);
   
   const handleExecute = useCallback(async (direction: 'rise' | 'fall') => {
     setIsExecuting(true);

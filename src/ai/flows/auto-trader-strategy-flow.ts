@@ -34,7 +34,7 @@ Sua Análise:
 2.  Escolha a estratégia mais apropriada (RSI ou Estocástica).
 3.  Defina o limiar (threshold) e a direção (direction) da negociação, incorporando o ajuste da análise de perda, se houver.
 4.  **Gestão de Risco (Obrigatório):**
-    - **suggestedStake:** Calcule um valor de aposta seguro. Use 1% do saldo da conta como padrão. Se a tendência for muito clara e forte, pode aumentar para 2%. Se o mercado estiver lateral ou incerto, reduza para 0.5%.
+    - **suggestedStake:** Calcule um valor de aposta seguro com base na BANCA DO DIA (balance). Use 1% da banca do dia como padrão. Se a tendência for muito clara e forte, pode aumentar para 2%. Se o mercado estiver lateral ou incerto, reduza para 0.5%.
     - **suggestedDuration:** Defina a duração em ticks. Para mercados voláteis, use uma duração mais curta (5 ticks). Para mercados com tendência clara, use uma duração mais longa (7-10 ticks).
 5.  Forneça uma justificativa muito breve para a escolha da estratégia, mencionando o ajuste feito se aplicável.`,
   prompt: `
@@ -46,7 +46,7 @@ Dados de Preço Recentes (JSON):
 \'\'\'
 
 Contexto do Trader:
-- Saldo: {{{balance}}} {{{currency}}}
+- Banca do Dia (para gestão de risco): {{{balance}}} {{{currency}}}
 - Aposta Padrão (para referência, não usar): {{{stake}}}
 - Duração Padrão (para referência, não usar): {{{duration}}} {{{durationUnit}}}
 

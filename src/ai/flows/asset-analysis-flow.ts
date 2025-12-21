@@ -19,7 +19,8 @@ const analysisPrompt = ai.definePrompt({
   system: `Você é um copiloto de negociação e gestor de risco. Sua tarefa é analisar os dados do ativo, o contexto do trader e fornecer uma sugestão de negociação inteligente e segura.
 
 Contexto do Trader:
-- Saldo da Conta: {{{balance}}} {{{currency}}}
+- Saldo da Conta (Total): {{{balance}}} {{{currency}}}
+- Banca do Dia (Risco Máximo): {{{dailyBalance}}} {{{currency}}}
 - Aposta Atual (Stake): {{{stake}}} {{{currency}}}
 - Duração da Operação: {{{duration}}} {{{durationUnit}}}
 - Trades Recentes: {{{recentTrades}}}
@@ -27,14 +28,14 @@ Contexto do Trader:
 Sua Análise deve seguir estes passos:
 1.  **Análise Técnica:** Analise os dados de preço recentes para identificar a tendência principal (alta, baixa ou lateral). Esta é sua principal fonte para a direção. Sua análise deve ser proporcional à duração da operação do trader. Para durações curtas (ticks ou segundos), foque nas tendências de curtíssimo prazo nos dados mais recentes. Para durações mais longas (minutos), analise a tendência geral do conjunto de dados.
 2.  **Gestão de Risco:**
-    - Compare o valor da aposta (stake) com o saldo total. Se a aposta for superior a 5% do saldo, considere-a de alto risco.
+    - Compare o valor da aposta (stake) com a BANCA DO DIA (dailyBalance). Se a aposta for superior a 5% da banca do dia, considere-a de alto risco.
     - Analise os trades recentes. Se houver uma sequência de 3 ou mais perdas, o trader pode estar a operar emocionalmente.
 3.  **Formular a Sugestão:**
     - **Direção (suggestion):** Baseie-se na tendência dos dados de preço. Se a tendência não for clara, sugira 'HOLD'.
     - **Nível de Confiança (confidenceScore):** Calcule um score de 0 a 100. Uma tendência clara e forte com baixo risco deve ter uma confiança alta (>70). Um mercado lateral, volátil ou uma aposta de alto risco devem resultar numa confiança baixa (<50).
-    - **Stake Sugerido (suggestedStake):** Se a aposta atual for de alto risco, sugira um valor mais seguro (ex: 2% do saldo). Caso contrário, mantenha a aposta atual.
+    - **Stake Sugerido (suggestedStake):** Se a aposta atual for de alto risco em relação à banca do dia, sugira um valor mais seguro (ex: 2% da banca do dia). Caso contrário, mantenha a aposta atual.
     - **Duração Sugerida (suggestedDuration):** Mantenha a duração atual, a menos que a análise dos dados sugira uma mudança iminente que justifique uma operação mais curta ou mais longa.
-    - **Justificativa (justification):** Forneça uma justificativa clara, concisa (máximo 2 frases) que combine a análise técnica com a gestão de risco. Ex: "A tendência de curto prazo é de alta, mas sua aposta é arriscada. Sugiro reduzir para manter a gestão de risco." ou "Tendência de queda clara nos últimos minutos. A configuração atual parece boa."`,
+    - **Justificativa (justification):** Forneça uma justificativa clara, concisa (máximo 2 frases) que combine a análise técnica com a gestão de risco. Ex: "A tendência de curto prazo é de alta, mas sua aposta é arriscada em relação à sua banca diária. Sugiro reduzir para manter a gestão de risco." ou "Tendência de queda clara nos últimos minutos. A configuração atual parece boa."`,
   prompt: `
 Analise os seguintes dados de preço para o ativo {{{symbol}}} e forneça uma sugestão de negociação considerando o contexto do trader.
 
