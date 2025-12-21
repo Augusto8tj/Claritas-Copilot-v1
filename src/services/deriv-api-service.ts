@@ -4,7 +4,7 @@
 
 import type { AccountType } from '@/hooks/use-deriv-api';
 import type { MutableRefObject } from 'react';
-import type { DurationUnit } from '@/components/trading/deriv-trader-interface';
+import type { DurationUnit } from '@/components/trading/deriv-trader-interface.types';
 
 
 /**
@@ -93,11 +93,17 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
         };
         ws.onmessage = (data) => {
             const res = JSON.parse(data.data);
-            if (res.error) reject(res.error);
-            else resolve(res);
+            if (res.error) {
+              reject(new Error(res.error.message || 'Unknown API error'));
+            } else {
+              resolve(res);
+            }
             ws.close();
         };
-        ws.onerror = (err) => reject(err);
+        ws.onerror = (err) => {
+            // WebSocket errors don't have a specific message, so we create one.
+            reject(new Error('WebSocket connection error'));
+        };
     });
 
     if (!response.active_symbols) {
