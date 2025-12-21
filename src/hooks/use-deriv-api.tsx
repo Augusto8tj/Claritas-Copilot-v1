@@ -8,7 +8,7 @@ import type { TradeResult } from '@/services/deriv-api-service';
 import { useToast } from './use-toast';
 import type { Operation } from '@/components/trading/operations-log.types';
 import { analyzeOperationsAction } from '@/app/actions/trading-actions';
-import { analyzeTradeLossAction }from '@/app/actions/ai-actions';
+import { analyzeTradeLossAction } from '@/app/actions/ai-actions';
 import { getAutotraderStrategyAction } from "@/app/actions/ai-actions";
 import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
 import type { TimePeriod, ChartType } from '@/app/deriv-trader/page';
@@ -277,6 +277,34 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     }
   }, [isAutopilotOn, lastAutopilotLossSuggestion, accountBalance, operationsLog, toast]);
 
+    // This useEffect is now the single source of truth for managing the autopilot timer.
+    useEffect(() => {
+        if (isAutopilotOn) {
+            console.log("[Autopilot] Turned ON. Fetching initial strategy and starting timer.");
+            fetchAutopilotStrategy(); // Fetch initial strategy
+            
+            // Clear any existing interval before setting a new one
+            if (strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
+            
+            strategyIntervalRef.current = setInterval(fetchAutopilotStrategy, STRATEGY_REFRESH_INTERVAL);
+        } else {
+             console.log("[Autopilot] Turned OFF. Clearing timer.");
+            // Clear interval when autopilot is turned off
+            if (strategyIntervalRef.current) {
+                clearInterval(strategyIntervalRef.current);
+                strategyIntervalRef.current = null;
+            }
+        }
+
+        // Cleanup on component unmount
+        return () => {
+            if (strategyIntervalRef.current) {
+                clearInterval(strategyIntervalRef.current);
+            }
+        };
+    }, [isAutopilotOn, fetchAutopilotStrategy]);
+
+
 
   useEffect(() => {
     if (!activeToken || isLoading) {
@@ -329,6 +357,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       
       if (response.error) {
         const isForgetError = !!response.echo_req?.forget;
+
         if (!isForgetError) {
           console.error("[Deriv WS Provider] Error received:", response.error.message);
         }
@@ -336,8 +365,9 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         const reqId = response.req_id;
         if (reqId && promisesRef.current.has(String(reqId))) {
             if (isForgetError) {
-                console.warn(`[Deriv WS Provider] Non-critical error forgetting subscription (ID: ${response.echo_req.forget}): ${response.error.message}`);
-                promisesRef.current.get(String(reqId))?.resolve(response); // Resolve to continue flow
+                // This error is not critical. It means we tried to forget a subscription that was already gone.
+                // We resolve the promise to allow the flow to continue.
+                promisesRef.current.get(String(reqId))?.resolve(response);
             } else {
                 promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
             }
@@ -518,7 +548,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         try {
             await forgetPromise;
         } catch (error) {
-            // Non-critical error, already logged in onmessage. Just continue.
+           console.warn(`[Deriv WS Provider] Non-critical error forgetting subscription (ID: ${subIdToForget}):`, error);
         } finally {
             activeSubscriptionId.current = null;
         }
