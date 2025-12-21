@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -8,7 +6,7 @@ import type { TradeResult } from '@/services/deriv-api-service';
 import { useToast } from './use-toast';
 import type { Operation } from '@/components/trading/operations-log.types';
 import { analyzeOperationsAction } from '@/app/actions/trading-actions';
-import { analyzeTradeLoss } from '@/ai/flows/trade-loss-analyzer-flow';
+import { analyzeTradeLossAction } from '@/app/actions/ai-actions';
 import type { TimePeriod, ChartType } from '@/app/deriv-trader/page';
 import type { DurationUnit } from '@/components/trading/deriv-trader-interface.types';
 
@@ -33,6 +31,7 @@ export interface ActiveContract {
   status?: 'open' | 'won' | 'lost';
   exitTick?: number;
   exitTime?: number;
+  isAutopilot: boolean; // Flag to identify autopilot trades
 }
 
 
@@ -68,7 +67,7 @@ interface DerivApiContextType {
   chartError: string | null;
   chartType: ChartType;
   timePeriod: TimePeriod;
-  addPriceTick: (tick: TickData) => void;
+  lastAutopilotLossSuggestion: string | null; // <-- NOVO ESTADO
   setAccountType: (type: AccountType) => void;
   setTokens: (tokens: { demo?: string; real?: string }) => void;
   disconnect: (type: AccountType) => void;
@@ -79,7 +78,8 @@ interface DerivApiContextType {
     symbol: string,
     tradeDirection: 'rise' | 'fall',
     duration: number,
-    durationUnit: DurationUnit
+    durationUnit: DurationUnit,
+    isAutopilot?: boolean, // <-- NOVO PARÂMETRO
   ) => Promise<TradeResult>;
   clearActiveContracts: () => void;
   addActiveContract: (contract: ActiveContract) => void;
@@ -118,6 +118,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   const [chartError, setChartError] = useState<string | null>(null);
   const [chartType, setChartType] = useState<ChartType>('Area');
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('1m');
+  const [lastAutopilotLossSuggestion, setLastAutopilotLossSuggestion] = useState<string | null>(null);
 
   const { toast } = useToast();
 
@@ -148,18 +149,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   
   const activeToken = accountType === 'demo' ? demoToken : realToken;
   
-  const addPriceTick = (tick: TickData) => {
-    setPriceTicks(prevTicks => {
-        const newTicks = [...prevTicks, tick];
-        if (newTicks.length > 200) {
-            return newTicks.slice(newTicks.length - 200);
-        }
-        return newTicks;
-    });
-  };
-
-   const handleLosingTrade = useCallback(async (losingContract: any) => {
-    console.log("[Loss Analyzer] Analyzing losing trade:", losingContract.contract_id);
+  const handleLosingTrade = useCallback(async (losingContract: any, isAutopilotTrade: boolean) => {
+    console.log(`[Loss Analyzer] Analyzing losing trade: ${losingContract.contract_id}, Autopilot: ${isAutopilotTrade}`);
     const operation = operationsLog.find(op => op.id === losingContract.contract_id);
     if (!operation) return;
 
@@ -169,17 +160,28 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       const analysisInput = {
         operation: JSON.stringify(operation),
         historicalDataJson: JSON.stringify(historicalData),
-        // activeStrategyJson: // We need a way to get this if it was an auto-trade
+        activeStrategyJson: isAutopilotTrade ? JSON.stringify(operation) : undefined, // Simplificação
       };
       
-      const result = await analyzeTradeLoss(analysisInput);
+      const result = await analyzeTradeLossAction(analysisInput);
 
-      toast({
-        title: `Análise da Perda: ${result.analysis}`,
-        description: `Sugestão da IA: ${result.suggestion}`,
-        variant: "destructive",
-        duration: 10000,
-      });
+      if (result.success) {
+         toast({
+            title: `Análise da Perda: ${result.success.analysis}`,
+            description: `Sugestão da IA: ${result.success.suggestion}`,
+            variant: "destructive",
+            duration: 10000,
+         });
+         
+         // Se for uma operação do piloto automático, guarda a sugestão
+         if (isAutopilotTrade) {
+            console.log(`[Feedback Loop] Storing suggestion for autopilot: "${result.success.suggestion}"`);
+            setLastAutopilotLossSuggestion(result.success.suggestion);
+         }
+
+      } else {
+         throw new Error(result.error || "A IA não conseguiu analisar a operação.");
+      }
 
     } catch (e) {
       console.error("[Loss Analyzer] Error analyzing trade:", e);
@@ -236,7 +238,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       const response = JSON.parse(event.data);
       
       if (response.error) {
-        // This specific error can happen during rapid re-subscriptions. We can handle it gracefully.
         if (response.error.code === 'AlreadySubscribed') {
             const subId = response.subscription?.id;
             console.warn(`[Deriv WS Provider] Already subscribed to ${subId || 'unknown'}. This is usually safe to ignore.`);
@@ -304,14 +305,15 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
               )
             );
           
+          const activeContract = activeContracts.find(c => c.contractId === contract.contract_id);
           setActiveContracts(prev => prev.map(c => 
             c.contractId === contract.contract_id 
               ? { ...c, status: profit >= 0 ? 'won' : 'lost', exitTick: parseFloat(contract.exit_tick_display_value), exitTime: contract.exit_tick_time }
               : c
           ));
 
-          if (isLoss) {
-            handleLosingTrade(contract);
+          if (isLoss && activeContract?.isAutopilot) {
+            handleLosingTrade(contract, activeContract.isAutopilot);
           }
 
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -319,36 +321,34 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
           }
       } else if (response.msg_type === 'tick') {
         const tick = response.tick;
-        if (tick.subscription) {
-            activeSubscriptionId.current = tick.subscription;
+        if (tick.subscription && tick.subscription === activeSubscriptionId.current) {
+          const newTick = { epoch: tick.epoch, price: tick.quote };
+          setPriceTicks(prevTicks => [...prevTicks.slice(-199), newTick]);
+          if(timePeriod === '1m') {
+             setChartData(prev => [...prev.slice(-199), newTick]);
+          }
         }
-        const newTick = { epoch: tick.epoch, price: tick.quote };
-        addPriceTick(newTick);
-        setChartData(prev => [...prev.slice(-199), newTick]);
       } else if (response.msg_type === 'ohlc') {
          const candle = response.ohlc;
-         if (candle.subscription) {
-             activeSubscriptionId.current = candle.subscription;
+         if (candle.subscription && candle.subscription === activeSubscriptionId.current) {
+            const newCandle: CandleData = {
+                epoch: candle.epoch,
+                open: parseFloat(candle.open),
+                high: parseFloat(candle.high),
+                low: parseFloat(candle.low),
+                close: parseFloat(candle.close),
+            };
+            setChartData(prev => {
+                const data = prev as CandleData[];
+                if (data.length > 0 && data[data.length - 1].epoch === newCandle.epoch) {
+                    const newData = [...data];
+                    newData[newData.length - 1] = newCandle;
+                    return newData;
+                } else {
+                    return [...data.slice(-499), newCandle];
+                }
+            });
          }
-         const newCandle: CandleData = {
-            epoch: candle.epoch,
-            open: parseFloat(candle.open),
-            high: parseFloat(candle.high),
-            low: parseFloat(candle.low),
-            close: parseFloat(candle.close),
-         };
-         setChartData(prev => {
-            const data = prev as CandleData[];
-            if (data.length > 0 && data[data.length - 1].epoch === newCandle.epoch) {
-                // Update last candle
-                const newData = [...data];
-                newData[newData.length - 1] = newCandle;
-                return newData;
-            } else {
-                // Add new candle
-                return [...data.slice(-499), newCandle];
-            }
-        });
       } else if (response.msg_type === 'candles') {
          const candleData: CandleData[] = response.candles.map((candle: any) => ({
             epoch: candle.epoch,
@@ -359,15 +359,17 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         }));
         setChartData(candleData);
         setIsChartLoading(false);
+        activeSubscriptionId.current = response.subscription.id;
       } else if (response.msg_type === 'history') {
           const historyData = response.history.prices.map((price: number, index: number) => ({
               epoch: response.history.times[index],
               price: price,
           }));
           setChartData(historyData);
+          setPriceTicks(historyData);
           setIsChartLoading(false);
+          activeSubscriptionId.current = response.subscription.id;
       } else if (response.msg_type === 'forget') {
-        // Successfully forgot a subscription. This is good.
         console.log(`[Deriv WS Provider] Successfully forgot subscription ID.`);
       }
     };
@@ -376,7 +378,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     return () => {
       // Don't add removeEventListener here as it's managed once per connection
     };
-  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade]);
+  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts]);
 
  const clearChartData = useCallback(() => {
     setChartData([]);
@@ -433,7 +435,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         }));
     }
     
-}, [clearChartData]);
+}, [clearChartData, timePeriod, chartType]);
 
 
   const setAccountType = (type: AccountType) => {
@@ -489,7 +491,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     symbol: string,
     tradeDirection: 'rise' | 'fall',
     duration: number,
-    durationUnit: DurationUnit
+    durationUnit: DurationUnit,
+    isAutopilot: boolean = false
 ): Promise<TradeResult> => {
       if (!wsRef.current || !isConnected) {
         throw new Error("A conexão com a Deriv API não está ativa.");
@@ -523,6 +526,14 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
             durationUnit: durationUnit,
         };
         setOperationsLog(prevLog => [newOperation, ...prevLog]);
+
+        const newActiveContract: ActiveContract = {
+            contractId: buyResult.contract_id,
+            entryTick: buyResult.entry_tick,
+            entryTime: buyResult.entry_tick_time,
+            isAutopilot: isAutopilot
+        };
+        setActiveContracts(prev => [...prev, newActiveContract]);
 
 
         return {
@@ -578,9 +589,9 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     chartError,
     chartType,
     timePeriod,
+    lastAutopilotLossSuggestion,
     setChartType,
     setTimePeriod,
-    addPriceTick,
     refreshBalance,
     executeTrade,
     clearActiveContracts,

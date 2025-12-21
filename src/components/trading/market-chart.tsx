@@ -1,6 +1,4 @@
-
-
-"use client";
+'use client';
 
 import * as React from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Label, BarChart, Bar, ComposedChart, ReferenceDot } from "recharts";

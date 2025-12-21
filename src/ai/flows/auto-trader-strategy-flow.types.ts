@@ -2,7 +2,10 @@ import { z } from 'zod';
 import { AssetAnalysisInputSchema } from './asset-analysis-flow.types';
 
 // The input is the same as the asset analysis, as it needs the same context.
-export const AutoTraderStrategyInputSchema = AssetAnalysisInputSchema;
+// We add an optional field for the feedback from the loss analyzer.
+export const AutoTraderStrategyInputSchema = AssetAnalysisInputSchema.extend({
+    lastLossAnalysisSuggestion: z.string().optional().describe('The suggestion from the last trade loss analysis, to be used for adjusting the strategy.'),
+});
 export type AutoTraderStrategyInput = z.infer<typeof AutoTraderStrategyInputSchema>;
 
 

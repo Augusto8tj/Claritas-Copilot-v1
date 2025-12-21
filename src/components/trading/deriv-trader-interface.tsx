@@ -116,7 +116,7 @@ export function DerivTraderInterface({ symbol, onTradeSuccess, isConnected }: De
         return;
     }
 
-    const result = await executeTrade(contractType, data.stake, symbol, tradeDirection, data.duration, data.duration_unit);
+    const result = await executeTrade(contractType, data.stake, symbol, tradeDirection, data.duration, data.duration_unit, false);
     setLoading(null);
 
     if (result.success) {

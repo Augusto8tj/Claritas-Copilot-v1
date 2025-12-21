@@ -1,6 +1,4 @@
-
-
-"use client";
+'use client';
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
@@ -31,7 +29,8 @@ interface AutoTraderInterfaceProps {
     symbol: string,
     tradeDirection: 'rise' | 'fall',
     duration: number,
-    durationUnit: any
+    durationUnit: any,
+    isAutopilot: boolean
   ) => Promise<any>;
   form: UseFormReturn<RiseFallFormValues>;
 }
@@ -96,7 +95,7 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
   const [currentStoch, setCurrentStoch] = useState<number | null>(null);
   
   const { toast } = useToast();
-  const { accountBalance, operationsLog, priceTicks, isConnected } = useDerivApi();
+  const { accountBalance, operationsLog, priceTicks, isConnected, lastAutopilotLossSuggestion } = useDerivApi();
   const strategyIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchStrategy = useCallback(async () => {
@@ -109,6 +108,7 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
             throw new Error("Dados de preço insuficientes para definir uma estratégia.");
         }
         
+        console.log(`[Autopilot] Fetching strategy. Last loss suggestion:`, lastAutopilotLossSuggestion);
         const result = await getAutotraderStrategyAction({
             symbol,
             balance: accountBalance.balance || 0,
@@ -117,7 +117,8 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
             duration: formData.duration,
             durationUnit: formData.duration_unit,
             recentTrades: operationsLog.slice(0, 5),
-            historicalData: historicalData
+            historicalData: historicalData,
+            lastLossAnalysisSuggestion: lastAutopilotLossSuggestion ?? undefined,
         });
 
         if (result.success) {
@@ -133,7 +134,7 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
        setIsAutopilotOn(false);
     }
     setIsLoading(false);
-  }, [symbol, form, accountBalance, operationsLog, priceTicks, toast]);
+  }, [symbol, form, accountBalance, operationsLog, priceTicks, toast, lastAutopilotLossSuggestion]);
 
   const checkAndExecute = useCallback(async () => {
     if (isExecuting || !isAutopilotOn || !strategy || (currentRSI === null && currentStoch === null)) return;
@@ -168,17 +169,15 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
             contractType = allowEquals ? 'PUTE' : 'PUT';
         }
 
-        await onExecuteTrade(contractType, stake, symbol, strategy.direction.toLowerCase() as 'rise' | 'fall', duration, 't'); // Duration is now in ticks
+        await onExecuteTrade(contractType, stake, symbol, strategy.direction.toLowerCase() as 'rise' | 'fall', duration, 't', true);
         
         // Pause for a short while after execution to prevent rapid-fire trades
         setTimeout(() => setIsExecuting(false), 10000); 
     }
   }, [isExecuting, isAutopilotOn, strategy, currentRSI, currentStoch, form, onExecuteTrade, symbol, toast]);
 
-  const handleToggleAutopilot = () => {
-    const willBeOn = !isAutopilotOn;
-
-    if (willBeOn) {
+  const handleToggleAutopilot = (isOn: boolean) => {
+    if (isOn) {
         if (!isConnected) {
             toast({ variant: "destructive", title: "Piloto Automático", description: "Conecte-se à corretora antes de ativar o piloto automático." });
             return;
@@ -198,7 +197,7 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
   // Turn off autopilot if connection is lost
   useEffect(() => {
       if(!isConnected && isAutopilotOn) {
-          handleToggleAutopilot();
+          handleToggleAutopilot(false);
           toast({ variant: "destructive", title: "Piloto Automático Desativado", description: "A conexão com a corretora foi perdida." });
       }
   // eslint-disable-next-line react-hooks/exhaustive-deps
