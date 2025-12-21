@@ -1,3 +1,4 @@
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -67,7 +68,7 @@ interface DerivApiContextType {
   chartError: string | null;
   chartType: ChartType;
   timePeriod: TimePeriod;
-  lastAutopilotLossSuggestion: string | null; // <-- NOVO ESTADO
+  lastAutopilotLossSuggestion: string | null;
   setAccountType: (type: AccountType) => void;
   setTokens: (tokens: { demo?: string; real?: string }) => void;
   disconnect: (type: AccountType) => void;
@@ -79,7 +80,7 @@ interface DerivApiContextType {
     tradeDirection: 'rise' | 'fall',
     duration: number,
     durationUnit: DurationUnit,
-    isAutopilot?: boolean, // <-- NOVO PARÂMETRO
+    isAutopilot?: boolean,
   ) => Promise<TradeResult>;
   clearActiveContracts: () => void;
   addActiveContract: (contract: ActiveContract) => void;
@@ -160,7 +161,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       const analysisInput = {
         operation: JSON.stringify(operation),
         historicalDataJson: JSON.stringify(historicalData),
-        activeStrategyJson: isAutopilotTrade ? JSON.stringify(operation) : undefined, // Simplificação
+        activeStrategyJson: isAutopilotTrade ? JSON.stringify(operation) : undefined, 
       };
       
       const result = await analyzeTradeLossAction(analysisInput);
@@ -173,7 +174,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
             duration: 10000,
          });
          
-         // Se for uma operação do piloto automático, guarda a sugestão
          if (isAutopilotTrade) {
             console.log(`[Feedback Loop] Storing suggestion for autopilot: "${result.success.suggestion}"`);
             setLastAutopilotLossSuggestion(result.success.suggestion);
@@ -200,7 +200,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     }
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        if (!isConnected) { // Re-authorizing on same connection
+        if (!isConnected) { 
              wsRef.current.send(JSON.stringify({ "authorize": activeToken }));
         }
     } else {
@@ -320,8 +320,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
             wsRef.current.send(JSON.stringify({ "balance": 1 }));
           }
       } else if (response.msg_type === 'tick') {
-        const tick = response.tick;
-        if (tick.subscription && tick.subscription === activeSubscriptionId.current) {
+        if (response.subscription?.id && response.subscription.id === activeSubscriptionId.current) {
+          const tick = response.tick;
           const newTick = { epoch: tick.epoch, price: tick.quote };
           setPriceTicks(prevTicks => [...prevTicks.slice(-199), newTick]);
           if(timePeriod === '1m') {
@@ -329,8 +329,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
           }
         }
       } else if (response.msg_type === 'ohlc') {
-         const candle = response.ohlc;
-         if (candle.subscription && candle.subscription === activeSubscriptionId.current) {
+         if (response.subscription?.id && response.subscription.id === activeSubscriptionId.current) {
+            const candle = response.ohlc;
             const newCandle: CandleData = {
                 epoch: candle.epoch,
                 open: parseFloat(candle.open),
@@ -376,7 +376,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
 
 
     return () => {
-      // Don't add removeEventListener here as it's managed once per connection
     };
   }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts]);
 
@@ -394,25 +393,18 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     
     if (activeSubscriptionId.current) {
         const subIdToForget = activeSubscriptionId.current;
-        activeSubscriptionId.current = null;
         console.log(`[Deriv WS Provider] Forgetting old subscription: ${subIdToForget}`);
         const req_id = Date.now();
         const forgetPromise = new Promise((resolve, reject) => {
             if (ws.readyState === WebSocket.OPEN) {
                 promisesRef.current.set(String(req_id), { resolve, reject });
                 ws.send(JSON.stringify({ "forget": subIdToForget, "req_id": req_id }));
-                setTimeout(() => {
-                    if (promisesRef.current.has(String(req_id))) {
-                        console.warn("Forget request timed out, continuing anyway.");
-                        promisesRef.current.delete(String(req_id));
-                        resolve(null);
-                    }
-                }, 2000);
             } else {
-                resolve(null); // If WS is not open, just resolve.
+                resolve(null); 
             }
         });
         await forgetPromise;
+        activeSubscriptionId.current = null;
     }
     
     clearChartData();
