@@ -60,7 +60,7 @@ export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
         
         return (
             <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={tickData}>
+                <LineChart data={[...tickData]}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis
                         dataKey="epoch"
