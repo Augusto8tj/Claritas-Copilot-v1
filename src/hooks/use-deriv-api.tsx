@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -77,6 +75,7 @@ interface DerivApiContextType {
   fetchAutopilotStrategy: () => Promise<void>;
   currentRSI: number | null;
   currentStoch: number | null;
+  geminiRequestCount: number;
   setAccountType: (type: AccountType) => void;
   setTokens: (tokens: { demo?: string; real?: string }) => void;
   disconnect: (type: AccountType) => void;
@@ -168,6 +167,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   const [autopilotStrategy, setAutopilotStrategy] = useState<AutoTraderStrategyOutput | null>(null);
   const [currentRSI, setCurrentRSI] = useState<number | null>(null);
   const [currentStoch, setCurrentStoch] = useState<number | null>(null);
+  const [geminiRequestCount, setGeminiRequestCount] = useState(0);
 
   const { toast } = useToast();
 
@@ -215,6 +215,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         activeStrategyJson: isAutopilotTrade ? JSON.stringify(autopilotStrategy) : undefined, 
       };
       
+      setGeminiRequestCount(prev => prev + 1);
       const result = await analyzeTradeLossAction(analysisInput);
 
       if (result.success) {
@@ -251,6 +252,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         }
         
         console.log(`[Autopilot] Fetching strategy. Last loss suggestion:`, lastAutopilotLossSuggestion);
+        
+        setGeminiRequestCount(prev => prev + 1);
         const result = await getAutotraderStrategyAction({
             symbol: activeSymbolRef.current,
             balance: accountBalance.balance || 0,
@@ -302,27 +305,24 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     }, [isAutopilotOn, priceTicks, fetchAutopilotStrategy, toast]);
 
     useEffect(() => {
-        if (isAutopilotOn) {
-            console.log("[Autopilot] Turned ON. Fetching initial strategy and starting check cycle.");
-            fetchAutopilotStrategy(); // Fetch initial strategy
-            
-            if (strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
-            
-            strategyIntervalRef.current = setInterval(handleAutopilotCheck, STRATEGY_REFRESH_INTERVAL);
-        } else {
-             console.log("[Autopilot] Turned OFF. Clearing check cycle.");
-            if (strategyIntervalRef.current) {
-                clearInterval(strategyIntervalRef.current);
-                strategyIntervalRef.current = null;
-            }
+    if (isAutopilotOn) {
+        fetchAutopilotStrategy(); // Fetch initial strategy
+        if(strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
+        strategyIntervalRef.current = setInterval(handleAutopilotCheck, STRATEGY_REFRESH_INTERVAL);
+    } else {
+        if (strategyIntervalRef.current) {
+            clearInterval(strategyIntervalRef.current);
+            strategyIntervalRef.current = null;
         }
+    }
 
-        return () => {
-            if (strategyIntervalRef.current) {
-                clearInterval(strategyIntervalRef.current);
-            }
-        };
-    }, [isAutopilotOn, fetchAutopilotStrategy, handleAutopilotCheck]);
+    // Cleanup on component unmount
+    return () => {
+        if (strategyIntervalRef.current) {
+            clearInterval(strategyIntervalRef.current);
+        }
+    };
+}, [isAutopilotOn, fetchAutopilotStrategy, handleAutopilotCheck]);
 
 
 
@@ -717,6 +717,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     if(closedOperations.length === 0) {
         return "Não há operações concluídas suficientes para este ativo na sessão atual para fazer uma análise."
     }
+    setGeminiRequestCount(prev => prev + 1);
     const response = await analyzeOperationsAction({ operations: closedOperations });
     if (response.success) {
       return response.success;
@@ -751,6 +752,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     fetchAutopilotStrategy,
     currentRSI,
     currentStoch,
+    geminiRequestCount,
     setChartType,
     setTimePeriod,
     refreshBalance,

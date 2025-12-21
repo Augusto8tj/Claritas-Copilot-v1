@@ -20,6 +20,7 @@ import { Switch } from "../ui/switch";
 import { Separator } from "../ui/separator";
 import type { RiseFallFormValues } from "./deriv-trader-interface.types";
 import type { UseFormReturn } from "react-hook-form";
+import { Badge } from "../ui/badge";
 
 interface AutoTraderInterfaceProps {
   symbol: string;
@@ -50,7 +51,8 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
     autopilotStrategy,
     fetchAutopilotStrategy,
     currentRSI,
-    currentStoch
+    currentStoch,
+    geminiRequestCount,
   } = useDerivApi();
   
   const strategyIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -104,31 +106,33 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
             return;
         }
         setIsAutopilotOn(true);
-        fetchAutopilotStrategy(); // Fetch initial strategy
-        if(strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
-        strategyIntervalRef.current = setInterval(fetchAutopilotStrategy, STRATEGY_REFRESH_INTERVAL);
     } else {
         setIsAutopilotOn(false);
-        if (strategyIntervalRef.current) {
-            clearInterval(strategyIntervalRef.current);
-        }
     }
   };
 
   // Effect to manage the strategy refresh interval based on isAutopilotOn state
   useEffect(() => {
     if (isAutopilotOn) {
-        // Clear any existing interval before setting a new one
+        console.log("[Autopilot] Turned ON. Fetching initial strategy and starting check cycle.");
+        fetchAutopilotStrategy();
+        
         if (strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
+        
         strategyIntervalRef.current = setInterval(fetchAutopilotStrategy, STRATEGY_REFRESH_INTERVAL);
     } else {
-        // Clear interval when autopilot is turned off
-        if (strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
+         console.log("[Autopilot] Turned OFF. Clearing check cycle.");
+        if (strategyIntervalRef.current) {
+            clearInterval(strategyIntervalRef.current);
+            strategyIntervalRef.current = null;
+        }
     }
 
     // Cleanup on component unmount
     return () => {
-        if (strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
+        if (strategyIntervalRef.current) {
+            clearInterval(strategyIntervalRef.current);
+        }
     };
 }, [isAutopilotOn, fetchAutopilotStrategy]);
 
@@ -180,6 +184,10 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="flex justify-between items-center text-xs text-muted-foreground border-t pt-4">
+            <span>Requisições à IA (sessão)</span>
+            <Badge variant="outline">{geminiRequestCount}</Badge>
+        </div>
         {isAutopilotOn && (
             isLoading ? (
                 <div className="flex items-center justify-center text-muted-foreground p-4">
