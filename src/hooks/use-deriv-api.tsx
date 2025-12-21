@@ -324,22 +324,21 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
 
     ws.onmessage = (event) => {
       const response = JSON.parse(event.data);
+      const reqId = response.req_id;
       
       if (response.error) {
-        if (response.msg_type === 'forget') {
-          console.warn(`[Deriv WS Provider] Could not forget subscription (it may have already expired). This is safe to ignore.`, response.error);
-          // Resolve the promise for 'forget' even if it errors, to not block the flow
-          const reqId = response.req_id;
-          if (reqId && promisesRef.current.has(String(reqId))) {
-              promisesRef.current.get(String(reqId))?.resolve(response);
-              promisesRef.current.delete(String(reqId));
-          }
-          return;
+        // If the error is for a 'forget' request, we can resolve it as it's not critical.
+        if (reqId && response.echo_req.forget) {
+            console.warn("[Deriv WS Provider] Could not forget subscription (it may have already expired). This is safe to ignore.", response.error);
+            if (promisesRef.current.has(String(reqId))) {
+                promisesRef.current.get(String(reqId))?.resolve(response);
+                promisesRef.current.delete(String(reqId));
+            }
+            return;
         }
 
         console.error("[Deriv WS Provider] Error received:", response.error.message);
         
-        const reqId = response.req_id;
         if (reqId && promisesRef.current.has(String(reqId))) {
             promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
             promisesRef.current.delete(String(reqId));
@@ -355,7 +354,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const reqId = response.req_id;
       if (reqId && promisesRef.current.has(String(reqId))) {
           promisesRef.current.get(String(reqId))?.resolve(response);
           promisesRef.current.delete(String(reqId));
@@ -429,7 +427,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
             const newTick = { epoch: tick.epoch, price: tick.quote };
             setPriceTicks(prevTicks => [...prevTicks.slice(-499), newTick]);
             if(timePeriod === '1m') {
-                setChartData(prev => [...prev.slice(-499), newTick]);
+                setChartData(prev => [...(prev as TickData[]).slice(-499), newTick]);
             }
         }
       } else if (response.msg_type === 'ohlc') {
