@@ -178,7 +178,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   const promisesRef = useRef<Map<string, { resolve: (value: any) => void, reject: (reason?: any) => void }>>(new Map());
   
   const activeSubscriptionId = useRef<string | null>(null);
-  const activeSymbolRef = useRef<string>("1HZ100V");
+  const activeSymbolRef = useRef<string | null>(null);
   const strategyIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const STRATEGY_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutos
 
@@ -328,17 +328,16 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       const response = JSON.parse(event.data);
       
       if (response.error) {
-        const isForgetError = !!response.echo_req?.forget;
-        if (!isForgetError) {
-          console.error("[Deriv WS Provider] Error received:", response.error.message);
-        }
-        
         const reqId = response.req_id;
+        const isForgetError = !!response.echo_req?.forget;
+
+        // If it's a 'forget' error, we can often ignore it and resolve the promise.
         if (reqId && promisesRef.current.has(String(reqId))) {
-            if(isForgetError) {
-                // Resolve the promise for 'forget' errors so the flow can continue
-                promisesRef.current.get(String(reqId))?.resolve(response);
+            if (isForgetError) {
+                console.warn(`[Deriv WS Provider] Non-critical error forgetting subscription (ID: ${response.echo_req.forget}): ${response.error.message}`);
+                promisesRef.current.get(String(reqId))?.resolve(response); // Resolve to continue flow
             } else {
+                console.error("[Deriv WS Provider] Error received for request ID", reqId, ":", response.error.message);
                 promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
             }
             promisesRef.current.delete(String(reqId));
@@ -348,6 +347,9 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         } else if (response.msg_type === 'ticks_history' || response.msg_type === 'candles') {
              setChartError(response.error.message);
              setIsChartLoading(false);
+        } else if (!isForgetError) {
+             // Log other unexpected errors that are not related to 'forget'
+             console.error("[Deriv WS Provider] Error received:", response.error.message);
         }
         return;
       }
@@ -367,7 +369,9 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
         ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 }));
         // Initialize the active symbol ref on successful connection
-        activeSymbolRef.current = activeSymbolRef.current || '1HZ100V';
+        if (!activeSymbolRef.current) {
+            activeSymbolRef.current = '1HZ100V';
+        }
       } else if (response.msg_type === 'balance') {
         setAccountBalance({
             balance: response.balance.balance,
@@ -507,7 +511,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
 
     if (activeSubscriptionId.current) {
         const subIdToForget = activeSubscriptionId.current;
-        console.log(`[Deriv WS Provider] Forgetting old subscription: ${subIdToForget}`);
         const req_id = Date.now();
         const forgetPromise = new Promise((resolve, reject) => {
             promisesRef.current.set(String(req_id), { resolve, reject });
@@ -517,7 +520,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         try {
             await forgetPromise;
         } catch (error) {
-            console.warn("[Deriv WS Provider] Error forgetting old subscription (this is safe to ignore).");
+            // Non-critical error, already logged in onmessage. Just continue.
         } finally {
             activeSubscriptionId.current = null;
         }
