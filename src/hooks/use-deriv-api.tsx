@@ -8,7 +8,7 @@ import type { TradeResult } from '@/services/deriv-api-service';
 import { useToast } from './use-toast';
 import type { Operation } from '@/components/trading/operations-log.types';
 import { analyzeOperationsAction } from '@/app/actions/trading-actions';
-import { analyzeTradeLossAction } from '@/app/actions/ai-actions';
+import { analyzeTradeLossAction }from '@/app/actions/ai-actions';
 import { getAutotraderStrategyAction } from "@/app/actions/ai-actions";
 import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
 import type { TimePeriod, ChartType } from '@/app/deriv-trader/page';
@@ -329,10 +329,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       
       if (response.error) {
         const isForgetError = !!response.echo_req?.forget;
-        if (isForgetError) {
-          console.warn("[Deriv WS Provider] Could not forget subscription (it may have already expired). This is safe to ignore.", response.error);
-        } else {
-            console.error("[Deriv WS Provider] Error received:", response.error.message);
+        if (!isForgetError) {
+          console.error("[Deriv WS Provider] Error received:", response.error.message);
         }
         
         const reqId = response.req_id;
@@ -518,9 +516,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         
         try {
             await forgetPromise;
-            console.log("[Deriv WS Provider] Old subscription successfully forgotten.");
         } catch (error) {
-            console.warn("[Deriv WS Provider] Error forgetting old subscription (can be ignored if sub already expired):", error);
+            console.warn("[Deriv WS Provider] Error forgetting old subscription (this is safe to ignore).");
         } finally {
             activeSubscriptionId.current = null;
         }
