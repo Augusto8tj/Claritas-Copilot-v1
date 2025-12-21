@@ -87,6 +87,7 @@ interface DerivApiContextType {
   subscribeToSymbol: (symbol: string, timePeriod: TimePeriod, chartType: ChartType) => void;
   setChartType: (type: ChartType) => void;
   setTimePeriod: (period: TimePeriod) => void;
+  clearChartData: () => void;
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
@@ -377,6 +378,11 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     };
   }, [activeToken, isLoading, isConnected, toast, handleLosingTrade]);
 
+ const clearChartData = useCallback(() => {
+    setChartData([]);
+    setPriceTicks([]);
+ }, []);
+
  const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -407,13 +413,12 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         await forgetPromise;
     }
     
-    setChartData([]);
+    clearChartData();
     setIsChartLoading(true);
     setChartError(null);
 
     if (newTimePeriod === '1m') {
         console.log(`[Deriv WS Provider] Subscribing to ticks for ${symbol}`);
-        setPriceTicks([]);
         ws.send(JSON.stringify({ "ticks_history": symbol, "end": "latest", "count": 200, "style": "ticks", "subscribe": 1 }));
     } else {
         const granularity = getGranularityForTimePeriod(newTimePeriod);
@@ -428,7 +433,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         }));
     }
     
-}, [timePeriod, chartType]);
+}, [clearChartData]);
 
 
   const setAccountType = (type: AccountType) => {
@@ -581,7 +586,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     clearActiveContracts,
     addActiveContract,
     getAnalysis,
-    subscribeToSymbol
+    subscribeToSymbol,
+    clearChartData
   };
 
   return (

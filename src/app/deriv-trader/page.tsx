@@ -46,7 +46,8 @@ export default function DerivTraderPage() {
     setChartType,
     timePeriod,
     setTimePeriod,
-    executeTrade
+    executeTrade,
+    clearChartData,
   } = useDerivApi();
 
   const form = useForm<RiseFallFormValues>({
@@ -61,9 +62,12 @@ export default function DerivTraderPage() {
 
   useEffect(() => {
     if (isConnected && selectedAsset) {
+      clearChartData(); // Limpa os dados antes de uma nova subscrição
       subscribeToSymbol(selectedAsset, timePeriod, chartType);
     }
-  }, [isConnected, selectedAsset, timePeriod, chartType, subscribeToSymbol]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, selectedAsset, timePeriod, chartType]);
+
 
   useEffect(() => {
     if (timePeriod === '1m' && chartType !== 'Area') {
