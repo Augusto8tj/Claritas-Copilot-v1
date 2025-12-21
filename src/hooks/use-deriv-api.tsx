@@ -244,7 +244,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     
     console.log("[Autopilot] Fetching new strategy...");
     try {
-        const historicalData = await getHistoricalDataFromApi(activeSymbolRef.current, undefined, 1000);
+        const historicalData = await getHistoricalDataFromApi(activeSymbolRef.current, undefined, 200);
         if(!historicalData || historicalData.length < 50) {
             console.warn("[Autopilot] Not enough price data to define a strategy.");
             return;
@@ -328,15 +328,17 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       const response = JSON.parse(event.data);
       
       if (response.error) {
-        const reqId = response.req_id;
         const isForgetError = !!response.echo_req?.forget;
-
+        if (!isForgetError) {
+          console.error("[Deriv WS Provider] Error received:", response.error.message);
+        }
+        
+        const reqId = response.req_id;
         if (reqId && promisesRef.current.has(String(reqId))) {
             if (isForgetError) {
                 console.warn(`[Deriv WS Provider] Non-critical error forgetting subscription (ID: ${response.echo_req.forget}): ${response.error.message}`);
                 promisesRef.current.get(String(reqId))?.resolve(response); // Resolve to continue flow
             } else {
-                console.error("[Deriv WS Provider] Error received for request ID", reqId, ":", response.error.message);
                 promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
             }
             promisesRef.current.delete(String(reqId));
@@ -346,8 +348,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         } else if (response.msg_type === 'ticks_history' || response.msg_type === 'candles') {
              setChartError(response.error.message);
              setIsChartLoading(false);
-        } else if (!isForgetError) {
-             console.error("[Deriv WS Provider] Error received:", response.error.message);
         }
         return;
       }
