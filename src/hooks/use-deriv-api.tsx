@@ -244,7 +244,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     
     console.log("[Autopilot] Fetching new strategy...");
     try {
-        const historicalData = await getHistoricalDataFromApi(activeSymbolRef.current, undefined, 200);
+        const historicalData = await getHistoricalDataFromApi(activeSymbolRef.current, undefined, 1000);
         if(!historicalData || historicalData.length < 50) {
             console.warn("[Autopilot] Not enough price data to define a strategy.");
             return;
@@ -331,7 +331,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         const reqId = response.req_id;
         const isForgetError = !!response.echo_req?.forget;
 
-        // If it's a 'forget' error, we can often ignore it and resolve the promise.
         if (reqId && promisesRef.current.has(String(reqId))) {
             if (isForgetError) {
                 console.warn(`[Deriv WS Provider] Non-critical error forgetting subscription (ID: ${response.echo_req.forget}): ${response.error.message}`);
@@ -348,7 +347,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
              setChartError(response.error.message);
              setIsChartLoading(false);
         } else if (!isForgetError) {
-             // Log other unexpected errors that are not related to 'forget'
              console.error("[Deriv WS Provider] Error received:", response.error.message);
         }
         return;
