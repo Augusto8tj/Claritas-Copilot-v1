@@ -61,6 +61,14 @@ const getStrategyCouncilFlow = ai.defineFlow(
     if (!output || !output.council || output.council.length !== 7) {
         throw new Error("A IA não conseguiu gerar um conselho de robôs válido com 7 membros.");
     }
+
+    // Ensure minimum stake is respected for every robot in the council
+    output.council.forEach(robot => {
+        if (robot.suggestedStake < 0.35) {
+            robot.suggestedStake = 0.35;
+        }
+    });
+
     return output;
   }
 );
