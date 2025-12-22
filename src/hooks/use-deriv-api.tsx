@@ -356,6 +356,35 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   
   const activeToken = accountType === 'demo' ? demoToken : realToken;
 
+  const fetchStrategyCouncil = useCallback(async () => {
+    if (!activeSymbolRef.current) return;
+    setIsFetchingCouncil(true);
+    try {
+      const historicalData = await getHistoricalDataFromApi(activeSymbolRef.current, undefined, 200);
+       if(!historicalData || historicalData.length < 50) {
+            throw new Error("Dados históricos insuficientes para formar o conselho.");
+        }
+      setGeminiRequestCount(prev => prev + 1);
+      const result = await getStrategyCouncilAction({
+        symbol: activeSymbolRef.current,
+        balance: dailyBalance,
+        currency: accountBalance.currency || 'USD',
+        historicalDataJson: JSON.stringify(historicalData),
+        lastLossAnalysisSuggestion: lastAutopilotLossSuggestion ?? undefined,
+      });
+      if (result.success) {
+        setStrategyCouncil(result.success.council);
+        toast({ title: "Conselho de Robôs Formado!", description: "As estratégias dos analistas foram definidas." });
+      } else {
+        throw new Error(result.error || "Erro desconhecido ao formar o conselho.");
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao Formar Conselho", description: e.message });
+      setStrategyCouncil([]);
+    }
+    setIsFetchingCouncil(false);
+  }, [dailyBalance, accountBalance.currency, toast, lastAutopilotLossSuggestion]);
+
   const executeTrade = useCallback(async (
     contractType: string,
     stake: number,
@@ -451,6 +480,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
          if (isAutopilotTrade) {
             console.log(`[Feedback Loop] Storing suggestion for autopilot: "${result.success.suggestion}"`);
             setLastAutopilotLossSuggestion(result.success.suggestion);
+             if (initiator === 'Conselho') {
+                console.log("[Feedback Loop] Re-fetching council strategy due to loss.");
+                fetchStrategyCouncil();
+            }
          }
 
       } else {
@@ -460,7 +493,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     } catch (e) {
       console.error("[Loss Analyzer] Error analyzing trade:", e);
     }
-  }, [operationsLog, toast, autopilotStrategy]);
+  }, [operationsLog, toast, autopilotStrategy, fetchStrategyCouncil]);
 
  const fetchAutopilotStrategy = useCallback(async () => {
     if (!isAutopilotOn || !activeSymbolRef.current) return;
@@ -712,9 +745,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
               : c
           ));
 
-          if (isLoss && activeContract?.initiator !== 'Manual') {
+          if (isLoss && activeContract?.initiator) {
             const recentAutopilotTrades = updatedLog.filter(op => op.initiator !== 'Manual').slice(-2);
-            if(recentAutopilotTrades.length === 2 && recentAutopilotTrades.every(t => t.status === 'lost')) {
+            if(isAutopilotOn && recentAutopilotTrades.length === 2 && recentAutopilotTrades.every(t => t.status === 'lost')) {
                 toast({
                     title: `Alerta do ${activeContract.initiator}`,
                     description: "Duas perdas consecutivas detectadas. Forçando reavaliação da estratégia.",
@@ -724,7 +757,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 fetchAutopilotStrategy();
                 strategyIntervalRef.current = setInterval(handleAutopilotCheck, STRATEGY_REFRESH_INTERVAL);
             } else {
-                 handleLosingTrade(contract, activeContract.initiator);
+                 if(activeContract){
+                    handleLosingTrade(contract, activeContract.initiator);
+                }
             }
           }
 
@@ -790,7 +825,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       // Cleanup logic if needed when dependencies change
     };
-  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts, operationsLog, fetchAutopilotStrategy, handleAutopilotCheck, executeTrade]);
+  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts, operationsLog, fetchAutopilotStrategy, handleAutopilotCheck, executeTrade, isAutopilotOn, setIsAutopilotOn]);
 
  const clearChartData = useCallback(() => {
     setChartData([]);
@@ -804,10 +839,11 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     if (priceDataSource.length < 2) return;
 
     setCurrentRSI(calculateRSI(priceDataSource));
-    setCurrentStoch(calculateStochastic(priceDataSource));
     setBollingerBands(calculateBollingerBands(priceDataSource));
     setMACD(calculateMACD(priceDataSource));
     
+    // Unify Stoch and MA calculation source
+    setCurrentStoch(calculateStochastic(priceDataSource));
     const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
     if (maRobot && maRobot.strategyType === 'MOVING_AVERAGE_CROSS' && priceDataSource.length > maRobot.longPeriod) {
         setCurrentMA({
@@ -825,33 +861,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     }
 }, [chartData, priceTicks, timePeriod, strategyCouncil]);
 
-  const fetchStrategyCouncil = useCallback(async () => {
-    if (!activeSymbolRef.current) return;
-    setIsFetchingCouncil(true);
-    try {
-      const historicalData = await getHistoricalDataFromApi(activeSymbolRef.current, undefined, 200);
-       if(!historicalData || historicalData.length < 50) {
-            throw new Error("Dados históricos insuficientes para formar o conselho.");
-        }
-      setGeminiRequestCount(prev => prev + 1);
-      const result = await getStrategyCouncilAction({
-        symbol: activeSymbolRef.current,
-        balance: dailyBalance,
-        currency: accountBalance.currency || 'USD',
-        historicalDataJson: JSON.stringify(historicalData),
-      });
-      if (result.success) {
-        setStrategyCouncil(result.success.council);
-        toast({ title: "Conselho de Robôs Formado!", description: "As estratégias dos analistas foram definidas." });
-      } else {
-        throw new Error(result.error || "Erro desconhecido ao formar o conselho.");
-      }
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Erro ao Formar Conselho", description: e.message });
-      setStrategyCouncil([]);
-    }
-    setIsFetchingCouncil(false);
-  }, [dailyBalance, accountBalance.currency, toast]);
   
   // Dynamic Consensus Logic
   useEffect(() => {
