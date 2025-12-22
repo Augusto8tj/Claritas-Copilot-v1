@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { Badge } from "../ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 interface AssetSelectorProps {
@@ -26,20 +26,18 @@ interface AssetSelectorProps {
   onAssetChange: (value: string) => void;
 }
 
+const filters = [
+    { label: "Todos", value: "all" },
+    { label: "Volatilidade", value: "volatility" },
+    { label: "Crash/Boom", value: "boom" },
+    { label: "Jump", value: "jump" },
+    { label: "Step", value: "step" },
+];
+
 export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorProps) {
   const { assetGroups, isAssetsLoading } = useDerivApi();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('all');
-
-  const allSubmarkets = useMemo(() => {
-    const submarkets = new Set<string>();
-    assetGroups.forEach(group => {
-      group.options.forEach(option => {
-        submarkets.add(option.submarket);
-      });
-    });
-    return ['all', ...Array.from(submarkets)];
-  }, [assetGroups]);
 
   const filteredAssets = useMemo(() => {
     if (filter === 'all') {
@@ -47,7 +45,10 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
     }
     return assetGroups.map(group => ({
       ...group,
-      options: group.options.filter(option => option.submarket === filter)
+      options: group.options.filter(option => 
+        option.submarket.toLowerCase().includes(filter) || // for "volatility", "jump", "step"
+        (filter === 'boom' && (option.submarket.toLowerCase().includes('crash') || option.submarket.toLowerCase().includes('boom'))) // for crash/boom
+      )
     })).filter(group => group.options.length > 0);
   }, [assetGroups, filter]);
   
@@ -83,15 +84,15 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
           <div className="p-2 border-b">
               <p className="text-xs text-muted-foreground px-1 pb-1">Filtar por tipo:</p>
               <div className="flex flex-wrap gap-1">
-                {allSubmarkets.map(submarket => (
+                {filters.map(f => (
                     <Button 
-                        key={submarket}
-                        variant={filter === submarket ? "default" : "outline"}
+                        key={f.value}
+                        variant={filter === f.value ? "default" : "outline"}
                         size="sm"
                         className="h-7 text-xs rounded-full"
-                        onClick={() => setFilter(submarket)}
+                        onClick={() => setFilter(f.value)}
                     >
-                        {submarket === 'all' ? 'Todos' : submarket}
+                        {f.label}
                     </Button>
                 ))}
               </div>
