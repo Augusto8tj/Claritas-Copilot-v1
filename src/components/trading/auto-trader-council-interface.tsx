@@ -94,9 +94,8 @@ export function AutoTraderCouncilInterface() {
   const renderStrategyParams = (robot: RobotStrategy) => {
     switch (robot.strategyType) {
         case 'RSI':
-            return `Compra < ${robot.buyThreshold}, Venda > ${robot.sellThreshold}`;
         case 'STOCHASTIC':
-            return `Compra < ${robot.buyThreshold}, Venda > ${robot.sellThreshold}`;
+            return `Sinal Forte < ${robot.strongBuyThreshold}, Sinal Fraco < ${robot.weakBuyThreshold}`;
         case 'MOVING_AVERAGE_CROSS':
             return `Cruzamento de Médias ${robot.shortPeriod}/${robot.longPeriod}`;
         case 'BOLLINGER_BANDS':
@@ -213,23 +212,23 @@ export function AutoTraderCouncilInterface() {
 
          <div className="space-y-2">
             <Label htmlFor="council-consensus">
-                Consenso Mínimo (1-10)
+                Limiar de Consenso
                 {isDynamicConsensusOn && <span className="text-muted-foreground text-xs"> (Automático)</span>}
             </Label>
             <Input 
                 id="council-consensus"
                 type="number"
-                min={1}
-                max={10}
+                min={100}
+                max={1000}
                 value={consensusThreshold}
                 onChange={(e) => {
-                    const val = Math.max(1, Math.min(10, Number(e.target.value)));
+                    const val = Math.max(100, Math.min(1000, Number(e.target.value)));
                     setConsensusThreshold(val);
                 }}
-                placeholder="Ex: 8"
+                placeholder="Ex: 300"
                 disabled={isCouncilAutopilotOn || isDynamicConsensusOn}
             />
-            <p className="text-xs text-muted-foreground">Nº de votos ponderados que devem concordar para executar uma ordem.</p>
+            <p className="text-xs text-muted-foreground">Soma de confiança necessária para executar uma ordem.</p>
         </div>
 
          <div className="flex justify-between items-center text-xs text-muted-foreground border-t pt-4">
@@ -254,6 +253,7 @@ export function AutoTraderCouncilInterface() {
                             const voteData = councilVotes[robot.id];
                             const vote = voteData?.vote || 'HOLD';
                             const weight = voteData?.weight || 1.0;
+                            const confidence = voteData?.confidence || 0;
                             return (
                             <Fragment key={robot.id}>
                                 <div className="text-xs space-y-1">
@@ -275,6 +275,7 @@ export function AutoTraderCouncilInterface() {
                                         vote === 'HOLD' && 'text-yellow-600',
                                     )}>
                                         Voto Atual: {vote} {voteIcons[vote]}
+                                        {confidence > 0 && <span className="font-normal">(Conf: {confidence})</span>}
                                     </div>
                                 </div>
                                 {index < strategyCouncil.length - 1 && <Separator className="bg-primary/20"/>}

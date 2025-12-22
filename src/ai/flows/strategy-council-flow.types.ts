@@ -10,7 +10,7 @@ export const StrategyCouncilInputSchema = z.object({
 });
 export type StrategyCouncilInput = z.infer<typeof StrategyCouncilInputSchema>;
 
-// Unified Schema to reduce complexity for the AI model
+// Unified Schema with confidence levels
 export const RobotStrategySchema = z.object({
   id: z.string().describe("A unique identifier for the robot (e.g., 'RSI_BOT_1')."),
   strategyType: z.enum([
@@ -30,33 +30,39 @@ export const RobotStrategySchema = z.object({
   suggestedDuration: z.number().describe("The suggested trade duration in the specified 'durationUnit'."),
   suggestedDurationUnit: z.custom<DurationUnit>().describe("The unit for the suggested trade duration, matching the input 'durationUnit'."),
 
-  // RSI & STOCHASTIC
-  buyThreshold: z.number().optional().describe("The RSI/Stochastic value below which a 'RISE' vote is cast."),
-  sellThreshold: z.number().optional().describe("The RSI/Stochastic value above which a 'FALL' vote is cast."),
+  // --- Confidence Levels ---
+  strongConfidence: z.number().min(0).max(100).describe("The confidence score (e.g., 90) for a strong signal."),
+  weakConfidence: z.number().min(0).max(100).describe("The confidence score (e.g., 60) for a weak signal."),
 
-  // MOVING_AVERAGE_CROSS
+  // --- RSI & STOCHASTIC ---
+  strongBuyThreshold: z.number().optional().describe("The RSI/Stochastic value below which a STRONG 'RISE' vote is cast."),
+  weakBuyThreshold: z.number().optional().describe("The RSI/Stochastic value below which a WEAK 'RISE' vote is cast."),
+  strongSellThreshold: z.number().optional().describe("The RSI/Stochastic value above which a STRONG 'FALL' vote is cast."),
+  weakSellThreshold: z.number().optional().describe("The RSI/Stochastic value above which a WEAK 'FALL' vote is cast."),
+
+  // --- MOVING_AVERAGE_CROSS ---
   shortPeriod: z.number().optional().describe("The period for the short-term moving average."),
   longPeriod: z.number().optional().describe("The period for the long-term moving average."),
 
-  // BOLLINGER_BANDS
+  // --- BOLLINGER_BANDS ---
   period: z.number().optional().describe("The period for the Bollinger Bands calculation."),
   stdDev: z.number().optional().describe("The number of standard deviations for the bands."),
 
-  // MACD_CROSS
+  // --- MACD_CROSS ---
   fastPeriod: z.number().optional().describe("The period for the fast EMA."),
   slowPeriod: z.number().optional().describe("The period for the slow EMA."),
   signalPeriod: z.number().optional().describe("The period for the signal line EMA."),
 
-  // PRICE_ACTION_PATTERN
+  // --- PRICE_ACTION_PATTERN ---
   pattern: z.enum(['hammer', 'shooting_star']).optional().describe("The candlestick pattern to watch for ('hammer' for RISE, 'shooting_star' for FALL)."),
 
-  // ADX_TREND
+  // --- ADX_TREND ---
   trendStrengthThreshold: z.number().optional().describe("The ADX value above which a trend is considered strong enough to trade."),
   
-  // VOLUME_PROFILE
+  // --- VOLUME_PROFILE ---
   profileBars: z.number().optional().describe("Number of recent bars to use for calculating the volume profile Point of Control (POC).")
 
-  // ICHIMOKU_CLOUD & AWESOME_OSCILLATOR have no extra parameters
+  // ICHIMOKU_CLOUD & AWESOME_OSCILLATOR have no extra parameters that need to be defined by the AI
 });
 
 export type RobotStrategy = z.infer<typeof RobotStrategySchema>;
