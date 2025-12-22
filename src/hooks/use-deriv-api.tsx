@@ -83,6 +83,8 @@ interface DerivApiContextType {
   councilVotes: { [key: string]: 'RISE' | 'FALL' | 'HOLD' };
   consensusThreshold: number;
   setConsensusThreshold: (threshold: number) => void;
+  isDynamicConsensusOn: boolean;
+  setIsDynamicConsensusOn: (isOn: boolean) => void;
   currentRSI: number | null;
   currentStoch: number | null;
   currentMA: { short: number | null, long: number | null };
@@ -271,6 +273,14 @@ const calculateADX = (data: CandleData[], period = 14) => {
     return adx[adx.length - 1];
 };
 
+const calculateVolatility = (data: { price: number }[], period = 20): number => {
+    if (data.length < period) return 0;
+    const relevantData = data.slice(-period);
+    const prices = relevantData.map(d => d.price);
+    const mean = prices.reduce((a, b) => a + b, 0) / period;
+    const variance = prices.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / period;
+    return Math.sqrt(variance);
+};
 
 
 export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
@@ -299,6 +309,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [isFetchingCouncil, setIsFetchingCouncil] = useState(false);
   const [councilVotes, setCouncilVotes] = useState<{ [key: string]: 'RISE' | 'FALL' | 'HOLD' }>({});
   const [consensusThreshold, setConsensusThreshold] = useState(6);
+  const [isDynamicConsensusOn, setIsDynamicConsensusOn] = useState(false);
   
   // States for indicators
   const [currentRSI, setCurrentRSI] = useState<number | null>(null);
@@ -787,23 +798,16 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
  }, []);
 
  useEffect(() => {
-    // Determine the primary data source for calculations.
-    // If we have candle data, prefer it for indicators that need it. Otherwise, use ticks.
-    const priceDataSource: { price: number }[] = (timePeriod === '1m' || chartData.some(d => !('close' in d))) 
-        ? priceTicks 
-        : (chartData as CandleData[]).map(c => ({ price: c.close }));
-
+    const priceDataSource: { price: number }[] = priceTicks.length > 0 ? priceTicks : (chartData as CandleData[]).filter(d => 'close' in d).map(c => ({ price: c.close }));
     const candleDataSource: CandleData[] = chartData.filter(d => 'open' in d) as CandleData[];
 
     if (priceDataSource.length < 2) return;
 
-    // Calculate all price-based indicators
     setCurrentRSI(calculateRSI(priceDataSource));
     setCurrentStoch(calculateStochastic(priceDataSource));
     setBollingerBands(calculateBollingerBands(priceDataSource));
     setMACD(calculateMACD(priceDataSource));
     
-    // Calculate MA for the council using the same source
     const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
     if (maRobot && maRobot.strategyType === 'MOVING_AVERAGE_CROSS' && priceDataSource.length > maRobot.longPeriod) {
         setCurrentMA({
@@ -812,12 +816,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         });
     }
 
-    // Calculate candle-based indicators ONLY if candle data is available
     if (candleDataSource.length > 1) {
         setPriceAction(detectPriceActionPattern(candleDataSource));
         setADX(calculateADX(candleDataSource));
     } else {
-        // Explicitly set to null if no candle data to avoid stale values
         setPriceAction(null);
         setADX(null);
     }
@@ -850,6 +852,32 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     }
     setIsFetchingCouncil(false);
   }, [dailyBalance, accountBalance.currency, toast]);
+  
+  // Dynamic Consensus Logic
+  useEffect(() => {
+    if (!isDynamicConsensusOn || !isCouncilAutopilotOn) return;
+
+    const priceDataSource: { price: number }[] = priceTicks.length > 0 ? priceTicks : (chartData as CandleData[]).filter(d => 'close' in d).map(c => ({ price: c.close }));
+    if (priceDataSource.length < 20) return;
+
+    const volatility = calculateVolatility(priceDataSource, 20);
+    const price = priceDataSource[priceDataSource.length - 1].price;
+    const normalizedVolatility = (volatility / price) * 100; // Volatility as a percentage of price
+    
+    let newThreshold = 6;
+    if (normalizedVolatility > 0.05) { // High volatility
+      newThreshold = 5;
+    } else if (normalizedVolatility < 0.01) { // Low volatility
+      newThreshold = 7;
+    }
+    
+    if (newThreshold !== consensusThreshold) {
+      setConsensusThreshold(newThreshold);
+      toast({ title: "Consenso Dinâmico", description: `Volatilidade detetada. Novo consenso: ${newThreshold} de 7.` });
+    }
+
+  }, [priceTicks, chartData, isDynamicConsensusOn, isCouncilAutopilotOn, consensusThreshold, setConsensusThreshold, toast]);
+
 
   // Council voting and execution logic
   useEffect(() => {
@@ -1151,6 +1179,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     councilVotes,
     consensusThreshold,
     setConsensusThreshold,
+    isDynamicConsensusOn,
+    setIsDynamicConsensusOn,
     currentRSI,
     currentStoch,
     currentMA,

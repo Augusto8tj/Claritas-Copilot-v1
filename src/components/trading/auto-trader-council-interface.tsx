@@ -53,6 +53,10 @@ export function AutoTraderCouncilInterface() {
     setDailyBalance,
     dailyTarget,
     setDailyTarget,
+    consensusThreshold,
+    setConsensusThreshold,
+    isDynamicConsensusOn,
+    setIsDynamicConsensusOn,
     currentRSI,
     currentStoch,
     currentMA,
@@ -166,6 +170,34 @@ export function AutoTraderCouncilInterface() {
                 />
                 <p className="text-xs text-muted-foreground">Sua meta de lucro no dia.</p>
             </div>
+        </div>
+        
+        <Separator />
+
+        <div className="flex items-center justify-between">
+            <Label htmlFor="dynamic-consensus-switch">Consenso Dinâmico</Label>
+            <Switch id="dynamic-consensus-switch" checked={isDynamicConsensusOn} onCheckedChange={setIsDynamicConsensusOn} disabled={isCouncilAutopilotOn} />
+        </div>
+
+         <div className="space-y-2">
+            <Label htmlFor="council-consensus">
+                Consenso Mínimo (1-7)
+                {isDynamicConsensusOn && <span className="text-muted-foreground text-xs"> (Automático)</span>}
+            </Label>
+            <Input 
+                id="council-consensus"
+                type="number"
+                min={1}
+                max={7}
+                value={consensusThreshold}
+                onChange={(e) => {
+                    const val = Math.max(1, Math.min(7, Number(e.target.value)));
+                    setConsensusThreshold(val);
+                }}
+                placeholder="Ex: 6"
+                disabled={isCouncilAutopilotOn || isDynamicConsensusOn}
+            />
+            <p className="text-xs text-muted-foreground">Nº de robôs que devem concordar para executar uma ordem.</p>
         </div>
 
          <div className="flex justify-between items-center text-xs text-muted-foreground border-t pt-4">
