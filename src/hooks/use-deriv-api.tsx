@@ -568,8 +568,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             duration: 10000,
          });
          
-         console.log(`[Feedback Loop] Storing suggestion for autopilot: "${result.success.suggestion}"`);
-         setLastAutopilotLossSuggestion(result.success.suggestion);
+         if (initiator === 'Piloto') {
+            console.log(`[Feedback Loop] Storing suggestion for autopilot: "${result.success.suggestion}"`);
+            setLastAutopilotLossSuggestion(result.success.suggestion);
+         }
          
       } else {
          throw new Error(result.error || "A IA não conseguiu analisar a operação.");
@@ -707,6 +709,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         ws.send(JSON.stringify({ "ticks_history": symbol, "end": "latest", "count": 500, "style": "ticks", "subscribe": 1 }));
     } else {
         const granularity = getGranularityForTimePeriod(newTimePeriod);
+        if (granularity === 0) {
+             console.error(`[Deriv WS Provider] Invalid granularity for time period: ${newTimePeriod}`);
+             setChartError(`Período de tempo inválido: ${newTimePeriod}`);
+             setIsChartLoading(false);
+             return;
+        }
         console.log(`[Deriv WS Provider] Subscribing to candles for ${symbol} with granularity ${granularity}`);
         ws.send(JSON.stringify({
             ticks_history: symbol,
@@ -715,6 +723,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             count: 500,
             granularity: granularity,
             subscribe: 1,
+            adjust_start_time: 1 // Necessary for volume data
         }));
     }
     
@@ -974,7 +983,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 high: parseFloat(candle.high),
                 low: parseFloat(candle.low),
                 close: parseFloat(candle.close),
-                volume: parseFloat(candle.volume),
+                volume: candle.volume ? parseFloat(candle.volume) : undefined,
             };
             setChartData(prev => {
                 const data = prev as CandleData[];
@@ -995,7 +1004,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             high: candle.high,
             low: candle.low,
             close: candle.close,
-            volume: candle.volume,
+            volume: candle.volume ? parseFloat(candle.volume) : undefined,
         }));
         setChartData(candleData);
         setIsChartLoading(false);
@@ -1148,10 +1157,11 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         .filter(op => new Date(op.timestamp).toDateString() === today && op.status !== 'pending')
         .reduce((sum, op) => sum + (op.result || 0), 0);
 
-    const direction = riseConfidenceSum > fallConfidenceSum ? 'rise' : 'fall';
     const consensusReached = Math.max(riseConfidenceSum, fallConfidenceSum) >= consensusThreshold;
     
     if (consensusReached) {
+        const direction = riseConfidenceSum > fallConfidenceSum ? 'rise' : 'fall';
+        
         // --- Risk Analyst Veto Logic ---
         const lastTwoCouncilTrades = operationsLog.filter(op => op.initiator === 'Conselho').slice(0, 2);
         const hasLossStreak = lastTwoCouncilTrades.length === 2 && lastTwoCouncilTrades.every(op => op.status === 'lost');
