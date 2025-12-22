@@ -10,87 +10,58 @@ export const StrategyCouncilInputSchema = z.object({
 });
 export type StrategyCouncilInput = z.infer<typeof StrategyCouncilInputSchema>;
 
-
-const BaseRobotSchema = z.object({
+// Unified Schema to reduce complexity for the AI model
+export const RobotStrategySchema = z.object({
   id: z.string().describe("A unique identifier for the robot (e.g., 'RSI_BOT_1')."),
-  strategyType: z.string().describe("The type of strategy the robot uses."),
+  strategyType: z.enum([
+      'RSI', 
+      'STOCHASTIC', 
+      'MOVING_AVERAGE_CROSS',
+      'BOLLINGER_BANDS',
+      'MACD_CROSS',
+      'PRICE_ACTION_PATTERN',
+      'ADX_TREND',
+      'ICHIMOKU_CLOUD',
+      'AWESOME_OSCILLATOR',
+      'VOLUME_PROFILE'
+  ]).describe("The type of strategy the robot uses."),
   justification: z.string().describe("A brief justification for why this robot and its parameters were chosen for the current market conditions."),
-  suggestedStake: z.number().describe("The suggested stake for trades executed by this robot, calculated based on the provided daily balance."),
+  suggestedStake: z.number().describe("The suggested stake for trades, calculated based on the provided daily balance."),
   suggestedDuration: z.number().describe("The suggested trade duration in the specified 'durationUnit'."),
   suggestedDurationUnit: z.custom<DurationUnit>().describe("The unit for the suggested trade duration, matching the input 'durationUnit'."),
+
+  // RSI & STOCHASTIC
+  buyThreshold: z.number().optional().describe("The RSI/Stochastic value below which a 'RISE' vote is cast."),
+  sellThreshold: z.number().optional().describe("The RSI/Stochastic value above which a 'FALL' vote is cast."),
+
+  // MOVING_AVERAGE_CROSS
+  shortPeriod: z.number().optional().describe("The period for the short-term moving average."),
+  longPeriod: z.number().optional().describe("The period for the long-term moving average."),
+
+  // BOLLINGER_BANDS
+  period: z.number().optional().describe("The period for the Bollinger Bands calculation."),
+  stdDev: z.number().optional().describe("The number of standard deviations for the bands."),
+
+  // MACD_CROSS
+  fastPeriod: z.number().optional().describe("The period for the fast EMA."),
+  slowPeriod: z.number().optional().describe("The period for the slow EMA."),
+  signalPeriod: z.number().optional().describe("The period for the signal line EMA."),
+
+  // PRICE_ACTION_PATTERN
+  pattern: z.enum(['hammer', 'shooting_star']).optional().describe("The candlestick pattern to watch for ('hammer' for RISE, 'shooting_star' for FALL)."),
+
+  // ADX_TREND
+  trendStrengthThreshold: z.number().optional().describe("The ADX value above which a trend is considered strong enough to trade."),
+  
+  // VOLUME_PROFILE
+  profileBars: z.number().optional().describe("Number of recent bars to use for calculating the volume profile Point of Control (POC).")
+
+  // ICHIMOKU_CLOUD & AWESOME_OSCILLATOR have no extra parameters
 });
 
-const RsiRobotSchema = BaseRobotSchema.extend({
-  strategyType: z.literal('RSI'),
-  buyThreshold: z.number().describe("The RSI value below which a 'RISE' vote is cast."),
-  sellThreshold: z.number().describe("The RSI value above which a 'FALL' vote is cast."),
-});
-
-const StochRobotSchema = BaseRobotSchema.extend({
-    strategyType: z.literal('STOCHASTIC'),
-    buyThreshold: z.number().describe("The Stochastic value below which a 'RISE' vote is cast."),
-    sellThreshold: z.number().describe("The Stochastic value above which a 'FALL' vote is cast."),
-});
-
-const MACrossRobotSchema = BaseRobotSchema.extend({
-    strategyType: z.literal('MOVING_AVERAGE_CROSS'),
-    shortPeriod: z.number().describe("The period for the short-term moving average."),
-    longPeriod: z.number().describe("The period for the long-term moving average."),
-});
-
-const BollingerBandsRobotSchema = BaseRobotSchema.extend({
-    strategyType: z.literal('BOLLINGER_BANDS'),
-    period: z.number().describe("The period for the Bollinger Bands calculation."),
-    stdDev: z.number().describe("The number of standard deviations for the bands."),
-});
-
-const MacdCrossRobotSchema = BaseRobotSchema.extend({
-    strategyType: z.literal('MACD_CROSS'),
-    fastPeriod: z.number().describe("The period for the fast EMA."),
-    slowPeriod: z.number().describe("The period for the slow EMA."),
-    signalPeriod: z.number().describe("The period for the signal line EMA."),
-});
-
-const PriceActionRobotSchema = BaseRobotSchema.extend({
-    strategyType: z.literal('PRICE_ACTION_PATTERN'),
-    pattern: z.enum(['hammer', 'shooting_star']).describe("The candlestick pattern to watch for ('hammer' for RISE, 'shooting_star' for FALL)."),
-});
-
-const AdxTrendRobotSchema = BaseRobotSchema.extend({
-    strategyType: z.literal('ADX_TREND'),
-    trendStrengthThreshold: z.number().describe("The ADX value above which a trend is considered strong enough to trade."),
-});
-
-const IchimokuCloudRobotSchema = BaseRobotSchema.extend({
-  strategyType: z.literal('ICHIMOKU_CLOUD'),
-});
-
-const AwesomeOscillatorRobotSchema = BaseRobotSchema.extend({
-  strategyType: z.literal('AWESOME_OSCILLATOR'),
-});
-
-const VolumeProfileRobotSchema = BaseRobotSchema.extend({
-  strategyType: z.literal('VOLUME_PROFILE'),
-  profileBars: z.number().describe("Number of recent bars to use for calculating the volume profile Point of Control (POC).")
-});
-
-
-export const RobotStrategySchema = z.union([
-    RsiRobotSchema, 
-    StochRobotSchema, 
-    MACrossRobotSchema,
-    BollingerBandsRobotSchema,
-    MacdCrossRobotSchema,
-    PriceActionRobotSchema,
-    AdxTrendRobotSchema,
-    IchimokuCloudRobotSchema,
-    AwesomeOscillatorRobotSchema,
-    VolumeProfileRobotSchema
-]);
 export type RobotStrategy = z.infer<typeof RobotStrategySchema>;
 
-
 export const StrategyCouncilOutputSchema = z.object({
-  council: z.array(RobotStrategySchema).min(10).max(10).describe("An array of 10 distinct robot analyst strategies."),
+  council: z.array(RobotStrategySchema).min(10).max(10).describe("An array of 10 distinct robot analyst strategies, using the unified schema."),
 });
 export type StrategyCouncilOutput = z.infer<typeof StrategyCouncilOutputSchema>;
