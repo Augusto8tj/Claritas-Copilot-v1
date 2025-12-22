@@ -173,13 +173,13 @@ const calculateRSI = (data: { price: number }[], period = 14) => {
     return 100 - (100 / (1 + rs));
 };
 
-const calculateStochastic = (data: { price: number }[], period = 14) => {
+const calculateStochastic = (data: CandleData[], period = 14) => {
     if (data.length < period) return null;
 
     const relevantData = data.slice(-period);
-    const lowestLow = Math.min(...relevantData.map(d => d.price));
-    const highestHigh = Math.max(...relevantData.map(d => d.price));
-    const currentClose = relevantData[relevantData.length - 1].price;
+    const lowestLow = Math.min(...relevantData.map(d => d.low));
+    const highestHigh = Math.max(...relevantData.map(d => d.high));
+    const currentClose = relevantData[relevantData.length - 1].close;
 
     if (highestHigh === lowestLow) return 50;
 
@@ -356,6 +356,11 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   
   const activeToken = accountType === 'demo' ? demoToken : realToken;
 
+  const clearChartData = useCallback(() => {
+    setChartData([]);
+    setPriceTicks([]);
+  }, []);
+
   const fetchStrategyCouncil = useCallback(async () => {
     if (!activeSymbolRef.current) return;
     setIsFetchingCouncil(true);
@@ -495,6 +500,54 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [operationsLog, toast, autopilotStrategy, fetchStrategyCouncil]);
 
+ const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.warn("[Deriv WS Provider] Cannot subscribe, WS not open or ready.");
+        return;
+    }
+    
+    activeSymbolRef.current = symbol;
+
+    if (activeSubscriptionId.current) {
+        const subIdToForget = activeSubscriptionId.current;
+        const req_id = Date.now();
+        const forgetPromise = new Promise((resolve, reject) => {
+            promisesRef.current.set(String(req_id), { resolve, reject });
+            ws.send(JSON.stringify({ "forget": subIdToForget, "req_id": req_id }));
+        });
+        
+        try {
+            await forgetPromise;
+        } catch (error) {
+           console.warn(`[Deriv WS Provider] Non-critical error forgetting subscription (ID: ${subIdToForget}):`, error);
+        } finally {
+            activeSubscriptionId.current = null;
+        }
+    }
+    
+    clearChartData();
+    setIsChartLoading(true);
+    setChartError(null);
+
+    if (newTimePeriod === '1m') {
+        console.log(`[Deriv WS Provider] Subscribing to ticks for ${symbol}`);
+        ws.send(JSON.stringify({ "ticks_history": symbol, "end": "latest", "count": 500, "style": "ticks", "subscribe": 1 }));
+    } else {
+        const granularity = getGranularityForTimePeriod(newTimePeriod);
+        console.log(`[Deriv WS Provider] Subscribing to candles for ${symbol} with granularity ${granularity}`);
+        ws.send(JSON.stringify({
+            ticks_history: symbol,
+            style: 'candles',
+            end: 'latest',
+            count: 500,
+            granularity: granularity,
+            subscribe: 1
+        }));
+    }
+    
+}, [clearChartData]);
+ 
  const fetchAutopilotStrategy = useCallback(async () => {
     if (!isAutopilotOn || !activeSymbolRef.current) return;
 
@@ -745,9 +798,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
               : c
           ));
 
-          if (isLoss && activeContract?.initiator) {
+          if (isLoss && activeContract) {
+            const isAutopilotTrade = activeContract.initiator !== 'Manual';
             const recentAutopilotTrades = updatedLog.filter(op => op.initiator !== 'Manual').slice(-2);
-            if(isAutopilotOn && recentAutopilotTrades.length === 2 && recentAutopilotTrades.every(t => t.status === 'lost')) {
+            if(isAutopilotOn && isAutopilotTrade && recentAutopilotTrades.length === 2 && recentAutopilotTrades.every(t => t.status === 'lost')) {
                 toast({
                     title: `Alerta do ${activeContract.initiator}`,
                     description: "Duas perdas consecutivas detectadas. Forçando reavaliação da estratégia.",
@@ -757,9 +811,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 fetchAutopilotStrategy();
                 strategyIntervalRef.current = setInterval(handleAutopilotCheck, STRATEGY_REFRESH_INTERVAL);
             } else {
-                 if(activeContract){
-                    handleLosingTrade(contract, activeContract.initiator);
-                }
+                 handleLosingTrade(contract, activeContract.initiator);
             }
           }
 
@@ -825,39 +877,35 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       // Cleanup logic if needed when dependencies change
     };
-  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts, operationsLog, fetchAutopilotStrategy, handleAutopilotCheck, executeTrade, isAutopilotOn, setIsAutopilotOn]);
+  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts, operationsLog, fetchAutopilotStrategy, handleAutopilotCheck, executeTrade, isAutopilotOn, setIsAutopilotOn, subscribeToSymbol]);
 
- const clearChartData = useCallback(() => {
-    setChartData([]);
-    setPriceTicks([]);
- }, []);
 
  useEffect(() => {
     const priceDataSource: { price: number }[] = priceTicks.length > 0 ? priceTicks : (chartData as CandleData[]).filter(d => 'close' in d).map(c => ({ price: c.close }));
     const candleDataSource: CandleData[] = chartData.filter(d => 'open' in d) as CandleData[];
 
-    if (priceDataSource.length < 2) return;
-
-    setCurrentRSI(calculateRSI(priceDataSource));
-    setBollingerBands(calculateBollingerBands(priceDataSource));
-    setMACD(calculateMACD(priceDataSource));
-    
-    // Unify Stoch and MA calculation source
-    setCurrentStoch(calculateStochastic(priceDataSource));
-    const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
-    if (maRobot && maRobot.strategyType === 'MOVING_AVERAGE_CROSS' && priceDataSource.length > maRobot.longPeriod) {
-        setCurrentMA({
-            short: calculateMA(priceDataSource, maRobot.shortPeriod),
-            long: calculateMA(priceDataSource, maRobot.longPeriod)
-        });
+    if (priceDataSource.length > 1) {
+        setCurrentRSI(calculateRSI(priceDataSource));
+        setBollingerBands(calculateBollingerBands(priceDataSource));
+        setMACD(calculateMACD(priceDataSource));
+        
+        const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
+        if (maRobot && maRobot.strategyType === 'MOVING_AVERAGE_CROSS' && priceDataSource.length > maRobot.longPeriod) {
+            setCurrentMA({
+                short: calculateMA(priceDataSource, maRobot.shortPeriod),
+                long: calculateMA(priceDataSource, maRobot.longPeriod)
+            });
+        }
     }
 
     if (candleDataSource.length > 1) {
         setPriceAction(detectPriceActionPattern(candleDataSource));
         setADX(calculateADX(candleDataSource));
+        setCurrentStoch(calculateStochastic(candleDataSource));
     } else {
         setPriceAction(null);
         setADX(null);
+        setCurrentStoch(null);
     }
 }, [chartData, priceTicks, timePeriod, strategyCouncil]);
 
@@ -1036,55 +1084,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     }
 
   }, [operationsLog, isAutopilotOn, isCouncilAutopilotOn, dailyBalance, dailyTarget, setIsAutopilotOn, setIsCouncilAutopilotOn, toast]);
-
-
- const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {
-    const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-        console.warn("[Deriv WS Provider] Cannot subscribe, WS not open or ready.");
-        return;
-    }
-    
-    activeSymbolRef.current = symbol;
-
-    if (activeSubscriptionId.current) {
-        const subIdToForget = activeSubscriptionId.current;
-        const req_id = Date.now();
-        const forgetPromise = new Promise((resolve, reject) => {
-            promisesRef.current.set(String(req_id), { resolve, reject });
-            ws.send(JSON.stringify({ "forget": subIdToForget, "req_id": req_id }));
-        });
-        
-        try {
-            await forgetPromise;
-        } catch (error) {
-           console.warn(`[Deriv WS Provider] Non-critical error forgetting subscription (ID: ${subIdToForget}):`, error);
-        } finally {
-            activeSubscriptionId.current = null;
-        }
-    }
-    
-    clearChartData();
-    setIsChartLoading(true);
-    setChartError(null);
-
-    if (newTimePeriod === '1m') {
-        console.log(`[Deriv WS Provider] Subscribing to ticks for ${symbol}`);
-        ws.send(JSON.stringify({ "ticks_history": symbol, "end": "latest", "count": 500, "style": "ticks", "subscribe": 1 }));
-    } else {
-        const granularity = getGranularityForTimePeriod(newTimePeriod);
-        console.log(`[Deriv WS Provider] Subscribing to candles for ${symbol} with granularity ${granularity}`);
-        ws.send(JSON.stringify({
-            ticks_history: symbol,
-            style: 'candles',
-            end: 'latest',
-            count: 500,
-            granularity: granularity,
-            subscribe: 1
-        }));
-    }
-    
-}, [clearChartData]);
 
 
   const setAccountType = (type: AccountType) => {

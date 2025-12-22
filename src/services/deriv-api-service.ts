@@ -133,8 +133,16 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
 
   } catch (error) {
     console.error("[Deriv Service] Error fetching available assets:", error);
+    // Return a fallback list so the UI doesn't break
     return [
-      { label: "Erro", options: [{ value: "error", label: "Não foi possível carregar ativos" }] },
+      {
+        label: "Índices de Volatilidade",
+        options: [{ value: "1HZ100V", label: "Volatility 100 Index" }],
+      },
+      {
+        label: "Erro",
+        options: [{ value: "error", label: "Não foi possível carregar outros ativos" }],
+      },
     ];
   }
 }
