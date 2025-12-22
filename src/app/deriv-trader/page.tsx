@@ -9,9 +9,8 @@ import { DerivTraderInterface } from "@/components/trading/deriv-trader-interfac
 import { AssetSelector } from "@/components/trading/asset-selector";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MarketChart } from "@/components/trading/market-chart";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Button } from "@/components/ui/button";
-import { AreaChart, Trash2, Plus, Minus, CandlestickChart, Waves } from "lucide-react";
+import { AreaChart, Trash2, Plus, Minus, CandlestickChart, Waves, Clock } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useDerivApi, type AccountType, type ActiveContract } from "@/hooks/use-deriv-api";
@@ -23,11 +22,13 @@ import { riseFallSchema, type RiseFallFormValues } from "@/components/trading/de
 import { AutoTraderInterface } from "@/components/trading/auto-trader-interface";
 import { AutoTraderCouncilInterface } from "@/components/trading/auto-trader-council-interface";
 import type { OperationInitiator } from "@/components/trading/operations-log.types";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-export type TimePeriod = '1m' | '5m' | '15m' | '30m' | '1h' | '8h' | '1d';
+
+export type TimePeriod = '1m' | '2m' | '3m' | '5m' | '10m' | '15m' | '30m' | '1h' | '8h' | '1d';
 export type ChartType = 'Area' | 'Candle';
 
-const timePeriods: TimePeriod[] = ['1m', '5m', '15m', '30m', '1h', '8h', '1d'];
+const timePeriods: TimePeriod[] = ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '8h', '1d'];
 
 export default function DerivTraderPage() {
   const [selectedAsset, setSelectedAsset] = useState("1HZ100V");
@@ -74,7 +75,7 @@ export default function DerivTraderPage() {
 
 
   useEffect(() => {
-    if (timePeriod === '1m' && chartType !== 'Area') {
+    if (['1m', '2m', '3m'].includes(timePeriod) && chartType !== 'Area') {
         setChartType('Area');
     }
   }, [timePeriod, chartType, setChartType]);
@@ -82,7 +83,7 @@ export default function DerivTraderPage() {
 
   const chartTypes: { label: ChartType, icon: React.ReactNode, disabled: boolean }[] = [
     { label: 'Area', icon: <AreaChart className="w-8 h-8 mx-auto" />, disabled: false },
-    { label: 'Candle', icon: <CandlestickChart className="w-8 h-8 mx-auto" />, disabled: timePeriod === '1m' },
+    { label: 'Candle', icon: <CandlestickChart className="w-8 h-8 mx-auto" />, disabled: ['1m', '2m', '3m'].includes(timePeriod) },
   ];
   
   const handleTradeSuccess = (tradeResult: TradeResult, initiator: OperationInitiator) => {
@@ -200,20 +201,30 @@ export default function DerivTraderPage() {
                               </div>
                           </PopoverContent>
                       </Popover>
-                      <div className="flex items-center rounded-md border bg-background">
-                          <ToggleGroup type="single" value={timePeriod} onValueChange={(value: TimePeriod) => value && setTimePeriod(value)} aria-label="Período do Gráfico" className="gap-0">
-                              {timePeriods.map(period => (
-                                  <ToggleGroupItem 
-                                      key={period}
-                                      value={period} 
-                                      aria-label={`Ver ${period}`}
-                                      className="rounded-none data-[state=on]:bg-accent/50 h-9"
-                                  >
-                                      {period.toUpperCase()}
-                                  </ToggleGroupItem>
-                              ))}
-                          </ToggleGroup>
-                      </div>
+                     
+                       <Popover>
+                          <PopoverTrigger asChild>
+                               <Button variant="outline" className="w-[80px] h-10">
+                                  <Clock className="w-4 h-4 mr-2" />
+                                  <span>{timePeriod.toUpperCase()}</span>
+                              </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-2">
+                              <div className="grid grid-cols-4 gap-2">
+                                  {timePeriods.map(period => (
+                                      <Button
+                                          key={period}
+                                          variant={timePeriod === period ? "default" : "ghost"}
+                                          onClick={() => setTimePeriod(period)}
+                                          className="w-full"
+                                      >
+                                          {period.toUpperCase()}
+                                      </Button>
+                                  ))}
+                              </div>
+                          </PopoverContent>
+                      </Popover>
+
                   </div>
               </CardHeader>
               <CardContent className="relative">
@@ -254,5 +265,3 @@ export default function DerivTraderPage() {
     </FormProvider>
   );
 }
-
-    

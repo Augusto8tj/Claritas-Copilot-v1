@@ -275,7 +275,3 @@ export async function getHistoricalData(symbol: string, period?: string, count?:
     }
     return data;
 }
-
-
-
-

@@ -137,8 +137,11 @@ const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined
 
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
-        case '1m': return 0; // Ticks
+        case '1m': return 0;
+        case '2m': return 120;
+        case '3m': return 180;
         case '5m': return 300;
+        case '10m': return 600;
         case '15m': return 900;
         case '30m': return 1800;
         case '1h': return 3600;
@@ -718,9 +721,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         setChartError(null);
 
         const granularity = getGranularityForTimePeriod(newTimePeriod);
-        const style = newTimePeriod === '1m' ? 'ticks' : 'candles';
+        const isTickHistory = granularity === 0;
+        const style = isTickHistory ? 'ticks' : 'candles';
 
-        if (style === 'candles' && granularity === 0) {
+        if (style === 'candles' && isTickHistory) {
             throw new Error(`Período de tempo inválido para gráfico de velas: ${newTimePeriod}`);
         }
 
@@ -861,8 +865,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     ws.onopen = () => {
       console.log("[Deriv WS Provider] Connection opened. Authorizing...");
       ws.send(JSON.stringify({ "authorize": activeToken }));
-      ws.send(JSON.stringify({ active_symbols: 'full', product_type: 'basic' }));
-      setIsAssetsLoading(true);
     };
   
     ws.onmessage = (event) => {
@@ -908,6 +910,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           console.log("[Deriv WS Provider] Authorization successful. Ready for subscriptions.");
           ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
           ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 }));
+          ws.send(JSON.stringify({ active_symbols: 'full', product_type: 'basic' }));
+          setIsAssetsLoading(true);
           break;
 
         case 'balance':
@@ -931,7 +935,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                         value: symbol.symbol,
                         label: symbol.display_name,
                         marketIsOpen: symbol.exchange_is_open === 1,
-                        submarket: symbol.submarket_display_name
+                        submarket: symbol.submarket.toLowerCase(),
                     });
                 }
             }
@@ -992,7 +996,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
               const tick = response.tick;
               const newTick = { epoch: tick.epoch, price: tick.quote };
               setPriceTicks(prevTicks => [...prevTicks.slice(-999), newTick]);
-              if(timePeriod === '1m') {
+              const isTickChart = getGranularityForTimePeriod(timePeriod) === 0;
+              if(isTickChart) {
                   setChartData(prev => [...(prev as TickData[]).slice(-999), newTick]);
               }
           }
@@ -1454,5 +1459,3 @@ export function useDerivApi() {
   }
   return context;
 }
-
-    
