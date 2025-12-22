@@ -925,7 +925,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             for (const symbol of response.active_symbols) {
                 // We only want synthetic indices for this app.
                 if (symbol.market === 'synthetic_index') {
-                    // Use a more descriptive name for the submarket group.
                     const groupName = symbol.submarket_display_name;
                     if (!groupedAssets[groupName]) {
                         groupedAssets[groupName] = [];
@@ -933,6 +932,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                     groupedAssets[groupName].push({
                         value: symbol.symbol,
                         label: symbol.display_name,
+                        marketIsOpen: symbol.exchange_is_open === 1,
+                        submarket: symbol.submarket_display_name
                     });
                 }
             }

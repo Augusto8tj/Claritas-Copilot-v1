@@ -72,6 +72,8 @@ export interface TradeResult {
 export interface Asset {
   value: string;
   label: string;
+  marketIsOpen: boolean;
+  submarket: string;
 }
 
 export interface AssetGroup {
@@ -273,6 +275,7 @@ export async function getHistoricalData(symbol: string, period?: string, count?:
     }
     return data;
 }
+
 
 
 
