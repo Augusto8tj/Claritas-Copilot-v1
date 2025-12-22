@@ -55,6 +55,8 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
     geminiRequestCount,
     dailyBalance,
     setDailyBalance,
+    dailyTarget,
+    setDailyTarget
   } = useDerivApi();
   
   const strategyIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -117,7 +119,7 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
   useEffect(() => {
     if (isAutopilotOn) {
         console.log("[Autopilot] Turned ON. Fetching initial strategy and starting check cycle.");
-        fetchAutopilotStrategy();
+        fetchAutopilotStrategy(); 
         
         if (strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
         
@@ -182,27 +184,42 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
             </div>
         </div>
         <CardDescription>
-          Deixe a IA definir e executar uma estratégia de trading para você.
+          Defina seus limites e deixe a IA executar uma estratégia de trading para você.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-            <Label htmlFor="daily-balance">Banca do Dia (USD)</Label>
-            <Input 
-                id="daily-balance"
-                type="number"
-                value={dailyBalance}
-                onChange={(e) => setDailyBalance(Number(e.target.value))}
-                placeholder="Ex: 1000"
-                disabled={isAutopilotOn}
-            />
-            <p className="text-xs text-muted-foreground">O valor que a IA usará para gestão de risco.</p>
+        <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+                <Label htmlFor="daily-balance">Banca do Dia (USD)</Label>
+                <Input 
+                    id="daily-balance"
+                    type="number"
+                    value={dailyBalance}
+                    onChange={(e) => setDailyBalance(Number(e.target.value))}
+                    placeholder="Ex: 100"
+                    disabled={isAutopilotOn}
+                />
+                <p className="text-xs text-muted-foreground">Sua perda máxima no dia.</p>
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="daily-target">Alvo de Lucro (USD)</Label>
+                <Input 
+                    id="daily-target"
+                    type="number"
+                    value={dailyTarget}
+                    onChange={(e) => setDailyTarget(Number(e.target.value))}
+                    placeholder="Ex: 50"
+                    disabled={isAutopilotOn}
+                />
+                <p className="text-xs text-muted-foreground">Sua meta de lucro no dia.</p>
+            </div>
         </div>
 
         <div className="flex justify-between items-center text-xs text-muted-foreground border-t pt-4">
             <span>Requisições à IA (sessão)</span>
             <Badge variant="outline">{geminiRequestCount}</Badge>
         </div>
+
         {isAutopilotOn && (
             isLoading ? (
                 <div className="flex items-center justify-center text-muted-foreground p-4">

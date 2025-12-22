@@ -79,6 +79,8 @@ interface DerivApiContextType {
   geminiRequestCount: number;
   dailyBalance: number;
   setDailyBalance: (balance: number) => void;
+  dailyTarget: number;
+  setDailyTarget: (target: number) => void;
   setAccountType: (type: AccountType) => void;
   setTokens: (tokens: { demo?: string; real?: string }) => void;
   disconnect: (type: AccountType) => void;
@@ -151,7 +153,7 @@ const calculateStochastic = (ticks: { price: number }[], period = 14) => {
 };
 
 
-export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
+export function DerivApiProvider({ children }: { children: ReactNode }) {
   const [demoToken, setDemoToken] = useState<string | null>(null);
   const [realToken, setRealToken] = useState<string | null>(null);
   const [accountType, setAccountTypeState] = useState<AccountType>('demo');
@@ -171,7 +173,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [currentRSI, setCurrentRSI] = useState<number | null>(null);
   const [currentStoch, setCurrentStoch] = useState<number | null>(null);
   const [geminiRequestCount, setGeminiRequestCount] = useState(0);
-  const [dailyBalance, setDailyBalance] = useState(1000);
+  const [dailyBalance, setDailyBalance] = useState(100);
+  const [dailyTarget, setDailyTarget] = useState(50);
 
   const { toast } = useToast();
 
@@ -245,19 +248,34 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [operationsLog, toast, autopilotStrategy]);
 
-  const fetchAutopilotStrategy = useCallback(async () => {
+ const fetchAutopilotStrategy = useCallback(async () => {
     if (!isAutopilotOn || !activeSymbolRef.current) return;
-    
+
     // Calculate PnL for the day
+    const today = new Date().toDateString();
     const dailyPnL = operationsLog
-        .filter(op => new Date(op.timestamp).toDateString() === new Date().toDateString() && op.status !== 'pending')
+        .filter(op => new Date(op.timestamp).toDateString() === today && op.status !== 'pending')
         .reduce((sum, op) => sum + (op.result || 0), 0);
 
+    // Stop-loss check
     if (dailyPnL <= -dailyBalance) {
         toast({
             title: "Piloto Automático Desligado",
             description: `Limite de perda diária de $${dailyBalance.toFixed(2)} atingido.`,
             variant: "destructive",
+            duration: 10000,
+        });
+        setIsAutopilotOn(false);
+        return;
+    }
+    
+    // Profit target check
+    if (dailyTarget > 0 && dailyPnL >= dailyTarget) {
+         toast({
+            title: "Piloto Automático Desligado",
+            description: `Meta de lucro diário de $${dailyTarget.toFixed(2)} atingida!`,
+            variant: "default",
+            className: "bg-green-600 text-white",
             duration: 10000,
         });
         setIsAutopilotOn(false);
@@ -276,10 +294,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         setGeminiRequestCount(prev => prev + 1);
         const result = await getAutotraderStrategyAction({
             symbol: activeSymbolRef.current,
-            balance: dailyBalance - Math.abs(dailyPnL), // Pass remaining daily balance
+            balance: dailyBalance,
             currency: accountBalance.currency || 'USD',
-            stake: 10, // Default reference, will be overridden by AI
-            duration: 5, // Default reference, will be overridden by AI
+            stake: 10,
+            duration: 5,
             durationUnit: 't',
             recentTrades: operationsLog.slice(0, 5),
             historicalData: historicalData,
@@ -289,7 +307,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         if (result.success) {
             setAutopilotStrategy(result.success);
             toast({ title: "Nova Estratégia do Piloto Automático", description: result.success.justification });
-            setLastAutopilotLossSuggestion(null); // Clear last suggestion after using it
+            setLastAutopilotLossSuggestion(null);
         } else {
             throw new Error(result.error || "Ocorreu um erro desconhecido ao buscar estratégia.");
         }
@@ -297,7 +315,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
        console.error("[Autopilot] Error fetching strategy:", e.message);
        setAutopilotStrategy(null);
     }
-  }, [isAutopilotOn, lastAutopilotLossSuggestion, dailyBalance, accountBalance.currency, operationsLog, toast, setIsAutopilotOn]);
+  }, [isAutopilotOn, lastAutopilotLossSuggestion, dailyBalance, dailyTarget, accountBalance.currency, operationsLog, toast, setIsAutopilotOn]);
 
     
   const handleAutopilotCheck = useCallback(() => {
@@ -455,7 +473,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
     ws.onmessage = (event) => {
       const response = JSON.parse(event.data);
-      const reqId = response.req_id;
       const isForgetError = !!response.echo_req?.forget;
 
       if (response.error) {
@@ -471,6 +488,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
         console.error("[Deriv WS Provider] Error received:", response.error.message);
         
+        const reqId = response.req_id;
         if (reqId && promisesRef.current.has(String(reqId))) {
             promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
             promisesRef.current.delete(String(reqId));
@@ -484,6 +502,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
+      const reqId = response.req_id;
       if (reqId && promisesRef.current.has(String(reqId))) {
           promisesRef.current.get(String(reqId))?.resolve(response);
           promisesRef.current.delete(String(reqId));
@@ -774,6 +793,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     geminiRequestCount,
     dailyBalance,
     setDailyBalance,
+    dailyTarget,
+    setDailyTarget,
     setChartType,
     setTimePeriod,
     refreshBalance,
