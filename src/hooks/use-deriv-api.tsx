@@ -1144,13 +1144,15 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
     const volatility = calculateVolatility(priceDataSource, 20);
     const price = priceDataSource[priceDataSource.length - 1].price;
+    if (price === 0) return;
+
     const normalizedVolatility = (volatility / price) * 100; // Volatility as a percentage of price
     
-    let newThreshold = 8;
+    let newThreshold = 8; // Default
     if (normalizedVolatility > 0.05) { // High volatility
-      newThreshold = 7;
-    } else if (normalizedVolatility < 0.01) { // Low volatility
       newThreshold = 9;
+    } else if (normalizedVolatility < 0.01) { // Low volatility / strong trend
+      newThreshold = 7;
     }
     
     if (newThreshold !== consensusThreshold) {

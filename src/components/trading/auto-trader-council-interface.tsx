@@ -102,7 +102,8 @@ export function AutoTraderCouncilInterface() {
         case 'MACD_CROSS':
             return `Parâmetros: ${robot.fastPeriod}/${robot.slowPeriod}/${robot.signalPeriod}`;
         case 'PRICE_ACTION_PATTERN':
-            return `Padrão: ${robot.pattern === 'hammer' ? 'Martelo' : 'Estrela Cadente'}`;
+            const pattern = robot.pattern === 'hammer' ? 'Martelo' : 'Estrela Cadente';
+            return `Padrão: ${pattern}`;
         case 'ADX_TREND':
             return `Limiar de Tendência > ${robot.trendStrengthThreshold}`;
         case 'ICHIMOKU_CLOUD':
@@ -197,7 +198,7 @@ export function AutoTraderCouncilInterface() {
         <Separator />
 
         <div className="flex items-center justify-between">
-            <Label htmlFor="dynamic-consensus-switch">Consenso Dinâmico</Label>
+            <Label htmlFor="dynamic-consensus-switch" className="flex-1">Consenso Dinâmico</Label>
             <Switch id="dynamic-consensus-switch" checked={isDynamicConsensusOn} onCheckedChange={setIsDynamicConsensusOn} disabled={isCouncilAutopilotOn} />
         </div>
 
