@@ -34,7 +34,9 @@ Para cada robô, você deve:
     - Para PRICE_ACTION_PATTERN: defina o padrão a ser observado ('pattern').
     - Para ADX_TREND: defina o limiar de força da tendência ('trendStrengthThreshold').
 3.  **Justificar a Escolha**: Forneça uma justificativa muito breve (1 frase) para a escolha da estratégia e dos parâmetros, com base nos dados históricos.
-4.  **Gestão de Risco**: Defina 'suggestedStake' como 1% da banca do dia ('balance') e 'suggestedDuration' como 5 ticks para todos os robôs.
+4.  **Gestão de Risco**:
+    - Defina 'suggestedStake' como 1% da banca do dia ('balance').
+    - Defina 'suggestedDuration' (em ticks) com base na volatilidade do mercado: para mercados voláteis ou laterais, use uma duração mais curta (5 ticks); para mercados com tendência clara, use uma duração mais longa (7-10 ticks).
 
 A saída deve ser um array chamado 'council' contendo exatamente 7 objetos, um para cada robô, cobrindo todas as 7 estratégias.`,
   prompt: `
