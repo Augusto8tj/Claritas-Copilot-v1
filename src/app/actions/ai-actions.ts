@@ -7,6 +7,8 @@ import { getAutotraderStrategy } from '@/ai/flows/auto-trader-strategy-flow';
 import { AutoTraderStrategyInputSchema, type AutoTraderStrategyInput, type AutoTraderStrategyOutput } from '@/ai/flows/auto-trader-strategy-flow.types';
 import { analyzeTradeLoss } from '@/ai/flows/trade-loss-analyzer-flow';
 import { TradeLossAnalyzerInputSchema, type TradeLossAnalyzerInput, type TradeLossAnalyzerOutput } from '@/ai/flows/trade-loss-analyzer-flow.types';
+import { getStrategyCouncil, type StrategyCouncilOutput } from '@/ai/flows/strategy-council-flow';
+import { StrategyCouncilInputSchema, type StrategyCouncilInput } from '@/ai/flows/strategy-council-flow.types';
 
 
 export async function getAssetAnalysisAction(input: AssetAnalysisInput): Promise<{ success?: AssetAnalysisOutput; error?: string }> {
@@ -53,5 +55,21 @@ export async function analyzeTradeLossAction(input: TradeLossAnalyzerInput): Pro
     } catch (e: any) {
         console.error("[Action] Erro ao analisar a operação com perda:", e);
         return { error: e.message || "Ocorreu um erro inesperado durante a análise da perda." };
+    }
+}
+
+
+export async function getStrategyCouncilAction(input: StrategyCouncilInput): Promise<{ success?: StrategyCouncilOutput; error?: string }> {
+    const validatedInput = StrategyCouncilInputSchema.safeParse(input);
+    if (!validatedInput.success) {
+        return { error: `Dados de entrada inválidos para o conselho: ${validatedInput.error.message}` };
+    }
+
+    try {
+        const result = await getStrategyCouncil(validatedInput.data);
+        return { success: result };
+    } catch (e: any) {
+        console.error("[Action] Erro ao gerar o conselho de robôs:", e);
+        return { error: e.message || "Ocorreu um erro inesperado ao gerar o conselho." };
     }
 }

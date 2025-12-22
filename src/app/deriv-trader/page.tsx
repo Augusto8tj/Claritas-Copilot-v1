@@ -21,6 +21,7 @@ import { OperationsLog } from "@/components/trading/operations-log";
 import { AIAnalysisInterface } from "@/components/trading/ai-analysis-interface";
 import { riseFallSchema, type RiseFallFormValues } from "@/components/trading/deriv-trader-interface.types";
 import { AutoTraderInterface } from "@/components/trading/auto-trader-interface";
+import { AutoTraderCouncilInterface } from "@/components/trading/auto-trader-council-interface";
 
 export type TimePeriod = '1m' | '15m' | '30m' | '1h' | '8h' | '1d';
 export type ChartType = 'Area' | 'Candle';
@@ -87,6 +88,7 @@ export default function DerivTraderPage() {
               contractId: tradeResult.contractId,
               entryTick: tradeResult.entryTick,
               entryTime: tradeResult.entryTime,
+              isAutopilot: false, // Defaulting manual trades
           });
       }
   }
@@ -226,6 +228,7 @@ export default function DerivTraderPage() {
                   onTradeSuccess={handleTradeSuccess}
                   isConnected={isConnected && !!activeToken}
               />
+              <AutoTraderCouncilInterface />
               <AutoTraderInterface 
                 symbol={selectedAsset} 
                 onExecuteTrade={executeTrade} 

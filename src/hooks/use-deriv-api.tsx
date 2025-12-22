@@ -7,9 +7,10 @@ import type { TradeResult } from '@/services/deriv-api-service';
 import { useToast } from './use-toast';
 import type { Operation } from '@/components/trading/operations-log.types';
 import { analyzeOperationsAction } from '@/app/actions/trading-actions';
-import { analyzeTradeLossAction } from '@/app/actions/ai-actions';
+import { analyzeTradeLossAction, getStrategyCouncilAction } from '@/app/actions/ai-actions';
 import { getAutotraderStrategyAction } from "@/app/actions/ai-actions";
 import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
+import type { RobotStrategy, StrategyCouncilOutput } from '@/ai/flows/strategy-council-flow.types';
 import type { TimePeriod, ChartType } from '@/app/deriv-trader/page';
 import type { DurationUnit } from '@/components/trading/deriv-trader-interface.types';
 
@@ -74,8 +75,15 @@ interface DerivApiContextType {
   setIsAutopilotOn: (isOn: boolean) => void;
   autopilotStrategy: AutoTraderStrategyOutput | null;
   fetchAutopilotStrategy: () => Promise<void>;
+  isCouncilAutopilotOn: boolean;
+  setIsCouncilAutopilotOn: (isOn: boolean) => void;
+  strategyCouncil: RobotStrategy[];
+  isFetchingCouncil: boolean;
+  fetchStrategyCouncil: () => Promise<void>;
+  councilVotes: { [key: string]: 'RISE' | 'FALL' | 'HOLD' };
   currentRSI: number | null;
   currentStoch: number | null;
+  currentMA: { short: number | null, long: number | null };
   geminiRequestCount: number;
   dailyBalance: number;
   setDailyBalance: (balance: number) => void;
@@ -117,6 +125,13 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     }
 }
 
+const calculateMA = (ticks: { price: number }[], period: number) => {
+    if (ticks.length < period) return null;
+    const relevantTicks = ticks.slice(-period);
+    const sum = relevantTicks.reduce((acc, tick) => acc + tick.price, 0);
+    return sum / period;
+};
+
 const calculateRSI = (ticks: { price: number }[], period = 14) => {
     if (ticks.length < period + 1) return null;
 
@@ -153,7 +168,7 @@ const calculateStochastic = (ticks: { price: number }[], period = 14) => {
 };
 
 
-export function DerivApiProvider({ children }: { children: ReactNode }) {
+export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [demoToken, setDemoToken] = useState<string | null>(null);
   const [realToken, setRealToken] = useState<string | null>(null);
   const [accountType, setAccountTypeState] = useState<AccountType>('demo');
@@ -175,6 +190,12 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   const [geminiRequestCount, setGeminiRequestCount] = useState(0);
   const [dailyBalance, setDailyBalance] = useState(100);
   const [dailyTarget, setDailyTarget] = useState(50);
+  
+  const [isCouncilAutopilotOn, setIsCouncilAutopilotOn] = useState(false);
+  const [strategyCouncil, setStrategyCouncil] = useState<RobotStrategy[]>([]);
+  const [isFetchingCouncil, setIsFetchingCouncil] = useState(false);
+  const [councilVotes, setCouncilVotes] = useState<{ [key: string]: 'RISE' | 'FALL' | 'HOLD' }>({});
+  const [currentMA, setCurrentMA] = useState<{ short: number | null, long: number | null }>({ short: null, long: null });
 
   const { toast } = useToast();
 
@@ -189,6 +210,8 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   
   const strategyIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const STRATEGY_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutos
+
+  const councilExecutionRef = useRef({ isExecuting: false });
 
 
   useEffect(() => {
@@ -247,6 +270,72 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       console.error("[Loss Analyzer] Error analyzing trade:", e);
     }
   }, [operationsLog, toast, autopilotStrategy]);
+
+  const executeTrade = useCallback(async (
+    contractType: string,
+    stake: number,
+    symbol: string,
+    tradeDirection: 'rise' | 'fall',
+    duration: number,
+    durationUnit: DurationUnit,
+    isAutopilot: boolean = false
+): Promise<TradeResult> => {
+      if (!wsRef.current || !isConnected) {
+        throw new Error("A conexão com a Deriv API não está ativa.");
+      }
+
+      try {
+        const proposalResponse = await requestProposal(wsRef.current, { 
+            contractType, 
+            quantity: stake, 
+            symbol,
+            duration: duration,
+            duration_unit: durationUnit,
+        }, promisesRef);
+
+        const proposal = proposalResponse.proposal;
+        if (!proposal || !proposal.id) {
+          throw new Error("Falha ao obter uma proposta de negociação da API.");
+        }
+        
+        const buyResponse = await buyContract(wsRef.current, proposal.id, proposal.ask_price, promisesRef);
+        const buyResult = buyResponse.buy;
+        
+        const newOperation: Operation = {
+            id: buyResult.contract_id,
+            asset: symbol,
+            direction: tradeDirection,
+            stake: stake,
+            status: 'pending',
+            timestamp: new Date().toISOString(),
+            duration: duration,
+            durationUnit: durationUnit,
+            isAutopilot,
+        };
+        setOperationsLog(prevLog => [newOperation, ...prevLog]);
+
+        const newActiveContract: ActiveContract = {
+            contractId: buyResult.contract_id,
+            entryTick: buyResult.entry_tick,
+            entryTime: buyResult.entry_tick_time,
+            isAutopilot: isAutopilot
+        };
+        setActiveContracts(prev => [...prev, newActiveContract]);
+
+
+        return {
+          success: true,
+          message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${stake} USD executada com sucesso.`,
+          contractId: buyResult.contract_id,
+          entryTick: buyResult.entry_tick,
+          entryTime: buyResult.entry_tick_time,
+        };
+      } catch (error) {
+         console.error("[Deriv Hook] Erro durante a negociação:", error);
+         const message = error instanceof Error ? error.message : "Um erro desconhecido ocorreu.";
+         return { success: false, message };
+      }
+  }, [isConnected]);
 
  const fetchAutopilotStrategy = useCallback(async () => {
     if (!isAutopilotOn || !activeSymbolRef.current) return;
@@ -358,73 +447,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   }, [isAutopilotOn, fetchAutopilotStrategy, handleAutopilotCheck]);
 
 
-  const executeTrade = useCallback(async (
-    contractType: string,
-    stake: number,
-    symbol: string,
-    tradeDirection: 'rise' | 'fall',
-    duration: number,
-    durationUnit: DurationUnit,
-    isAutopilot: boolean = false
-): Promise<TradeResult> => {
-      if (!wsRef.current || !isConnected) {
-        throw new Error("A conexão com a Deriv API não está ativa.");
-      }
-
-      try {
-        const proposalResponse = await requestProposal(wsRef.current, { 
-            contractType, 
-            quantity: stake, 
-            symbol,
-            duration: duration,
-            duration_unit: durationUnit,
-        }, promisesRef);
-
-        const proposal = proposalResponse.proposal;
-        if (!proposal || !proposal.id) {
-          throw new Error("Falha ao obter uma proposta de negociação da API.");
-        }
-        
-        const buyResponse = await buyContract(wsRef.current, proposal.id, proposal.ask_price, promisesRef);
-        const buyResult = buyResponse.buy;
-        
-        const newOperation: Operation = {
-            id: buyResult.contract_id,
-            asset: symbol,
-            direction: tradeDirection,
-            stake: stake,
-            status: 'pending',
-            timestamp: new Date().toISOString(),
-            duration: duration,
-            durationUnit: durationUnit,
-            isAutopilot,
-        };
-        setOperationsLog(prevLog => [newOperation, ...prevLog]);
-
-        const newActiveContract: ActiveContract = {
-            contractId: buyResult.contract_id,
-            entryTick: buyResult.entry_tick,
-            entryTime: buyResult.entry_tick_time,
-            isAutopilot: isAutopilot
-        };
-        setActiveContracts(prev => [...prev, newActiveContract]);
-
-
-        return {
-          success: true,
-          message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${stake} USD executada com sucesso.`,
-          contractId: buyResult.contract_id,
-          entryTick: buyResult.entry_tick,
-          entryTime: buyResult.entry_tick_time,
-        };
-      } catch (error) {
-         console.error("[Deriv Hook] Erro durante a negociação:", error);
-         const message = error instanceof Error ? error.message : "Um erro desconhecido ocorreu.";
-         return { success: false, message };
-      }
-  }, [isConnected]);
-
-
   useEffect(() => {
     if (!activeToken || isLoading) {
       if (wsRef.current) {
@@ -478,12 +500,12 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
       if (response.error) {
         if (isForgetError) {
           // This is an expected error when a subscription we are trying to forget doesn't exist anymore.
-          // We can resolve the promise and ignore the error message.
+          const reqId = response.req_id;
           if (reqId && promisesRef.current.has(String(reqId))) {
             promisesRef.current.get(String(reqId))?.resolve(response);
             promisesRef.current.delete(String(reqId));
           }
-          return; // Stop processing this error message
+          return;
         }
 
         console.error("[Deriv WS Provider] Error received:", response.error.message);
@@ -496,8 +518,14 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
             setConnectionError(response.error.message);
             setIsConnected(false);
         } else if (response.msg_type === 'ticks_history' || response.msg_type === 'candles') {
-             setChartError(response.error.message);
-             setIsChartLoading(false);
+             if (response.error.code === 'AlreadySubscribed') {
+                console.warn(`[Deriv WS Provider] Already subscribed to ${response.echo_req?.ticks_history || 'unknown'}. Ignoring error.`);
+                activeSubscriptionId.current = response.subscription.id;
+             } else {
+                console.error(`[Deriv WS Provider] Chart Data Error for ${response.echo_req?.ticks_history}:`, response.error.message);
+                setChartError(response.error.message);
+                setIsChartLoading(false);
+             }
         }
         return;
       }
@@ -640,11 +668,109 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
  }, []);
 
  useEffect(() => {
-    if(priceTicks.length > 15) {
-        setCurrentRSI(calculateRSI(priceTicks));
-        setCurrentStoch(calculateStochastic(priceTicks));
+    if(priceTicks.length < 1) return;
+
+    setCurrentRSI(calculateRSI(priceTicks));
+    setCurrentStoch(calculateStochastic(priceTicks));
+    
+    if (isCouncilAutopilotOn && strategyCouncil.length > 0) {
+        const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
+        if (maRobot && maRobot.strategyType === 'MOVING_AVERAGE_CROSS') {
+            setCurrentMA({
+                short: calculateMA(priceTicks, maRobot.shortPeriod),
+                long: calculateMA(priceTicks, maRobot.longPeriod)
+            });
+        }
     }
- }, [priceTicks]);
+
+ }, [priceTicks, isCouncilAutopilotOn, strategyCouncil]);
+
+  const fetchStrategyCouncil = useCallback(async () => {
+    if (!activeSymbolRef.current) return;
+    setIsFetchingCouncil(true);
+    try {
+      const historicalData = await getHistoricalDataFromApi(activeSymbolRef.current, undefined, 200);
+       if(!historicalData || historicalData.length < 50) {
+            throw new Error("Dados históricos insuficientes para formar o conselho.");
+        }
+      setGeminiRequestCount(prev => prev + 1);
+      const result = await getStrategyCouncilAction({
+        symbol: activeSymbolRef.current,
+        balance: dailyBalance,
+        currency: accountBalance.currency || 'USD',
+        historicalDataJson: JSON.stringify(historicalData),
+      });
+      if (result.success) {
+        setStrategyCouncil(result.success.council);
+        toast({ title: "Conselho de Robôs Formado!", description: "As estratégias dos analistas foram definidas." });
+      } else {
+        throw new Error(result.error || "Erro desconhecido ao formar o conselho.");
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao Formar Conselho", description: e.message });
+      setStrategyCouncil([]);
+    }
+    setIsFetchingCouncil(false);
+  }, [dailyBalance, accountBalance.currency, toast]);
+
+  // Council voting and execution logic
+  useEffect(() => {
+    if (!isCouncilAutopilotOn || strategyCouncil.length === 0 || councilExecutionRef.current.isExecuting) return;
+
+    const newVotes: { [key: string]: 'RISE' | 'FALL' | 'HOLD' } = {};
+    let riseVotes = 0;
+    let fallVotes = 0;
+
+    for (const robot of strategyCouncil) {
+      let vote: 'RISE' | 'FALL' | 'HOLD' = 'HOLD';
+      switch (robot.strategyType) {
+        case 'RSI':
+          if (currentRSI) {
+            if (currentRSI <= robot.buyThreshold) vote = 'RISE';
+            else if (currentRSI >= robot.sellThreshold) vote = 'FALL';
+          }
+          break;
+        case 'STOCHASTIC':
+          if (currentStoch) {
+            if (currentStoch <= robot.buyThreshold) vote = 'RISE';
+            else if (currentStoch >= robot.sellThreshold) vote = 'FALL';
+          }
+          break;
+        case 'MOVING_AVERAGE_CROSS':
+          if (currentMA.short && currentMA.long) {
+            if (currentMA.short > currentMA.long) vote = 'RISE';
+            else if (currentMA.short < currentMA.long) vote = 'FALL';
+          }
+          break;
+      }
+      newVotes[robot.id] = vote;
+      if (vote === 'RISE') riseVotes++;
+      if (vote === 'FALL') fallVotes++;
+    }
+    setCouncilVotes(newVotes);
+
+    const CONSENSUS_THRESHOLD = 3;
+    if (riseVotes >= CONSENSUS_THRESHOLD || fallVotes >= CONSENSUS_THRESHOLD) {
+      councilExecutionRef.current.isExecuting = true;
+      const direction = riseVotes >= CONSENSUS_THRESHOLD ? 'rise' : 'fall';
+      const stake = strategyCouncil[0].suggestedStake; // Assume stake is same for all
+      const duration = strategyCouncil[0].suggestedDuration;
+
+      toast({
+        title: "Consenso do Conselho!",
+        description: `Executando ordem de ${direction.toUpperCase()} com Aposta: $${stake.toFixed(2)} e Duração: ${duration} ticks.`
+      });
+
+      executeTrade('CALL', stake, activeSymbolRef.current!, direction, duration, 't', true)
+        .finally(() => {
+          setTimeout(() => {
+            councilExecutionRef.current.isExecuting = false;
+          }, 10000); // Cooldown period
+        });
+    }
+  }, [currentRSI, currentStoch, currentMA, strategyCouncil, isCouncilAutopilotOn, executeTrade, toast]);
+
+
 
  const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {
     const ws = wsRef.current;
@@ -788,8 +914,15 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     setIsAutopilotOn,
     autopilotStrategy,
     fetchAutopilotStrategy,
+    isCouncilAutopilotOn,
+    setIsCouncilAutopilotOn,
+    strategyCouncil,
+    isFetchingCouncil,
+    fetchStrategyCouncil,
+    councilVotes,
     currentRSI,
     currentStoch,
+    currentMA,
     geminiRequestCount,
     dailyBalance,
     setDailyBalance,
