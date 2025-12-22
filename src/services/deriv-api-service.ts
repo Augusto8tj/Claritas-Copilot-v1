@@ -125,14 +125,16 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
     const groupedAssets: { [key: string]: Asset[] } = {};
 
     for (const symbol of response.active_symbols) {
-        const market = symbol.market_display_name;
-        if (!groupedAssets[market]) {
-            groupedAssets[market] = [];
+        if (symbol.market === 'synthetic_index') { // Only include Volatility Indices
+            const market = symbol.market_display_name;
+            if (!groupedAssets[market]) {
+                groupedAssets[market] = [];
+            }
+            groupedAssets[market].push({
+                value: symbol.symbol,
+                label: symbol.display_name
+            });
         }
-        groupedAssets[market].push({
-            value: symbol.symbol,
-            label: symbol.display_name
-        });
     }
 
     const assetGroups: AssetGroup[] = Object.keys(groupedAssets).map(label => ({
@@ -149,7 +151,7 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
     return [
       {
         label: "Índices de Volatilidade",
-        options: [{ value: "1HZ100V", label: "Volatility 100 Index" }],
+        options: [{ value: "1HZ100V", label: "Volatility 100 (1s) Index" }],
       },
       {
         label: "Erro",
