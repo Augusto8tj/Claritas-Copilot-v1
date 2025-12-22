@@ -88,34 +88,27 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
   try {
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     const response: any = await new Promise((resolve, reject) => {
-        ws.onopen = () => {
-            // Use ping to ensure connection is ready
-            ws.send(JSON.stringify({ "ping": 1 }));
-        };
-        ws.onmessage = (data) => {
-            const res = JSON.parse(data.data);
-            if (res.error) {
-              reject(new Error(res.error.message || 'Unknown API error'));
-              ws.close();
-              return;
-            }
-            
-            // If we get a pong, the connection is alive, now we can request assets
-            if (res.msg_type === 'pong') {
-                 ws.send(JSON.stringify({ "active_symbols": "full", "product_type": "basic" }));
-            }
-            
-            // This is the actual response for our request
-            if (res.msg_type === 'active_symbols') {
-              resolve(res);
-              ws.close();
-            }
-        };
-        ws.onerror = (err) => {
-            // WebSocket errors don't have a specific message, so we create one.
-            reject(new Error('WebSocket connection error'));
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ active_symbols: 'full', product_type: 'basic' }));
+      };
+      ws.onmessage = (data) => {
+        const res = JSON.parse(data.data);
+        if (res.error) {
+          reject(new Error(res.error.message || 'Unknown API error while fetching assets'));
+        } else if (res.msg_type === 'active_symbols') {
+          resolve(res);
+        }
+      };
+      ws.onerror = (err) => reject(new Error('WebSocket connection error while fetching assets.'));
+      ws.onclose = () => {
+        // The promise might still be pending if the connection closes prematurely.
+        reject(new Error("Connection closed before receiving assets."));
+      };
+    }).finally(() => {
+        // Ensure the websocket is closed after the promise is settled (resolved or rejected).
+        if(ws.readyState === WebSocket.OPEN) {
             ws.close();
-        };
+        }
     });
 
     if (!response.active_symbols) {
@@ -356,3 +349,4 @@ export async function getHistoricalData(symbol: string, period?: string, count?:
     }
     return data;
 }
+
