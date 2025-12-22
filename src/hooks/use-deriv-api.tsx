@@ -132,7 +132,7 @@ const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined
 
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
-        case '1m': return 0;
+        case '1m': return 0; // Ticks
         case '2m': return 120;
         case '3m': return 180;
         case '5m': return 300;
@@ -462,8 +462,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const promisesRef = useRef<Map<string, { resolve: (value: any) => void, reject: (reason?: any) => void }>>(new Map());
   
-  const activeSubscriptionId = useRef<string | null>(null);
-  const activeSymbolRef = useRef<string | null>(null);
+  const subscriptionDetailsRef = useRef<{ id: string, symbol: string, timePeriod: TimePeriod, chartType: ChartType } | null>(null);
   
   const strategyIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const STRATEGY_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutos
@@ -471,16 +470,16 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const councilExecutionRef = useRef({ isExecuting: false });
 
   const fetchStrategyCouncil = useCallback(async (durationUnit: DurationUnit) => {
-    if (!activeSymbolRef.current) return;
+    if (!subscriptionDetailsRef.current?.symbol) return;
     setIsFetchingCouncil(true);
     try {
-      const historicalData = await getHistoricalDataFromApi(activeSymbolRef.current, undefined, 200);
+      const historicalData = await getHistoricalDataFromApi(subscriptionDetailsRef.current.symbol, undefined, 200);
        if(!historicalData || historicalData.length < 50) {
             throw new Error("Dados históricos insuficientes para formar o conselho.");
         }
       setGeminiRequestCount(prev => prev + 10); // 10 requests for the council
       const result = await getStrategyCouncilAction({
-        symbol: activeSymbolRef.current,
+        symbol: subscriptionDetailsRef.current.symbol,
         balance: dailyBalance,
         currency: accountBalance.currency || 'USD',
         historicalDataJson: JSON.stringify(historicalData),
@@ -680,21 +679,25 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         console.warn("[Deriv WS Provider] Cannot subscribe, WS not open.");
         return;
     }
-
-    if (activeSymbolRef.current === symbol && activeSubscriptionId.current) {
-        // Already subscribed to this symbol. This can happen on re-renders.
-        // We might want to check if the time period or chart type has changed, but for now, let's just avoid re-subscribing.
+    
+    // If the request is identical to the current subscription, do nothing.
+    if (
+        subscriptionDetailsRef.current &&
+        subscriptionDetailsRef.current.symbol === symbol &&
+        subscriptionDetailsRef.current.timePeriod === newTimePeriod &&
+        subscriptionDetailsRef.current.chartType === newChartType
+    ) {
+        console.log(`[Deriv WS Provider] Already subscribed to ${symbol} with the same parameters. Ignoring.`);
         return;
     }
 
     // If there's an old subscription, forget it.
-    if (activeSubscriptionId.current) {
-        console.log(`[Deriv WS Provider] Forgetting old subscription: ${activeSubscriptionId.current}`);
-        ws.send(JSON.stringify({ "forget": activeSubscriptionId.current }));
-        activeSubscriptionId.current = null;
+    if (subscriptionDetailsRef.current?.id) {
+        console.log(`[Deriv WS Provider] Forgetting old subscription: ${subscriptionDetailsRef.current.id}`);
+        ws.send(JSON.stringify({ "forget": subscriptionDetailsRef.current.id }));
+        subscriptionDetailsRef.current = null; // Clear the ref immediately
     }
     
-    activeSymbolRef.current = symbol;
     clearChartData();
     setIsChartLoading(true);
     setChartError(null);
@@ -728,12 +731,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 }, [clearChartData]);
  
  const fetchAutopilotStrategy = useCallback(async () => {
-    if (!isAutopilotOn || !activeSymbolRef.current) return;
+    if (!isAutopilotOn || !subscriptionDetailsRef.current?.symbol) return;
 
     // Risk management checks are now handled in the main useEffect
     console.log("[Autopilot] Fetching new strategy...");
     try {
-        const historicalData = await getHistoricalDataFromApi(activeSymbolRef.current, undefined, 200);
+        const historicalData = await getHistoricalDataFromApi(subscriptionDetailsRef.current.symbol, undefined, 200);
         if(!historicalData || historicalData.length < 50) {
             console.warn("[Autopilot] Not enough price data to define a strategy.");
             return;
@@ -741,7 +744,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         
         setGeminiRequestCount(prev => prev + 1);
         const result = await getAutotraderStrategyAction({
-            symbol: activeSymbolRef.current,
+            symbol: subscriptionDetailsRef.current.symbol,
             balance: dailyBalance,
             currency: accountBalance.currency || 'USD',
             stake: 10,
@@ -822,7 +825,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   
     // Avoid creating a new connection if one is already open or connecting
     if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
-      // If the token changes, we need to re-authorize on the existing connection
       console.log("[Deriv WS Provider] Authorizing with new token on existing connection.");
       wsRef.current.send(JSON.stringify({ "authorize": activeToken }));
       return;
@@ -844,7 +846,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       const response = JSON.parse(event.data);
   
       if (response.error) {
+        // Centralized error handling
         console.error("[Deriv WS Provider] Error received:", response.error.message);
+        const reqId = response.req_id;
+        
         if (response.msg_type === 'authorize') {
             setConnectionError(response.error.message);
             setIsConnected(false);
@@ -853,13 +858,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             setChartError(response.error.message);
             setIsChartLoading(false);
         }
-        // Handle promise rejections
-        const reqId = response.req_id;
+        
         if (reqId && promisesRef.current.has(String(reqId))) {
             promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
             promisesRef.current.delete(String(reqId));
         }
-        return;
+        return; // Stop processing on error
       }
   
       const reqId = response.req_id;
@@ -871,22 +875,16 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   
       switch (response.msg_type) {
         case 'authorize':
-          console.log("[Deriv WS Provider] Authorization successful.");
           setIsConnected(true);
           setIsConnecting(false);
           setConnectionError(null);
+          console.log("[Deriv WS Provider] Authorization successful. Ready for subscriptions.");
           ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
           ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 }));
   
-          if (activeSymbolRef.current) {
-            console.log(`[Deriv WS Provider] Re-subscribing to ${activeSymbolRef.current} after authorization.`);
-            subscribeToSymbol(activeSymbolRef.current, timePeriod, chartType);
-          } else {
-             const initialSymbol = '1HZ100V';
-             activeSymbolRef.current = initialSymbol;
-             console.log(`[Deriv WS Provider] Subscribing to initial symbol ${initialSymbol}.`);
-             subscribeToSymbol(initialSymbol, timePeriod, chartType);
-          }
+          // Initial subscription after successful authorization
+          const initialSymbol = subscriptionDetailsRef.current?.symbol || '1HZ100V';
+          subscribeToSymbol(initialSymbol, timePeriod, chartType);
           break;
 
         case 'balance':
@@ -938,7 +936,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             break;
 
         case 'tick':
-          if (response.subscription?.id === activeSubscriptionId.current) {
+          if (response.subscription?.id === subscriptionDetailsRef.current?.id) {
               const tick = response.tick;
               const newTick = { epoch: tick.epoch, price: tick.quote };
               setPriceTicks(prevTicks => [...prevTicks.slice(-499), newTick]);
@@ -949,7 +947,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           break;
 
         case 'ohlc':
-           if (response.subscription?.id === activeSubscriptionId.current) {
+           if (response.subscription?.id === subscriptionDetailsRef.current?.id) {
               const candle = response.ohlc;
               const newCandle: CandleData = {
                   epoch: candle.epoch,
@@ -975,8 +973,14 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         case 'history': // Initial tick data
         case 'candles': // Initial candle data
             if (response.echo_req.subscribe === 1) {
-              activeSubscriptionId.current = response.subscription.id;
-              console.log(`[Deriv WS Provider] New subscription ID set: ${activeSubscriptionId.current}`);
+              // Store details of the new successful subscription
+              subscriptionDetailsRef.current = {
+                  id: response.subscription.id,
+                  symbol: response.echo_req.ticks_history,
+                  timePeriod: timePeriod,
+                  chartType: chartType,
+              };
+              console.log(`[Deriv WS Provider] New subscription active: ${response.subscription.id}`);
             }
             const data = (response.candles || response.history.prices.map((p:number, i:number) => ({
                 epoch: response.history.times[i], 
@@ -996,6 +1000,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             break;
 
         case 'forget':
+          // We don't need to do anything special on forget confirmation
           console.log(`[Deriv WS Provider] Successfully forgot subscription.`);
           break;
       }
@@ -1006,7 +1011,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       setIsConnected(false);
       setIsConnecting(false);
       wsRef.current = null;
-      activeSubscriptionId.current = null;
+      subscriptionDetailsRef.current = null;
     };
   
     ws.onerror = (error) => {
@@ -1179,7 +1184,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         description: `Executando ordem de ${direction.toUpperCase()} com confiança total de ${Math.max(riseConfidenceSum, fallConfidenceSum).toFixed(0)}.`
       });
 
-      executeTrade(contractType, stake, activeSymbolRef.current!, direction, duration, unit, 'Conselho')
+      executeTrade(contractType, stake, subscriptionDetailsRef.current!.symbol, direction, duration, unit, 'Conselho')
         .finally(() => {
           setTimeout(() => {
             councilExecutionRef.current.isExecuting = false;
