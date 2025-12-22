@@ -1,3 +1,4 @@
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -128,8 +129,8 @@ const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
         case '1m': return 0; // Ticks
-        case '2m': return 60;
-        case '3m': return 60;
+        case '2m': return 120;
+        case '3m': return 180;
         case '5m': return 300;
         case '15m': return 900; 
         case '30m': return 1800;
@@ -315,7 +316,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [strategyCouncil, setStrategyCouncil] = useState<RobotStrategy[]>([]);
   const [isFetchingCouncil, setIsFetchingCouncil] = useState(false);
   const [councilVotes, setCouncilVotes] = useState<{ [key: string]: 'RISE' | 'FALL' | 'HOLD' }>({});
-  const [consensusThreshold, setConsensusThreshold] = useState(6);
+  const [consensusThreshold, setConsensusThreshold] = useState(8);
   const [isDynamicConsensusOn, setIsDynamicConsensusOn] = useState(false);
   const [robotPerformance, setRobotPerformance] = useState<RobotPerformance[]>([]);
   
@@ -450,7 +451,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
              if (initiator === 'Conselho') {
                 console.log("[Feedback Loop] Re-fetching council strategy due to loss.");
                 fetchStrategyCouncil(operation.durationUnit);
-            }
+             }
          }
 
       } else {
@@ -985,10 +986,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         setMACD(calculateMACD(priceDataSource));
         
         const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
-        if (maRobot && maRobot.strategyType === 'MOVING_AVERAGE_CROSS' && priceDataSource.length > maRobot.longPeriod) {
+        if (maRobot && maRobot.strategyType === 'MOVING_AVERAGE_CROSS' && priceDataSource.length > maRobot.longPeriod!) {
             setCurrentMA({
-                short: calculateMA(priceDataSource, maRobot.shortPeriod),
-                long: calculateMA(priceDataSource, maRobot.longPeriod)
+                short: calculateMA(priceDataSource, maRobot.shortPeriod!),
+                long: calculateMA(priceDataSource, maRobot.longPeriod!)
             });
         }
     }
@@ -1016,16 +1017,16 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     const price = priceDataSource[priceDataSource.length - 1].price;
     const normalizedVolatility = (volatility / price) * 100; // Volatility as a percentage of price
     
-    let newThreshold = 6;
+    let newThreshold = 8;
     if (normalizedVolatility > 0.05) { // High volatility
-      newThreshold = 5;
-    } else if (normalizedVolatility < 0.01) { // Low volatility
       newThreshold = 7;
+    } else if (normalizedVolatility < 0.01) { // Low volatility
+      newThreshold = 9;
     }
     
     if (newThreshold !== consensusThreshold) {
       setConsensusThreshold(newThreshold);
-      toast({ title: "Consenso Dinâmico", description: `Volatilidade detetada. Novo consenso: ${newThreshold} de 7.` });
+      toast({ title: "Consenso Dinâmico", description: `Volatilidade detetada. Novo consenso: ${newThreshold} de 10.` });
     }
 
   }, [priceTicks, chartData, isDynamicConsensusOn, isCouncilAutopilotOn, consensusThreshold, setConsensusThreshold, toast]);
@@ -1044,14 +1045,14 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       switch (robot.strategyType) {
         case 'RSI':
           if (currentRSI && robot.strategyType === 'RSI') {
-            if (currentRSI <= robot.buyThreshold) vote = 'RISE';
-            else if (currentRSI >= robot.sellThreshold) vote = 'FALL';
+            if (currentRSI <= robot.buyThreshold!) vote = 'RISE';
+            else if (currentRSI >= robot.sellThreshold!) vote = 'FALL';
           }
           break;
         case 'STOCHASTIC':
           if (currentStoch && robot.strategyType === 'STOCHASTIC') {
-            if (currentStoch <= robot.buyThreshold) vote = 'RISE';
-            else if (currentStoch >= robot.sellThreshold) vote = 'FALL';
+            if (currentStoch <= robot.buyThreshold!) vote = 'RISE';
+            else if (currentStoch >= robot.sellThreshold!) vote = 'FALL';
           }
           break;
         case 'MOVING_AVERAGE_CROSS':
@@ -1081,7 +1082,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             break;
         case 'ADX_TREND':
             if (currentADX && currentMA.short && currentMA.long && robot.strategyType === 'ADX_TREND') {
-                if (currentADX > robot.trendStrengthThreshold) {
+                if (currentADX > robot.trendStrengthThreshold!) {
                     if (currentMA.short > currentMA.long) vote = 'RISE';
                     else if (currentMA.short < currentMA.long) vote = 'FALL';
                 }
