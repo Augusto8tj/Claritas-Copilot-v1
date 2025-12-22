@@ -61,6 +61,20 @@ const AdxTrendRobotSchema = BaseRobotSchema.extend({
     trendStrengthThreshold: z.number().describe("The ADX value above which a trend is considered strong enough to trade."),
 });
 
+const IchimokuCloudRobotSchema = BaseRobotSchema.extend({
+  strategyType: z.literal('ICHIMOKU_CLOUD'),
+});
+
+const AwesomeOscillatorRobotSchema = BaseRobotSchema.extend({
+  strategyType: z.literal('AWESOME_OSCILLATOR'),
+});
+
+const VolumeProfileRobotSchema = BaseRobotSchema.extend({
+  strategyType: z.literal('VOLUME_PROFILE'),
+  profileBars: z.number().describe("Number of recent bars to use for calculating the volume profile Point of Control (POC).")
+});
+
+
 export const RobotStrategySchema = z.union([
     RsiRobotSchema, 
     StochRobotSchema, 
@@ -68,12 +82,15 @@ export const RobotStrategySchema = z.union([
     BollingerBandsRobotSchema,
     MacdCrossRobotSchema,
     PriceActionRobotSchema,
-    AdxTrendRobotSchema
+    AdxTrendRobotSchema,
+    IchimokuCloudRobotSchema,
+    AwesomeOscillatorRobotSchema,
+    VolumeProfileRobotSchema
 ]);
 export type RobotStrategy = z.infer<typeof RobotStrategySchema>;
 
 
 export const StrategyCouncilOutputSchema = z.object({
-  council: z.array(RobotStrategySchema).min(7).max(7).describe("An array of 7 distinct robot analyst strategies."),
+  council: z.array(RobotStrategySchema).min(10).max(10).describe("An array of 10 distinct robot analyst strategies."),
 });
 export type StrategyCouncilOutput = z.infer<typeof StrategyCouncilOutputSchema>;

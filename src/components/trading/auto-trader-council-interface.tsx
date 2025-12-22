@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
-import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves } from "lucide-react";
+import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { useDerivApi } from "@/hooks/use-deriv-api";
 import { useToast } from "@/hooks/use-toast";
@@ -30,7 +30,10 @@ const indicatorIcons: { [key: string]: React.ReactNode } = {
     BOLLINGER_BANDS: <Waves className="h-4 w-4" />,
     MACD_CROSS: <Activity className="h-4 w-4" />,
     PRICE_ACTION_PATTERN: <CandlestickChart className="h-4 w-4" />,
-    ADX_TREND: <BrainCircuit className="h-4 w-4" />,
+    ADX_TREND: <TrendingUp className="h-4 w-4" />,
+    ICHIMOKU_CLOUD: <Cloud className="h-4 w-4" />,
+    AWESOME_OSCILLATOR: <BarChart className="h-4 w-4" />,
+    VOLUME_PROFILE: <Activity className="h-4 w-4" />,
 };
 
 const voteIcons: { [key: string]: React.ReactNode } = {
@@ -67,6 +70,9 @@ export function AutoTraderCouncilInterface() {
     currentMACD,
     currentPriceAction,
     currentADX,
+    currentIchimoku,
+    currentAwesomeOscillator,
+    currentVolumePoc,
   } = useDerivApi();
   
   const handleToggleAutopilot = (isOn: boolean) => {
@@ -99,6 +105,12 @@ export function AutoTraderCouncilInterface() {
             return `Padrão: ${robot.pattern === 'hammer' ? 'Martelo' : 'Estrela Cadente'}`;
         case 'ADX_TREND':
             return `Limiar de Tendência > ${robot.trendStrengthThreshold}`;
+        case 'ICHIMOKU_CLOUD':
+            return "Análise da Nuvem";
+        case 'AWESOME_OSCILLATOR':
+            return "Cruzamento de Zero";
+        case 'VOLUME_PROFILE':
+            return `POC de ${robot.profileBars} barras`;
         default:
             return "Parâmetros desconhecidos";
     }
@@ -126,6 +138,12 @@ export function AutoTraderCouncilInterface() {
              return <p>Último Padrão: <strong>{currentPriceAction || "Nenhum"}</strong></p>;
         case 'ADX_TREND':
             return <p>Força da Tendência (ADX): <strong>{currentADX?.toFixed(2) ?? "..."}</strong></p>;
+        case 'ICHIMOKU_CLOUD':
+            return <p>Ichimoku: <strong>{currentIchimoku ? (currentIchimoku.inCloud ? 'Na Nuvem' : currentIchimoku.trend) : '...'}</strong></p>;
+        case 'AWESOME_OSCILLATOR':
+            return <p>AO: <strong>{currentAwesomeOscillator?.toFixed(4) ?? '...'}</strong></p>;
+        case 'VOLUME_PROFILE':
+            return <p>POC: <strong>{currentVolumePoc?.toFixed(4) ?? '...'}</strong></p>;
         default:
             return null;
     }
@@ -185,20 +203,20 @@ export function AutoTraderCouncilInterface() {
 
          <div className="space-y-2">
             <Label htmlFor="council-consensus">
-                Consenso Mínimo (1-7)
+                Consenso Mínimo (1-10)
                 {isDynamicConsensusOn && <span className="text-muted-foreground text-xs"> (Automático)</span>}
             </Label>
             <Input 
                 id="council-consensus"
                 type="number"
                 min={1}
-                max={7}
+                max={10}
                 value={consensusThreshold}
                 onChange={(e) => {
-                    const val = Math.max(1, Math.min(7, Number(e.target.value)));
+                    const val = Math.max(1, Math.min(10, Number(e.target.value)));
                     setConsensusThreshold(val);
                 }}
-                placeholder="Ex: 6"
+                placeholder="Ex: 8"
                 disabled={isCouncilAutopilotOn || isDynamicConsensusOn}
             />
             <p className="text-xs text-muted-foreground">Nº de robôs que devem concordar para executar uma ordem.</p>

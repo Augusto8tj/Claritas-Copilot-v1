@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useEffect, useState } from "react";
@@ -22,11 +20,12 @@ import { AIAnalysisInterface } from "@/components/trading/ai-analysis-interface"
 import { riseFallSchema, type RiseFallFormValues } from "@/components/trading/deriv-trader-interface.types";
 import { AutoTraderInterface } from "@/components/trading/auto-trader-interface";
 import { AutoTraderCouncilInterface } from "@/components/trading/auto-trader-council-interface";
+import type { OperationInitiator } from "@/components/trading/operations-log.types";
 
-export type TimePeriod = '1m' | '15m' | '30m' | '1h' | '8h' | '1d';
+export type TimePeriod = '1m' | '2m' | '3m' | '5m' | '15m' | '30m' | '1h' | '8h' | '1d';
 export type ChartType = 'Area' | 'Candle';
 
-const timePeriods: TimePeriod[] = ['1m', '15m', '30m', '1h', '8h', '1d'];
+const timePeriods: TimePeriod[] = ['1m', '2m', '3m', '5m', '15m', '30m', '1h', '8h', '1d'];
 
 export default function DerivTraderPage() {
   const [selectedAsset, setSelectedAsset] = useState("1HZ100V");
@@ -82,13 +81,13 @@ export default function DerivTraderPage() {
     { label: 'Candle', icon: <CandlestickChart className="w-8 h-8 mx-auto" />, disabled: timePeriod === '1m' },
   ];
   
-  const handleTradeSuccess = (tradeResult: TradeResult) => {
+  const handleTradeSuccess = (tradeResult: TradeResult, initiator: OperationInitiator) => {
       if (tradeResult.success && tradeResult.contractId && tradeResult.entryTick && tradeResult.entryTime) {
           addActiveContract({
               contractId: tradeResult.contractId,
               entryTick: tradeResult.entryTick,
               entryTime: tradeResult.entryTime,
-              isAutopilot: false, // Defaulting manual trades
+              initiator: initiator,
           });
       }
   }
@@ -225,7 +224,7 @@ export default function DerivTraderPage() {
           <div className="lg:col-span-4 space-y-6">
               <DerivTraderInterface 
                   symbol={selectedAsset}
-                  onTradeSuccess={handleTradeSuccess}
+                  onTradeSuccess={(result) => handleTradeSuccess(result, 'Manual')}
                   isConnected={isConnected && !!activeToken}
               />
               <AutoTraderCouncilInterface />

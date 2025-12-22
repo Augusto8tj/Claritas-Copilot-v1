@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -95,6 +93,9 @@ interface DerivApiContextType {
   currentMACD: { macd: number, signal: number } | null;
   currentPriceAction: string | null;
   currentADX: number | null;
+  currentIchimoku: { inCloud: boolean, trend: 'bullish' | 'bearish' | 'neutral' } | null;
+  currentAwesomeOscillator: number | null;
+  currentVolumePoc: number | null;
   geminiRequestCount: number;
   dailyBalance: number;
   setDailyBalance: (balance: number) => void;
@@ -116,7 +117,7 @@ interface DerivApiContextType {
   clearActiveContracts: () => void;
   addActiveContract: (contract: ActiveContract) => void;
   getAnalysis: (symbol: string) => Promise<string>;
-  subscribeToSymbol: (symbol: string, timePeriod: TimePeriod, chartType: ChartType) => void;
+  subscribeToSymbol: (symbol: string, timePeriod: TimePeriod, chartType: ChartType) => Promise<void>;
   setChartType: (type: ChartType) => void;
   setTimePeriod: (period: TimePeriod) => void;
   clearChartData: () => void;
@@ -127,11 +128,14 @@ const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
         case '1m': return 0; // Ticks
-        case '15m': return 60; 
-        case '30m': return 120;
-        case '1h': return 300;
-        case '8h': return 1800;
-        case '1d': return 3600;
+        case '2m': return 60;
+        case '3m': return 60;
+        case '5m': return 300;
+        case '15m': return 900; 
+        case '30m': return 1800;
+        case '1h': return 3600;
+        case '8h': return 28800;
+        case '1d': return 86400;
         default: return 0;
     }
 }
@@ -299,7 +303,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [isChartLoading, setIsChartLoading] = useState(true);
   const [chartError, setChartError] = useState<string | null>(null);
   const [chartType, setChartType] = useState<ChartType>('Area');
-  const [timePeriod, setTimePeriod] = useState<TimePeriod>('1m');
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('3m');
   const [lastAutopilotLossSuggestion, setLastAutopilotLossSuggestion] = useState<string | null>(null);
   const [isAutopilotOn, setIsAutopilotOn] = useState(false);
   const [autopilotStrategy, setAutopilotStrategy] = useState<AutoTraderStrategyOutput | null>(null);
@@ -323,6 +327,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [currentMACD, setMACD] = useState<{ macd: number, signal: number } | null>(null);
   const [currentPriceAction, setPriceAction] = useState<string | null>(null);
   const [currentADX, setADX] = useState<number | null>(null);
+  const [currentIchimoku, setCurrentIchimoku] = useState<{ inCloud: boolean, trend: 'bullish' | 'bearish' | 'neutral' } | null>(null);
+  const [currentAwesomeOscillator, setAwesomeOscillator] = useState<number | null>(null);
+  const [currentVolumePoc, setVolumePoc] = useState<number | null>(null);
 
 
   const { toast } = useToast();
@@ -952,7 +959,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           setPriceTicks(historyData);
           setIsChartLoading(false);
       } else if (response.msg_type === 'forget') {
-        console.log(`[Deriv WS Provider] Successfully forgot subscription ID.`);
+        const reqId = response.req_id;
+        if (reqId && promisesRef.current.has(String(reqId))) {
+            promisesRef.current.get(String(reqId))?.resolve(response);
+            promisesRef.current.delete(String(reqId));
+        }
+        console.log(`[Deriv WS Provider] Successfully forgot subscription.`);
       }
     };
 
@@ -1088,7 +1100,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       const firstRobot = strategyCouncil[0];
       const stake = firstRobot.suggestedStake;
       const duration = firstRobot.suggestedDuration;
-      const unit = (firstRobot as any).durationUnit || 't';
+      const unit = firstRobot.suggestedDurationUnit;
 
       toast({
         title: "Consenso do Conselho!",
@@ -1282,6 +1294,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     currentMACD,
     currentPriceAction,
     currentADX,
+    currentIchimoku,
+    currentAwesomeOscillator,
+    currentVolumePoc,
     geminiRequestCount,
     dailyBalance,
     setDailyBalance,
