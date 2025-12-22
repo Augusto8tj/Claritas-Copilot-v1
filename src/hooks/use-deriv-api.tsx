@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -784,33 +785,40 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
  useEffect(() => {
     if (chartData.length < 1) return;
 
-    // A unified data source for all indicators.
-    const priceDataSource = (timePeriod === '1m' ? priceTicks : (chartData as CandleData[]).map(c => ({ price: c.close }))) as { price: number }[];
-    const candleDataSource = chartData.filter(d => 'open' in d) as CandleData[];
+    // Use tick data if available and granular enough, otherwise use candle close prices.
+    const priceDataSource: { price: number }[] = (timePeriod === '1m' && priceTicks.length > 0)
+        ? priceTicks
+        : (chartData as CandleData[]).map(c => ({ price: c.close }));
 
-    if(priceDataSource.length > 1) {
+    // Candle data is required for Price Action and ADX.
+    // It's derived from chartData, so it's only available for time periods > 1m.
+    const candleDataSource: CandleData[] = chartData.filter(d => 'open' in d) as CandleData[];
+
+    // Calculate indicators that can use price data
+    if (priceDataSource.length > 1) {
         setCurrentRSI(calculateRSI(priceDataSource));
         setCurrentStoch(calculateStochastic(priceDataSource));
         setBollingerBands(calculateBollingerBands(priceDataSource));
         setMACD(calculateMACD(priceDataSource));
     }
-    
+
+    // Calculate indicators that require candle data
     if (candleDataSource.length > 1) {
         setPriceAction(detectPriceActionPattern(candleDataSource));
         setADX(calculateADX(candleDataSource));
     }
 
+    // Calculate MAs for the council
     if (isCouncilAutopilotOn && strategyCouncil.length > 0) {
         const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
-        if (maRobot && maRobot.strategyType === 'MOVING_AVERAGE_CROSS') {
+        if (maRobot && maRobot.strategyType === 'MOVING_AVERAGE_CROSS' && priceDataSource.length > maRobot.longPeriod) {
             setCurrentMA({
                 short: calculateMA(priceDataSource, maRobot.shortPeriod),
                 long: calculateMA(priceDataSource, maRobot.longPeriod)
             });
         }
     }
-
- }, [chartData, priceTicks, timePeriod, isCouncilAutopilotOn, strategyCouncil]);
+}, [chartData, priceTicks, timePeriod, isCouncilAutopilotOn, strategyCouncil]);
 
   const fetchStrategyCouncil = useCallback(async () => {
     if (!activeSymbolRef.current) return;
