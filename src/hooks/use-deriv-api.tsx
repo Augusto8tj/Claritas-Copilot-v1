@@ -823,13 +823,17 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
   
-    // Avoid creating a new connection if one is already open or connecting
-    if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
-      console.log("[Deriv WS Provider] Authorizing with new token on existing connection.");
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      console.log("[Deriv WS Provider] Authorizing with new token on existing open connection.");
       wsRef.current.send(JSON.stringify({ "authorize": activeToken }));
       return;
     }
-  
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.CONNECTING) {
+        console.log("[Deriv WS Provider] Connection is already in progress. Waiting.");
+        return;
+    }
+
     console.log("[Deriv WS Provider] Creating new WebSocket connection.");
     setIsConnecting(true);
     setConnectionError(null);
@@ -881,10 +885,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           console.log("[Deriv WS Provider] Authorization successful. Ready for subscriptions.");
           ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
           ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 }));
-  
-          // Initial subscription after successful authorization
-          const initialSymbol = subscriptionDetailsRef.current?.symbol || '1HZ100V';
-          subscribeToSymbol(initialSymbol, timePeriod, chartType);
           break;
 
         case 'balance':
@@ -1027,7 +1027,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         wsRef.current.close();
       }
     };
-  }, [activeToken, isLoading, subscribeToSymbol, timePeriod, chartType, accountType, toast, handleLosingTrade, operationsLog, activeContracts, updateRobotPerformance]);
+  }, [activeToken, isLoading, timePeriod, chartType, accountType, toast, handleLosingTrade, operationsLog, activeContracts, updateRobotPerformance]);
 
 
  useEffect(() => {
