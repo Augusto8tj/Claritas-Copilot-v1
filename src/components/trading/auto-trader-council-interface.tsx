@@ -20,6 +20,8 @@ import { Badge } from "../ui/badge";
 import type { RobotStrategy } from "@/ai/flows/strategy-council-flow.types";
 import { cn } from "@/lib/utils";
 import { Input } from "../ui/input";
+import { useFormContext } from "react-hook-form";
+import type { RiseFallFormValues } from "./deriv-trader-interface.types";
 
 const indicatorIcons: { [key: string]: React.ReactNode } = {
     RSI: <BrainCircuit className="h-4 w-4" />,
@@ -40,6 +42,7 @@ const voteIcons: { [key: string]: React.ReactNode } = {
 
 export function AutoTraderCouncilInterface() {
   const { toast } = useToast();
+  const form = useFormContext<RiseFallFormValues>();
   const { 
     isConnected, 
     isCouncilAutopilotOn,
@@ -73,7 +76,8 @@ export function AutoTraderCouncilInterface() {
             return;
         }
         setIsCouncilAutopilotOn(true);
-        fetchStrategyCouncil();
+        const { duration_unit } = form.getValues();
+        fetchStrategyCouncil(duration_unit);
     } else {
         setIsCouncilAutopilotOn(false);
     }

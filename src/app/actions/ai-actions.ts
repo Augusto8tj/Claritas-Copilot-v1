@@ -62,6 +62,8 @@ export async function analyzeTradeLossAction(input: TradeLossAnalyzerInput): Pro
 export async function getStrategyCouncilAction(input: StrategyCouncilInput): Promise<{ success?: StrategyCouncilOutput; error?: string }> {
     const validatedInput = StrategyCouncilInputSchema.safeParse(input);
     if (!validatedInput.success) {
+        // Log the detailed validation error for debugging
+        console.error("[Action Validation Error] Invalid input for getStrategyCouncilAction:", validatedInput.error.format());
         return { error: `Dados de entrada inválidos para o conselho: ${validatedInput.error.message}` };
     }
 

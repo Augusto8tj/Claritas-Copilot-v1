@@ -5,6 +5,7 @@ export const StrategyCouncilInputSchema = z.object({
   balance: z.number().describe("The user's designated trading balance for the day for risk management."),
   currency: z.string().describe("The currency of the account balance."),
   historicalDataJson: z.string().describe("A JSON string of recent historical price data for market analysis."),
+  durationUnit: z.string().describe("The unit for the trade duration (e.g., 't' for ticks, 's' for seconds, 'm' for minutes). The council's strategy should be optimized for this time horizon."),
 });
 export type StrategyCouncilInput = z.infer<typeof StrategyCouncilInputSchema>;
 
@@ -14,7 +15,7 @@ const BaseRobotSchema = z.object({
   strategyType: z.string().describe("The type of strategy the robot uses."),
   justification: z.string().describe("A brief justification for why this robot and its parameters were chosen for the current market conditions."),
   suggestedStake: z.number().describe("The suggested stake for trades executed by this robot, calculated based on the provided daily balance."),
-  suggestedDuration: z.number().describe("The suggested trade duration in ticks."),
+  suggestedDuration: z.number().describe("The suggested trade duration in the specified 'durationUnit'."),
 });
 
 const RsiRobotSchema = BaseRobotSchema.extend({

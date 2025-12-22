@@ -81,7 +81,7 @@ interface DerivApiContextType {
   setIsCouncilAutopilotOn: (isOn: boolean) => void;
   strategyCouncil: RobotStrategy[];
   isFetchingCouncil: boolean;
-  fetchStrategyCouncil: () => Promise<void>;
+  fetchStrategyCouncil: (durationUnit: DurationUnit) => Promise<void>;
   councilVotes: { [key: string]: 'RISE' | 'FALL' | 'HOLD' };
   consensusThreshold: number;
   setConsensusThreshold: (threshold: number) => void;
@@ -341,7 +341,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
   const councilExecutionRef = useRef({ isExecuting: false });
 
-  const fetchStrategyCouncil = useCallback(async () => {
+  const fetchStrategyCouncil = useCallback(async (durationUnit: DurationUnit) => {
     if (!activeSymbolRef.current) return;
     setIsFetchingCouncil(true);
     try {
@@ -355,6 +355,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         balance: dailyBalance,
         currency: accountBalance.currency || 'USD',
         historicalDataJson: JSON.stringify(historicalData),
+        durationUnit: durationUnit,
       });
       if (result.success) {
         setStrategyCouncil(result.success.council);
@@ -441,7 +442,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             setLastAutopilotLossSuggestion(result.success.suggestion);
              if (initiator === 'Conselho') {
                 console.log("[Feedback Loop] Re-fetching council strategy due to loss.");
-                fetchStrategyCouncil();
+                fetchStrategyCouncil(operation.durationUnit);
             }
          }
 
@@ -704,6 +705,21 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   }, [isAutopilotOn, fetchAutopilotStrategy, handleAutopilotCheck]);
 
 
+  // Turn off autopilot if connection is lost
+  useEffect(() => {
+      if(!isConnected && isAutopilotOn) {
+          setIsAutopilotOn(false);
+          toast({ variant: "destructive", title: "Piloto Automático Desativado", description: "A conexão com a corretora foi perdida." });
+      }
+  }, [isConnected, isAutopilotOn, toast, setIsAutopilotOn]);
+
+
+  useEffect(() => {
+    if (isAutopilotOn) {
+        // This effect is for execution based on indicators, which we will handle in council
+    }
+  }, [isAutopilotOn, currentRSI, currentStoch]);
+  
   useEffect(() => {
     if (!activeToken || isLoading) {
       if (wsRef.current) {
@@ -865,10 +881,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                         variant: "destructive",
                      });
                      
-                     // Handle the loss before fetching the new strategy
                      handleLosingTrade(contract, initiator).then(() => {
                          if (initiator === 'Conselho') {
-                            fetchStrategyCouncil();
+                            const lastOp = updatedLog.find(op => op.id === contract.contract_id);
+                            if(lastOp) fetchStrategyCouncil(lastOp.durationUnit);
                          } else {
                             fetchAutopilotStrategy();
                          }
@@ -944,7 +960,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       // Cleanup logic if needed when dependencies change
     };
-  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts, operationsLog, fetchAutopilotStrategy, handleAutopilotCheck, executeTrade, isAutopilotOn, setIsAutopilotOn, subscribeToSymbol, fetchStrategyCouncil, updateRobotPerformance]);
+  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts, operationsLog, fetchAutopilotStrategy, executeTrade, isAutopilotOn, setIsAutopilotOn, subscribeToSymbol, fetchStrategyCouncil, updateRobotPerformance]);
 
 
  useEffect(() => {
@@ -1066,6 +1082,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     }
     setCouncilVotes(newVotes);
 
+    const unit = (strategyCouncil[0] as any).durationUnit || 't';
+
     if (riseVotes >= consensusThreshold || fallVotes >= consensusThreshold) {
       councilExecutionRef.current.isExecuting = true;
       const direction = riseVotes >= consensusThreshold ? 'rise' : 'fall';
@@ -1074,10 +1092,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
       toast({
         title: "Consenso do Conselho!",
-        description: `Executando ordem de ${direction.toUpperCase()} com Aposta: $${stake.toFixed(2)} e Duração: ${duration} ticks.`
+        description: `Executando ordem de ${direction.toUpperCase()} com Aposta: $${stake.toFixed(2)} e Duração: ${duration} ${unit}.`
       });
 
-      executeTrade('CALL', stake, activeSymbolRef.current!, direction, duration, 't', 'Conselho')
+      executeTrade('CALL', stake, activeSymbolRef.current!, direction, duration, unit, 'Conselho')
         .finally(() => {
           setTimeout(() => {
             councilExecutionRef.current.isExecuting = false;

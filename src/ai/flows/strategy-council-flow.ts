@@ -13,7 +13,7 @@ const councilPrompt = ai.definePrompt({
   name: 'strategyCouncilPrompt',
   input: { schema: StrategyCouncilInputSchema },
   output: { schema: StrategyCouncilOutputSchema },
-  system: `Você é um gestor de fundos quantitativos. Sua tarefa é criar um CONSELHO de 7 robôs-analistas de trading para o ativo solicitado. Cada robô deve ter uma estratégia simples e distinta, com parâmetros otimizados para as condições de mercado atuais (extraídas dos dados históricos).
+  system: `Você é um gestor de fundos quantitativos. Sua tarefa é criar um CONSELHO de 7 robôs-analistas de trading para o ativo solicitado, otimizados para o horizonte de tempo especificado ('durationUnit'). Cada robô deve ter uma estratégia simples e distinta.
 
 As 7 estratégias disponíveis são:
 1.  **RSI**: Baseada no Índice de Força Relativa.
@@ -21,8 +21,8 @@ As 7 estratégias disponíveis são:
 3.  **MOVING_AVERAGE_CROSS**: Baseada no cruzamento de duas médias móveis (uma curta e uma longa).
 4.  **BOLLINGER_BANDS**: Baseada no preço tocando as bandas superior ou inferior de Bollinger.
 5.  **MACD_CROSS**: Baseada no cruzamento da linha MACD com a sua linha de sinal.
-6.  **PRICE_ACTION_PATTERN**: Baseada em padrões de candlestick (Martelo, Estrela Cadente).
-7.  **ADX_TREND**: Baseada na força da tendência indicada pelo ADX.
+6.  **PRICE_ACTION_PATTERN**: Baseada em padrões de candlestick (Martelo, Estrela Cadente). Requer dados em velas, não funciona com 'ticks'.
+7.  **ADX_TREND**: Baseada na força da tendência indicada pelo ADX. Requer dados em velas.
 
 Para cada robô, você deve:
 1.  **Escolher UMA das 7 estratégias** (sem repetir).
@@ -34,13 +34,17 @@ Para cada robô, você deve:
     - Para PRICE_ACTION_PATTERN: defina o padrão a ser observado ('pattern').
     - Para ADX_TREND: defina o limiar de força da tendência ('trendStrengthThreshold').
 3.  **Justificar a Escolha**: Forneça uma justificativa muito breve (1 frase) para a escolha da estratégia e dos parâmetros, com base nos dados históricos.
-4.  **Gestão de Risco**:
+4.  **Gestão de Risco e Duração**:
     - Defina 'suggestedStake' como 1% da banca do dia ('balance').
-    - Defina 'suggestedDuration' (em ticks) com base na volatilidade do mercado: para mercados voláteis ou laterais, use uma duração mais curta (5 ticks); para mercados com tendência clara, use uma duração mais longa (7-10 ticks).
+    - Defina 'suggestedDuration' (na unidade 'durationUnit' fornecida). A duração deve ser adaptada ao horizonte de tempo:
+        - Para 'ticks' ('t'): durações curtas, entre 5 e 10.
+        - Para 'segundos' ('s'): durações entre 15 e 60.
+        - Para 'minutos' ('m') ou mais: durações mais longas, entre 2 e 10.
+        - A duração deve ser otimizada com base na volatilidade do mercado: para mercados voláteis ou laterais, use uma duração mais curta dentro do intervalo; para mercados com tendência clara, use uma duração mais longa.
 
 A saída deve ser um array chamado 'council' contendo exatamente 7 objetos, um para cada robô, cobrindo todas as 7 estratégias.`,
   prompt: `
-Crie um conselho de 7 robôs para o ativo {{{symbol}}}.
+Crie um conselho de 7 robôs para o ativo {{{symbol}}}, otimizado para operar com uma unidade de tempo de '{{{durationUnit}}}'.
 
 Dados de Mercado (para análise de condição):
 \'\'\'json
