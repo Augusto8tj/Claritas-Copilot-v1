@@ -41,7 +41,7 @@ A sua tarefa é criar UM robô para o ativo solicitado, otimizado para o horizon
 
 Para o robô solicitado, você deve:
 1.  **Definir Parâmetros e Limiares de Confiança**: Preencha os parâmetros relevantes para a estratégia '{{{strategyType}}}' e defina dois níveis de limiar: um para um sinal FORTE e um para um sinal FRACO.
-    - Para RSI/STOCHASTIC: defina 'strongBuyThreshold' (ex: RSI < 20) e 'weakBuyThreshold' (ex: RSI < 30). Faça o mesmo para os limiares de venda.
+    - Para RSI/STOCHASTIC: defina 'strongBuyThreshold' (ex: RSI < 20) e 'weakBuyThreshold' (ex: RSI < 30). Faça o mesmo para os limiares de venda ('strongSellThreshold' e 'weakSellThreshold').
     - Para MOVING_AVERAGE_CROSS: Um cruzamento é um sinal FORTE. Um sinal FRACO pode ser o preço cruzando acima/abaixo da média longa.
     - Para BOLLINGER_BANDS: Tocar a banda é um sinal FORTE. Aproximar-se dela (ex: dentro de 0.5 desvios padrão) é um sinal FRACO.
     - Para MACD_CROSS: O cruzamento da linha MACD com a linha de sinal é um sinal FORTE. Apenas a linha MACD cruzar o nível zero é um sinal FRACO.
