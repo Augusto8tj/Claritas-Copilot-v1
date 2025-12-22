@@ -81,7 +81,7 @@ export interface AssetGroup {
 
 
 /**
- * Fetches the list of all available assets from the Deriv API using a robust ping/pong handshake.
+ * Fetches the list of all available assets from the Deriv API.
  */
 export async function getAvailableAssets(): Promise<AssetGroup[]> {
   console.log("[Deriv Service] Fetching available assets...");
@@ -90,25 +90,14 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
     
     const response: any = await new Promise((resolve, reject) => {
       ws.onopen = () => {
-        // Start with a ping to ensure the connection is healthy
-        ws.send(JSON.stringify({ ping: 1 }));
+        ws.send(JSON.stringify({ active_symbols: 'full', product_type: 'basic' }));
       };
       
       ws.onmessage = (event: MessageEvent) => {
         const res = JSON.parse(event.data);
-
         if (res.error) {
           reject(new Error(res.error.message || 'Unknown API error while fetching assets'));
-          ws.close();
-          return;
-        }
-
-        // If we get a pong, the connection is good. Now ask for symbols.
-        if (res.msg_type === 'pong') {
-          ws.send(JSON.stringify({ active_symbols: 'full', product_type: 'basic' }));
-        } 
-        // If we get the symbols, resolve the promise.
-        else if (res.msg_type === 'active_symbols') {
+        } else if (res.msg_type === 'active_symbols') {
           resolve(res);
         }
       };
@@ -117,20 +106,17 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
         reject(new Error('WebSocket connection error while fetching assets.'));
       };
 
-       // Add a timeout to prevent hanging forever
       const timeoutId = setTimeout(() => {
         reject(new Error("Request for active symbols timed out."));
         ws.close();
-      }, 10000); // 10 second timeout
+      }, 15000); // Increased timeout to 15 seconds
 
-      // When the promise resolves or rejects, clear the timeout
       ws.onclose = () => {
         clearTimeout(timeoutId);
       };
-
     });
 
-    ws.close(); // Ensure the connection is closed after we get our data.
+    ws.close();
 
     if (!response.active_symbols) {
       throw new Error("Invalid response from active_symbols");
@@ -139,9 +125,8 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
     const groupedAssets: { [key: string]: Asset[] } = {};
 
     for (const symbol of response.active_symbols) {
-        // Filter to only include Continuous Indices and Jump Indices under Synthetics
         if (symbol.market === 'synthetic_index' && (symbol.submarket.includes('continuous') || symbol.submarket.includes('jump'))) {
-            const market = "Índices Sintéticos"; // Group them all under one category
+            const market = "Índices Sintéticos";
             if (!groupedAssets[market]) {
                 groupedAssets[market] = [];
             }
@@ -162,7 +147,6 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
 
   } catch (error) {
     console.error("[Deriv Service] Error fetching available assets:", error);
-    // Return a fallback list so the UI doesn't break
     return [
       {
         label: "Índices de Volatilidade",
@@ -371,4 +355,5 @@ export async function getHistoricalData(symbol: string, period?: string, count?:
     }
     return data;
 }
+
 
