@@ -685,7 +685,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         return;
     }
 
-    // Check if the request is identical to the current subscription.
     const currentSub = subscriptionDetailsRef.current;
     if (currentSub && currentSub.symbol === symbol && currentSub.timePeriod === newTimePeriod && currentSub.chartType === newChartType) {
         console.log(`[Deriv WS Provider] Already subscribed to ${symbol} with the same parameters. Ignoring.`);
@@ -695,7 +694,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     isSubscribingRef.current = true;
 
     try {
-        // If there's an old subscription, forget it.
         if (subscriptionDetailsRef.current?.id) {
             console.log(`[Deriv WS Provider] Forgetting old subscription: ${subscriptionDetailsRef.current.id}`);
             ws.send(JSON.stringify({ "forget": subscriptionDetailsRef.current.id }));
@@ -722,6 +720,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
         if (style === 'candles') {
             request.granularity = granularity;
+            request.adjust_start_time = 1;
         }
 
         console.log(`[Deriv WS Provider] Subscribing to ${symbol} with style: ${style} and granularity: ${granularity}`);
@@ -732,8 +731,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         setChartError(e.message);
         setIsChartLoading(false);
     } finally {
-        // The lock is released when the 'history' or 'candles' message is received,
-        // or on error inside the message handler.
+      isSubscribingRef.current = false;
     }
 }, [clearChartData]);
  
