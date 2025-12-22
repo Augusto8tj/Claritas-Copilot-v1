@@ -923,21 +923,27 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         case 'active_symbols':
             const groupedAssets: { [key: string]: Asset[] } = {};
             for (const symbol of response.active_symbols) {
-                if (symbol.market === 'synthetic_index' && (symbol.submarket.includes('continuous') || symbol.submarket.includes('jump'))) {
-                    const market = "Índices Sintéticos";
-                    if (!groupedAssets[market]) {
-                        groupedAssets[market] = [];
+                // We only want synthetic indices for this app.
+                if (symbol.market === 'synthetic_index') {
+                    // Use a more descriptive name for the submarket group.
+                    const groupName = symbol.submarket_display_name;
+                    if (!groupedAssets[groupName]) {
+                        groupedAssets[groupName] = [];
                     }
-                    groupedAssets[market].push({
+                    groupedAssets[groupName].push({
                         value: symbol.symbol,
-                        label: symbol.display_name
+                        label: symbol.display_name,
                     });
                 }
             }
-            const finalAssetGroups: AssetGroup[] = Object.keys(groupedAssets).map(label => ({
-              label,
-              options: groupedAssets[label].sort((a,b) => a.label.localeCompare(b.label))
-            })).sort((a, b) => a.label.localeCompare(b.label));
+            // Convert the grouped object into the array format expected by the Select component.
+            const finalAssetGroups: AssetGroup[] = Object.keys(groupedAssets)
+                .map(label => ({
+                    label,
+                    options: groupedAssets[label].sort((a, b) => a.label.localeCompare(b.label)),
+                }))
+                .sort((a, b) => a.label.localeCompare(b.label)); // Sort the groups themselves
+
             setAssetGroups(finalAssetGroups);
             setIsAssetsLoading(false);
             break;
