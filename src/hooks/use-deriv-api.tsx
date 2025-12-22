@@ -1082,13 +1082,13 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     }
     setCouncilVotes(newVotes);
 
-    const unit = (strategyCouncil[0] as any).durationUnit || 't';
-
     if (riseVotes >= consensusThreshold || fallVotes >= consensusThreshold) {
       councilExecutionRef.current.isExecuting = true;
       const direction = riseVotes >= consensusThreshold ? 'rise' : 'fall';
-      const stake = strategyCouncil[0].suggestedStake; // Assume stake is same for all
-      const duration = strategyCouncil[0].suggestedDuration;
+      const firstRobot = strategyCouncil[0];
+      const stake = firstRobot.suggestedStake;
+      const duration = firstRobot.suggestedDuration;
+      const unit = (firstRobot as any).durationUnit || 't';
 
       toast({
         title: "Consenso do Conselho!",

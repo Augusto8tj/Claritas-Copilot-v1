@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { DurationUnit } from '@/components/trading/deriv-trader-interface.types';
 
 export const StrategyCouncilInputSchema = z.object({
   symbol: z.string().describe("The trading symbol for which to create the council."),
@@ -16,6 +17,7 @@ const BaseRobotSchema = z.object({
   justification: z.string().describe("A brief justification for why this robot and its parameters were chosen for the current market conditions."),
   suggestedStake: z.number().describe("The suggested stake for trades executed by this robot, calculated based on the provided daily balance."),
   suggestedDuration: z.number().describe("The suggested trade duration in the specified 'durationUnit'."),
+  suggestedDurationUnit: z.custom<DurationUnit>().describe("The unit for the suggested trade duration, matching the input 'durationUnit'."),
 });
 
 const RsiRobotSchema = BaseRobotSchema.extend({
