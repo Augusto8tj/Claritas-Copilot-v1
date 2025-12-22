@@ -1,6 +1,6 @@
 
 
-"use client";
+'use client';
 
 import { usePathname } from "next/navigation";
 import {
@@ -21,6 +21,7 @@ import {
   Laptop,
   Smartphone,
   Activity,
+  Trophy,
 } from "lucide-react";
 import {
   Sidebar,
@@ -72,6 +73,11 @@ const navItems = [
     href: "/backtesting",
     icon: TestTube,
     label: "Backtesting",
+  },
+  {
+    href: "/hall-of-fame",
+    icon: Trophy,
+    label: "Hall da Fama",
   },
   {
     href: "/chat-insights",

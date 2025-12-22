@@ -6,7 +6,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode, useCall
 import { requestProposal, buyContract, getHistoricalData as getHistoricalDataFromApi } from '@/services/deriv-api-service';
 import type { TradeResult } from '@/services/deriv-api-service';
 import { useToast } from './use-toast';
-import type { Operation, OperationInitiator } from '@/components/trading/operations-log.types';
+import type { Operation, OperationInitiator, RobotPerformance } from '@/components/trading/operations-log.types';
 import { analyzeOperationsAction } from '@/app/actions/trading-actions';
 import { analyzeTradeLossAction, getAutotraderStrategyAction, getStrategyCouncilAction } from '@/app/actions/ai-actions';
 import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
@@ -18,6 +18,8 @@ import type { DurationUnit } from '@/components/trading/deriv-trader-interface.t
 const DERIV_DEMO_TOKEN_KEY = 'derivDemoApiToken';
 const DERIV_REAL_TOKEN_KEY = 'derivRealApiToken';
 const DERIV_ACCOUNT_TYPE_KEY = 'derivAccountType';
+const HALL_OF_FAME_KEY = 'derivHallOfFame';
+const ROBOT_PERFORMANCE_KEY = 'derivRobotPerformance';
 const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
 
 export type AccountType = 'demo' | 'real';
@@ -85,6 +87,7 @@ interface DerivApiContextType {
   setConsensusThreshold: (threshold: number) => void;
   isDynamicConsensusOn: boolean;
   setIsDynamicConsensusOn: (isOn: boolean) => void;
+  robotPerformance: RobotPerformance[];
   currentRSI: number | null;
   currentStoch: number | null;
   currentMA: { short: number | null, long: number | null };
@@ -310,6 +313,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [councilVotes, setCouncilVotes] = useState<{ [key: string]: 'RISE' | 'FALL' | 'HOLD' }>({});
   const [consensusThreshold, setConsensusThreshold] = useState(6);
   const [isDynamicConsensusOn, setIsDynamicConsensusOn] = useState(false);
+  const [robotPerformance, setRobotPerformance] = useState<RobotPerformance[]>([]);
   
   // States for indicators
   const [currentRSI, setCurrentRSI] = useState<number | null>(null);
@@ -351,7 +355,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         balance: dailyBalance,
         currency: accountBalance.currency || 'USD',
         historicalDataJson: JSON.stringify(historicalData),
-        lastLossAnalysisSuggestion: lastAutopilotLossSuggestion ?? undefined,
       });
       if (result.success) {
         setStrategyCouncil(result.success.council);
@@ -364,7 +367,48 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       setStrategyCouncil([]);
     }
     setIsFetchingCouncil(false);
-  }, [dailyBalance, accountBalance.currency, toast, lastAutopilotLossSuggestion]);
+  }, [dailyBalance, accountBalance.currency, toast]);
+  
+  const updateRobotPerformance = useCallback((contractResult: any) => {
+        if (!isCouncilAutopilotOn || strategyCouncil.length === 0) return;
+
+        const profit = parseFloat(contractResult.profit);
+        const tradeDirection = contractResult.longcode.includes('RISE') ? 'RISE' : 'FALL';
+        
+        const newPerformance: { [key: string]: RobotPerformance } = {};
+
+        strategyCouncil.forEach(robot => {
+            const vote = councilVotes[robot.id];
+            if (!vote) return;
+
+            const performanceId = robot.id;
+            let currentStats = robotPerformance.find(p => p.id === performanceId) || {
+                id: performanceId,
+                strategy: robot,
+                wins: 0,
+                losses: 0,
+                totalProfit: 0,
+            };
+
+            if (vote === tradeDirection) { // Robot voted correctly
+                currentStats = { ...currentStats, wins: currentStats.wins + 1, totalProfit: currentStats.totalProfit + profit };
+            } else if (vote !== 'HOLD') { // Robot voted incorrectly
+                currentStats = { ...currentStats, losses: currentStats.losses + 1, totalProfit: currentStats.totalProfit - contractResult.buy_price };
+            }
+             newPerformance[performanceId] = currentStats;
+        });
+
+         const updatedPerformance = robotPerformance.map(p => newPerformance[p.id] || p);
+         Object.values(newPerformance).forEach(p => {
+            if (!updatedPerformance.find(up => up.id === p.id)) {
+                updatedPerformance.push(p);
+            }
+        });
+
+        setRobotPerformance(updatedPerformance);
+        localStorage.setItem(ROBOT_PERFORMANCE_KEY, JSON.stringify(updatedPerformance));
+
+  }, [isCouncilAutopilotOn, strategyCouncil, councilVotes, robotPerformance]);
 
   const handleLosingTrade = useCallback(async (losingContract: any, initiator: OperationInitiator) => {
     const isAutopilotTrade = initiator === 'Piloto' || initiator === 'Conselho';
@@ -415,10 +459,13 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       const storedDemoToken = localStorage.getItem(DERIV_DEMO_TOKEN_KEY);
       const storedRealToken = localStorage.getItem(DERIV_REAL_TOKEN_KEY);
       const storedAccountType = localStorage.getItem(DERIV_ACCOUNT_TYPE_KEY) as AccountType | null;
+      const storedPerformance = localStorage.getItem(ROBOT_PERFORMANCE_KEY);
       
       if (storedDemoToken) setDemoToken(storedDemoToken);
       if (storedRealToken) setRealToken(storedRealToken);
       if (storedAccountType) setAccountTypeState(storedAccountType);
+      if (storedPerformance) setRobotPerformance(JSON.parse(storedPerformance));
+
 
     } catch (error) {
       console.error("Failed to access localStorage:", error);
@@ -796,6 +843,11 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
               ? { ...c, status: profit >= 0 ? 'won' : 'lost', exitTick: parseFloat(contract.exit_tick_display_value), exitTime: contract.exit_tick_time }
               : c
           ));
+          
+          if(activeContract?.initiator === 'Conselho') {
+              updateRobotPerformance(contract);
+          }
+
 
           if (isLoss && activeContract) {
             const initiator = activeContract.initiator;
@@ -892,7 +944,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       // Cleanup logic if needed when dependencies change
     };
-  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts, operationsLog, fetchAutopilotStrategy, handleAutopilotCheck, executeTrade, isAutopilotOn, setIsAutopilotOn, subscribeToSymbol, fetchStrategyCouncil]);
+  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts, operationsLog, fetchAutopilotStrategy, handleAutopilotCheck, executeTrade, isAutopilotOn, setIsAutopilotOn, subscribeToSymbol, fetchStrategyCouncil, updateRobotPerformance]);
 
 
  useEffect(() => {
@@ -1204,6 +1256,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     setConsensusThreshold,
     isDynamicConsensusOn,
     setIsDynamicConsensusOn,
+    robotPerformance,
     currentRSI,
     currentStoch,
     currentMA,
