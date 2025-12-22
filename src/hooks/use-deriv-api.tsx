@@ -1217,9 +1217,30 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     }
     setCouncilVotes(newVotes);
 
-    if (riseConfidenceSum >= consensusThreshold || fallConfidenceSum >= consensusThreshold) {
+    const today = new Date().toDateString();
+    const dailyPnL = operationsLog
+        .filter(op => new Date(op.timestamp).toDateString() === today && op.status !== 'pending')
+        .reduce((sum, op) => sum + (op.result || 0), 0);
+
+    const direction = riseConfidenceSum > fallConfidenceSum ? 'rise' : 'fall';
+    const consensusReached = Math.max(riseConfidenceSum, fallConfidenceSum) >= consensusThreshold;
+    
+    if (consensusReached) {
+        // --- Risk Analyst Veto Logic ---
+        const lastTwoCouncilTrades = operationsLog.filter(op => op.initiator === 'Conselho').slice(0, 2);
+        const hasLossStreak = lastTwoCouncilTrades.length === 2 && lastTwoCouncilTrades.every(op => op.status === 'lost');
+
+        if (dailyTarget > 0 && dailyPnL >= dailyTarget * 0.8) {
+            toast({ title: "Analista de Risco (VETO)", description: "Meta de lucro quase atingida. Bloqueando novas operações para proteger ganhos." });
+            return;
+        }
+        if (hasLossStreak) {
+            toast({ title: "Analista de Risco (VETO)", description: "Série de perdas detetada. Pausando operações para reavaliação.", variant: "destructive" });
+            return;
+        }
+        // --- End of Veto Logic ---
+
       councilExecutionRef.current.isExecuting = true;
-      const direction = riseConfidenceSum >= consensusThreshold ? 'rise' : 'fall';
       const contractType = direction === 'rise' ? 'CALL' : 'PUT';
       const firstRobot = strategyCouncil[0];
       const stake = firstRobot.suggestedStake;
@@ -1256,58 +1277,46 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       currentVolumePoc,
       executeTrade, 
       priceTicks,
-      toast
+      toast,
+      operationsLog,
+      dailyTarget
   ]);
 
 
  // Stop-loss and profit-target logic for both autopilots
   useEffect(() => {
+    if (!isCouncilAutopilotOn && !isAutopilotOn) return;
+
     const today = new Date().toDateString();
     const dailyPnL = operationsLog
         .filter(op => new Date(op.timestamp).toDateString() === today && op.status !== 'pending')
         .reduce((sum, op) => sum + (op.result || 0), 0);
 
-    if (isAutopilotOn && dailyBalance > 0 && dailyPnL <= -dailyBalance) {
-        toast({
-            title: "Piloto Automático Desligado",
-            description: `Limite de perda diária de $${dailyBalance.toFixed(2)} atingido.`,
-            variant: "destructive",
-            duration: 10000,
-        });
-        setIsAutopilotOn(false);
-    }
-    
-    if (isAutopilotOn && dailyTarget > 0 && dailyPnL >= dailyTarget) {
-         toast({
-            title: "Piloto Automático Desligado",
-            description: `Meta de lucro diário de $${dailyTarget.toFixed(2)} atingida!`,
-            variant: "default",
-            className: "bg-green-600 text-white",
-            duration: 10000,
-        });
-        setIsAutopilotOn(false);
-    }
+    const checkAndStop = (autopilotName: 'Piloto Automático' | 'Conselho de Robôs', turnOff: () => void) => {
+        if (dailyBalance > 0 && dailyPnL <= -dailyBalance) {
+            toast({
+                title: `${autopilotName} Desligado`,
+                description: `Limite de perda diária de $${dailyBalance.toFixed(2)} atingido.`,
+                variant: "destructive",
+                duration: 10000,
+            });
+            turnOff();
+        }
+        
+        if (dailyTarget > 0 && dailyPnL >= dailyTarget) {
+            toast({
+                title: `${autopilotName} Desligado`,
+                description: `Meta de lucro diário de $${dailyTarget.toFixed(2)} atingida!`,
+                variant: "default",
+                className: "bg-green-600 text-white",
+                duration: 10000,
+            });
+            turnOff();
+        }
+    };
 
-    if (isCouncilAutopilotOn && dailyBalance > 0 && dailyPnL <= -dailyBalance) {
-        toast({
-            title: "Conselho de Robôs Desligado",
-            description: `Limite de perda diária de $${dailyBalance.toFixed(2)} atingido.`,
-            variant: "destructive",
-            duration: 10000,
-        });
-        setIsCouncilAutopilotOn(false);
-    }
-    
-    if (isCouncilAutopilotOn && dailyTarget > 0 && dailyPnL >= dailyTarget) {
-         toast({
-            title: "Conselho de Robôs Desligado",
-            description: `Meta de lucro diário de $${dailyTarget.toFixed(2)} atingida!`,
-            variant: "default",
-            className: "bg-green-600 text-white",
-            duration: 10000,
-        });
-        setIsCouncilAutopilotOn(false);
-    }
+    if (isAutopilotOn) checkAndStop('Piloto Automático', () => setIsAutopilotOn(false));
+    if (isCouncilAutopilotOn) checkAndStop('Conselho de Robôs', () => setIsCouncilAutopilotOn(false));
 
   }, [operationsLog, isAutopilotOn, isCouncilAutopilotOn, dailyBalance, dailyTarget, setIsAutopilotOn, setIsCouncilAutopilotOn, toast]);
 
