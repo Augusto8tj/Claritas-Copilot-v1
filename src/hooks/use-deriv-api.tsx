@@ -337,30 +337,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
   const councilExecutionRef = useRef({ isExecuting: false });
 
-
-  useEffect(() => {
-    try {
-      const storedDemoToken = localStorage.getItem(DERIV_DEMO_TOKEN_KEY);
-      const storedRealToken = localStorage.getItem(DERIV_REAL_TOKEN_KEY);
-      const storedAccountType = localStorage.getItem(DERIV_ACCOUNT_TYPE_KEY) as AccountType | null;
-      
-      if (storedDemoToken) setDemoToken(storedDemoToken);
-      if (storedRealToken) setRealToken(storedRealToken);
-      if (storedAccountType) setAccountTypeState(storedAccountType);
-
-    } catch (error) {
-      console.error("Failed to access localStorage:", error);
-    }
-    setIsLoading(false);
-  }, []);
-  
-  const activeToken = accountType === 'demo' ? demoToken : realToken;
-
-  const clearChartData = useCallback(() => {
-    setChartData([]);
-    setPriceTicks([]);
-  }, []);
-
   const fetchStrategyCouncil = useCallback(async () => {
     if (!activeSymbolRef.current) return;
     setIsFetchingCouncil(true);
@@ -389,6 +365,73 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     }
     setIsFetchingCouncil(false);
   }, [dailyBalance, accountBalance.currency, toast, lastAutopilotLossSuggestion]);
+
+  const handleLosingTrade = useCallback(async (losingContract: any, initiator: OperationInitiator) => {
+    const isAutopilotTrade = initiator === 'Piloto' || initiator === 'Conselho';
+    console.log(`[Loss Analyzer] Analyzing losing trade: ${losingContract.contract_id}, Initiator: ${initiator}`);
+    const operation = operationsLog.find(op => op.id === losingContract.contract_id);
+    if (!operation) return;
+
+    try {
+      const historicalData = await getHistoricalDataFromApi(operation.asset, undefined, 100);
+      
+      const analysisInput = {
+        operation: JSON.stringify(operation),
+        historicalDataJson: JSON.stringify(historicalData),
+        activeStrategyJson: isAutopilotTrade ? JSON.stringify(autopilotStrategy) : undefined, 
+      };
+      
+      setGeminiRequestCount(prev => prev + 1);
+      const result = await analyzeTradeLossAction(analysisInput);
+
+      if (result.success) {
+         toast({
+            title: `Análise da Perda: ${result.success.analysis}`,
+            description: `Sugestão da IA: ${result.success.suggestion}`,
+            variant: "destructive",
+            duration: 10000,
+         });
+         
+         if (isAutopilotTrade) {
+            console.log(`[Feedback Loop] Storing suggestion for autopilot: "${result.success.suggestion}"`);
+            setLastAutopilotLossSuggestion(result.success.suggestion);
+             if (initiator === 'Conselho') {
+                console.log("[Feedback Loop] Re-fetching council strategy due to loss.");
+                fetchStrategyCouncil();
+            }
+         }
+
+      } else {
+         throw new Error(result.error || "A IA não conseguiu analisar a operação.");
+      }
+
+    } catch (e) {
+      console.error("[Loss Analyzer] Error analyzing trade:", e);
+    }
+  }, [operationsLog, toast, autopilotStrategy, fetchStrategyCouncil]);
+
+  useEffect(() => {
+    try {
+      const storedDemoToken = localStorage.getItem(DERIV_DEMO_TOKEN_KEY);
+      const storedRealToken = localStorage.getItem(DERIV_REAL_TOKEN_KEY);
+      const storedAccountType = localStorage.getItem(DERIV_ACCOUNT_TYPE_KEY) as AccountType | null;
+      
+      if (storedDemoToken) setDemoToken(storedDemoToken);
+      if (storedRealToken) setRealToken(storedRealToken);
+      if (storedAccountType) setAccountTypeState(storedAccountType);
+
+    } catch (error) {
+      console.error("Failed to access localStorage:", error);
+    }
+    setIsLoading(false);
+  }, []);
+  
+  const activeToken = accountType === 'demo' ? demoToken : realToken;
+
+  const clearChartData = useCallback(() => {
+    setChartData([]);
+    setPriceTicks([]);
+  }, []);
 
   const executeTrade = useCallback(async (
     contractType: string,
@@ -456,50 +499,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       }
   }, [isConnected]);
   
-   const handleLosingTrade = useCallback(async (losingContract: any, initiator: OperationInitiator) => {
-    const isAutopilotTrade = initiator === 'Piloto' || initiator === 'Conselho';
-    console.log(`[Loss Analyzer] Analyzing losing trade: ${losingContract.contract_id}, Initiator: ${initiator}`);
-    const operation = operationsLog.find(op => op.id === losingContract.contract_id);
-    if (!operation) return;
-
-    try {
-      const historicalData = await getHistoricalDataFromApi(operation.asset, undefined, 100);
-      
-      const analysisInput = {
-        operation: JSON.stringify(operation),
-        historicalDataJson: JSON.stringify(historicalData),
-        activeStrategyJson: isAutopilotTrade ? JSON.stringify(autopilotStrategy) : undefined, 
-      };
-      
-      setGeminiRequestCount(prev => prev + 1);
-      const result = await analyzeTradeLossAction(analysisInput);
-
-      if (result.success) {
-         toast({
-            title: `Análise da Perda: ${result.success.analysis}`,
-            description: `Sugestão da IA: ${result.success.suggestion}`,
-            variant: "destructive",
-            duration: 10000,
-         });
-         
-         if (isAutopilotTrade) {
-            console.log(`[Feedback Loop] Storing suggestion for autopilot: "${result.success.suggestion}"`);
-            setLastAutopilotLossSuggestion(result.success.suggestion);
-             if (initiator === 'Conselho') {
-                console.log("[Feedback Loop] Re-fetching council strategy due to loss.");
-                fetchStrategyCouncil();
-            }
-         }
-
-      } else {
-         throw new Error(result.error || "A IA não conseguiu analisar a operação.");
-      }
-
-    } catch (e) {
-      console.error("[Loss Analyzer] Error analyzing trade:", e);
-    }
-  }, [operationsLog, toast, autopilotStrategy, fetchStrategyCouncil]);
-
  const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -799,21 +798,37 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           ));
 
           if (isLoss && activeContract) {
-            const isAutopilotTrade = activeContract.initiator !== 'Manual';
-            const recentAutopilotTrades = updatedLog.filter(op => op.initiator !== 'Manual').slice(-2);
-            if(isAutopilotOn && isAutopilotTrade && recentAutopilotTrades.length === 2 && recentAutopilotTrades.every(t => t.status === 'lost')) {
-                toast({
-                    title: `Alerta do ${activeContract.initiator}`,
-                    description: "Duas perdas consecutivas detectadas. Forçando reavaliação da estratégia.",
-                    variant: "destructive",
-                });
-                if(strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
-                fetchAutopilotStrategy();
-                strategyIntervalRef.current = setInterval(handleAutopilotCheck, STRATEGY_REFRESH_INTERVAL);
+            const initiator = activeContract.initiator;
+            const autopilotTrades = updatedLog.filter(op => op.initiator !== 'Manual' && op.status !== 'pending');
+            
+            if (initiator === 'Piloto' || initiator === 'Conselho') {
+                const recentAutopilotLosses = autopilotTrades
+                    .slice(0, 2)
+                    .filter(op => op.status === 'lost');
+
+                if (recentAutopilotLosses.length === 2) {
+                     toast({
+                        title: `Alerta do ${initiator}`,
+                        description: "Duas perdas consecutivas detectadas. Forçando reavaliação da estratégia.",
+                        variant: "destructive",
+                     });
+                     
+                     // Handle the loss before fetching the new strategy
+                     handleLosingTrade(contract, initiator).then(() => {
+                         if (initiator === 'Conselho') {
+                            fetchStrategyCouncil();
+                         } else {
+                            fetchAutopilotStrategy();
+                         }
+                     });
+                } else {
+                    handleLosingTrade(contract, initiator);
+                }
             } else {
-                 handleLosingTrade(contract, activeContract.initiator);
+                handleLosingTrade(contract, initiator);
             }
           }
+
 
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({ "balance": 1 }));
@@ -877,7 +892,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       // Cleanup logic if needed when dependencies change
     };
-  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts, operationsLog, fetchAutopilotStrategy, handleAutopilotCheck, executeTrade, isAutopilotOn, setIsAutopilotOn, subscribeToSymbol]);
+  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts, operationsLog, fetchAutopilotStrategy, handleAutopilotCheck, executeTrade, isAutopilotOn, setIsAutopilotOn, subscribeToSymbol, fetchStrategyCouncil]);
 
 
  useEffect(() => {
