@@ -81,6 +81,8 @@ interface DerivApiContextType {
   isFetchingCouncil: boolean;
   fetchStrategyCouncil: () => Promise<void>;
   councilVotes: { [key: string]: 'RISE' | 'FALL' | 'HOLD' };
+  consensusThreshold: number;
+  setConsensusThreshold: (threshold: number) => void;
   currentRSI: number | null;
   currentStoch: number | null;
   currentMA: { short: number | null, long: number | null };
@@ -262,9 +264,10 @@ const calculateADX = (data: CandleData[], period = 14) => {
     const plusDIs = smoothedPlusDM.map((val, i) => 100 * (val / smoothedTR[i]));
     const minusDIs = smoothedMinusDM.map((val, i) => 100 * (val / smoothedTR[i]));
 
-    const dxs = plusDIs.map((plusDI, i) => 100 * (Math.abs(plusDI - minusDIs[i]) / (plusDI + minusDIs[i])));
+    const dxs = plusDIs.map((plusDI, i) => (plusDI + minusDIs[i] === 0) ? 0 : 100 * (Math.abs(plusDI - minusDIs[i]) / (plusDI + minusDIs[i])));
     
     const adx = calculateEMA(dxs, period);
+    if (!adx || adx.length === 0) return null;
     return adx[adx.length - 1];
 };
 
@@ -295,6 +298,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [strategyCouncil, setStrategyCouncil] = useState<RobotStrategy[]>([]);
   const [isFetchingCouncil, setIsFetchingCouncil] = useState(false);
   const [councilVotes, setCouncilVotes] = useState<{ [key: string]: 'RISE' | 'FALL' | 'HOLD' }>({});
+  const [consensusThreshold, setConsensusThreshold] = useState(6);
   
   // States for indicators
   const [currentRSI, setCurrentRSI] = useState<number | null>(null);
@@ -783,42 +787,41 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
  }, []);
 
  useEffect(() => {
-    if (chartData.length < 1) return;
-
-    // Use tick data if available and granular enough, otherwise use candle close prices.
-    const priceDataSource: { price: number }[] = (timePeriod === '1m' && priceTicks.length > 0)
-        ? priceTicks
+    // Determine the primary data source for calculations.
+    // If we have candle data, prefer it for indicators that need it. Otherwise, use ticks.
+    const priceDataSource: { price: number }[] = (timePeriod === '1m' || chartData.some(d => !('close' in d))) 
+        ? priceTicks 
         : (chartData as CandleData[]).map(c => ({ price: c.close }));
 
-    // Candle data is required for Price Action and ADX.
-    // It's derived from chartData, so it's only available for time periods > 1m.
     const candleDataSource: CandleData[] = chartData.filter(d => 'open' in d) as CandleData[];
 
-    // Calculate indicators that can use price data
-    if (priceDataSource.length > 1) {
-        setCurrentRSI(calculateRSI(priceDataSource));
-        setCurrentStoch(calculateStochastic(priceDataSource));
-        setBollingerBands(calculateBollingerBands(priceDataSource));
-        setMACD(calculateMACD(priceDataSource));
+    if (priceDataSource.length < 2) return;
+
+    // Calculate all price-based indicators
+    setCurrentRSI(calculateRSI(priceDataSource));
+    setCurrentStoch(calculateStochastic(priceDataSource));
+    setBollingerBands(calculateBollingerBands(priceDataSource));
+    setMACD(calculateMACD(priceDataSource));
+    
+    // Calculate MA for the council using the same source
+    const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
+    if (maRobot && maRobot.strategyType === 'MOVING_AVERAGE_CROSS' && priceDataSource.length > maRobot.longPeriod) {
+        setCurrentMA({
+            short: calculateMA(priceDataSource, maRobot.shortPeriod),
+            long: calculateMA(priceDataSource, maRobot.longPeriod)
+        });
     }
 
-    // Calculate indicators that require candle data
+    // Calculate candle-based indicators ONLY if candle data is available
     if (candleDataSource.length > 1) {
         setPriceAction(detectPriceActionPattern(candleDataSource));
         setADX(calculateADX(candleDataSource));
+    } else {
+        // Explicitly set to null if no candle data to avoid stale values
+        setPriceAction(null);
+        setADX(null);
     }
-
-    // Calculate MAs for the council
-    if (isCouncilAutopilotOn && strategyCouncil.length > 0) {
-        const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
-        if (maRobot && maRobot.strategyType === 'MOVING_AVERAGE_CROSS' && priceDataSource.length > maRobot.longPeriod) {
-            setCurrentMA({
-                short: calculateMA(priceDataSource, maRobot.shortPeriod),
-                long: calculateMA(priceDataSource, maRobot.longPeriod)
-            });
-        }
-    }
-}, [chartData, priceTicks, timePeriod, isCouncilAutopilotOn, strategyCouncil]);
+}, [chartData, priceTicks, timePeriod, strategyCouncil]);
 
   const fetchStrategyCouncil = useCallback(async () => {
     if (!activeSymbolRef.current) return;
@@ -911,10 +914,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     }
     setCouncilVotes(newVotes);
 
-    const CONSENSUS_THRESHOLD = 6; // 6 out of 7 for a strong consensus
-    if (riseVotes >= CONSENSUS_THRESHOLD || fallVotes >= CONSENSUS_THRESHOLD) {
+    if (riseVotes >= consensusThreshold || fallVotes >= consensusThreshold) {
       councilExecutionRef.current.isExecuting = true;
-      const direction = riseVotes >= CONSENSUS_THRESHOLD ? 'rise' : 'fall';
+      const direction = riseVotes >= consensusThreshold ? 'rise' : 'fall';
       const stake = strategyCouncil[0].suggestedStake; // Assume stake is same for all
       const duration = strategyCouncil[0].suggestedDuration;
 
@@ -933,6 +935,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   }, [
       isCouncilAutopilotOn,
       strategyCouncil,
+      consensusThreshold,
       currentRSI, 
       currentStoch, 
       currentMA, 
@@ -1141,11 +1144,13 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     autopilotStrategy,
     fetchAutopilotStrategy,
     isCouncilAutopilotOn,
-setIsCouncilAutopilotOn,
+    setIsCouncilAutopilotOn,
     strategyCouncil,
     isFetchingCouncil,
     fetchStrategyCouncil,
     councilVotes,
+    consensusThreshold,
+    setConsensusThreshold,
     currentRSI,
     currentStoch,
     currentMA,
