@@ -50,6 +50,7 @@ export type CandleData = {
   high: number;
   low: number;
   close: number;
+  volume?: number;
 };
 export type ChartData = TickData | CandleData;
 
@@ -280,6 +281,70 @@ const calculateADX = (data: CandleData[], period = 14) => {
     if (!adx || adx.length === 0) return null;
     return adx[adx.length - 1];
 };
+
+const calculateIchimokuCloud = (data: CandleData[]) => {
+    if (data.length < 52) return null;
+    const lastData = data[data.length - 1];
+
+    const tenkanSen = (Math.max(...data.slice(-9).map(d => d.high)) + Math.min(...data.slice(-9).map(d => d.low))) / 2;
+    const kijunSen = (Math.max(...data.slice(-26).map(d => d.high)) + Math.min(...data.slice(-26).map(d => d.low))) / 2;
+    const senkouSpanA = (tenkanSen + kijunSen) / 2;
+
+    const pastDataForB = data.slice(-52, -26);
+    const senkouSpanB = (Math.max(...pastDataForB.map(d => d.high)) + Math.min(...pastDataForB.map(d => d.low))) / 2;
+
+    const inCloud = lastData.close > Math.min(senkouSpanA, senkouSpanB) && lastData.close < Math.max(senkouSpanA, senkouSpanB);
+    let trend: 'bullish' | 'bearish' | 'neutral' = 'neutral';
+    if (lastData.close > Math.max(senkouSpanA, senkouSpanB)) trend = 'bullish';
+    if (lastData.close < Math.min(senkouSpanA, senkouSpanB)) trend = 'bearish';
+
+    return { inCloud, trend };
+};
+
+const calculateAwesomeOscillator = (data: CandleData[]) => {
+    if (data.length < 34) return null;
+
+    const medianPrices = data.map(d => (d.high + d.low) / 2);
+    const ma5 = calculateMA(medianPrices.map(price => ({ price })), 5);
+    const ma34 = calculateMA(medianPrices.map(price => ({ price })), 34);
+
+    if (ma5 === null || ma34 === null) return null;
+    
+    // We need the last values from the moving average calculation of the entire set
+    const recentMedianPrices = medianPrices.slice(medianPrices.length - 34);
+    const recentMa5 = calculateMA(recentMedianPrices.slice(-5).map(price => ({ price })), 5);
+    const recentMa34 = calculateMA(recentMedianPrices.map(price => ({ price })), 34);
+    
+    if (recentMa5 === null || recentMa34 === null) return null;
+
+    return recentMa5 - recentMa34;
+};
+
+const calculateVolumeProfile = (data: CandleData[], bars: number) => {
+    if (data.length < bars) return null;
+    
+    const relevantData = data.slice(-bars);
+    const priceLevels: { [key: string]: number } = {};
+
+    relevantData.forEach(candle => {
+        const priceStr = candle.close.toFixed(4); // Group by price level
+        if (!priceLevels[priceStr]) {
+            priceLevels[priceStr] = 0;
+        }
+        priceLevels[priceStr] += candle.volume || 1; // Use 1 if volume is not present
+    });
+
+    let poc = null;
+    let maxVolume = 0;
+    for (const price in priceLevels) {
+        if (priceLevels[price] > maxVolume) {
+            maxVolume = priceLevels[price];
+            poc = parseFloat(price);
+        }
+    }
+    return poc;
+};
+
 
 const calculateVolatility = (data: { price: number }[], period = 20): number => {
     if (data.length < period) return 0;
@@ -927,6 +992,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 high: parseFloat(candle.high),
                 low: parseFloat(candle.low),
                 close: parseFloat(candle.close),
+                volume: parseFloat(candle.volume),
             };
             setChartData(prev => {
                 const data = prev as CandleData[];
@@ -947,6 +1013,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             high: candle.high,
             low: candle.low,
             close: candle.close,
+            volume: candle.volume,
         }));
         setChartData(candleData);
         setIsChartLoading(false);
@@ -998,10 +1065,20 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         setPriceAction(detectPriceActionPattern(candleDataSource));
         setADX(calculateADX(candleDataSource));
         setCurrentStoch(calculateStochastic(candleDataSource));
+        setCurrentIchimoku(calculateIchimokuCloud(candleDataSource));
+        setAwesomeOscillator(calculateAwesomeOscillator(candleDataSource));
+        
+        const volumeRobot = strategyCouncil.find(r => r.strategyType === 'VOLUME_PROFILE');
+        if (volumeRobot && volumeRobot.profileBars) {
+            setVolumePoc(calculateVolumeProfile(candleDataSource, volumeRobot.profileBars));
+        }
     } else {
         setPriceAction(null);
         setADX(null);
         setCurrentStoch(null);
+        setCurrentIchimoku(null);
+        setAwesomeOscillator(null);
+        setVolumePoc(null);
     }
 }, [chartData, priceTicks, timePeriod, strategyCouncil]);
 
@@ -1088,6 +1165,25 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 }
             }
             break;
+        case 'ICHIMOKU_CLOUD':
+            if (currentIchimoku) {
+                if (currentIchimoku.trend === 'bullish') vote = 'RISE';
+                else if (currentIchimoku.trend === 'bearish') vote = 'FALL';
+            }
+            break;
+        case 'AWESOME_OSCILLATOR':
+            if (currentAwesomeOscillator !== null) {
+                if (currentAwesomeOscillator > 0) vote = 'RISE';
+                else if (currentAwesomeOscillator < 0) vote = 'FALL';
+            }
+            break;
+        case 'VOLUME_PROFILE':
+            if (currentVolumePoc && priceTicks.length > 0) {
+                const currentPrice = priceTicks[priceTicks.length - 1].price;
+                if (currentPrice > currentVolumePoc) vote = 'RISE';
+                else if (currentPrice < currentVolumePoc) vote = 'FALL';
+            }
+            break;
       }
       newVotes[robot.id] = vote;
       if (vote === 'RISE') riseVotes++;
@@ -1126,6 +1222,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       currentMACD,
       currentPriceAction,
       currentADX,
+      currentIchimoku,
+      currentAwesomeOscillator,
+      currentVolumePoc,
       executeTrade, 
       priceTicks,
       toast
