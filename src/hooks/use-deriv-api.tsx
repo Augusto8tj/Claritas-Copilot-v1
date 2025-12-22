@@ -18,7 +18,6 @@ import type { DurationUnit } from '@/components/trading/deriv-trader-interface.t
 const DERIV_DEMO_TOKEN_KEY = 'derivDemoApiToken';
 const DERIV_REAL_TOKEN_KEY = 'derivRealApiToken';
 const DERIV_ACCOUNT_TYPE_KEY = 'derivAccountType';
-const HALL_OF_FAME_KEY = 'derivHallOfFame';
 const ROBOT_PERFORMANCE_KEY = 'derivRobotPerformance';
 const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
 
@@ -468,6 +467,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const STRATEGY_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutos
 
   const councilExecutionRef = useRef({ isExecuting: false });
+  const isSubscribingRef = useRef(false);
 
   const fetchStrategyCouncil = useCallback(async (durationUnit: DurationUnit) => {
     if (!subscriptionDetailsRef.current?.symbol) return;
@@ -674,60 +674,67 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   }, [isConnected]);
   
  const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {
+    if (isSubscribingRef.current) {
+        console.log("[Deriv WS Provider] Subscription already in progress. Ignoring.");
+        return;
+    }
+    
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
         console.warn("[Deriv WS Provider] Cannot subscribe, WS not open.");
         return;
     }
-    
-    // If the request is identical to the current subscription, do nothing.
-    if (
-        subscriptionDetailsRef.current &&
-        subscriptionDetailsRef.current.symbol === symbol &&
-        subscriptionDetailsRef.current.timePeriod === newTimePeriod &&
-        subscriptionDetailsRef.current.chartType === newChartType
-    ) {
+
+    // Check if the request is identical to the current subscription.
+    const currentSub = subscriptionDetailsRef.current;
+    if (currentSub && currentSub.symbol === symbol && currentSub.timePeriod === newTimePeriod && currentSub.chartType === newChartType) {
         console.log(`[Deriv WS Provider] Already subscribed to ${symbol} with the same parameters. Ignoring.`);
         return;
     }
 
-    // If there's an old subscription, forget it.
-    if (subscriptionDetailsRef.current?.id) {
-        console.log(`[Deriv WS Provider] Forgetting old subscription: ${subscriptionDetailsRef.current.id}`);
-        ws.send(JSON.stringify({ "forget": subscriptionDetailsRef.current.id }));
-        subscriptionDetailsRef.current = null; // Clear the ref immediately
-    }
-    
-    clearChartData();
-    setIsChartLoading(true);
-    setChartError(null);
+    isSubscribingRef.current = true;
 
-    const granularity = getGranularityForTimePeriod(newTimePeriod);
-    const style = newTimePeriod === '1m' ? 'ticks' : 'candles';
-    
-    if (style === 'candles' && granularity === 0) {
-        const errorMsg = `Período de tempo inválido para gráfico de velas: ${newTimePeriod}`;
-        console.error(`[Deriv WS Provider] ${errorMsg}`);
-        setChartError(errorMsg);
+    try {
+        // If there's an old subscription, forget it.
+        if (subscriptionDetailsRef.current?.id) {
+            console.log(`[Deriv WS Provider] Forgetting old subscription: ${subscriptionDetailsRef.current.id}`);
+            ws.send(JSON.stringify({ "forget": subscriptionDetailsRef.current.id }));
+        }
+
+        clearChartData();
+        setIsChartLoading(true);
+        setChartError(null);
+
+        const granularity = getGranularityForTimePeriod(newTimePeriod);
+        const style = newTimePeriod === '1m' ? 'ticks' : 'candles';
+        
+        if (style === 'candles' && granularity === 0) {
+            throw new Error(`Período de tempo inválido para gráfico de velas: ${newTimePeriod}`);
+        }
+
+        const request: any = {
+            ticks_history: symbol,
+            style: style,
+            end: 'latest',
+            count: 500,
+            subscribe: 1
+        };
+
+        if (style === 'candles') {
+            request.granularity = granularity;
+        }
+
+        console.log(`[Deriv WS Provider] Subscribing to ${symbol} with style: ${style} and granularity: ${granularity}`);
+        ws.send(JSON.stringify(request));
+
+    } catch (e: any) {
+        console.error(`[Deriv WS Provider] Subscription Error: ${e.message}`);
+        setChartError(e.message);
         setIsChartLoading(false);
-        return;
+    } finally {
+        // The lock is released when the 'history' or 'candles' message is received,
+        // or on error inside the message handler.
     }
-
-    const request: any = {
-        ticks_history: symbol,
-        style: style,
-        end: 'latest',
-        count: 500,
-        subscribe: 1
-    };
-
-    if (style === 'candles') {
-        request.granularity = granularity;
-    }
-
-    console.log(`[Deriv WS Provider] Subscribing to ${symbol} with style: ${style} and granularity: ${granularity}`);
-    ws.send(JSON.stringify(request));
-    
 }, [clearChartData]);
  
  const fetchAutopilotStrategy = useCallback(async () => {
@@ -861,6 +868,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         } else if (response.echo_req?.ticks_history || response.echo_req?.candles) {
             setChartError(response.error.message);
             setIsChartLoading(false);
+            isSubscribingRef.current = false; // Release lock on error
         }
         
         if (reqId && promisesRef.current.has(String(reqId))) {
@@ -973,7 +981,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         case 'history': // Initial tick data
         case 'candles': // Initial candle data
             if (response.echo_req.subscribe === 1) {
-              // Store details of the new successful subscription
               subscriptionDetailsRef.current = {
                   id: response.subscription.id,
                   symbol: response.echo_req.ticks_history,
@@ -997,10 +1004,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
             setChartData(data);
             setIsChartLoading(false);
+            isSubscribingRef.current = false; // Release lock after data is received
             break;
 
         case 'forget':
-          // We don't need to do anything special on forget confirmation
           console.log(`[Deriv WS Provider] Successfully forgot subscription.`);
           break;
       }
