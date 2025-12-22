@@ -3,7 +3,7 @@
 'use client';
 
 import * as React from "react";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Label, BarChart, Bar, ComposedChart, ReferenceDot } from "recharts";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Label, BarChart, Bar, ComposedChart, ReferenceDot, Area } from "recharts";
 import { useDerivApi, type ActiveContract } from "@/hooks/use-deriv-api";
 import { Loader2 } from "lucide-react";
 import type { CandleData, TickData } from '@/hooks/use-deriv-api';
@@ -22,7 +22,7 @@ const Candlestick = (props: any) => {
     }
 
     const isBullish = close > open;
-    const color = isBullish ? 'hsl(142.1 76.2% 41.2%)' : 'hsl(0 84.2% 60.2%)';
+    const color = isBullish ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))';
 
     const scale = yAxis.scale;
     const yHigh = scale(high);
@@ -30,7 +30,7 @@ const Candlestick = (props: any) => {
     const yOpen = scale(open);
     const yClose = scale(close);
 
-    const bodyHeight = Math.abs(yOpen - yClose);
+    const bodyHeight = Math.max(1, Math.abs(yOpen - yClose));
     const bodyY = Math.min(yOpen, yClose);
 
     return (
@@ -124,7 +124,7 @@ export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
                                     x={contract.exitTime}
                                     y={contract.exitTick}
                                     r={5}
-                                    fill={contract.status === 'won' ? 'hsl(120, 70%, 50%)' : 'hsl(0, 70%, 50%)'}
+                                    fill={contract.status === 'won' ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))'}
                                     stroke="white"
                                     strokeWidth={2}
                                 />
@@ -168,20 +168,28 @@ export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
                     <Tooltip
                         labelFormatter={(label) => new Date(label * 1000).toLocaleString('pt-BR')}
                         formatter={(value, name, props) => {
+                            if (name === 'bollingerBands') return null;
                             if (props.payload) {
                                 const { open, high, low, close } = props.payload;
                                 return [
-                                    `Abertura: ${open.toFixed(4)}`,
-                                    `Máxima: ${high.toFixed(4)}`,
-                                    `Mínima: ${low.toFixed(4)}`,
-                                    `Fechamento: ${close.toFixed(4)}`
+                                    `Abertura: ${open?.toFixed(4)}`,
+                                    `Máxima: ${high?.toFixed(4)}`,
+                                    `Mínima: ${low?.toFixed(4)}`,
+                                    `Fechamento: ${close?.toFixed(4)}`
                                 ];
                             }
                             return [value];
                         }}
                          contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
                     />
-                     <Bar dataKey="close" shape={<Candlestick />} />
+                     <Area 
+                        dataKey="bollingerBands" 
+                        stroke="hsl(var(--primary) / 0.5)"
+                        fill="hsl(var(--primary) / 0.1)"
+                        isAnimationActive={false} 
+                        type="monotone"
+                    />
+                     <Bar dataKey="close" shape={<Candlestick />} isAnimationActive={false} />
                      {activeContracts.map(contract => (
                         <React.Fragment key={contract.contractId}>
                             <ReferenceDot
@@ -197,7 +205,7 @@ export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
                                     x={contract.exitTime}
                                     y={contract.exitTick}
                                     r={5}
-                                    fill={contract.status === 'won' ? 'hsl(120, 70%, 50%)' : 'hsl(0, 70%, 50%)'}
+                                    fill={contract.status === 'won' ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))'}
                                     stroke="white"
                                     strokeWidth={2}
                                 />
@@ -264,7 +272,7 @@ export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
                                 x={contract.exitTime}
                                 y={contract.exitTick}
                                 r={5}
-                                fill={contract.status === 'won' ? 'hsl(120, 70%, 50%)' : 'hsl(0, 70%, 50%)'}
+                                fill={contract.status === 'won' ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))'}
                                 stroke="white"
                                 strokeWidth={2}
                             />

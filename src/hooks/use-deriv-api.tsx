@@ -44,6 +44,7 @@ export type TickData = {
   epoch: number;
   price: number;
 };
+
 export type CandleData = {
   epoch: number;
   open: number;
@@ -51,6 +52,7 @@ export type CandleData = {
   low: number;
   close: number;
   volume?: number;
+  bollingerBands?: [number, number]; 
 };
 export type ChartData = TickData | CandleData;
 
@@ -203,20 +205,6 @@ const calculateStochastic = (data: CandleData[], period = 14) => {
     if (highestHigh === lowestLow) return 50;
 
     return 100 * ((currentClose - lowestLow) / (highestHigh - lowestLow));
-};
-
-const calculateBollingerBands = (data: { price: number }[], period = 20, stdDev = 2) => {
-    if (data.length < period) return null;
-    const relevantData = data.slice(-period);
-    const prices = relevantData.map(d => d.price);
-    const middle = prices.reduce((a, b) => a + b, 0) / period;
-    const variance = prices.reduce((a, b) => a + Math.pow(b - middle, 2), 0) / period;
-    const deviation = Math.sqrt(variance);
-    return {
-        upper: middle + stdDev * deviation,
-        middle: middle,
-        lower: middle - stdDev * deviation,
-    };
 };
 
 const calculateMACD = (data: { price: number }[], fast = 12, slow = 26, signal = 9) => {
@@ -408,6 +396,26 @@ const calculateVolatility = (data: { price: number }[], period = 20): number => 
     const variance = prices.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / period;
     return Math.sqrt(variance);
 };
+
+
+const calculateBollingerBands = (data: CandleData[], period = 20, stdDev = 2): CandleData[] => {
+    if (data.length < period) return data;
+
+    const dataWithBands = [...data];
+
+    for (let i = period - 1; i < data.length; i++) {
+        const slice = dataWithBands.slice(i - period + 1, i + 1);
+        const prices = slice.map(d => d.close);
+        const mean = prices.reduce((a, b) => a + b, 0) / period;
+        const variance = prices.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / period;
+        const deviation = Math.sqrt(variance);
+        
+        dataWithBands[i].bollingerBands = [mean - stdDev * deviation, mean + stdDev * deviation];
+    }
+
+    return dataWithBands;
+};
+
 
 
 export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
@@ -964,13 +972,13 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                   volume: candle.volume ? parseFloat(candle.volume) : undefined,
               };
               setChartData(prev => {
-                  const data = prev as CandleData[];
+                  const data = calculateBollingerBands([...(prev as CandleData[]).slice(-999), newCandle]);
                   if (data.length > 0 && data[data.length - 1].epoch === newCandle.epoch) {
                       const newData = [...data];
                       newData[data.length - 1] = newCandle;
                       return newData;
                   } else {
-                      return [...data.slice(-999), newCandle];
+                      return data;
                   }
               });
            }
@@ -987,20 +995,21 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
               };
               console.log(`[Deriv WS Provider] New subscription active: ${response.subscription.id}`);
             }
-            const data = (response.candles || response.history.prices.map((p:number, i:number) => ({
+            const rawData = response.candles || response.history.prices.map((p:number, i:number) => ({
                 epoch: response.history.times[i], 
                 close: p,
                 open: p, // Simplified for tick history
                 high: p,
                 low: p,
-            })))
-            .map((c: any) => ({...c, open: parseFloat(c.open), high: parseFloat(c.high), low: parseFloat(c.low), close: parseFloat(c.close)}));
+            }));
+            const formattedData = rawData.map((c: any) => ({...c, open: parseFloat(c.open), high: parseFloat(c.high), low: parseFloat(c.low), close: parseFloat(c.close)}));
 
             if(response.history) {
-              setPriceTicks(data.map((d:any) => ({ epoch: d.epoch, price: d.close })));
+              setPriceTicks(formattedData.map((d:any) => ({ epoch: d.epoch, price: d.close })));
             }
-
-            setChartData(data);
+            
+            const dataWithBands = calculateBollingerBands(formattedData);
+            setChartData(dataWithBands);
             setIsChartLoading(false);
             isSubscribingRef.current = false; // Release lock after data is received
             break;
@@ -1041,7 +1050,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
     if (priceDataSource.length > 1) {
         setCurrentRSI(calculateRSI(priceDataSource));
-        setBollingerBands(calculateBollingerBands(priceDataSource));
         setMACD(calculateMACD(priceDataSource));
         
         const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
