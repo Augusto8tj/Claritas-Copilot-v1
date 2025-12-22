@@ -1,3 +1,4 @@
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -150,7 +151,7 @@ const calculateStochastic = (ticks: { price: number }[], period = 14) => {
 };
 
 
-export function DerivApiProvider({ children }: { children: ReactNode }) {
+export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [demoToken, setDemoToken] = useState<string | null>(null);
   const [realToken, setRealToken] = useState<string | null>(null);
   const [accountType, setAccountTypeState] = useState<AccountType>('demo');
@@ -182,6 +183,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   
   const activeSubscriptionId = useRef<string | null>(null);
   const activeSymbolRef = useRef<string | null>(null);
+  
   const strategyIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const STRATEGY_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutos
 
@@ -246,6 +248,23 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
   const fetchAutopilotStrategy = useCallback(async () => {
     if (!isAutopilotOn || !activeSymbolRef.current) return;
     
+    // Calculate PnL for the day
+    const dailyPnL = operationsLog
+        .filter(op => new Date(op.timestamp).toDateString() === new Date().toDateString() && op.status !== 'pending')
+        .reduce((sum, op) => sum + (op.result || 0), 0);
+
+    if (dailyPnL <= -dailyBalance) {
+        toast({
+            title: "Piloto Automático Desligado",
+            description: `Limite de perda diária de $${dailyBalance.toFixed(2)} atingido.`,
+            variant: "destructive",
+            duration: 10000,
+        });
+        setIsAutopilotOn(false);
+        return;
+    }
+
+
     console.log("[Autopilot] Fetching new strategy...");
     try {
         const historicalData = await getHistoricalDataFromApi(activeSymbolRef.current, undefined, 200);
@@ -254,12 +273,10 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
             return;
         }
         
-        console.log(`[Autopilot] Fetching strategy. Last loss suggestion:`, lastAutopilotLossSuggestion);
-        
         setGeminiRequestCount(prev => prev + 1);
         const result = await getAutotraderStrategyAction({
             symbol: activeSymbolRef.current,
-            balance: dailyBalance, // Use daily balance for risk management
+            balance: dailyBalance - Math.abs(dailyPnL), // Pass remaining daily balance
             currency: accountBalance.currency || 'USD',
             stake: 10, // Default reference, will be overridden by AI
             duration: 5, // Default reference, will be overridden by AI
@@ -272,8 +289,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         if (result.success) {
             setAutopilotStrategy(result.success);
             toast({ title: "Nova Estratégia do Piloto Automático", description: result.success.justification });
-            // Clear last suggestion after using it
-            setLastAutopilotLossSuggestion(null);
+            setLastAutopilotLossSuggestion(null); // Clear last suggestion after using it
         } else {
             throw new Error(result.error || "Ocorreu um erro desconhecido ao buscar estratégia.");
         }
@@ -281,9 +297,10 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
        console.error("[Autopilot] Error fetching strategy:", e.message);
        setAutopilotStrategy(null);
     }
-  }, [isAutopilotOn, lastAutopilotLossSuggestion, dailyBalance, accountBalance.currency, operationsLog, toast]);
+  }, [isAutopilotOn, lastAutopilotLossSuggestion, dailyBalance, accountBalance.currency, operationsLog, toast, setIsAutopilotOn]);
 
-    const handleAutopilotCheck = useCallback(() => {
+    
+  const handleAutopilotCheck = useCallback(() => {
         if (!isAutopilotOn || priceTicks.length < 20) return;
 
         const lastTicks = priceTicks.slice(-100);
@@ -291,25 +308,22 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         const maxPrice = Math.max(...prices);
         const minPrice = Math.min(...prices);
         const currentPrice = prices[prices.length - 1];
-
-        // Volatility threshold: 0.05% of the current price
         const VOLATILITY_THRESHOLD = currentPrice * 0.0005;
 
         if (maxPrice - minPrice > VOLATILITY_THRESHOLD) {
-            console.log(`[Autopilot] Volatility detected (${(maxPrice - minPrice).toFixed(5)} > ${VOLATILITY_THRESHOLD.toFixed(5)}). Fetching new strategy.`);
+            console.log(`[Autopilot] Volatility detected. Fetching new strategy.`);
             toast({
                 title: "Piloto Automático",
                 description: "Volatilidade detetada. A reavaliar a estratégia.",
             });
             fetchAutopilotStrategy();
-        } else {
-            console.log(`[Autopilot] Low volatility. Keeping current strategy.`);
         }
     }, [isAutopilotOn, priceTicks, fetchAutopilotStrategy, toast]);
 
-    useEffect(() => {
+    
+  useEffect(() => {
     if (isAutopilotOn) {
-        fetchAutopilotStrategy(); // Fetch initial strategy
+        fetchAutopilotStrategy(); 
         if(strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
         strategyIntervalRef.current = setInterval(handleAutopilotCheck, STRATEGY_REFRESH_INTERVAL);
     } else {
@@ -318,15 +332,79 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
             strategyIntervalRef.current = null;
         }
     }
-
-    // Cleanup on component unmount
     return () => {
         if (strategyIntervalRef.current) {
             clearInterval(strategyIntervalRef.current);
         }
     };
-}, [isAutopilotOn, fetchAutopilotStrategy, handleAutopilotCheck]);
+  }, [isAutopilotOn, fetchAutopilotStrategy, handleAutopilotCheck]);
 
+
+  const executeTrade = useCallback(async (
+    contractType: string,
+    stake: number,
+    symbol: string,
+    tradeDirection: 'rise' | 'fall',
+    duration: number,
+    durationUnit: DurationUnit,
+    isAutopilot: boolean = false
+): Promise<TradeResult> => {
+      if (!wsRef.current || !isConnected) {
+        throw new Error("A conexão com a Deriv API não está ativa.");
+      }
+
+      try {
+        const proposalResponse = await requestProposal(wsRef.current, { 
+            contractType, 
+            quantity: stake, 
+            symbol,
+            duration: duration,
+            duration_unit: durationUnit,
+        }, promisesRef);
+
+        const proposal = proposalResponse.proposal;
+        if (!proposal || !proposal.id) {
+          throw new Error("Falha ao obter uma proposta de negociação da API.");
+        }
+        
+        const buyResponse = await buyContract(wsRef.current, proposal.id, proposal.ask_price, promisesRef);
+        const buyResult = buyResponse.buy;
+        
+        const newOperation: Operation = {
+            id: buyResult.contract_id,
+            asset: symbol,
+            direction: tradeDirection,
+            stake: stake,
+            status: 'pending',
+            timestamp: new Date().toISOString(),
+            duration: duration,
+            durationUnit: durationUnit,
+            isAutopilot,
+        };
+        setOperationsLog(prevLog => [newOperation, ...prevLog]);
+
+        const newActiveContract: ActiveContract = {
+            contractId: buyResult.contract_id,
+            entryTick: buyResult.entry_tick,
+            entryTime: buyResult.entry_tick_time,
+            isAutopilot: isAutopilot
+        };
+        setActiveContracts(prev => [...prev, newActiveContract]);
+
+
+        return {
+          success: true,
+          message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${stake} USD executada com sucesso.`,
+          contractId: buyResult.contract_id,
+          entryTick: buyResult.entry_tick,
+          entryTime: buyResult.entry_tick_time,
+        };
+      } catch (error) {
+         console.error("[Deriv Hook] Erro durante a negociação:", error);
+         const message = error instanceof Error ? error.message : "Um erro desconhecido ocorreu.";
+         return { success: false, message };
+      }
+  }, [isConnected]);
 
 
   useEffect(() => {
@@ -377,21 +455,24 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
 
     ws.onmessage = (event) => {
       const response = JSON.parse(event.data);
-      
-      if (response.error) {
-        const isForgetError = !!response.echo_req?.forget;
+      const reqId = response.req_id;
+      const isForgetError = !!response.echo_req?.forget;
 
-        if (!isForgetError) {
-          console.error("[Deriv WS Provider] Error received:", response.error.message);
+      if (response.error) {
+        if (isForgetError) {
+          // This is an expected error when a subscription we are trying to forget doesn't exist anymore.
+          // We can resolve the promise and ignore the error message.
+          if (reqId && promisesRef.current.has(String(reqId))) {
+            promisesRef.current.get(String(reqId))?.resolve(response);
+            promisesRef.current.delete(String(reqId));
+          }
+          return; // Stop processing this error message
         }
+
+        console.error("[Deriv WS Provider] Error received:", response.error.message);
         
-        const reqId = response.req_id;
         if (reqId && promisesRef.current.has(String(reqId))) {
-            if (isForgetError) {
-                promisesRef.current.get(String(reqId))?.resolve(response);
-            } else {
-                promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
-            }
+            promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
             promisesRef.current.delete(String(reqId));
         } else if (response.msg_type === 'authorize') {
             setConnectionError(response.error.message);
@@ -403,7 +484,6 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const reqId = response.req_id;
       if (reqId && promisesRef.current.has(String(reqId))) {
           promisesRef.current.get(String(reqId))?.resolve(response);
           promisesRef.current.delete(String(reqId));
@@ -533,7 +613,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     return () => {
       // Cleanup logic if needed when dependencies change
     };
-  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts, operationsLog, fetchAutopilotStrategy, handleAutopilotCheck]);
+  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts, operationsLog, fetchAutopilotStrategy, handleAutopilotCheck, executeTrade]);
 
  const clearChartData = useCallback(() => {
     setChartData([]);
@@ -643,71 +723,7 @@ export function DerivApiProvider({ children }: { children: ReactNode }) {
     wsRef.current.send(JSON.stringify({ "balance": 1 }));
   }, []);
 
- const executeTrade = useCallback(async (
-    contractType: string,
-    stake: number,
-    symbol: string,
-    tradeDirection: 'rise' | 'fall',
-    duration: number,
-    durationUnit: DurationUnit,
-    isAutopilot: boolean = false
-): Promise<TradeResult> => {
-      if (!wsRef.current || !isConnected) {
-        throw new Error("A conexão com a Deriv API não está ativa.");
-      }
 
-      try {
-        const proposalResponse = await requestProposal(wsRef.current, { 
-            contractType, 
-            quantity: stake, 
-            symbol,
-            duration: duration,
-            duration_unit: durationUnit,
-        }, promisesRef);
-
-        const proposal = proposalResponse.proposal;
-        if (!proposal || !proposal.id) {
-          throw new Error("Falha ao obter uma proposta de negociação da API.");
-        }
-        
-        const buyResponse = await buyContract(wsRef.current, proposal.id, proposal.ask_price, promisesRef);
-        const buyResult = buyResponse.buy;
-        
-        const newOperation: Operation = {
-            id: buyResult.contract_id,
-            asset: symbol,
-            direction: tradeDirection,
-            stake: stake,
-            status: 'pending',
-            timestamp: new Date().toISOString(),
-            duration: duration,
-            durationUnit: durationUnit,
-            isAutopilot,
-        };
-        setOperationsLog(prevLog => [newOperation, ...prevLog]);
-
-        const newActiveContract: ActiveContract = {
-            contractId: buyResult.contract_id,
-            entryTick: buyResult.entry_tick,
-            entryTime: buyResult.entry_tick_time,
-            isAutopilot: isAutopilot
-        };
-        setActiveContracts(prev => [...prev, newActiveContract]);
-
-
-        return {
-          success: true,
-          message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${stake} USD executada com sucesso.`,
-          contractId: buyResult.contract_id,
-          entryTick: buyResult.entry_tick,
-          entryTime: buyResult.entry_tick_time,
-        };
-      } catch (error) {
-         console.error("[Deriv Hook] Erro durante a negociação:", error);
-         const message = error instanceof Error ? error.message : "Um erro desconhecido ocorreu.";
-         return { success: false, message };
-      }
-  }, [isConnected]);
 
   const clearActiveContracts = () => setActiveContracts([]);
   
