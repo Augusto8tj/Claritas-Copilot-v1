@@ -152,10 +152,18 @@ const calculateMA = (data: { price: number }[], period: number) => {
 
 const calculateEMA = (data: number[], period: number): number[] => {
     if (data.length < period) return [];
-    const k = 2 / (period + 1);
-    const emaArray = [data.slice(0, period).reduce((a, b) => a + b, 0) / period];
-    for (let i = period; i < data.length; i++) {
-        emaArray.push(data[i] * k + emaArray[emaArray.length - 1] * (1 - k));
+    let emaArray: number[] = [];
+    if (data.length === period) {
+        // Calculate the initial SMA for the first EMA value
+        const initialSma = data.slice(0, period).reduce((a, b) => a + b, 0) / period;
+        emaArray.push(initialSma);
+    } else if (data.length > period) {
+        // Assume data is already a series of EMAs for smoothing purposes, or a price series to start
+        emaArray.push(data.slice(0, period).reduce((a, b) => a + b, 0) / period); // Initial SMA
+        const k = 2 / (period + 1);
+        for (let i = period; i < data.length; i++) {
+            emaArray.push(data[i] * k + emaArray[emaArray.length - 1] * (1 - k));
+        }
     }
     return emaArray;
 };
@@ -214,7 +222,13 @@ const calculateMACD = (data: { price: number }[], fast = 12, slow = 26, signal =
     const prices = data.map(d => d.price);
     const emaFast = calculateEMA(prices, fast);
     const emaSlow = calculateEMA(prices, slow);
-    const macdLine = emaFast.slice(-emaSlow.length).map((val, i) => val - emaSlow[i]);
+
+    const macdLine: number[] = [];
+    const startOffset = emaFast.length - emaSlow.length;
+    for (let i = 0; i < emaSlow.length; i++) {
+        macdLine.push(emaFast[i + startOffset] - emaSlow[i]);
+    }
+    
     const signalLine = calculateEMA(macdLine, signal);
     
     if (macdLine.length === 0 || signalLine.length === 0) return null;
@@ -271,9 +285,16 @@ const calculateADX = (data: CandleData[], period = 14) => {
     const smoothedMinusDM = calculateEMA(minusDMs, period);
     
     if (smoothedTR.length === 0) return null;
+    
+    const validLength = Math.min(smoothedTR.length, smoothedPlusDM.length, smoothedMinusDM.length);
+    const plusDIs = [];
+    const minusDIs = [];
 
-    const plusDIs = smoothedPlusDM.map((val, i) => 100 * (val / smoothedTR[i]));
-    const minusDIs = smoothedMinusDM.map((val, i) => 100 * (val / smoothedTR[i]));
+    for(let i = 0; i < validLength; i++) {
+        if(smoothedTR[i] === 0) continue;
+        plusDIs.push(100 * (smoothedPlusDM[i] / smoothedTR[i]));
+        minusDIs.push(100 * (smoothedMinusDM[i] / smoothedTR[i]));
+    }
 
     const dxs = plusDIs.map((plusDI, i) => (plusDI + minusDIs[i] === 0) ? 0 : 100 * (Math.abs(plusDI - minusDIs[i]) / (plusDI + minusDIs[i])));
     
@@ -281,6 +302,7 @@ const calculateADX = (data: CandleData[], period = 14) => {
     if (!adx || adx.length === 0) return null;
     return adx[adx.length - 1];
 };
+
 
 const calculateIchimokuCloud = (data: CandleData[]) => {
     if (data.length < 52) return null;
@@ -305,19 +327,17 @@ const calculateAwesomeOscillator = (data: CandleData[]) => {
     if (data.length < 34) return null;
 
     const medianPrices = data.map(d => (d.high + d.low) / 2);
-    const ma5 = calculateMA(medianPrices.map(price => ({ price })), 5);
-    const ma34 = calculateMA(medianPrices.map(price => ({ price })), 34);
-
-    if (ma5 === null || ma34 === null) return null;
     
-    // We need the last values from the moving average calculation of the entire set
-    const recentMedianPrices = medianPrices.slice(medianPrices.length - 34);
-    const recentMa5 = calculateMA(recentMedianPrices.slice(-5).map(price => ({ price })), 5);
-    const recentMa34 = calculateMA(recentMedianPrices.map(price => ({ price })), 34);
+    const shortMAPeriod = 5;
+    const longMAPeriod = 34;
     
-    if (recentMa5 === null || recentMa34 === null) return null;
+    const shortMAData = medianPrices.slice(-shortMAPeriod);
+    const longMAData = medianPrices.slice(-longMAPeriod);
 
-    return recentMa5 - recentMa34;
+    const ma5 = shortMAData.reduce((acc, p) => acc + p, 0) / shortMAPeriod;
+    const ma34 = longMAData.reduce((acc, p) => acc + p, 0) / longMAPeriod;
+    
+    return ma5 - ma34;
 };
 
 const calculateVolumeProfile = (data: CandleData[], bars: number) => {
@@ -327,6 +347,7 @@ const calculateVolumeProfile = (data: CandleData[], bars: number) => {
     const priceLevels: { [key: string]: number } = {};
 
     relevantData.forEach(candle => {
+        if (!candle.close || !candle.volume) return;
         const priceStr = candle.close.toFixed(4); // Group by price level
         if (!priceLevels[priceStr]) {
             priceLevels[priceStr] = 0;
@@ -344,6 +365,37 @@ const calculateVolumeProfile = (data: CandleData[], bars: number) => {
     }
     return poc;
 };
+
+
+const calculateATR = (data: CandleData[], period = 14) => {
+    if (data.length < period) return null;
+    let trs = [];
+    for (let i = data.length - period; i < data.length; i++) {
+        const c = data[i];
+        const p = data[i-1];
+        if (!p) continue;
+        const tr = Math.max(c.high - c.low, Math.abs(c.high - p.close), Math.abs(c.low - p.close));
+        trs.push(tr);
+    }
+    if (trs.length === 0) return null;
+    const atr = trs.reduce((a, b) => a + b, 0) / trs.length;
+    return atr;
+}
+
+const calculateOBV = (data: CandleData[]) => {
+    if (data.length < 2) return null;
+    let obv = 0;
+    for (let i = 1; i < data.length; i++) {
+        const c = data[i];
+        const p = data[i-1];
+        if (c.close > p.close) {
+            obv += c.volume || 0;
+        } else if (c.close < p.close) {
+            obv -= c.volume || 0;
+        }
+    }
+    return obv;
+}
 
 
 const calculateVolatility = (data: { price: number }[], period = 20): number => {
@@ -422,7 +474,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
        if(!historicalData || historicalData.length < 50) {
             throw new Error("Dados históricos insuficientes para formar o conselho.");
         }
-      setGeminiRequestCount(prev => prev + 1);
+      setGeminiRequestCount(prev => prev + 10); // 10 requests for the council
       const result = await getStrategyCouncilAction({
         symbol: activeSymbolRef.current,
         balance: dailyBalance,
@@ -1053,10 +1105,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         setMACD(calculateMACD(priceDataSource));
         
         const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
-        if (maRobot && maRobot.strategyType === 'MOVING_AVERAGE_CROSS' && priceDataSource.length > maRobot.longPeriod!) {
+        if (maRobot && maRobot.shortPeriod && maRobot.longPeriod && priceDataSource.length > maRobot.longPeriod) {
             setCurrentMA({
-                short: calculateMA(priceDataSource, maRobot.shortPeriod!),
-                long: calculateMA(priceDataSource, maRobot.longPeriod!)
+                short: calculateMA(priceDataSource, maRobot.shortPeriod),
+                long: calculateMA(priceDataSource, maRobot.longPeriod)
             });
         }
     }
@@ -1121,15 +1173,15 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       let vote: 'RISE' | 'FALL' | 'HOLD' = 'HOLD';
       switch (robot.strategyType) {
         case 'RSI':
-          if (currentRSI && robot.strategyType === 'RSI') {
-            if (currentRSI <= robot.buyThreshold!) vote = 'RISE';
-            else if (currentRSI >= robot.sellThreshold!) vote = 'FALL';
+          if (currentRSI && robot.strategyType === 'RSI' && robot.buyThreshold && robot.sellThreshold) {
+            if (currentRSI <= robot.buyThreshold) vote = 'RISE';
+            else if (currentRSI >= robot.sellThreshold) vote = 'FALL';
           }
           break;
         case 'STOCHASTIC':
-          if (currentStoch && robot.strategyType === 'STOCHASTIC') {
-            if (currentStoch <= robot.buyThreshold!) vote = 'RISE';
-            else if (currentStoch >= robot.sellThreshold!) vote = 'FALL';
+          if (currentStoch && robot.strategyType === 'STOCHASTIC' && robot.buyThreshold && robot.sellThreshold) {
+            if (currentStoch <= robot.buyThreshold) vote = 'RISE';
+            else if (currentStoch >= robot.sellThreshold) vote = 'FALL';
           }
           break;
         case 'MOVING_AVERAGE_CROSS':
@@ -1152,14 +1204,14 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             }
             break;
         case 'PRICE_ACTION_PATTERN':
-            if (currentPriceAction && robot.strategyType === 'PRICE_ACTION_PATTERN') {
+            if (currentPriceAction && robot.strategyType === 'PRICE_ACTION_PATTERN' && robot.pattern) {
                 if (currentPriceAction === 'hammer' && robot.pattern === 'hammer') vote = 'RISE';
                 else if (currentPriceAction === 'shooting_star' && robot.pattern === 'shooting_star') vote = 'FALL';
             }
             break;
         case 'ADX_TREND':
-            if (currentADX && currentMA.short && currentMA.long && robot.strategyType === 'ADX_TREND') {
-                if (currentADX > robot.trendStrengthThreshold!) {
+            if (currentADX && currentMA.short && currentMA.long && robot.strategyType === 'ADX_TREND' && robot.trendStrengthThreshold) {
+                if (currentADX > robot.trendStrengthThreshold) {
                     if (currentMA.short > currentMA.long) vote = 'RISE';
                     else if (currentMA.short < currentMA.long) vote = 'FALL';
                 }
