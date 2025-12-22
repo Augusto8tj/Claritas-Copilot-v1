@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -436,8 +437,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [isFetchingCouncil, setIsFetchingCouncil] = useState(false);
   const [councilVotes, setCouncilVotes] = useState<{ [key: string]: { vote: 'RISE' | 'FALL' | 'HOLD', confidence: number, weight: number } }>({});
   const [consensusThreshold, setConsensusThreshold] = useState(300);
-  const [isDynamicConsensusOn, setIsDynamicConsensusOn] = useState(false);
-  const [isMeritocracyOn, setIsMeritocracyOn] = useState(false);
+  const [isDynamicConsensusOn, setIsDynamicConsensusOn] = useState(true);
+  const [isMeritocracyOn, setIsMeritocracyOn] = useState(true);
   const [robotPerformance, setRobotPerformance] = useState<RobotPerformance[]>([]);
   
   // States for indicators
@@ -1219,6 +1220,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     if (riseConfidenceSum >= consensusThreshold || fallConfidenceSum >= consensusThreshold) {
       councilExecutionRef.current.isExecuting = true;
       const direction = riseConfidenceSum >= consensusThreshold ? 'rise' : 'fall';
+      const contractType = direction === 'rise' ? 'CALL' : 'PUT';
       const firstRobot = strategyCouncil[0];
       const stake = firstRobot.suggestedStake;
       const duration = firstRobot.suggestedDuration;
@@ -1229,7 +1231,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         description: `Executando ordem de ${direction.toUpperCase()} com confiança total de ${Math.max(riseConfidenceSum, fallConfidenceSum).toFixed(0)}.`
       });
 
-      executeTrade('CALL', stake, activeSymbolRef.current!, direction, duration, unit, 'Conselho')
+      executeTrade(contractType, stake, activeSymbolRef.current!, direction, duration, unit, 'Conselho')
         .finally(() => {
           setTimeout(() => {
             councilExecutionRef.current.isExecuting = false;

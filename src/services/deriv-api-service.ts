@@ -214,8 +214,12 @@ export async function getMarketData(symbol: string): Promise<MarketData> {
          };
          ws.onmessage = (data) => {
             const res = JSON.parse(data.data);
-            if (res.error) reject(res.error);
-            else resolve(res);
+             if (res.error) {
+               reject(new Error(res.error.message || 'Unknown API error'));
+               ws.close();
+               return;
+             }
+            resolve(res);
             ws.close();
          };
          ws.onerror = (err) => reject(err);
