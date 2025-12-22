@@ -87,26 +87,33 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
   console.log("[Deriv Service] Fetching available assets...");
   try {
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+    
     const response: any = await new Promise((resolve, reject) => {
       ws.onopen = () => {
-        // Use ping as a handshake to ensure connection is ready
-        ws.send(JSON.stringify({ ping: 1 }));
+        ws.send(JSON.stringify({ active_symbols: 'full', product_type: 'basic' }));
       };
-      ws.onmessage = (data) => {
-        const res = JSON.parse(data.data);
+      
+      ws.onmessage = (event: MessageEvent) => {
+        const res = JSON.parse(event.data);
         if (res.error) {
           reject(new Error(res.error.message || 'Unknown API error while fetching assets'));
-          ws.close();
-        } else if (res.msg_type === 'pong') {
-          // Connection is healthy, now request assets
-          ws.send(JSON.stringify({ active_symbols: 'full', product_type: 'basic' }));
         } else if (res.msg_type === 'active_symbols') {
           resolve(res);
-          ws.close();
         }
       };
-      ws.onerror = (err) => reject(new Error('WebSocket connection error while fetching assets.'));
+
+      ws.onerror = (err) => {
+        reject(new Error('WebSocket connection error while fetching assets.'));
+      };
+
+      ws.onclose = () => {
+        // If the connection closes before we resolve, it's an error.
+        // This can happen if the API immediately closes the connection.
+        reject(new Error('WebSocket connection closed unexpectedly.'));
+      };
     });
+
+    ws.close(); // Ensure the connection is closed after we get our data.
 
     if (!response.active_symbols) {
       throw new Error("Invalid response from active_symbols");
