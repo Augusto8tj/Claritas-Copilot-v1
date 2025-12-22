@@ -924,8 +924,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
         case 'active_symbols':
             const groupedAssets: { [key: string]: Asset[] } = {};
-            for (const symbol of response.active_symbols) {
-                // We only want synthetic indices for this app.
+            response.active_symbols.forEach((symbol: any) => {
                 if (symbol.market === 'synthetic_index') {
                     const groupName = symbol.submarket_display_name;
                     if (!groupedAssets[groupName]) {
@@ -938,14 +937,14 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                         submarket: symbol.submarket.toLowerCase(),
                     });
                 }
-            }
-            // Convert the grouped object into the array format expected by the Select component.
+            });
+            
             const finalAssetGroups: AssetGroup[] = Object.keys(groupedAssets)
                 .map(label => ({
                     label,
                     options: groupedAssets[label].sort((a, b) => a.label.localeCompare(b.label)),
                 }))
-                .sort((a, b) => a.label.localeCompare(b.label)); // Sort the groups themselves
+                .sort((a, b) => a.label.localeCompare(b.label));
 
             setAssetGroups(finalAssetGroups);
             setIsAssetsLoading(false);
