@@ -680,14 +680,21 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         console.warn("[Deriv WS Provider] Cannot subscribe, WS not open.");
         return;
     }
-    
-    activeSymbolRef.current = symbol;
 
+    if (activeSymbolRef.current === symbol && activeSubscriptionId.current) {
+        // Already subscribed to this symbol. This can happen on re-renders.
+        // We might want to check if the time period or chart type has changed, but for now, let's just avoid re-subscribing.
+        return;
+    }
+
+    // If there's an old subscription, forget it.
     if (activeSubscriptionId.current) {
+        console.log(`[Deriv WS Provider] Forgetting old subscription: ${activeSubscriptionId.current}`);
         ws.send(JSON.stringify({ "forget": activeSubscriptionId.current }));
         activeSubscriptionId.current = null;
     }
     
+    activeSymbolRef.current = symbol;
     clearChartData();
     setIsChartLoading(true);
     setChartError(null);
@@ -715,7 +722,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         request.granularity = granularity;
     }
 
-    console.log(`[Deriv WS Provider] Subscribing to ${symbol} with style: ${style}`);
+    console.log(`[Deriv WS Provider] Subscribing to ${symbol} with style: ${style} and granularity: ${granularity}`);
     ws.send(JSON.stringify(request));
     
 }, [clearChartData]);
@@ -807,53 +814,41 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   
   useEffect(() => {
     if (!activeToken || isLoading) {
-        if (wsRef.current) {
-            wsRef.current.close();
-        }
-        return;
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+      return;
     }
-
+  
+    // Avoid creating a new connection if one is already open or connecting
     if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
-        // A connection is already open or connecting, don't create a new one.
-        return;
+      // If the token changes, we need to re-authorize on the existing connection
+      console.log("[Deriv WS Provider] Authorizing with new token on existing connection.");
+      wsRef.current.send(JSON.stringify({ "authorize": activeToken }));
+      return;
     }
-    
+  
+    console.log("[Deriv WS Provider] Creating new WebSocket connection.");
     setIsConnecting(true);
-    setIsConnected(false);
     setConnectionError(null);
-    setAccountBalance({ balance: null, currency: null, loading: true });
-    
+  
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     wsRef.current = ws;
-
+  
     ws.onopen = () => {
-        console.log("[Deriv WS Provider] Connection opened. Authorizing...");
-        ws.send(JSON.stringify({ "authorize": activeToken }));
+      console.log("[Deriv WS Provider] Connection opened. Authorizing...");
+      ws.send(JSON.stringify({ "authorize": activeToken }));
     };
-
-    ws.onclose = () => {
-      console.log("[Deriv WS Provider] Connection closed.");
-      setIsConnected(false);
-      setIsConnecting(false);
-      wsRef.current = null;
-      activeSubscriptionId.current = null;
-    };
-
-    ws.onerror = (error) => {
-      console.error("[Deriv WS Provider] WebSocket error occurred:", error);
-      setConnectionError("Failed to connect to Deriv API.");
-      setIsConnecting(false);
-      setIsConnected(false);
-    };
-    
+  
     ws.onmessage = (event) => {
       const response = JSON.parse(event.data);
-      
+  
       if (response.error) {
         console.error("[Deriv WS Provider] Error received:", response.error.message);
         if (response.msg_type === 'authorize') {
             setConnectionError(response.error.message);
             setIsConnected(false);
+            setIsConnecting(false);
         } else if (response.echo_req?.ticks_history || response.echo_req?.candles) {
             setChartError(response.error.message);
             setIsChartLoading(false);
@@ -866,28 +861,34 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         }
         return;
       }
-
-      // Handle promise resolutions
+  
       const reqId = response.req_id;
       if (reqId && promisesRef.current.has(String(reqId))) {
-          promisesRef.current.get(String(reqId))?.resolve(response);
-          promisesRef.current.delete(String(reqId));
-          return;
+        promisesRef.current.get(String(reqId))?.resolve(response);
+        promisesRef.current.delete(String(reqId));
+        return;
       }
-
+  
       switch (response.msg_type) {
         case 'authorize':
+          console.log("[Deriv WS Provider] Authorization successful.");
           setIsConnected(true);
           setIsConnecting(false);
           setConnectionError(null);
           ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
           ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 }));
-          
-          if (!activeSymbolRef.current) activeSymbolRef.current = '1HZ100V';
-          subscribeToSymbol(activeSymbolRef.current, timePeriod, chartType);
-          
-          toast({ title: "Conectado!", description: `Conexão com a conta ${accountType} da Deriv estabelecida.` });
+  
+          if (activeSymbolRef.current) {
+            console.log(`[Deriv WS Provider] Re-subscribing to ${activeSymbolRef.current} after authorization.`);
+            subscribeToSymbol(activeSymbolRef.current, timePeriod, chartType);
+          } else {
+             const initialSymbol = '1HZ100V';
+             activeSymbolRef.current = initialSymbol;
+             console.log(`[Deriv WS Provider] Subscribing to initial symbol ${initialSymbol}.`);
+             subscribeToSymbol(initialSymbol, timePeriod, chartType);
+          }
           break;
+
         case 'balance':
           setAccountBalance({
               balance: response.balance.balance,
@@ -895,6 +896,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
               loading: false
           });
           break;
+
         case 'proposal_open_contract':
             const contract = response.proposal_open_contract;
             if (!contract || !contract.is_sold) return;
@@ -934,8 +936,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
               wsRef.current.send(JSON.stringify({ "balance": 1 }));
             }
             break;
+
         case 'tick':
-          if (response.subscription?.id && response.subscription.id === activeSubscriptionId.current) {
+          if (response.subscription?.id === activeSubscriptionId.current) {
               const tick = response.tick;
               const newTick = { epoch: tick.epoch, price: tick.quote };
               setPriceTicks(prevTicks => [...prevTicks.slice(-499), newTick]);
@@ -944,8 +947,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
               }
           }
           break;
+
         case 'ohlc':
-           if (response.subscription?.id && response.subscription.id === activeSubscriptionId.current) {
+           if (response.subscription?.id === activeSubscriptionId.current) {
               const candle = response.ohlc;
               const newCandle: CandleData = {
                   epoch: candle.epoch,
@@ -967,40 +971,56 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
               });
            }
            break;
-        case 'candles':
-          activeSubscriptionId.current = response.subscription.id;
-          const candleData: CandleData[] = response.candles.map((candle: any) => ({
-              epoch: candle.epoch,
-              open: candle.open,
-              high: candle.high,
-              low: candle.low,
-              close: candle.close,
-              volume: candle.volume ? parseFloat(candle.volume) : undefined,
-          }));
-          setChartData(candleData);
-          setIsChartLoading(false);
-          break;
-        case 'history':
-            activeSubscriptionId.current = response.subscription.id;
-            const historyData = response.history.prices.map((price: number, index: number) => ({
-                epoch: response.history.times[index],
-                price: price,
-            }));
-            setChartData(historyData);
-            setPriceTicks(historyData);
+
+        case 'history': // Initial tick data
+        case 'candles': // Initial candle data
+            if (response.echo_req.subscribe === 1) {
+              activeSubscriptionId.current = response.subscription.id;
+              console.log(`[Deriv WS Provider] New subscription ID set: ${activeSubscriptionId.current}`);
+            }
+            const data = (response.candles || response.history.prices.map((p:number, i:number) => ({
+                epoch: response.history.times[i], 
+                close: p,
+                open: p, // Simplified for tick history
+                high: p,
+                low: p,
+            })))
+            .map((c: any) => ({...c, open: parseFloat(c.open), high: parseFloat(c.high), low: parseFloat(c.low), close: parseFloat(c.close)}));
+
+            if(response.history) {
+              setPriceTicks(data.map((d:any) => ({ epoch: d.epoch, price: d.close })));
+            }
+
+            setChartData(data);
             setIsChartLoading(false);
             break;
+
         case 'forget':
           console.log(`[Deriv WS Provider] Successfully forgot subscription.`);
           break;
       }
     };
-
-
+  
+    ws.onclose = () => {
+      console.log("[Deriv WS Provider] Connection closed.");
+      setIsConnected(false);
+      setIsConnecting(false);
+      wsRef.current = null;
+      activeSubscriptionId.current = null;
+    };
+  
+    ws.onerror = (error) => {
+      console.error("[Deriv WS Provider] WebSocket error occurred:", error);
+      setConnectionError("Failed to connect to Deriv API.");
+      setIsConnecting(false);
+      setIsConnected(false);
+    };
+  
     return () => {
-        if (wsRef.current) {
-            wsRef.current.close();
-        }
+      if (wsRef.current) {
+        console.log("[Deriv WS Provider] Cleaning up WebSocket connection.");
+        wsRef.current.close();
+      }
     };
   }, [activeToken, isLoading, subscribeToSymbol, timePeriod, chartType, accountType, toast, handleLosingTrade, operationsLog, activeContracts, updateRobotPerformance]);
 
