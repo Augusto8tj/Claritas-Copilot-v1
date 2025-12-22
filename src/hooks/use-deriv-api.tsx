@@ -542,6 +542,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
   const handleLosingTrade = useCallback(async (losingContract: any, initiator: OperationInitiator) => {
     const isAutopilotTrade = initiator === 'Piloto' || initiator === 'Conselho';
+    if (!isAutopilotTrade) return;
+
     console.log(`[Loss Analyzer] Analyzing losing trade: ${losingContract.contract_id}, Initiator: ${initiator}`);
     const operation = operationsLog.find(op => op.id === losingContract.contract_id);
     if (!operation) return;
@@ -552,7 +554,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       const analysisInput = {
         operation: JSON.stringify(operation),
         historicalDataJson: JSON.stringify(historicalData),
-        activeStrategyJson: isAutopilotTrade ? JSON.stringify(autopilotStrategy) : undefined, 
+        activeStrategyJson: JSON.stringify(autopilotStrategy), 
       };
       
       setGeminiRequestCount(prev => prev + 1);
@@ -566,11 +568,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             duration: 10000,
          });
          
-         if (isAutopilotTrade) {
-            console.log(`[Feedback Loop] Storing suggestion for autopilot: "${result.success.suggestion}"`);
-            setLastAutopilotLossSuggestion(result.success.suggestion);
-         }
-
+         console.log(`[Feedback Loop] Storing suggestion for autopilot: "${result.success.suggestion}"`);
+         setLastAutopilotLossSuggestion(result.success.suggestion);
+         
       } else {
          throw new Error(result.error || "A IA não conseguiu analisar a operação.");
       }
@@ -715,7 +715,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             count: 500,
             granularity: granularity,
             subscribe: 1,
-            adjust_start_time: 1 // Crucial para obter dados de volume
         }));
     }
     
