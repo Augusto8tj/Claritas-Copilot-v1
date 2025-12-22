@@ -81,7 +81,7 @@ export interface AssetGroup {
 
 
 /**
- * Fetches the list of all available assets from the Deriv API.
+ * Fetches the list of all available assets from the Deriv API using a robust ping/pong handshake.
  */
 export async function getAvailableAssets(): Promise<AssetGroup[]> {
   console.log("[Deriv Service] Fetching available assets...");
@@ -90,14 +90,25 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
     
     const response: any = await new Promise((resolve, reject) => {
       ws.onopen = () => {
-        ws.send(JSON.stringify({ active_symbols: 'full', product_type: 'basic' }));
+        // Start with a ping to ensure the connection is healthy
+        ws.send(JSON.stringify({ ping: 1 }));
       };
       
       ws.onmessage = (event: MessageEvent) => {
         const res = JSON.parse(event.data);
+
         if (res.error) {
           reject(new Error(res.error.message || 'Unknown API error while fetching assets'));
-        } else if (res.msg_type === 'active_symbols') {
+          ws.close();
+          return;
+        }
+
+        // If we get a pong, the connection is good. Now ask for symbols.
+        if (res.msg_type === 'pong') {
+          ws.send(JSON.stringify({ active_symbols: 'full', product_type: 'basic' }));
+        } 
+        // If we get the symbols, resolve the promise.
+        else if (res.msg_type === 'active_symbols') {
           resolve(res);
         }
       };
@@ -106,11 +117,17 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
         reject(new Error('WebSocket connection error while fetching assets.'));
       };
 
+       // Add a timeout to prevent hanging forever
+      const timeoutId = setTimeout(() => {
+        reject(new Error("Request for active symbols timed out."));
+        ws.close();
+      }, 10000); // 10 second timeout
+
+      // When the promise resolves or rejects, clear the timeout
       ws.onclose = () => {
-        // If the connection closes before we resolve, it's an error.
-        // This can happen if the API immediately closes the connection.
-        reject(new Error('WebSocket connection closed unexpectedly.'));
+        clearTimeout(timeoutId);
       };
+
     });
 
     ws.close(); // Ensure the connection is closed after we get our data.
@@ -122,8 +139,9 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
     const groupedAssets: { [key: string]: Asset[] } = {};
 
     for (const symbol of response.active_symbols) {
-        if (symbol.market === 'synthetic_index') { // Only include Volatility Indices
-            const market = symbol.market_display_name;
+        // Filter to only include Continuous Indices and Jump Indices under Synthetics
+        if (symbol.market === 'synthetic_index' && (symbol.submarket.includes('continuous') || symbol.submarket.includes('jump'))) {
+            const market = "Índices Sintéticos"; // Group them all under one category
             if (!groupedAssets[market]) {
                 groupedAssets[market] = [];
             }
