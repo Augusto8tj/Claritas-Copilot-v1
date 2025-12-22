@@ -350,12 +350,12 @@ const calculateVolumeProfile = (data: CandleData[], bars: number) => {
     const priceLevels: { [key: string]: number } = {};
 
     relevantData.forEach(candle => {
-        if (!candle.close || !candle.volume) return;
-        const priceStr = candle.close.toFixed(4); // Group by price level
+        if (!candle.close || !candle.volume) return; 
+        const priceStr = candle.close.toFixed(4);
         if (!priceLevels[priceStr]) {
             priceLevels[priceStr] = 0;
         }
-        priceLevels[priceStr] += candle.volume || 1; // Use 1 if volume is not present
+        priceLevels[priceStr] += candle.volume; 
     });
 
     let poc = null;
@@ -714,7 +714,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             end: 'latest',
             count: 500,
             granularity: granularity,
-            subscribe: 1
+            subscribe: 1,
+            adjust_start_time: 1 // Crucial para obter dados de volume
         }));
     }
     
