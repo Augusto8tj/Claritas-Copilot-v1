@@ -806,7 +806,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                     .slice(0, 2)
                     .filter(op => op.status === 'lost');
 
-                if (recentAutopilotLosses.length === 2) {
+                if (recentAutopilotLosses.length >= 2) {
                      toast({
                         title: `Alerta do ${initiator}`,
                         description: "Duas perdas consecutivas detectadas. Forçando reavaliação da estratégia.",
@@ -825,7 +825,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                     handleLosingTrade(contract, initiator);
                 }
             } else {
-                handleLosingTrade(contract, initiator);
+                 handleLosingTrade(contract, initiator);
             }
           }
 
