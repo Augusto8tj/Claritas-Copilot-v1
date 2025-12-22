@@ -569,10 +569,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
          if (isAutopilotTrade) {
             console.log(`[Feedback Loop] Storing suggestion for autopilot: "${result.success.suggestion}"`);
             setLastAutopilotLossSuggestion(result.success.suggestion);
-             if (initiator === 'Conselho') {
-                console.log("[Feedback Loop] Re-fetching council strategy due to loss.");
-                fetchStrategyCouncil(operation.durationUnit);
-             }
          }
 
       } else {
@@ -582,7 +578,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     } catch (e) {
       console.error("[Loss Analyzer] Error analyzing trade:", e);
     }
-  }, [operationsLog, toast, autopilotStrategy, fetchStrategyCouncil]);
+  }, [operationsLog, toast, autopilotStrategy]);
 
   useEffect(() => {
     try {
@@ -727,38 +723,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
  const fetchAutopilotStrategy = useCallback(async () => {
     if (!isAutopilotOn || !activeSymbolRef.current) return;
 
-    // Calculate PnL for the day
-    const today = new Date().toDateString();
-    const dailyPnL = operationsLog
-        .filter(op => new Date(op.timestamp).toDateString() === today && op.status !== 'pending')
-        .reduce((sum, op) => sum + (op.result || 0), 0);
-
-    // Stop-loss check
-    if (dailyBalance > 0 && dailyPnL <= -dailyBalance) {
-        toast({
-            title: "Piloto Automático Desligado",
-            description: `Limite de perda diária de $${dailyBalance.toFixed(2)} atingido.`,
-            variant: "destructive",
-            duration: 10000,
-        });
-        setIsAutopilotOn(false);
-        return;
-    }
-    
-    // Profit target check
-    if (dailyTarget > 0 && dailyPnL >= dailyTarget) {
-         toast({
-            title: "Piloto Automático Desligado",
-            description: `Meta de lucro diário de $${dailyTarget.toFixed(2)} atingida!`,
-            variant: "default",
-            className: "bg-green-600 text-white",
-            duration: 10000,
-        });
-        setIsAutopilotOn(false);
-        return;
-    }
-
-
+    // Risk management checks are now handled in the main useEffect
     console.log("[Autopilot] Fetching new strategy...");
     try {
         const historicalData = await getHistoricalDataFromApi(activeSymbolRef.current, undefined, 200);
@@ -783,7 +748,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         if (result.success) {
             setAutopilotStrategy(result.success);
             toast({ title: "Nova Estratégia do Piloto Automático", description: result.success.justification });
-            setLastAutopilotLossSuggestion(null);
+            setLastAutopilotLossSuggestion(null); // Clear suggestion after using it
         } else {
             throw new Error(result.error || "Ocorreu um erro desconhecido ao buscar estratégia.");
         }
@@ -791,7 +756,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
        console.error("[Autopilot] Error fetching strategy:", e.message);
        setAutopilotStrategy(null);
     }
-  }, [isAutopilotOn, lastAutopilotLossSuggestion, dailyBalance, dailyTarget, accountBalance.currency, operationsLog, toast, setIsAutopilotOn]);
+  }, [isAutopilotOn, lastAutopilotLossSuggestion, dailyBalance, accountBalance.currency, operationsLog, toast]);
 
     
   const handleAutopilotCheck = useCallback(() => {
@@ -832,15 +797,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         }
     };
   }, [isAutopilotOn, fetchAutopilotStrategy, handleAutopilotCheck]);
-
-
-  // Turn off autopilot if connection is lost
-  useEffect(() => {
-      if(!isConnected && isAutopilotOn) {
-          setIsAutopilotOn(false);
-          toast({ variant: "destructive", title: "Piloto Automático Desativado", description: "A conexão com a corretora foi perdida." });
-      }
-  }, [isConnected, isAutopilotOn, toast, setIsAutopilotOn]);
 
 
   useEffect(() => {
@@ -993,39 +949,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
               updateRobotPerformance(contract);
           }
 
-
           if (isLoss && activeContract) {
-            const initiator = activeContract.initiator;
-            const autopilotTrades = updatedLog.filter(op => op.initiator !== 'Manual' && op.status !== 'pending');
-            
-            if (initiator === 'Piloto' || initiator === 'Conselho') {
-                const recentAutopilotLosses = autopilotTrades
-                    .slice(0, 2)
-                    .filter(op => op.status === 'lost');
-
-                if (recentAutopilotLosses.length >= 2) {
-                     toast({
-                        title: `Alerta do ${initiator}`,
-                        description: "Duas perdas consecutivas detectadas. Forçando reavaliação da estratégia.",
-                        variant: "destructive",
-                     });
-                     
-                     handleLosingTrade(contract, initiator).then(() => {
-                         if (initiator === 'Conselho') {
-                            const lastOp = updatedLog.find(op => op.id === contract.contract_id);
-                            if(lastOp) fetchStrategyCouncil(lastOp.durationUnit);
-                         } else {
-                            fetchAutopilotStrategy();
-                         }
-                     });
-                } else {
-                    handleLosingTrade(contract, initiator);
-                }
-            } else {
-                 handleLosingTrade(contract, initiator);
-            }
+            handleLosingTrade(contract, activeContract.initiator);
           }
-
 
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({ "balance": 1 }));
