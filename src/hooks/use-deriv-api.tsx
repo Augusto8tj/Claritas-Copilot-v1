@@ -684,20 +684,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     activeSymbolRef.current = symbol;
 
     if (activeSubscriptionId.current) {
-        const subIdToForget = activeSubscriptionId.current;
-        const req_id = Date.now();
-        const forgetPromise = new Promise((resolve, reject) => {
-            promisesRef.current.set(String(req_id), { resolve, reject });
-            ws.send(JSON.stringify({ "forget": subIdToForget, "req_id": req_id }));
-        });
-        
-        try {
-            await forgetPromise;
-        } catch (error) {
-           console.warn(`[Deriv WS Provider] Non-critical error forgetting subscription (ID: ${subIdToForget}):`, error);
-        } finally {
-            activeSubscriptionId.current = null;
-        }
+        // We send the forget request but don't await it to prevent race conditions.
+        // The API should handle the old subscription being replaced by the new one.
+        ws.send(JSON.stringify({ "forget": activeSubscriptionId.current }));
+        activeSubscriptionId.current = null;
     }
     
     clearChartData();
@@ -709,7 +699,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         ws.send(JSON.stringify({ "ticks_history": symbol, "end": "latest", "count": 500, "style": "ticks", "subscribe": 1 }));
     } else {
         const granularity = getGranularityForTimePeriod(newTimePeriod);
-        if (granularity === 0) {
+         if (granularity === 0) {
              console.error(`[Deriv WS Provider] Invalid granularity for time period: ${newTimePeriod}`);
              setChartError(`Período de tempo inválido: ${newTimePeriod}`);
              setIsChartLoading(false);
@@ -722,8 +712,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             end: 'latest',
             count: 500,
             granularity: granularity,
-            subscribe: 1,
-            adjust_start_time: 1 // Necessary for volume data
+            subscribe: 1
         }));
     }
     
@@ -862,35 +851,27 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
     ws.onmessage = (event) => {
       const response = JSON.parse(event.data);
-      const isForgetError = !!response.echo_req?.forget;
-
+      
       if (response.error) {
-        if (isForgetError) {
-          const reqId = response.req_id;
-          if (reqId && promisesRef.current.has(String(reqId))) {
-            promisesRef.current.get(String(reqId))?.resolve(response); // Resolve even on forget error
-            promisesRef.current.delete(String(reqId));
-          }
-          // Do not log forget errors
-          return;
+        // Do not treat forget errors as critical connection errors
+        if (response.echo_req?.forget) {
+           console.warn(`[Deriv WS Provider] Non-critical error forgetting subscription:`, response.error.message);
+           const reqId = response.req_id;
+           if (reqId && promisesRef.current.has(String(reqId))) {
+                promisesRef.current.get(String(reqId))?.resolve(response); // Resolve to not block the flow
+                promisesRef.current.delete(String(reqId));
+           }
+           return;
         }
-        
+
         const isAlreadySubscribedError = response.error.code === 'AlreadySubscribed';
-        if (response.msg_type === 'ticks_history' || response.msg_type === 'candles') {
-          if (isAlreadySubscribedError) {
+        if (isAlreadySubscribedError && (response.msg_type === 'ticks_history' || response.msg_type === 'candles')) {
              console.warn(`[Deriv WS Provider] Already subscribed to ${response.echo_req?.ticks_history || 'unknown'}. Ignoring error.`);
              activeSubscriptionId.current = response.subscription?.id || null;
-             return; // Ignore this error
-          }
-          
-          console.error(`[Deriv WS Provider] Chart Data Error for ${response.echo_req?.ticks_history}:`, response.error.message);
-          setChartError(response.error.message);
-          setIsChartLoading(false);
-          return;
+             return; // Ignore this specific error
         }
        
         console.error("[Deriv WS Provider] Error received:", response.error.message);
-        
         const reqId = response.req_id;
         if (reqId && promisesRef.current.has(String(reqId))) {
             promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
@@ -898,6 +879,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         } else if (response.msg_type === 'authorize') {
             setConnectionError(response.error.message);
             setIsConnected(false);
+        } else {
+             setChartError(response.error.message);
+             setIsChartLoading(false);
         }
         return;
       }
@@ -1018,11 +1002,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           setPriceTicks(historyData);
           setIsChartLoading(false);
       } else if (response.msg_type === 'forget') {
-        const reqId = response.req_id;
-        if (reqId && promisesRef.current.has(String(reqId))) {
-            promisesRef.current.get(String(reqId))?.resolve(response);
-            promisesRef.current.delete(String(reqId));
-        }
         console.log(`[Deriv WS Provider] Successfully forgot subscription.`);
       }
     };
