@@ -29,6 +29,7 @@ import { AITradeSuggestion } from "./ai-trade-suggestion";
 
 import type { TradeResult } from "@/services/deriv-api-service";
 import type { DurationUnit, RiseFallFormValues } from "./deriv-trader-interface.types";
+import type { OperationInitiator } from "./operations-log.types";
 
 type TradeType = 'rise_fall' | 'higher_lower' | 'touch_no_touch';
 
@@ -116,7 +117,7 @@ export function DerivTraderInterface({ symbol, onTradeSuccess, isConnected }: De
         return;
     }
 
-    const result = await executeTrade(contractType, data.stake, symbol, tradeDirection, data.duration, data.duration_unit, false);
+    const result = await executeTrade(contractType, data.stake, symbol, tradeDirection, data.duration, data.duration_unit, 'Manual');
     setLoading(null);
 
     if (result.success) {

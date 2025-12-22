@@ -21,6 +21,7 @@ import type { RiseFallFormValues } from "./deriv-trader-interface.types";
 import type { UseFormReturn } from "react-hook-form";
 import { Badge } from "../ui/badge";
 import { Input } from "../ui/input";
+import type { OperationInitiator } from "./operations-log.types";
 
 interface AutoTraderInterfaceProps {
   symbol: string;
@@ -31,7 +32,7 @@ interface AutoTraderInterfaceProps {
     tradeDirection: 'rise' | 'fall',
     duration: number,
     durationUnit: any,
-    isAutopilot: boolean
+    initiator: OperationInitiator,
   ) => Promise<any>;
   form: UseFormReturn<RiseFallFormValues>;
 }
@@ -96,7 +97,7 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
             contractType = allowEquals ? 'PUTE' : 'PUT';
         }
 
-        await onExecuteTrade(contractType, stake, symbol, autopilotStrategy.direction.toLowerCase() as 'rise' | 'fall', duration, 't', true);
+        await onExecuteTrade(contractType, stake, symbol, autopilotStrategy.direction.toLowerCase() as 'rise' | 'fall', duration, 't', 'Piloto');
         
         // Pause for a short while after execution to prevent rapid-fire trades
         setTimeout(() => setIsExecuting(false), 10000); 

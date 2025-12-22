@@ -10,10 +10,11 @@ import {
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import type { Operation } from "./operations-log.types";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import type { Operation, OperationInitiator } from "./operations-log.types";
+import { ArrowDown, ArrowUp, Bot, User, Users } from "lucide-react";
 import { useMemo } from "react";
 import { PendingOperationCounter } from "./pending-operation-counter";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 
 
 interface OperationsLogProps {
@@ -26,6 +27,12 @@ const durationUnitLabels: { [key: string]: string } = {
   m: "minutos",
   h: "horas",
   d: "dias",
+};
+
+const initiatorIcons: Record<OperationInitiator, React.ReactNode> = {
+    Manual: <User className="h-3 w-3" />,
+    Piloto: <Bot className="h-3 w-3" />,
+    Conselho: <Users className="h-3 w-3" />,
 };
 
 
@@ -65,52 +72,64 @@ export function OperationsLog({ operations }: OperationsLogProps) {
       </CardHeader>
       <CardContent className="flex-1 p-0">
         <ScrollArea className="h-[200px] sm:h-[240px] lg:h-[calc(100%-1rem)]">
-          <div className="p-6 pt-0 space-y-4">
-            {operations.length === 0 ? (
-              <div className="text-center text-muted-foreground pt-10">
-                <p>Nenhuma operação recente.</p>
-              </div>
-            ) : (
-              operations.map((op) => (
-                <div key={op.id} className="flex items-center">
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      {op.asset} - {op.direction === "rise" ? "Rise" : "Fall"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Entrada: ${op.stake.toFixed(2)} | Duração: {op.duration} {durationUnitLabels[op.durationUnit] || op.durationUnit}
-                    </p>
-                  </div>
-                  <div
-                    className={cn(
-                      "flex items-center gap-1.5 text-sm font-semibold",
-                      op.status === "pending" && "text-muted-foreground",
-                      op.status === "won" && "text-green-600",
-                      op.status === "lost" && "text-destructive"
-                    )}
-                  >
-                    {op.status === "pending" ? (
-                      <PendingOperationCounter 
-                        duration={op.duration} 
-                        durationUnit={op.durationUnit}
-                        entryTime={new Date(op.timestamp).getTime()}
-                      />
-                    ) : op.status === "won" ? (
-                      <>
-                        <ArrowUp className="h-4 w-4" />
-                        <span>+${op.result?.toFixed(2)}</span>
-                      </>
-                    ) : (
-                      <>
-                        <ArrowDown className="h-4 w-4" />
-                        <span>-${op.stake.toFixed(2)}</span>
-                      </>
-                    )}
-                  </div>
+          <TooltipProvider>
+            <div className="p-6 pt-0 space-y-4">
+                {operations.length === 0 ? (
+                <div className="text-center text-muted-foreground pt-10">
+                    <p>Nenhuma operação recente.</p>
                 </div>
-              ))
-            )}
-          </div>
+                ) : (
+                operations.map((op) => (
+                    <div key={op.id} className="flex items-center">
+                    <div className="flex-1 space-y-1">
+                        <p className="text-sm font-medium leading-none flex items-center gap-1.5">
+                         <Tooltip>
+                            <TooltipTrigger>
+                                <div className="p-1 bg-muted rounded-full">
+                                    {initiatorIcons[op.initiator]}
+                                </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Iniciado por: {op.initiator}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                        <span>{op.asset} - {op.direction === "rise" ? "Rise" : "Fall"}</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground pl-9">
+                        Entrada: ${op.stake.toFixed(2)} | Duração: {op.duration} {durationUnitLabels[op.durationUnit] || op.durationUnit}
+                        </p>
+                    </div>
+                    <div
+                        className={cn(
+                        "flex items-center gap-1.5 text-sm font-semibold",
+                        op.status === "pending" && "text-muted-foreground",
+                        op.status === "won" && "text-green-600",
+                        op.status === "lost" && "text-destructive"
+                        )}
+                    >
+                        {op.status === "pending" ? (
+                        <PendingOperationCounter 
+                            duration={op.duration} 
+                            durationUnit={op.durationUnit}
+                            entryTime={new Date(op.timestamp).getTime()}
+                        />
+                        ) : op.status === "won" ? (
+                        <>
+                            <ArrowUp className="h-4 w-4" />
+                            <span>+${op.result?.toFixed(2)}</span>
+                        </>
+                        ) : (
+                        <>
+                            <ArrowDown className="h-4 w-4" />
+                            <span>-${op.stake.toFixed(2)}</span>
+                        </>
+                        )}
+                    </div>
+                    </div>
+                ))
+                )}
+            </div>
+          </TooltipProvider>
         </ScrollArea>
       </CardContent>
     </Card>

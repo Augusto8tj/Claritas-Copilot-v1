@@ -3,6 +3,7 @@
 import type { DurationUnit } from "./deriv-trader-interface.types";
 
 export type OperationStatus = 'pending' | 'won' | 'lost';
+export type OperationInitiator = 'Manual' | 'Piloto' | 'Conselho';
 
 export interface Operation {
   id: number;
@@ -14,5 +15,5 @@ export interface Operation {
   timestamp: string; // Changed to string (ISO format)
   duration: number;
   durationUnit: DurationUnit;
-  isAutopilot: boolean;
+  initiator: OperationInitiator;
 }
