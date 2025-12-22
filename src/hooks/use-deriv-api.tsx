@@ -347,7 +347,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         .reduce((sum, op) => sum + (op.result || 0), 0);
 
     // Stop-loss check
-    if (dailyPnL <= -dailyBalance) {
+    if (dailyBalance > 0 && dailyPnL <= -dailyBalance) {
         toast({
             title: "Piloto Automático Desligado",
             description: `Limite de perda diária de $${dailyBalance.toFixed(2)} atingido.`,
@@ -499,13 +499,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
       if (response.error) {
         if (isForgetError) {
-          // This is an expected error when a subscription we are trying to forget doesn't exist anymore.
           const reqId = response.req_id;
           if (reqId && promisesRef.current.has(String(reqId))) {
             promisesRef.current.get(String(reqId))?.resolve(response);
             promisesRef.current.delete(String(reqId));
           }
-          return;
+          return; 
         }
 
         console.error("[Deriv WS Provider] Error received:", response.error.message);
@@ -520,7 +519,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         } else if (response.msg_type === 'ticks_history' || response.msg_type === 'candles') {
              if (response.error.code === 'AlreadySubscribed') {
                 console.warn(`[Deriv WS Provider] Already subscribed to ${response.echo_req?.ticks_history || 'unknown'}. Ignoring error.`);
-                activeSubscriptionId.current = response.subscription.id;
+                activeSubscriptionId.current = response.subscription?.id || null;
              } else {
                 console.error(`[Deriv WS Provider] Chart Data Error for ${response.echo_req?.ticks_history}:`, response.error.message);
                 setChartError(response.error.message);
@@ -770,6 +769,57 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [currentRSI, currentStoch, currentMA, strategyCouncil, isCouncilAutopilotOn, executeTrade, toast]);
 
+
+ // Stop-loss and profit-target logic for both autopilots
+  useEffect(() => {
+    const today = new Date().toDateString();
+    const dailyPnL = operationsLog
+        .filter(op => new Date(op.timestamp).toDateString() === today && op.status !== 'pending')
+        .reduce((sum, op) => sum + (op.result || 0), 0);
+
+    if (isAutopilotOn && dailyBalance > 0 && dailyPnL <= -dailyBalance) {
+        toast({
+            title: "Piloto Automático Desligado",
+            description: `Limite de perda diária de $${dailyBalance.toFixed(2)} atingido.`,
+            variant: "destructive",
+            duration: 10000,
+        });
+        setIsAutopilotOn(false);
+    }
+    
+    if (isAutopilotOn && dailyTarget > 0 && dailyPnL >= dailyTarget) {
+         toast({
+            title: "Piloto Automático Desligado",
+            description: `Meta de lucro diário de $${dailyTarget.toFixed(2)} atingida!`,
+            variant: "default",
+            className: "bg-green-600 text-white",
+            duration: 10000,
+        });
+        setIsAutopilotOn(false);
+    }
+
+    if (isCouncilAutopilotOn && dailyBalance > 0 && dailyPnL <= -dailyBalance) {
+        toast({
+            title: "Conselho de Robôs Desligado",
+            description: `Limite de perda diária de $${dailyBalance.toFixed(2)} atingido.`,
+            variant: "destructive",
+            duration: 10000,
+        });
+        setIsCouncilAutopilotOn(false);
+    }
+    
+    if (isCouncilAutopilotOn && dailyTarget > 0 && dailyPnL >= dailyTarget) {
+         toast({
+            title: "Conselho de Robôs Desligado",
+            description: `Meta de lucro diário de $${dailyTarget.toFixed(2)} atingida!`,
+            variant: "default",
+            className: "bg-green-600 text-white",
+            duration: 10000,
+        });
+        setIsCouncilAutopilotOn(false);
+    }
+
+  }, [operationsLog, isAutopilotOn, isCouncilAutopilotOn, dailyBalance, dailyTarget, setIsAutopilotOn, setIsCouncilAutopilotOn, toast]);
 
 
  const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {

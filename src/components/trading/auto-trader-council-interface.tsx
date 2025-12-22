@@ -19,6 +19,7 @@ import { Separator } from "../ui/separator";
 import { Badge } from "../ui/badge";
 import type { RobotStrategy } from "@/ai/flows/strategy-council-flow.types";
 import { cn } from "@/lib/utils";
+import { Input } from "../ui/input";
 
 const indicatorIcons: { [key: string]: React.ReactNode } = {
     RSI: <BrainCircuit className="h-4 w-4" />,
@@ -44,6 +45,10 @@ export function AutoTraderCouncilInterface() {
     isFetchingCouncil,
     councilVotes,
     geminiRequestCount,
+    dailyBalance,
+    setDailyBalance,
+    dailyTarget,
+    setDailyTarget,
   } = useDerivApi();
   
   const handleToggleAutopilot = (isOn: boolean) => {
@@ -90,6 +95,33 @@ export function AutoTraderCouncilInterface() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+             <div className="space-y-2">
+                <Label htmlFor="council-daily-balance">Banca do Dia (USD)</Label>
+                <Input 
+                    id="council-daily-balance"
+                    type="number"
+                    value={dailyBalance}
+                    onChange={(e) => setDailyBalance(Number(e.target.value))}
+                    placeholder="Ex: 100"
+                    disabled={isCouncilAutopilotOn}
+                />
+                <p className="text-xs text-muted-foreground">Sua perda máxima no dia.</p>
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="council-daily-target">Alvo de Lucro (USD)</Label>
+                <Input 
+                    id="council-daily-target"
+                    type="number"
+                    value={dailyTarget}
+                    onChange={(e) => setDailyTarget(Number(e.target.value))}
+                    placeholder="Ex: 50"
+                    disabled={isCouncilAutopilotOn}
+                />
+                <p className="text-xs text-muted-foreground">Sua meta de lucro no dia.</p>
+            </div>
+        </div>
+
          <div className="flex justify-between items-center text-xs text-muted-foreground border-t pt-4">
             <span>Requisições à IA (sessão)</span>
             <Badge variant="outline">{geminiRequestCount}</Badge>
