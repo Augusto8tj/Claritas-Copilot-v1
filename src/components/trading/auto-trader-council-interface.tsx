@@ -49,6 +49,9 @@ export function AutoTraderCouncilInterface() {
     setDailyBalance,
     dailyTarget,
     setDailyTarget,
+    currentRSI,
+    currentStoch,
+    currentMA,
   } = useDerivApi();
   
   const handleToggleAutopilot = (isOn: boolean) => {
@@ -74,6 +77,24 @@ export function AutoTraderCouncilInterface() {
             return `Cruzamento de Médias ${robot.shortPeriod}/${robot.longPeriod}`;
         default:
             return "Parâmetros desconhecidos";
+    }
+  }
+
+  const renderIndicatorValue = (robot: RobotStrategy) => {
+    let value: string | React.ReactNode = "N/A";
+    switch (robot.strategyType) {
+        case 'RSI':
+            value = currentRSI?.toFixed(2) ?? "Calculando...";
+            return <p>RSI Atual: <strong>{value}</strong></p>;
+        case 'STOCHASTIC':
+            value = currentStoch?.toFixed(2) ?? "Calculando...";
+            return <p>Estocástico Atual: <strong>{value}</strong></p>;
+        case 'MOVING_AVERAGE_CROSS':
+            const shortMA = currentMA.short?.toFixed(4) ?? "-";
+            const longMA = currentMA.long?.toFixed(4) ?? "-";
+            return <p>Médias Atuais: <strong>{shortMA} / {longMA}</strong></p>;
+        default:
+            return null;
     }
   }
 
@@ -148,6 +169,7 @@ export function AutoTraderCouncilInterface() {
                                     <p className="font-bold flex items-center gap-1.5">{indicatorIcons[robot.strategyType] || <Bot />} Robô {index + 1}: {robot.strategyType}</p>
                                     <p className="italic pl-5">{robot.justification}</p>
                                     <p className="pl-5">{renderStrategyParams(robot)}</p>
+                                    <div className="pl-5">{renderIndicatorValue(robot)}</div>
                                     <div className={cn("pl-5 font-bold flex items-center gap-1", 
                                         vote === 'RISE' && 'text-green-600',
                                         vote === 'FALL' && 'text-red-600',
