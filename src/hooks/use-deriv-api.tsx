@@ -675,17 +675,16 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   }, [isConnected]);
   
  const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {
-    const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-        console.warn("[Deriv WS Provider] Cannot subscribe, WS not open or ready.");
+    if (!isConnected || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        console.warn("[Deriv WS Provider] Cannot subscribe, WS not connected or not ready.");
+        // We can optionally queue this request or notify the user.
         return;
     }
     
+    const ws = wsRef.current;
     activeSymbolRef.current = symbol;
 
     if (activeSubscriptionId.current) {
-        // We send the forget request but don't await it to prevent race conditions.
-        // The API should handle the old subscription being replaced by the new one.
         ws.send(JSON.stringify({ "forget": activeSubscriptionId.current }));
         activeSubscriptionId.current = null;
     }
@@ -694,29 +693,33 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     setIsChartLoading(true);
     setChartError(null);
 
-    if (newTimePeriod === '1m') {
-        console.log(`[Deriv WS Provider] Subscribing to ticks for ${symbol}`);
-        ws.send(JSON.stringify({ "ticks_history": symbol, "end": "latest", "count": 500, "style": "ticks", "subscribe": 1 }));
-    } else {
-        const granularity = getGranularityForTimePeriod(newTimePeriod);
-         if (granularity === 0) {
-             console.error(`[Deriv WS Provider] Invalid granularity for time period: ${newTimePeriod}`);
-             setChartError(`Período de tempo inválido: ${newTimePeriod}`);
-             setIsChartLoading(false);
-             return;
-        }
-        console.log(`[Deriv WS Provider] Subscribing to candles for ${symbol} with granularity ${granularity}`);
-        ws.send(JSON.stringify({
-            ticks_history: symbol,
-            style: 'candles',
-            end: 'latest',
-            count: 500,
-            granularity: granularity,
-            subscribe: 1
-        }));
-    }
+    const granularity = getGranularityForTimePeriod(newTimePeriod);
+    const style = newTimePeriod === '1m' ? 'ticks' : 'candles';
     
-}, [clearChartData]);
+    if (style === 'candles' && granularity === 0) {
+        const errorMsg = `Período de tempo inválido para gráfico de velas: ${newTimePeriod}`;
+        console.error(`[Deriv WS Provider] ${errorMsg}`);
+        setChartError(errorMsg);
+        setIsChartLoading(false);
+        return;
+    }
+
+    const request: any = {
+        ticks_history: symbol,
+        style: style,
+        end: 'latest',
+        count: 500,
+        subscribe: 1
+    };
+
+    if (style === 'candles') {
+        request.granularity = granularity;
+    }
+
+    console.log(`[Deriv WS Provider] Subscribing to ${symbol} with style: ${style}`);
+    ws.send(JSON.stringify(request));
+    
+}, [isConnected, clearChartData]);
  
  const fetchAutopilotStrategy = useCallback(async () => {
     if (!isAutopilotOn || !activeSymbolRef.current) return;
@@ -815,194 +818,180 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     }
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        if (!isConnected) { 
-             wsRef.current.send(JSON.stringify({ "authorize": activeToken }));
-        }
-    } else {
-        setIsConnecting(true);
-        setIsConnected(false);
-        setConnectionError(null);
-        const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
-        wsRef.current = ws;
-
-        ws.onopen = () => {
-          console.log("[Deriv WS Provider] Connection opened. Authorizing...");
-          ws.send(JSON.stringify({ "authorize": activeToken }));
-        };
-
-        ws.onclose = () => {
-          console.log("[Deriv WS Provider] Connection closed.");
-          setIsConnected(false);
-          setIsConnecting(false);
-          wsRef.current = null;
-          activeSubscriptionId.current = null;
-        };
-
-        ws.onerror = () => {
-          console.error("[Deriv WS Provider] WebSocket error occurred.");
-          setConnectionError("Failed to connect to Deriv API.");
-          setIsConnecting(false);
-          setIsConnected(false);
-        };
+        return; // Already connected and handling messages
     }
     
-    const ws = wsRef.current;
-    if(!ws) return;
+    setIsConnecting(true);
+    setIsConnected(false);
+    setConnectionError(null);
+    const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+    wsRef.current = ws;
 
+    ws.onopen = () => {
+      console.log("[Deriv WS Provider] Connection opened. Authorizing...");
+      ws.send(JSON.stringify({ "authorize": activeToken }));
+    };
+
+    ws.onclose = () => {
+      console.log("[Deriv WS Provider] Connection closed.");
+      setIsConnected(false);
+      setIsConnecting(false);
+      wsRef.current = null;
+      activeSubscriptionId.current = null;
+    };
+
+    ws.onerror = (error) => {
+      console.error("[Deriv WS Provider] WebSocket error occurred:", error);
+      setConnectionError("Failed to connect to Deriv API.");
+      setIsConnecting(false);
+      setIsConnected(false);
+    };
+    
     ws.onmessage = (event) => {
       const response = JSON.parse(event.data);
       
-      if (response.error) {
-        // Do not treat forget errors as critical connection errors
-        if (response.echo_req?.forget) {
-           console.warn(`[Deriv WS Provider] Non-critical error forgetting subscription:`, response.error.message);
-           const reqId = response.req_id;
-           if (reqId && promisesRef.current.has(String(reqId))) {
-                promisesRef.current.get(String(reqId))?.resolve(response); // Resolve to not block the flow
-                promisesRef.current.delete(String(reqId));
-           }
-           return;
-        }
-
-        const isAlreadySubscribedError = response.error.code === 'AlreadySubscribed';
-        if (isAlreadySubscribedError && (response.msg_type === 'ticks_history' || response.msg_type === 'candles')) {
-             console.warn(`[Deriv WS Provider] Already subscribed to ${response.echo_req?.ticks_history || 'unknown'}. Ignoring error.`);
-             activeSubscriptionId.current = response.subscription?.id || null;
-             return; // Ignore this specific error
-        }
-       
-        console.error("[Deriv WS Provider] Error received:", response.error.message);
-        const reqId = response.req_id;
-        if (reqId && promisesRef.current.has(String(reqId))) {
-            promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
-            promisesRef.current.delete(String(reqId));
-        } else if (response.msg_type === 'authorize') {
-            setConnectionError(response.error.message);
-            setIsConnected(false);
-        } else {
-             setChartError(response.error.message);
-             setIsChartLoading(false);
-        }
-        return;
-      }
-
       const reqId = response.req_id;
       if (reqId && promisesRef.current.has(String(reqId))) {
-          promisesRef.current.get(String(reqId))?.resolve(response);
+          if (response.error) {
+              promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
+          } else {
+              promisesRef.current.get(String(reqId))?.resolve(response);
+          }
           promisesRef.current.delete(String(reqId));
           return;
       }
 
-      if (response.msg_type === 'authorize') {
-        console.log("[Deriv WS Provider] Authorized successfully.");
-        setIsConnected(true);
-        setIsConnecting(false);
-        setConnectionError(null);
-        ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
-        ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 }));
-        if (!activeSymbolRef.current) {
-            activeSymbolRef.current = '1HZ100V';
+      if (response.error) {
+        console.error("[Deriv WS Provider] Error received:", response.error.message);
+        if (response.msg_type === 'authorize') {
+            setConnectionError(response.error.message);
+            setIsConnected(false);
+            setIsConnecting(false);
+        } else if (response.echo_req?.ticks_history) {
+            setChartError(response.error.message);
+            setIsChartLoading(false);
         }
-      } else if (response.msg_type === 'balance') {
-        setAccountBalance({
-            balance: response.balance.balance,
-            currency: response.balance.currency,
-            loading: false
-        });
-      } else if (response.msg_type === 'proposal_open_contract') {
-          const contract = response.proposal_open_contract;
-          if (!contract || !contract.is_sold) return;
-          
-          const profit = parseFloat(contract.profit);
-          const isLoss = profit < 0;
+        return;
+      }
 
-          const profitLossMessage = profit >= 0 ? `Lucro de ${contract.currency} ${profit.toFixed(2)}` : `Prejuízo de ${contract.currency} ${Math.abs(profit).toFixed(2)}`;
-
-          toast({
-              title: "Negociação Encerrada",
-              description: `Contrato ${contract.contract_id}: ${profitLossMessage}`,
-              variant: isLoss ? "destructive" : "default",
+      switch (response.msg_type) {
+        case 'authorize':
+          console.log("[Deriv WS Provider] Authorized successfully.");
+          setIsConnected(true);
+          setIsConnecting(false);
+          setConnectionError(null);
+          ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
+          ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 }));
+          if (!activeSymbolRef.current) {
+            activeSymbolRef.current = '1HZ100V'; // Default symbol
+          }
+          subscribeToSymbol(activeSymbolRef.current, timePeriod, chartType);
+          break;
+        case 'balance':
+          setAccountBalance({
+              balance: response.balance.balance,
+              currency: response.balance.currency,
+              loading: false
           });
+          break;
+        case 'proposal_open_contract':
+            const contract = response.proposal_open_contract;
+            if (!contract || !contract.is_sold) return;
+            
+            const profit = parseFloat(contract.profit);
+            const isLoss = profit < 0;
 
-           const updatedLog = operationsLog.map(op =>
-                op.id === contract.contract_id
-                  ? { ...op, status: profit >= 0 ? 'won' : 'lost', result: profit }
-                  : op
-              );
-            setOperationsLog(updatedLog);
-          
-          const activeContract = activeContracts.find(c => c.contractId === contract.contract_id);
-          setActiveContracts(prev => prev.map(c => 
-            c.contractId === contract.contract_id 
-              ? { ...c, status: profit >= 0 ? 'won' : 'lost', exitTick: parseFloat(contract.exit_tick_display_value), exitTime: contract.exit_tick_time }
-              : c
-          ));
-          
-          if(activeContract?.initiator === 'Conselho') {
-              updateRobotPerformance(contract);
-          }
-
-          if (isLoss && activeContract) {
-            handleLosingTrade(contract, activeContract.initiator);
-          }
-
-          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({ "balance": 1 }));
-          }
-      } else if (response.msg_type === 'tick') {
-        if (response.subscription?.id && response.subscription.id === activeSubscriptionId.current) {
-            const tick = response.tick;
-            const newTick = { epoch: tick.epoch, price: tick.quote };
-            setPriceTicks(prevTicks => [...prevTicks.slice(-499), newTick]);
-            if(timePeriod === '1m') {
-                setChartData(prev => [...(prev as TickData[]).slice(-499), newTick]);
-            }
-        }
-      } else if (response.msg_type === 'ohlc') {
-         if (response.subscription?.id && response.subscription.id === activeSubscriptionId.current) {
-            const candle = response.ohlc;
-            const newCandle: CandleData = {
-                epoch: candle.epoch,
-                open: parseFloat(candle.open),
-                high: parseFloat(candle.high),
-                low: parseFloat(candle.low),
-                close: parseFloat(candle.close),
-                volume: candle.volume ? parseFloat(candle.volume) : undefined,
-            };
-            setChartData(prev => {
-                const data = prev as CandleData[];
-                if (data.length > 0 && data[data.length - 1].epoch === newCandle.epoch) {
-                    const newData = [...data];
-                    newData[data.length - 1] = newCandle;
-                    return newData;
-                } else {
-                    return [...data.slice(-499), newCandle];
-                }
+            toast({
+                title: "Negociação Encerrada",
+                description: `Contrato ${contract.contract_id}: ${profit >= 0 ? `Lucro de ${contract.currency} ${profit.toFixed(2)}` : `Prejuízo de ${contract.currency} ${Math.abs(profit).toFixed(2)}`}`,
+                variant: isLoss ? "destructive" : "default",
             });
-         }
-      } else if (response.msg_type === 'candles') {
-        activeSubscriptionId.current = response.subscription.id;
-        const candleData: CandleData[] = response.candles.map((candle: any) => ({
-            epoch: candle.epoch,
-            open: candle.open,
-            high: candle.high,
-            low: candle.low,
-            close: candle.close,
-            volume: candle.volume ? parseFloat(candle.volume) : undefined,
-        }));
-        setChartData(candleData);
-        setIsChartLoading(false);
-      } else if (response.msg_type === 'history') {
+
+            const updatedLog = operationsLog.map(op =>
+                  op.id === contract.contract_id
+                    ? { ...op, status: profit >= 0 ? 'won' : 'lost', result: profit }
+                    : op
+                );
+              setOperationsLog(updatedLog);
+            
+            const activeContract = activeContracts.find(c => c.contractId === contract.contract_id);
+            setActiveContracts(prev => prev.map(c => 
+              c.contractId === contract.contract_id 
+                ? { ...c, status: profit >= 0 ? 'won' : 'lost', exitTick: parseFloat(contract.exit_tick_display_value), exitTime: contract.exit_tick_time }
+                : c
+            ));
+            
+            if(activeContract?.initiator === 'Conselho') {
+                updateRobotPerformance(contract);
+            }
+
+            if (isLoss && activeContract) {
+              handleLosingTrade(contract, activeContract.initiator);
+            }
+
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+              wsRef.current.send(JSON.stringify({ "balance": 1 }));
+            }
+            break;
+        case 'tick':
+          if (response.subscription?.id && response.subscription.id === activeSubscriptionId.current) {
+              const tick = response.tick;
+              const newTick = { epoch: tick.epoch, price: tick.quote };
+              setPriceTicks(prevTicks => [...prevTicks.slice(-499), newTick]);
+              if(timePeriod === '1m') {
+                  setChartData(prev => [...(prev as TickData[]).slice(-499), newTick]);
+              }
+          }
+          break;
+        case 'ohlc':
+           if (response.subscription?.id && response.subscription.id === activeSubscriptionId.current) {
+              const candle = response.ohlc;
+              const newCandle: CandleData = {
+                  epoch: candle.epoch,
+                  open: parseFloat(candle.open),
+                  high: parseFloat(candle.high),
+                  low: parseFloat(candle.low),
+                  close: parseFloat(candle.close),
+                  volume: candle.volume ? parseFloat(candle.volume) : undefined,
+              };
+              setChartData(prev => {
+                  const data = prev as CandleData[];
+                  if (data.length > 0 && data[data.length - 1].epoch === newCandle.epoch) {
+                      const newData = [...data];
+                      newData[data.length - 1] = newCandle;
+                      return newData;
+                  } else {
+                      return [...data.slice(-499), newCandle];
+                  }
+              });
+           }
+           break;
+        case 'candles':
           activeSubscriptionId.current = response.subscription.id;
-          const historyData = response.history.prices.map((price: number, index: number) => ({
-              epoch: response.history.times[index],
-              price: price,
+          const candleData: CandleData[] = response.candles.map((candle: any) => ({
+              epoch: candle.epoch,
+              open: candle.open,
+              high: candle.high,
+              low: candle.low,
+              close: candle.close,
+              volume: candle.volume ? parseFloat(candle.volume) : undefined,
           }));
-          setChartData(historyData);
-          setPriceTicks(historyData);
+          setChartData(candleData);
           setIsChartLoading(false);
-      } else if (response.msg_type === 'forget') {
-        console.log(`[Deriv WS Provider] Successfully forgot subscription.`);
+          break;
+        case 'history':
+            activeSubscriptionId.current = response.subscription.id;
+            const historyData = response.history.prices.map((price: number, index: number) => ({
+                epoch: response.history.times[index],
+                price: price,
+            }));
+            setChartData(historyData);
+            setPriceTicks(historyData);
+            setIsChartLoading(false);
+            break;
+        case 'forget':
+          console.log(`[Deriv WS Provider] Successfully forgot subscription.`);
+          break;
       }
     };
 
@@ -1010,7 +999,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       // Cleanup logic if needed when dependencies change
     };
-  }, [activeToken, isLoading, isConnected, toast, handleLosingTrade, timePeriod, activeContracts, operationsLog, fetchAutopilotStrategy, executeTrade, isAutopilotOn, setIsAutopilotOn, subscribeToSymbol, fetchStrategyCouncil, updateRobotPerformance]);
+  }, [activeToken, isLoading, subscribeToSymbol, timePeriod, chartType]);
 
 
  useEffect(() => {
