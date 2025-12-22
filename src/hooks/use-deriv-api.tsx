@@ -4,7 +4,7 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
 import { requestProposal, buyContract, getHistoricalData as getHistoricalDataFromApi } from '@/services/deriv-api-service';
-import type { TradeResult } from '@/services/deriv-api-service';
+import type { TradeResult, Asset, AssetGroup } from '@/services/deriv-api-service';
 import { useToast } from './use-toast';
 import type { Operation, OperationInitiator, RobotPerformance } from '@/components/trading/operations-log.types';
 import { analyzeOperationsAction } from '@/app/actions/trading-actions';
@@ -71,6 +71,8 @@ interface DerivApiContextType {
   operationsLog: Operation[];
   priceTicks: TickData[];
   chartData: ChartData[];
+  assetGroups: AssetGroup[];
+  isAssetsLoading: boolean;
   isChartLoading: boolean;
   chartError: string | null;
   chartType: ChartType;
@@ -441,6 +443,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [dailyBalance, setDailyBalance] = useState(100);
   const [dailyTarget, setDailyTarget] = useState(50);
   const [showBollingerBands, setShowBollingerBands] = useState(true);
+  const [assetGroups, setAssetGroups] = useState<AssetGroup[]>([]);
+  const [isAssetsLoading, setIsAssetsLoading] = useState(true);
   
   const [isCouncilAutopilotOn, setIsCouncilAutopilotOn] = useState(false);
   const [strategyCouncil, setStrategyCouncil] = useState<RobotStrategy[]>([]);
@@ -742,7 +746,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         console.error(`[Deriv WS Provider] Subscription Error: ${e.message}`);
         setChartError(e.message);
         setIsChartLoading(false);
-        isSubscribingRef.current = false;
+        isSubscribingRef.current = false; // Release lock on error
     }
 }, [clearChartData]);
  
@@ -859,6 +863,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     ws.onopen = () => {
       console.log("[Deriv WS Provider] Connection opened. Authorizing...");
       ws.send(JSON.stringify({ "authorize": activeToken }));
+      ws.send(JSON.stringify({ active_symbols: 'full', product_type: 'basic' }));
+      setIsAssetsLoading(true);
     };
   
     ws.onmessage = (event) => {
@@ -877,6 +883,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             setChartError(response.error.message);
             setIsChartLoading(false);
             isSubscribingRef.current = false; // Release lock on error
+        } else if (response.msg_type === 'active_symbols') {
+            setAssetGroups([]);
+            setIsAssetsLoading(false);
         }
         
         if (reqId && promisesRef.current.has(String(reqId))) {
@@ -910,6 +919,28 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
               loading: false
           });
           break;
+
+        case 'active_symbols':
+            const groupedAssets: { [key: string]: Asset[] } = {};
+            for (const symbol of response.active_symbols) {
+                if (symbol.market === 'synthetic_index' && (symbol.submarket.includes('continuous') || symbol.submarket.includes('jump'))) {
+                    const market = "Índices Sintéticos";
+                    if (!groupedAssets[market]) {
+                        groupedAssets[market] = [];
+                    }
+                    groupedAssets[market].push({
+                        value: symbol.symbol,
+                        label: symbol.display_name
+                    });
+                }
+            }
+            const finalAssetGroups: AssetGroup[] = Object.keys(groupedAssets).map(label => ({
+              label,
+              options: groupedAssets[label].sort((a,b) => a.label.localeCompare(b.label))
+            })).sort((a, b) => a.label.localeCompare(b.label));
+            setAssetGroups(finalAssetGroups);
+            setIsAssetsLoading(false);
+            break;
 
         case 'proposal_open_contract':
             const contract = response.proposal_open_contract;
@@ -1353,6 +1384,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     operationsLog,
     priceTicks,
     chartData,
+    assetGroups,
+    isAssetsLoading,
     isChartLoading,
     chartError,
     chartType,

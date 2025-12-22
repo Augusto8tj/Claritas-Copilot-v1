@@ -79,88 +79,6 @@ export interface AssetGroup {
   options: Asset[];
 }
 
-
-/**
- * Fetches the list of all available assets from the Deriv API.
- */
-export async function getAvailableAssets(): Promise<AssetGroup[]> {
-  console.log("[Deriv Service] Fetching available assets...");
-  try {
-    const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
-    
-    const response: any = await new Promise((resolve, reject) => {
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ active_symbols: 'full', product_type: 'basic' }));
-      };
-      
-      ws.onmessage = (event: MessageEvent) => {
-        const res = JSON.parse(event.data);
-        if (res.error) {
-          reject(new Error(res.error.message || 'Unknown API error while fetching assets'));
-        } else if (res.msg_type === 'active_symbols') {
-          resolve(res);
-        }
-      };
-
-      ws.onerror = (err) => {
-        reject(new Error('WebSocket connection error while fetching assets.'));
-      };
-
-      const timeoutId = setTimeout(() => {
-        reject(new Error("Request for active symbols timed out."));
-        ws.close();
-      }, 15000); // Increased timeout to 15 seconds
-
-      ws.onclose = () => {
-        clearTimeout(timeoutId);
-      };
-    });
-
-    ws.close();
-
-    if (!response.active_symbols) {
-      throw new Error("Invalid response from active_symbols");
-    }
-
-    const groupedAssets: { [key: string]: Asset[] } = {};
-
-    for (const symbol of response.active_symbols) {
-        if (symbol.market === 'synthetic_index' && (symbol.submarket.includes('continuous') || symbol.submarket.includes('jump'))) {
-            const market = "Índices Sintéticos";
-            if (!groupedAssets[market]) {
-                groupedAssets[market] = [];
-            }
-            groupedAssets[market].push({
-                value: symbol.symbol,
-                label: symbol.display_name
-            });
-        }
-    }
-
-    const assetGroups: AssetGroup[] = Object.keys(groupedAssets).map(label => ({
-      label,
-      options: groupedAssets[label].sort((a,b) => a.label.localeCompare(b.label))
-    })).sort((a, b) => a.label.localeCompare(b.label));
-    
-    console.log(`[Deriv Service] Found ${assetGroups.length} asset groups.`);
-    return assetGroups;
-
-  } catch (error) {
-    console.error("[Deriv Service] Error fetching available assets:", error);
-    return [
-      {
-        label: "Índices de Volatilidade",
-        options: [{ value: "1HZ100V", label: "Volatility 100 (1s) Index" }],
-      },
-      {
-        label: "Erro",
-        options: [{ value: "error", label: "Não foi possível carregar outros ativos" }],
-      },
-    ];
-  }
-}
-
-
 /**
  * Fetches the user's account balance from the broker.
  * @param apiToken - The user's API token for authentication.
@@ -355,5 +273,6 @@ export async function getHistoricalData(symbol: string, period?: string, count?:
     }
     return data;
 }
+
 
 

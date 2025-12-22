@@ -9,9 +9,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getAvailableAssets, type AssetGroup } from "@/services/deriv-api-service";
 import { useEffect, useState } from "react";
 import { Skeleton } from "../ui/skeleton";
+import { useDerivApi } from "@/hooks/use-deriv-api";
 
 interface AssetSelectorProps {
   selectedAsset: string;
@@ -19,20 +19,9 @@ interface AssetSelectorProps {
 }
 
 export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorProps) {
-  const [assetGroups, setAssetGroups] = useState<AssetGroup[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { assetGroups, isAssetsLoading } = useDerivApi();
 
-  useEffect(() => {
-    async function fetchAssets() {
-      setLoading(true);
-      const data = await getAvailableAssets();
-      setAssetGroups(data);
-      setLoading(false);
-    }
-    fetchAssets();
-  }, []);
-
-  if (loading) {
+  if (isAssetsLoading) {
     return <Skeleton className="w-full sm:w-[280px] h-10" />;
   }
 
