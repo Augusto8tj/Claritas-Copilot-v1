@@ -82,11 +82,13 @@ interface DerivApiContextType {
   strategyCouncil: RobotStrategy[];
   isFetchingCouncil: boolean;
   fetchStrategyCouncil: (durationUnit: DurationUnit) => Promise<void>;
-  councilVotes: { [key: string]: 'RISE' | 'FALL' | 'HOLD' };
+  councilVotes: { [key: string]: { vote: 'RISE' | 'FALL' | 'HOLD', weight: number } };
   consensusThreshold: number;
   setConsensusThreshold: (threshold: number) => void;
   isDynamicConsensusOn: boolean;
   setIsDynamicConsensusOn: (isOn: boolean) => void;
+  isMeritocracyOn: boolean;
+  setIsMeritocracyOn: (isOn: boolean) => void;
   robotPerformance: RobotPerformance[];
   currentRSI: number | null;
   currentStoch: number | null;
@@ -432,9 +434,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [isCouncilAutopilotOn, setIsCouncilAutopilotOn] = useState(false);
   const [strategyCouncil, setStrategyCouncil] = useState<RobotStrategy[]>([]);
   const [isFetchingCouncil, setIsFetchingCouncil] = useState(false);
-  const [councilVotes, setCouncilVotes] = useState<{ [key: string]: 'RISE' | 'FALL' | 'HOLD' }>({});
+  const [councilVotes, setCouncilVotes] = useState<{ [key: string]: { vote: 'RISE' | 'FALL' | 'HOLD', weight: number } }>({});
   const [consensusThreshold, setConsensusThreshold] = useState(8);
   const [isDynamicConsensusOn, setIsDynamicConsensusOn] = useState(false);
+  const [isMeritocracyOn, setIsMeritocracyOn] = useState(false);
   const [robotPerformance, setRobotPerformance] = useState<RobotPerformance[]>([]);
   
   // States for indicators
@@ -504,8 +507,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         const newPerformance: { [key: string]: RobotPerformance } = {};
 
         strategyCouncil.forEach(robot => {
-            const vote = councilVotes[robot.id];
-            if (!vote) return;
+            const voteData = councilVotes[robot.id];
+            if (!voteData) return;
 
             const performanceId = robot.id;
             let currentStats = robotPerformance.find(p => p.id === performanceId) || {
@@ -516,9 +519,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 totalProfit: 0,
             };
 
-            if (vote === tradeDirection) { // Robot voted correctly
+            if (voteData.vote === tradeDirection) { // Robot voted correctly
                 currentStats = { ...currentStats, wins: currentStats.wins + 1, totalProfit: currentStats.totalProfit + profit };
-            } else if (vote !== 'HOLD') { // Robot voted incorrectly
+            } else if (voteData.vote !== 'HOLD') { // Robot voted incorrectly
                 currentStats = { ...currentStats, losses: currentStats.losses + 1, totalProfit: currentStats.totalProfit - contractResult.buy_price };
             }
              newPerformance[performanceId] = currentStats;
@@ -1167,12 +1170,27 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!isCouncilAutopilotOn || strategyCouncil.length === 0 || councilExecutionRef.current.isExecuting) return;
 
-    const newVotes: { [key: string]: 'RISE' | 'FALL' | 'HOLD' } = {};
+    const newVotes: { [key: string]: { vote: 'RISE' | 'FALL' | 'HOLD', weight: number } } = {};
     let riseVotes = 0;
     let fallVotes = 0;
 
     for (const robot of strategyCouncil) {
-      let vote: 'RISE' | 'FALL' | 'HOLD' = 'HOLD';
+        let vote: 'RISE' | 'FALL' | 'HOLD' = 'HOLD';
+        let weight = 1.0; // Default weight
+
+        // Meritocracy weighting
+        if (isMeritocracyOn) {
+            const performance = robotPerformance.find(p => p.id === robot.id);
+            if (performance) {
+                const totalTrades = performance.wins + performance.losses;
+                if (totalTrades > 5) { // Minimum trades to be considered
+                    const winRate = performance.wins / totalTrades;
+                    // Simple linear weight: 50% WR = 1.0, 100% WR = 1.5, 0% WR = 0.5
+                    weight = 0.5 + winRate; 
+                }
+            }
+        }
+        
       switch (robot.strategyType) {
         case 'RSI':
           if (currentRSI && robot.strategyType === 'RSI' && robot.buyThreshold && robot.sellThreshold) {
@@ -1239,9 +1257,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             }
             break;
       }
-      newVotes[robot.id] = vote;
-      if (vote === 'RISE') riseVotes++;
-      if (vote === 'FALL') fallVotes++;
+      newVotes[robot.id] = { vote, weight };
+      if (vote === 'RISE') riseVotes += weight;
+      if (vote === 'FALL') fallVotes += weight;
     }
     setCouncilVotes(newVotes);
 
@@ -1269,6 +1287,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       isCouncilAutopilotOn,
       strategyCouncil,
       consensusThreshold,
+      isMeritocracyOn,
+      robotPerformance,
       currentRSI, 
       currentStoch, 
       currentMA, 
@@ -1440,6 +1460,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     setConsensusThreshold,
     isDynamicConsensusOn,
     setIsDynamicConsensusOn,
+    isMeritocracyOn,
+    setIsMeritocracyOn,
     robotPerformance,
     currentRSI,
     currentStoch,

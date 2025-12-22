@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
-import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp } from "lucide-react";
+import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { useDerivApi } from "@/hooks/use-deriv-api";
 import { useToast } from "@/hooks/use-toast";
@@ -63,6 +63,8 @@ export function AutoTraderCouncilInterface() {
     setConsensusThreshold,
     isDynamicConsensusOn,
     setIsDynamicConsensusOn,
+    isMeritocracyOn,
+    setIsMeritocracyOn,
     currentRSI,
     currentStoch,
     currentMA,
@@ -196,11 +198,18 @@ export function AutoTraderCouncilInterface() {
         </div>
         
         <Separator />
-
-        <div className="flex items-center justify-between">
-            <Label htmlFor="dynamic-consensus-switch" className="flex-1">Consenso Dinâmico</Label>
-            <Switch id="dynamic-consensus-switch" checked={isDynamicConsensusOn} onCheckedChange={setIsDynamicConsensusOn} disabled={isCouncilAutopilotOn} />
+        
+        <div className="space-y-4">
+            <div className="flex items-center justify-between">
+                <Label htmlFor="dynamic-consensus-switch" className="flex-1">Consenso Dinâmico</Label>
+                <Switch id="dynamic-consensus-switch" checked={isDynamicConsensusOn} onCheckedChange={setIsDynamicConsensusOn} disabled={isCouncilAutopilotOn} />
+            </div>
+            <div className="flex items-center justify-between">
+                <Label htmlFor="meritocracy-switch" className="flex-1">Meritocracia (Peso de Voto)</Label>
+                <Switch id="meritocracy-switch" checked={isMeritocracyOn} onCheckedChange={setIsMeritocracyOn} disabled={isCouncilAutopilotOn} />
+            </div>
         </div>
+
 
          <div className="space-y-2">
             <Label htmlFor="council-consensus">
@@ -220,7 +229,7 @@ export function AutoTraderCouncilInterface() {
                 placeholder="Ex: 8"
                 disabled={isCouncilAutopilotOn || isDynamicConsensusOn}
             />
-            <p className="text-xs text-muted-foreground">Nº de robôs que devem concordar para executar uma ordem.</p>
+            <p className="text-xs text-muted-foreground">Nº de votos ponderados que devem concordar para executar uma ordem.</p>
         </div>
 
          <div className="flex justify-between items-center text-xs text-muted-foreground border-t pt-4">
@@ -242,11 +251,21 @@ export function AutoTraderCouncilInterface() {
                     </AlertTitle>
                     <AlertDescription className="text-primary/90 space-y-3 mt-2">
                         {strategyCouncil.map((robot, index) => {
-                            const vote = councilVotes[robot.id] || 'HOLD';
+                            const voteData = councilVotes[robot.id];
+                            const vote = voteData?.vote || 'HOLD';
+                            const weight = voteData?.weight || 1.0;
                             return (
                             <Fragment key={robot.id}>
                                 <div className="text-xs space-y-1">
-                                    <p className="font-bold flex items-center gap-1.5">{indicatorIcons[robot.strategyType] || <Bot />} Robô {index + 1}: {robot.strategyType}</p>
+                                    <div className="flex justify-between items-center">
+                                        <p className="font-bold flex items-center gap-1.5">{indicatorIcons[robot.strategyType] || <Bot />} Robô {index + 1}: {robot.strategyType}</p>
+                                        {isMeritocracyOn && weight !== 1.0 && (
+                                            <Badge variant="secondary" className="flex items-center gap-1">
+                                                <Award className="h-3 w-3" />
+                                                x{weight.toFixed(2)}
+                                            </Badge>
+                                        )}
+                                    </div>
                                     <p className="italic pl-5">{robot.justification}</p>
                                     <div className="pl-5 text-xs">{renderStrategyParams(robot)}</div>
                                     <div className="pl-5 text-xs">{renderIndicatorValue(robot)}</div>
