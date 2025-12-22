@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState } from "react";
@@ -10,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { MarketChart } from "@/components/trading/market-chart";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Button } from "@/components/ui/button";
-import { AreaChart, Trash2, Plus, Minus, CandlestickChart } from "lucide-react";
+import { AreaChart, Trash2, Plus, Minus, CandlestickChart, Waves } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useDerivApi, type AccountType, type ActiveContract } from "@/hooks/use-deriv-api";
@@ -49,6 +50,8 @@ export default function DerivTraderPage() {
     setTimePeriod,
     executeTrade,
     clearChartData,
+    showBollingerBands,
+    setShowBollingerBands,
   } = useDerivApi();
 
   const form = useForm<RiseFallFormValues>({
@@ -160,6 +163,16 @@ export default function DerivTraderPage() {
                           <span className="sr-only">Limpar linhas de negociação</span>
                       </Button>
                       )}
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        className={cn("h-10 w-10", showBollingerBands && "bg-accent")}
+                        onClick={() => setShowBollingerBands(!showBollingerBands)}
+                        disabled={chartType !== 'Candle'}
+                        aria-label="Toggle Bollinger Bands"
+                      >
+                          <Waves className="h-5 w-5" />
+                      </Button>
                       <Popover>
                           <PopoverTrigger asChild>
                               <Button variant="outline" className="w-11 h-10 p-0">

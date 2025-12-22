@@ -52,7 +52,7 @@ interface MarketChartProps {
 
 
 export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
-  const { chartData, isChartLoading, chartError, chartType, timePeriod } = useDerivApi();
+  const { chartData, isChartLoading, chartError, chartType, timePeriod, showBollingerBands } = useDerivApi();
 
   const visibleData = React.useMemo(() => {
     if (chartData.length > zoomLevel) {
@@ -182,13 +182,15 @@ export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
                         }}
                          contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
                     />
+                    {showBollingerBands && (
                      <Area 
                         dataKey="bollingerBands" 
                         stroke="hsl(var(--primary) / 0.5)"
                         fill="hsl(var(--primary) / 0.1)"
                         isAnimationActive={false} 
                         type="monotone"
-                    />
+                     />
+                    )}
                      <Bar dataKey="close" shape={<Candlestick />} isAnimationActive={false} />
                      {activeContracts.map(contract => (
                         <React.Fragment key={contract.contractId}>

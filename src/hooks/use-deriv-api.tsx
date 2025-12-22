@@ -107,6 +107,8 @@ interface DerivApiContextType {
   setDailyBalance: (balance: number) => void;
   dailyTarget: number;
   setDailyTarget: (target: number) => void;
+  showBollingerBands: boolean;
+  setShowBollingerBands: (show: boolean) => void;
   setAccountType: (type: AccountType) => void;
   setTokens: (tokens: { demo?: string; real?: string }) => void;
   disconnect: (type: AccountType) => void;
@@ -438,6 +440,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [geminiRequestCount, setGeminiRequestCount] = useState(0);
   const [dailyBalance, setDailyBalance] = useState(100);
   const [dailyTarget, setDailyTarget] = useState(50);
+  const [showBollingerBands, setShowBollingerBands] = useState(true);
   
   const [isCouncilAutopilotOn, setIsCouncilAutopilotOn] = useState(false);
   const [strategyCouncil, setStrategyCouncil] = useState<RobotStrategy[]>([]);
@@ -681,7 +684,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       }
   }, [isConnected]);
   
-  const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {
+ const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {
     if (isSubscribingRef.current) {
         console.log("[Deriv WS Provider] Subscription already in progress. Ignoring.");
         return;
@@ -698,14 +701,14 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         console.log(`[Deriv WS Provider] Already subscribed to ${symbol} with the same parameters. Ignoring.`);
         return;
     }
-
+    
     isSubscribingRef.current = true;
 
     try {
         if (subscriptionDetailsRef.current?.id) {
             console.log(`[Deriv WS Provider] Forgetting old subscription: ${subscriptionDetailsRef.current.id}`);
             ws.send(JSON.stringify({ "forget": subscriptionDetailsRef.current.id }));
-            subscriptionDetailsRef.current = null; // Clear old subscription details
+            subscriptionDetailsRef.current = null;
         }
 
         clearChartData();
@@ -714,7 +717,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
         const granularity = getGranularityForTimePeriod(newTimePeriod);
         const style = newTimePeriod === '1m' ? 'ticks' : 'candles';
-        
+
         if (style === 'candles' && granularity === 0) {
             throw new Error(`Período de tempo inválido para gráfico de velas: ${newTimePeriod}`);
         }
@@ -723,7 +726,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             ticks_history: symbol,
             style: style,
             end: 'latest',
-            count: 1000, // Fetch more data for better indicator calculation
+            count: 1000, 
             subscribe: 1
         };
 
@@ -731,7 +734,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             request.granularity = granularity;
             request.adjust_start_time = 1;
         }
-
+        
         console.log(`[Deriv WS Provider] Subscribing to ${symbol} with style: ${style} and granularity: ${granularity}`);
         ws.send(JSON.stringify(request));
 
@@ -739,7 +742,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         console.error(`[Deriv WS Provider] Subscription Error: ${e.message}`);
         setChartError(e.message);
         setIsChartLoading(false);
-        isSubscribingRef.current = false; // Release lock on error
+        isSubscribingRef.current = false;
     }
 }, [clearChartData]);
  
@@ -835,16 +838,15 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       }
       return;
     }
-  
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      console.log("[Deriv WS Provider] Authorizing with new token on existing open connection.");
-      wsRef.current.send(JSON.stringify({ "authorize": activeToken }));
-      return;
-    }
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.CONNECTING) {
         console.log("[Deriv WS Provider] Connection is already in progress. Waiting.");
         return;
+    }
+    
+    // If the token changes, we need a new connection.
+    if (wsRef.current) {
+        wsRef.current.close();
     }
 
     console.log("[Deriv WS Provider] Creating new WebSocket connection.");
@@ -1387,6 +1389,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     setDailyBalance,
     dailyTarget,
     setDailyTarget,
+    showBollingerBands,
+    setShowBollingerBands,
     setChartType,
     setTimePeriod,
     refreshBalance,
