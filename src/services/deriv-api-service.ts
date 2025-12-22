@@ -89,20 +89,32 @@ export async function getAvailableAssets(): Promise<AssetGroup[]> {
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     const response: any = await new Promise((resolve, reject) => {
         ws.onopen = () => {
-            ws.send(JSON.stringify({ "active_symbols": "full", "product_type": "basic" }));
+            // Use ping to ensure connection is ready
+            ws.send(JSON.stringify({ "ping": 1 }));
         };
         ws.onmessage = (data) => {
             const res = JSON.parse(data.data);
             if (res.error) {
               reject(new Error(res.error.message || 'Unknown API error'));
-            } else {
-              resolve(res);
+              ws.close();
+              return;
             }
-            ws.close();
+            
+            // If we get a pong, the connection is alive, now we can request assets
+            if (res.msg_type === 'pong') {
+                 ws.send(JSON.stringify({ "active_symbols": "full", "product_type": "basic" }));
+            }
+            
+            // This is the actual response for our request
+            if (res.msg_type === 'active_symbols') {
+              resolve(res);
+              ws.close();
+            }
         };
         ws.onerror = (err) => {
             // WebSocket errors don't have a specific message, so we create one.
             reject(new Error('WebSocket connection error'));
+            ws.close();
         };
     });
 
