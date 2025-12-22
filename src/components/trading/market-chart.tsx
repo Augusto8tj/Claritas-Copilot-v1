@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from "react";
@@ -8,9 +9,9 @@ import type { CandleData, TickData } from '@/hooks/use-deriv-api';
 
 
 const Candlestick = (props: any) => {
-    const { x, y, width, height, payload } = props;
+    const { x, y, width, height, payload, yAxis } = props;
     
-    if ([x, y, width, height].some(val => val === undefined || isNaN(val)) || !payload) {
+    if (!payload || !yAxis || !yAxis.scale) {
         return null;
     }
     
@@ -22,13 +23,22 @@ const Candlestick = (props: any) => {
     const isBullish = close > open;
     const color = isBullish ? 'hsl(142.1 76.2% 41.2%)' : 'hsl(0 84.2% 60.2%)';
 
-    const bodyY = isBullish ? y + (height * (high - close) / (high - low)) : y + (height * (high - open) / (high - low));
-    const bodyHeight = Math.max(1, Math.abs((height * (open - close)) / (high - low)));
+    const scale = yAxis.scale;
+    const yHigh = scale(high);
+    const yLow = scale(low);
+    const yOpen = scale(open);
+    const yClose = scale(close);
+
+    const bodyHeight = Math.abs(yOpen - yClose);
+    const bodyY = Math.min(yOpen, yClose);
 
     return (
-        <g>
-            <line x1={x + width / 2} y1={y} x2={x + width / 2} y2={y + height} stroke={color} strokeWidth="1" />
-            <rect x={x} y={bodyY} width={width} height={bodyHeight} fill={color} />
+        <g stroke={color} fill={color} strokeWidth="1">
+            {/* Wick */}
+            <line x1={x + width / 2} y1={yHigh} x2={x + width / 2} y2={yLow} />
+            
+            {/* Body */}
+            <rect x={x} y={bodyY} width={width} height={bodyHeight} />
         </g>
     );
 };
@@ -135,7 +145,7 @@ export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
      if (chartType === 'Candle') {
         return (
             <ResponsiveContainer width="100%" height="100%">
-                 <BarChart data={candleData} barGap={-3} barCategoryGap="30%">
+                 <ComposedChart data={candleData} barGap={-3} barCategoryGap="30%">
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis 
                         dataKey="epoch" 
@@ -146,6 +156,7 @@ export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
                         fontSize={12}
                     />
                     <YAxis 
+                        dataKey="close"
                         domain={yDomain}
                         tickFormatter={(val) => Number(val).toFixed(4)}
                         orientation="right"
@@ -192,7 +203,7 @@ export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
                             )}
                         </React.Fragment>
                     ))}
-                </BarChart>
+                </ComposedChart>
             </ResponsiveContainer>
         );
      }
