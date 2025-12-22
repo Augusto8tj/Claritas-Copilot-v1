@@ -138,8 +138,6 @@ const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
         case '1m': return 0; // Ticks
-        case '2m': return 120;
-        case '3m': return 180;
         case '5m': return 300;
         case '15m': return 900;
         case '30m': return 1800;
@@ -435,7 +433,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [isChartLoading, setIsChartLoading] = useState(true);
   const [chartError, setChartError] = useState<string | null>(null);
   const [chartType, setChartType] = useState<ChartType>('Area');
-  const [timePeriod, setTimePeriod] = useState<TimePeriod>('3m');
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('5m');
   const [lastAutopilotLossSuggestion, setLastAutopilotLossSuggestion] = useState<string | null>(null);
   const [isAutopilotOn, setIsAutopilotOn] = useState(false);
   const [autopilotStrategy, setAutopilotStrategy] = useState<AutoTraderStrategyOutput | null>(null);
@@ -1456,3 +1454,5 @@ export function useDerivApi() {
   }
   return context;
 }
+
+    

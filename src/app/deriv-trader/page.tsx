@@ -24,10 +24,10 @@ import { AutoTraderInterface } from "@/components/trading/auto-trader-interface"
 import { AutoTraderCouncilInterface } from "@/components/trading/auto-trader-council-interface";
 import type { OperationInitiator } from "@/components/trading/operations-log.types";
 
-export type TimePeriod = '1m' | '2m' | '3m' | '5m' | '15m' | '30m' | '1h' | '8h' | '1d';
+export type TimePeriod = '1m' | '5m' | '15m' | '30m' | '1h' | '8h' | '1d';
 export type ChartType = 'Area' | 'Candle';
 
-const timePeriods: TimePeriod[] = ['1m', '2m', '3m', '5m', '15m', '30m', '1h', '8h', '1d'];
+const timePeriods: TimePeriod[] = ['1m', '5m', '15m', '30m', '1h', '8h', '1d'];
 
 export default function DerivTraderPage() {
   const [selectedAsset, setSelectedAsset] = useState("1HZ100V");
@@ -254,3 +254,5 @@ export default function DerivTraderPage() {
     </FormProvider>
   );
 }
+
+    
