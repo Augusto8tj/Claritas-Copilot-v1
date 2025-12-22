@@ -132,11 +132,11 @@ const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined
 
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
-        case '1m': return 0; // Ticks
+        case '1m': return 0;
         case '2m': return 120;
         case '3m': return 180;
         case '5m': return 300;
-        case '15m': return 900; 
+        case '15m': return 900;
         case '30m': return 1800;
         case '1h': return 3600;
         case '8h': return 28800;
@@ -675,13 +675,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   }, [isConnected]);
   
  const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {
-    if (!isConnected || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-        console.warn("[Deriv WS Provider] Cannot subscribe, WS not connected or not ready.");
-        // We can optionally queue this request or notify the user.
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.warn("[Deriv WS Provider] Cannot subscribe, WS not open.");
         return;
     }
     
-    const ws = wsRef.current;
     activeSymbolRef.current = symbol;
 
     if (activeSubscriptionId.current) {
@@ -719,7 +718,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     console.log(`[Deriv WS Provider] Subscribing to ${symbol} with style: ${style}`);
     ws.send(JSON.stringify(request));
     
-}, [isConnected, clearChartData]);
+}, [clearChartData]);
  
  const fetchAutopilotStrategy = useCallback(async () => {
     if (!isAutopilotOn || !activeSymbolRef.current) return;
@@ -808,28 +807,28 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   
   useEffect(() => {
     if (!activeToken || isLoading) {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-      setIsConnected(false);
-      setIsConnecting(false);
-      setAccountBalance({ balance: null, currency: null, loading: false });
-      return;
+        if (wsRef.current) {
+            wsRef.current.close();
+        }
+        return;
     }
 
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        return; // Already connected and handling messages
+    if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+        // A connection is already open or connecting, don't create a new one.
+        return;
     }
     
     setIsConnecting(true);
     setIsConnected(false);
     setConnectionError(null);
+    setAccountBalance({ balance: null, currency: null, loading: true });
+    
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log("[Deriv WS Provider] Connection opened. Authorizing...");
-      ws.send(JSON.stringify({ "authorize": activeToken }));
+        console.log("[Deriv WS Provider] Connection opened. Authorizing...");
+        ws.send(JSON.stringify({ "authorize": activeToken }));
     };
 
     ws.onclose = () => {
@@ -850,42 +849,44 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     ws.onmessage = (event) => {
       const response = JSON.parse(event.data);
       
-      const reqId = response.req_id;
-      if (reqId && promisesRef.current.has(String(reqId))) {
-          if (response.error) {
-              promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
-          } else {
-              promisesRef.current.get(String(reqId))?.resolve(response);
-          }
-          promisesRef.current.delete(String(reqId));
-          return;
-      }
-
       if (response.error) {
         console.error("[Deriv WS Provider] Error received:", response.error.message);
         if (response.msg_type === 'authorize') {
             setConnectionError(response.error.message);
             setIsConnected(false);
-            setIsConnecting(false);
-        } else if (response.echo_req?.ticks_history) {
+        } else if (response.echo_req?.ticks_history || response.echo_req?.candles) {
             setChartError(response.error.message);
             setIsChartLoading(false);
+        }
+        // Handle promise rejections
+        const reqId = response.req_id;
+        if (reqId && promisesRef.current.has(String(reqId))) {
+            promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
+            promisesRef.current.delete(String(reqId));
         }
         return;
       }
 
+      // Handle promise resolutions
+      const reqId = response.req_id;
+      if (reqId && promisesRef.current.has(String(reqId))) {
+          promisesRef.current.get(String(reqId))?.resolve(response);
+          promisesRef.current.delete(String(reqId));
+          return;
+      }
+
       switch (response.msg_type) {
         case 'authorize':
-          console.log("[Deriv WS Provider] Authorized successfully.");
           setIsConnected(true);
           setIsConnecting(false);
           setConnectionError(null);
           ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
           ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 }));
-          if (!activeSymbolRef.current) {
-            activeSymbolRef.current = '1HZ100V'; // Default symbol
-          }
+          
+          if (!activeSymbolRef.current) activeSymbolRef.current = '1HZ100V';
           subscribeToSymbol(activeSymbolRef.current, timePeriod, chartType);
+          
+          toast({ title: "Conectado!", description: `Conexão com a conta ${accountType} da Deriv estabelecida.` });
           break;
         case 'balance':
           setAccountBalance({
@@ -997,9 +998,11 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
 
     return () => {
-      // Cleanup logic if needed when dependencies change
+        if (wsRef.current) {
+            wsRef.current.close();
+        }
     };
-  }, [activeToken, isLoading, subscribeToSymbol, timePeriod, chartType]);
+  }, [activeToken, isLoading, subscribeToSymbol, timePeriod, chartType, accountType, toast, handleLosingTrade, operationsLog, activeContracts, updateRobotPerformance]);
 
 
  useEffect(() => {
