@@ -1,3 +1,4 @@
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -167,13 +168,13 @@ const calculateRSI = (data: { price: number }[], period = 14) => {
     return 100 - (100 / (1 + rs));
 };
 
-const calculateStochastic = (data: CandleData[], period = 14) => {
+const calculateStochastic = (data: { price: number }[], period = 14) => {
     if (data.length < period) return null;
 
     const relevantData = data.slice(-period);
-    const lowestLow = Math.min(...relevantData.map(d => d.low));
-    const highestHigh = Math.max(...relevantData.map(d => d.high));
-    const currentClose = relevantData[relevantData.length - 1].close;
+    const lowestLow = Math.min(...relevantData.map(d => d.price));
+    const highestHigh = Math.max(...relevantData.map(d => d.price));
+    const currentClose = relevantData[relevantData.length - 1].price;
 
     if (highestHigh === lowestLow) return 50;
 
@@ -782,19 +783,19 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
  useEffect(() => {
     if (chartData.length < 1) return;
-    
-    // Use ticks for RSI if available (1m), otherwise use candle close prices
-    const priceDataSource = timePeriod === '1m' ? priceTicks : (chartData as CandleData[]).map(c => ({ price: c.close }));
+
+    // A unified data source for all indicators.
+    const priceDataSource = (timePeriod === '1m' ? priceTicks : (chartData as CandleData[]).map(c => ({ price: c.close }))) as { price: number }[];
+    const candleDataSource = chartData.filter(d => 'open' in d) as CandleData[];
+
     if(priceDataSource.length > 1) {
         setCurrentRSI(calculateRSI(priceDataSource));
+        setCurrentStoch(calculateStochastic(priceDataSource));
+        setBollingerBands(calculateBollingerBands(priceDataSource));
+        setMACD(calculateMACD(priceDataSource));
     }
     
-    // Other indicators require candle data
-    const candleDataSource = chartData.filter(d => 'open' in d) as CandleData[];
     if (candleDataSource.length > 1) {
-        setCurrentStoch(calculateStochastic(candleDataSource));
-        setBollingerBands(calculateBollingerBands(candleDataSource));
-        setMACD(calculateMACD(candleDataSource));
         setPriceAction(detectPriceActionPattern(candleDataSource));
         setADX(calculateADX(candleDataSource));
     }
