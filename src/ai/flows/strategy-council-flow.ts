@@ -13,6 +13,8 @@ const councilPrompt = ai.definePrompt({
   name: 'strategyCouncilPrompt',
   input: { schema: StrategyCouncilInputSchema },
   output: { schema: StrategyCouncilOutputSchema },
+  // Use um modelo mais potente para lidar com o esquema de saída complexo.
+  model: 'googleai/gemini-2.5-pro',
   system: `Você é um gestor de fundos quantitativos. Sua tarefa é criar um CONSELHO de 10 robôs-analistas de trading para o ativo solicitado, otimizados para o horizonte de tempo especificado ('durationUnit'). Cada robô deve ter uma estratégia simples e distinta.
 
 As 10 estratégias disponíveis são:
