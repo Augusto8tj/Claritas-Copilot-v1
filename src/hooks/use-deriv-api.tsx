@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -10,7 +8,7 @@ import type { Operation, OperationInitiator } from '@/components/trading/operati
 import { analyzeOperationsAction } from '@/app/actions/trading-actions';
 import { analyzeTradeLossAction, getAutotraderStrategyAction, getStrategyCouncilAction } from '@/app/actions/ai-actions';
 import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
-import type { RobotStrategy, StrategyCouncilOutput } from '@/ai/flows/strategy-council-flow.types';
+import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
 import type { TimePeriod, ChartType } from '@/app/deriv-trader/page';
 import type { DurationUnit } from '@/components/trading/deriv-trader-interface.types';
 
@@ -84,6 +82,10 @@ interface DerivApiContextType {
   currentRSI: number | null;
   currentStoch: number | null;
   currentMA: { short: number | null, long: number | null };
+  currentBollingerBands: { upper: number, middle: number, lower: number } | null;
+  currentMACD: { macd: number, signal: number } | null;
+  currentPriceAction: string | null;
+  currentADX: number | null;
   geminiRequestCount: number;
   dailyBalance: number;
   setDailyBalance: (balance: number) => void;
@@ -125,17 +127,28 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     }
 }
 
-const calculateMA = (ticks: { price: number }[], period: number) => {
-    if (ticks.length < period) return null;
-    const relevantTicks = ticks.slice(-period);
-    const sum = relevantTicks.reduce((acc, tick) => acc + tick.price, 0);
+// Indicator Calculation Helpers
+const calculateMA = (data: { price: number }[], period: number) => {
+    if (data.length < period) return null;
+    const relevantData = data.slice(-period);
+    const sum = relevantData.reduce((acc, tick) => acc + tick.price, 0);
     return sum / period;
 };
 
-const calculateRSI = (ticks: { price: number }[], period = 14) => {
-    if (ticks.length < period + 1) return null;
+const calculateEMA = (data: number[], period: number): number[] => {
+    if (data.length < period) return [];
+    const k = 2 / (period + 1);
+    const emaArray = [data.slice(0, period).reduce((a, b) => a + b, 0) / period];
+    for (let i = period; i < data.length; i++) {
+        emaArray.push(data[i] * k + emaArray[emaArray.length - 1] * (1 - k));
+    }
+    return emaArray;
+};
 
-    const prices = ticks.map(t => t.price);
+const calculateRSI = (data: { price: number }[], period = 14) => {
+    if (data.length < period + 1) return null;
+
+    const prices = data.map(d => d.price);
     let gains = 0;
     let losses = 0;
     
@@ -154,18 +167,105 @@ const calculateRSI = (ticks: { price: number }[], period = 14) => {
     return 100 - (100 / (1 + rs));
 };
 
-const calculateStochastic = (ticks: { price: number }[], period = 14) => {
-    if (ticks.length < period) return null;
+const calculateStochastic = (data: CandleData[], period = 14) => {
+    if (data.length < period) return null;
 
-    const relevantTicks = ticks.slice(-period);
-    const lowestLow = Math.min(...relevantTicks.map(t => t.price));
-    const highestHigh = Math.max(...relevantTicks.map(t => t.price));
-    const currentClose = relevantTicks[relevantTicks.length - 1].price;
+    const relevantData = data.slice(-period);
+    const lowestLow = Math.min(...relevantData.map(d => d.low));
+    const highestHigh = Math.max(...relevantData.map(d => d.high));
+    const currentClose = relevantData[relevantData.length - 1].close;
 
     if (highestHigh === lowestLow) return 50;
 
     return 100 * ((currentClose - lowestLow) / (highestHigh - lowestLow));
 };
+
+const calculateBollingerBands = (data: { price: number }[], period = 20, stdDev = 2) => {
+    if (data.length < period) return null;
+    const relevantData = data.slice(-period);
+    const prices = relevantData.map(d => d.price);
+    const middle = prices.reduce((a, b) => a + b, 0) / period;
+    const variance = prices.reduce((a, b) => a + Math.pow(b - middle, 2), 0) / period;
+    const deviation = Math.sqrt(variance);
+    return {
+        upper: middle + stdDev * deviation,
+        middle: middle,
+        lower: middle - stdDev * deviation,
+    };
+};
+
+const calculateMACD = (data: { price: number }[], fast = 12, slow = 26, signal = 9) => {
+    if (data.length < slow) return null;
+    const prices = data.map(d => d.price);
+    const emaFast = calculateEMA(prices, fast);
+    const emaSlow = calculateEMA(prices, slow);
+    const macdLine = emaFast.slice(-emaSlow.length).map((val, i) => val - emaSlow[i]);
+    const signalLine = calculateEMA(macdLine, signal);
+    
+    if (macdLine.length === 0 || signalLine.length === 0) return null;
+    
+    return {
+        macd: macdLine[macdLine.length - 1],
+        signal: signalLine[signalLine.length - 1],
+    };
+};
+
+const detectPriceActionPattern = (data: CandleData[]): string | null => {
+    if (data.length < 2) return null;
+    const lastCandle = data[data.length - 1];
+    const { open, high, low, close } = lastCandle;
+
+    const body = Math.abs(open - close);
+    const upperWick = high - Math.max(open, close);
+    const lowerWick = Math.min(open, close) - low;
+
+    // Hammer Pattern (Bullish Reversal)
+    if (lowerWick > body * 2 && upperWick < body) {
+        return 'hammer';
+    }
+    // Shooting Star (Bearish Reversal)
+    if (upperWick > body * 2 && lowerWick < body) {
+        return 'shooting_star';
+    }
+
+    return null;
+};
+
+const calculateADX = (data: CandleData[], period = 14) => {
+    if (data.length < period * 2) return null;
+
+    const trs = [];
+    const plusDMs = [];
+    const minusDMs = [];
+
+    for (let i = 1; i < data.length; i++) {
+        const c = data[i];
+        const p = data[i - 1];
+        const tr = Math.max(c.high - c.low, Math.abs(c.high - p.close), Math.abs(c.low - p.close));
+        trs.push(tr);
+
+        const upMove = c.high - p.high;
+        const downMove = p.low - c.low;
+
+        plusDMs.push(upMove > downMove && upMove > 0 ? upMove : 0);
+        minusDMs.push(downMove > upMove && downMove > 0 ? downMove : 0);
+    }
+    
+    const smoothedTR = calculateEMA(trs, period);
+    const smoothedPlusDM = calculateEMA(plusDMs, period);
+    const smoothedMinusDM = calculateEMA(minusDMs, period);
+    
+    if (smoothedTR.length === 0) return null;
+
+    const plusDIs = smoothedPlusDM.map((val, i) => 100 * (val / smoothedTR[i]));
+    const minusDIs = smoothedMinusDM.map((val, i) => 100 * (val / smoothedTR[i]));
+
+    const dxs = plusDIs.map((plusDI, i) => 100 * (Math.abs(plusDI - minusDIs[i]) / (plusDI + minusDIs[i])));
+    
+    const adx = calculateEMA(dxs, period);
+    return adx[adx.length - 1];
+};
+
 
 
 export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
@@ -185,8 +285,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [lastAutopilotLossSuggestion, setLastAutopilotLossSuggestion] = useState<string | null>(null);
   const [isAutopilotOn, setIsAutopilotOn] = useState(false);
   const [autopilotStrategy, setAutopilotStrategy] = useState<AutoTraderStrategyOutput | null>(null);
-  const [currentRSI, setCurrentRSI] = useState<number | null>(null);
-  const [currentStoch, setCurrentStoch] = useState<number | null>(null);
   const [geminiRequestCount, setGeminiRequestCount] = useState(0);
   const [dailyBalance, setDailyBalance] = useState(100);
   const [dailyTarget, setDailyTarget] = useState(50);
@@ -195,7 +293,16 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [strategyCouncil, setStrategyCouncil] = useState<RobotStrategy[]>([]);
   const [isFetchingCouncil, setIsFetchingCouncil] = useState(false);
   const [councilVotes, setCouncilVotes] = useState<{ [key: string]: 'RISE' | 'FALL' | 'HOLD' }>({});
+  
+  // States for indicators
+  const [currentRSI, setCurrentRSI] = useState<number | null>(null);
+  const [currentStoch, setCurrentStoch] = useState<number | null>(null);
   const [currentMA, setCurrentMA] = useState<{ short: number | null, long: number | null }>({ short: null, long: null });
+  const [currentBollingerBands, setBollingerBands] = useState<{ upper: number, middle: number, lower: number } | null>(null);
+  const [currentMACD, setMACD] = useState<{ macd: number, signal: number } | null>(null);
+  const [currentPriceAction, setPriceAction] = useState<string | null>(null);
+  const [currentADX, setADX] = useState<number | null>(null);
+
 
   const { toast } = useToast();
 
@@ -499,8 +606,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       const isForgetError = !!response.echo_req?.forget;
 
       if (response.error) {
-        const isAlreadySubscribedError = response.error.code === 'AlreadySubscribed';
-
         if (isForgetError) {
           const reqId = response.req_id;
           if (reqId && promisesRef.current.has(String(reqId))) {
@@ -510,7 +615,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           // Do not log forget errors
           return;
         }
-
+        
+        const isAlreadySubscribedError = response.error.code === 'AlreadySubscribed';
         if (response.msg_type === 'ticks_history' || response.msg_type === 'candles') {
           if (isAlreadySubscribedError) {
              console.warn(`[Deriv WS Provider] Already subscribed to ${response.echo_req?.ticks_history || 'unknown'}. Ignoring error.`);
@@ -675,22 +781,35 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
  }, []);
 
  useEffect(() => {
-    if(priceTicks.length < 1) return;
-
-    setCurrentRSI(calculateRSI(priceTicks));
-    setCurrentStoch(calculateStochastic(priceTicks));
+    if (chartData.length < 1) return;
     
+    // Use ticks for RSI if available (1m), otherwise use candle close prices
+    const priceDataSource = timePeriod === '1m' ? priceTicks : (chartData as CandleData[]).map(c => ({ price: c.close }));
+    if(priceDataSource.length > 1) {
+        setCurrentRSI(calculateRSI(priceDataSource));
+    }
+    
+    // Other indicators require candle data
+    const candleDataSource = chartData.filter(d => 'open' in d) as CandleData[];
+    if (candleDataSource.length > 1) {
+        setCurrentStoch(calculateStochastic(candleDataSource));
+        setBollingerBands(calculateBollingerBands(candleDataSource));
+        setMACD(calculateMACD(candleDataSource));
+        setPriceAction(detectPriceActionPattern(candleDataSource));
+        setADX(calculateADX(candleDataSource));
+    }
+
     if (isCouncilAutopilotOn && strategyCouncil.length > 0) {
         const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
         if (maRobot && maRobot.strategyType === 'MOVING_AVERAGE_CROSS') {
             setCurrentMA({
-                short: calculateMA(priceTicks, maRobot.shortPeriod),
-                long: calculateMA(priceTicks, maRobot.longPeriod)
+                short: calculateMA(priceDataSource, maRobot.shortPeriod),
+                long: calculateMA(priceDataSource, maRobot.longPeriod)
             });
         }
     }
 
- }, [priceTicks, isCouncilAutopilotOn, strategyCouncil]);
+ }, [chartData, priceTicks, timePeriod, isCouncilAutopilotOn, strategyCouncil]);
 
   const fetchStrategyCouncil = useCallback(async () => {
     if (!activeSymbolRef.current) return;
@@ -732,13 +851,13 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       let vote: 'RISE' | 'FALL' | 'HOLD' = 'HOLD';
       switch (robot.strategyType) {
         case 'RSI':
-          if (currentRSI) {
+          if (currentRSI && robot.strategyType === 'RSI') {
             if (currentRSI <= robot.buyThreshold) vote = 'RISE';
             else if (currentRSI >= robot.sellThreshold) vote = 'FALL';
           }
           break;
         case 'STOCHASTIC':
-          if (currentStoch) {
+          if (currentStoch && robot.strategyType === 'STOCHASTIC') {
             if (currentStoch <= robot.buyThreshold) vote = 'RISE';
             else if (currentStoch >= robot.sellThreshold) vote = 'FALL';
           }
@@ -749,6 +868,33 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             else if (currentMA.short < currentMA.long) vote = 'FALL';
           }
           break;
+        case 'BOLLINGER_BANDS':
+            if (currentBollingerBands && priceTicks.length > 0) {
+                const currentPrice = priceTicks[priceTicks.length - 1].price;
+                if (currentPrice <= currentBollingerBands.lower) vote = 'RISE';
+                else if (currentPrice >= currentBollingerBands.upper) vote = 'FALL';
+            }
+            break;
+        case 'MACD_CROSS':
+            if (currentMACD) {
+                if (currentMACD.macd > currentMACD.signal) vote = 'RISE';
+                else if (currentMACD.macd < currentMACD.signal) vote = 'FALL';
+            }
+            break;
+        case 'PRICE_ACTION_PATTERN':
+            if (currentPriceAction && robot.strategyType === 'PRICE_ACTION_PATTERN') {
+                if (currentPriceAction === 'hammer' && robot.pattern === 'hammer') vote = 'RISE';
+                else if (currentPriceAction === 'shooting_star' && robot.pattern === 'shooting_star') vote = 'FALL';
+            }
+            break;
+        case 'ADX_TREND':
+            if (currentADX && currentMA.short && currentMA.long && robot.strategyType === 'ADX_TREND') {
+                if (currentADX > robot.trendStrengthThreshold) {
+                    if (currentMA.short > currentMA.long) vote = 'RISE';
+                    else if (currentMA.short < currentMA.long) vote = 'FALL';
+                }
+            }
+            break;
       }
       newVotes[robot.id] = vote;
       if (vote === 'RISE') riseVotes++;
@@ -756,7 +902,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     }
     setCouncilVotes(newVotes);
 
-    const CONSENSUS_THRESHOLD = 3;
+    const CONSENSUS_THRESHOLD = 6; // 6 out of 7 for a strong consensus
     if (riseVotes >= CONSENSUS_THRESHOLD || fallVotes >= CONSENSUS_THRESHOLD) {
       councilExecutionRef.current.isExecuting = true;
       const direction = riseVotes >= CONSENSUS_THRESHOLD ? 'rise' : 'fall';
@@ -775,7 +921,20 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           }, 10000); // Cooldown period
         });
     }
-  }, [currentRSI, currentStoch, currentMA, strategyCouncil, isCouncilAutopilotOn, executeTrade, toast]);
+  }, [
+      isCouncilAutopilotOn,
+      strategyCouncil,
+      currentRSI, 
+      currentStoch, 
+      currentMA, 
+      currentBollingerBands, 
+      currentMACD,
+      currentPriceAction,
+      currentADX,
+      executeTrade, 
+      priceTicks,
+      toast
+  ]);
 
 
  // Stop-loss and profit-target logic for both autopilots
@@ -973,7 +1132,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     autopilotStrategy,
     fetchAutopilotStrategy,
     isCouncilAutopilotOn,
-    setIsCouncilAutopilotOn,
+setIsCouncilAutopilotOn,
     strategyCouncil,
     isFetchingCouncil,
     fetchStrategyCouncil,
@@ -981,6 +1140,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     currentRSI,
     currentStoch,
     currentMA,
+    currentBollingerBands,
+    currentMACD,
+    currentPriceAction,
+    currentADX,
     geminiRequestCount,
     dailyBalance,
     setDailyBalance,

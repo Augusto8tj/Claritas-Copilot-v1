@@ -11,7 +11,7 @@ export type StrategyCouncilInput = z.infer<typeof StrategyCouncilInputSchema>;
 
 const BaseRobotSchema = z.object({
   id: z.string().describe("A unique identifier for the robot (e.g., 'RSI_BOT_1')."),
-  strategyType: z.string().describe("The type of strategy the robot uses (e.g., 'RSI', 'STOCHASTIC', 'MOVING_AVERAGE_CROSS')."),
+  strategyType: z.string().describe("The type of strategy the robot uses."),
   justification: z.string().describe("A brief justification for why this robot and its parameters were chosen for the current market conditions."),
   suggestedStake: z.number().describe("The suggested stake for trades executed by this robot, calculated based on the provided daily balance."),
   suggestedDuration: z.number().describe("The suggested trade duration in ticks."),
@@ -35,12 +35,42 @@ const MACrossRobotSchema = BaseRobotSchema.extend({
     longPeriod: z.number().describe("The period for the long-term moving average."),
 });
 
+const BollingerBandsRobotSchema = BaseRobotSchema.extend({
+    strategyType: z.literal('BOLLINGER_BANDS'),
+    period: z.number().describe("The period for the Bollinger Bands calculation."),
+    stdDev: z.number().describe("The number of standard deviations for the bands."),
+});
 
-export const RobotStrategySchema = z.union([RsiRobotSchema, StochRobotSchema, MACrossRobotSchema]);
+const MacdCrossRobotSchema = BaseRobotSchema.extend({
+    strategyType: z.literal('MACD_CROSS'),
+    fastPeriod: z.number().describe("The period for the fast EMA."),
+    slowPeriod: z.number().describe("The period for the slow EMA."),
+    signalPeriod: z.number().describe("The period for the signal line EMA."),
+});
+
+const PriceActionRobotSchema = BaseRobotSchema.extend({
+    strategyType: z.literal('PRICE_ACTION_PATTERN'),
+    pattern: z.enum(['hammer', 'shooting_star']).describe("The candlestick pattern to watch for ('hammer' for RISE, 'shooting_star' for FALL)."),
+});
+
+const AdxTrendRobotSchema = BaseRobotSchema.extend({
+    strategyType: z.literal('ADX_TREND'),
+    trendStrengthThreshold: z.number().describe("The ADX value above which a trend is considered strong enough to trade."),
+});
+
+export const RobotStrategySchema = z.union([
+    RsiRobotSchema, 
+    StochRobotSchema, 
+    MACrossRobotSchema,
+    BollingerBandsRobotSchema,
+    MacdCrossRobotSchema,
+    PriceActionRobotSchema,
+    AdxTrendRobotSchema
+]);
 export type RobotStrategy = z.infer<typeof RobotStrategySchema>;
 
 
 export const StrategyCouncilOutputSchema = z.object({
-  council: z.array(RobotStrategySchema).min(3).max(3).describe("An array of 3 distinct robot analyst strategies."),
+  council: z.array(RobotStrategySchema).min(7).max(7).describe("An array of 7 distinct robot analyst strategies."),
 });
 export type StrategyCouncilOutput = z.infer<typeof StrategyCouncilOutputSchema>;

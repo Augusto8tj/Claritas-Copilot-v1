@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
-import { Loader2, Users, Bot, Power, Info, ChevronRight, BrainCircuit, CheckCircle, XCircle, HelpCircle } from "lucide-react";
+import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { useDerivApi } from "@/hooks/use-deriv-api";
 import { useToast } from "@/hooks/use-toast";
@@ -24,7 +24,11 @@ import { Input } from "../ui/input";
 const indicatorIcons: { [key: string]: React.ReactNode } = {
     RSI: <BrainCircuit className="h-4 w-4" />,
     STOCHASTIC: <BrainCircuit className="h-4 w-4" />,
-    MOVING_AVERAGE_CROSS: <BrainCircuit className="h-4 w-4" />,
+    MOVING_AVERAGE_CROSS: <Activity className="h-4 w-4" />,
+    BOLLINGER_BANDS: <Waves className="h-4 w-4" />,
+    MACD_CROSS: <Activity className="h-4 w-4" />,
+    PRICE_ACTION_PATTERN: <CandlestickChart className="h-4 w-4" />,
+    ADX_TREND: <BrainCircuit className="h-4 w-4" />,
 };
 
 const voteIcons: { [key: string]: React.ReactNode } = {
@@ -52,6 +56,10 @@ export function AutoTraderCouncilInterface() {
     currentRSI,
     currentStoch,
     currentMA,
+    currentBollingerBands,
+    currentMACD,
+    currentPriceAction,
+    currentADX,
   } = useDerivApi();
   
   const handleToggleAutopilot = (isOn: boolean) => {
@@ -75,24 +83,41 @@ export function AutoTraderCouncilInterface() {
             return `Compra < ${robot.buyThreshold}, Venda > ${robot.sellThreshold}`;
         case 'MOVING_AVERAGE_CROSS':
             return `Cruzamento de Médias ${robot.shortPeriod}/${robot.longPeriod}`;
+        case 'BOLLINGER_BANDS':
+            return `Período: ${robot.period}, Desvio Padrão: ${robot.stdDev}`;
+        case 'MACD_CROSS':
+            return `Parâmetros: ${robot.fastPeriod}/${robot.slowPeriod}/${robot.signalPeriod}`;
+        case 'PRICE_ACTION_PATTERN':
+            return `Padrão: ${robot.pattern === 'hammer' ? 'Martelo' : 'Estrela Cadente'}`;
+        case 'ADX_TREND':
+            return `Limiar de Tendência > ${robot.trendStrengthThreshold}`;
         default:
             return "Parâmetros desconhecidos";
     }
   }
 
   const renderIndicatorValue = (robot: RobotStrategy) => {
-    let value: string | React.ReactNode = "N/A";
     switch (robot.strategyType) {
         case 'RSI':
-            value = currentRSI?.toFixed(2) ?? "Calculando...";
-            return <p>RSI Atual: <strong>{value}</strong></p>;
+            return <p>RSI Atual: <strong>{currentRSI?.toFixed(2) ?? "..."}</strong></p>;
         case 'STOCHASTIC':
-            value = currentStoch?.toFixed(2) ?? "Calculando...";
-            return <p>Estocástico Atual: <strong>{value}</strong></p>;
+            return <p>Estocástico Atual: <strong>{currentStoch?.toFixed(2) ?? "..."}</strong></p>;
         case 'MOVING_AVERAGE_CROSS':
             const shortMA = currentMA.short?.toFixed(4) ?? "-";
             const longMA = currentMA.long?.toFixed(4) ?? "-";
             return <p>Médias Atuais: <strong>{shortMA} / {longMA}</strong></p>;
+        case 'BOLLINGER_BANDS':
+            if (!currentBollingerBands) return <p>Bandas: <strong>...</strong></p>;
+            const { upper, lower } = currentBollingerBands;
+            return <p>Bandas: <strong>{lower.toFixed(4)} / {upper.toFixed(4)}</strong></p>;
+        case 'MACD_CROSS':
+            if (!currentMACD) return <p>MACD: <strong>...</strong></p>;
+            const { macd, signal } = currentMACD;
+            return <p>MACD/Sinal: <strong>{macd.toFixed(4)} / {signal.toFixed(4)}</strong></p>;
+        case 'PRICE_ACTION_PATTERN':
+             return <p>Último Padrão: <strong>{currentPriceAction || "Nenhum"}</strong></p>;
+        case 'ADX_TREND':
+            return <p>Força da Tendência (ADX): <strong>{currentADX?.toFixed(2) ?? "..."}</strong></p>;
         default:
             return null;
     }
@@ -155,7 +180,7 @@ export function AutoTraderCouncilInterface() {
                     <span>Convocando o conselho de robôs...</span>
                 </div>
             ) : strategyCouncil.length > 0 ? (
-                <Alert className="bg-primary/5 border-primary/20">
+                <Alert className="bg-primary/5 border-primary/20 max-h-96 overflow-y-auto">
                     <AlertTitle className="text-primary flex items-center gap-2">
                         <Users className="h-4 w-4" />
                         Conselho em Sessão
@@ -168,8 +193,8 @@ export function AutoTraderCouncilInterface() {
                                 <div className="text-xs space-y-1">
                                     <p className="font-bold flex items-center gap-1.5">{indicatorIcons[robot.strategyType] || <Bot />} Robô {index + 1}: {robot.strategyType}</p>
                                     <p className="italic pl-5">{robot.justification}</p>
-                                    <p className="pl-5">{renderStrategyParams(robot)}</p>
-                                    <div className="pl-5">{renderIndicatorValue(robot)}</div>
+                                    <div className="pl-5 text-xs">{renderStrategyParams(robot)}</div>
+                                    <div className="pl-5 text-xs">{renderIndicatorValue(robot)}</div>
                                     <div className={cn("pl-5 font-bold flex items-center gap-1", 
                                         vote === 'RISE' && 'text-green-600',
                                         vote === 'FALL' && 'text-red-600',
