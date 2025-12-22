@@ -673,12 +673,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       }
   }, [isConnected]);
   
- const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {
+  const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {
     if (isSubscribingRef.current) {
         console.log("[Deriv WS Provider] Subscription already in progress. Ignoring.");
         return;
     }
-    
+
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
         console.warn("[Deriv WS Provider] Cannot subscribe, WS not open.");
@@ -697,6 +697,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         if (subscriptionDetailsRef.current?.id) {
             console.log(`[Deriv WS Provider] Forgetting old subscription: ${subscriptionDetailsRef.current.id}`);
             ws.send(JSON.stringify({ "forget": subscriptionDetailsRef.current.id }));
+            subscriptionDetailsRef.current = null; // Clear old subscription details
         }
 
         clearChartData();
@@ -714,7 +715,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             ticks_history: symbol,
             style: style,
             end: 'latest',
-            count: 500,
+            count: 1000, // Fetch more data for better indicator calculation
             subscribe: 1
         };
 
@@ -730,8 +731,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         console.error(`[Deriv WS Provider] Subscription Error: ${e.message}`);
         setChartError(e.message);
         setIsChartLoading(false);
-    } finally {
-      isSubscribingRef.current = false;
+        isSubscribingRef.current = false; // Release lock on error
     }
 }, [clearChartData]);
  
@@ -945,9 +945,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           if (response.subscription?.id === subscriptionDetailsRef.current?.id) {
               const tick = response.tick;
               const newTick = { epoch: tick.epoch, price: tick.quote };
-              setPriceTicks(prevTicks => [...prevTicks.slice(-499), newTick]);
+              setPriceTicks(prevTicks => [...prevTicks.slice(-999), newTick]);
               if(timePeriod === '1m') {
-                  setChartData(prev => [...(prev as TickData[]).slice(-499), newTick]);
+                  setChartData(prev => [...(prev as TickData[]).slice(-999), newTick]);
               }
           }
           break;
@@ -970,7 +970,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                       newData[data.length - 1] = newCandle;
                       return newData;
                   } else {
-                      return [...data.slice(-499), newCandle];
+                      return [...data.slice(-999), newCandle];
                   }
               });
            }
