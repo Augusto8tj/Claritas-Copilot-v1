@@ -32,6 +32,7 @@ const filters = [
     { label: "Crash/Boom", value: "boom" },
     { label: "Jump", value: "jump" },
     { label: "Step", value: "step" },
+    { label: "Cestas Forex", value: "basket" },
 ];
 
 export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorProps) {
@@ -48,11 +49,13 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
       options: group.options.filter(option => {
         const submarketLower = option.submarket.toLowerCase();
         if (filter === 'volatility') {
-          // The user pointed out the submarket name is "continuous indices"
           return submarketLower.includes('continuous indices');
         }
         if (filter === 'boom') {
           return submarketLower.includes('crash') || submarketLower.includes('boom');
+        }
+        if (filter === 'basket') {
+            return submarketLower.includes('basket_indices');
         }
         return submarketLower.includes(filter);
       })
