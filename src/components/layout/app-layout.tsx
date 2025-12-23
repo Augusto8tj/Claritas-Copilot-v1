@@ -84,6 +84,11 @@ const navItems = [
     icon: Sparkles,
     label: "Chat Claritas",
   },
+   {
+    href: "/trader",
+    icon: Layers,
+    label: "Plataformas Deriv",
+  },
   {
     href: "/status",
     icon: Activity,
@@ -110,11 +115,11 @@ const navItems = [
 
 function MainNav() {
   const pathname = usePathname();
-  const isTraderSectionActive = pathname.startsWith('/trader') || pathname.startsWith('/deriv-trader') || pathname.startsWith('/options');
+  const isTraderSectionActive = pathname.startsWith('/trader') || pathname.startsWith('/deriv-trader');
   
   return (
     <SidebarMenu>
-      {navItems.filter(item => !item.hidden).map((item) => (
+      {navItems.filter(item => !item.hidden && item.href !== '/trader').map((item) => (
         <SidebarMenuItem key={item.href}>
           <SidebarMenuButton
             asChild
@@ -186,6 +191,20 @@ function MainNav() {
             </SidebarMenuSub>
         </CollapsibleContent>
       </Collapsible>
+       {navItems.filter(item => item.href === '/help').map((item) => (
+        <SidebarMenuItem key={item.href}>
+          <SidebarMenuButton
+            asChild
+            isActive={pathname === item.href}
+            className="justify-start"
+          >
+            <a href={item.href}>
+              <item.icon className="w-5 h-5" />
+              <span>{item.label}</span>
+            </a>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      ))}
     </SidebarMenu>
   )
 }
