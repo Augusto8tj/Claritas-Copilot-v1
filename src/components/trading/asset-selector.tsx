@@ -49,7 +49,7 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
       options: group.options.filter(option => {
         const submarketLower = option.submarket.toLowerCase();
         if (filter === 'volatility') {
-          return submarketLower.includes('continuous indices');
+          return submarketLower.includes('volatility') || submarketLower.includes('crash') || submarketLower.includes('boom');
         }
         if (filter === 'boom') {
           return submarketLower.includes('crash') || submarketLower.includes('boom');
