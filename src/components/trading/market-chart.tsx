@@ -63,7 +63,7 @@ export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
   
   const renderChart = () => {
      // For '1m', we only have tick data, so we must use a LineChart.
-     if (timePeriod === '1m') {
+     if (['1m','2m','3m'].includes(timePeriod)) {
         const tickData = visibleData as TickData[];
         const xDomain = tickData.length > 0 ? [tickData[0].epoch, tickData[tickData.length - 1].epoch] : [0, 0];
         

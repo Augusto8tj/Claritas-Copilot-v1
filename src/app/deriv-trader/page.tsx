@@ -43,6 +43,8 @@ export default function DerivTraderPage() {
     addActiveContract,
     operationsLog,
     isConnected,
+    isConnecting,
+    isAssetsLoading,
     activeToken,
     subscribeToSymbol,
     chartType,
@@ -66,12 +68,12 @@ export default function DerivTraderPage() {
   });
 
   useEffect(() => {
-    if (isConnected && selectedAsset) {
+    if (isConnected && !isAssetsLoading && selectedAsset) {
       clearChartData(); // Limpa os dados antes de uma nova subscrição
       subscribeToSymbol(selectedAsset, timePeriod, chartType);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected, selectedAsset, timePeriod, chartType]);
+  }, [isConnected, isAssetsLoading, selectedAsset, timePeriod, chartType]);
 
 
   useEffect(() => {
@@ -131,7 +133,7 @@ export default function DerivTraderPage() {
                   <ToggleGroupItem value="real" aria-label="Usar conta real">Real</ToggleGroupItem>
               </ToggleGroup>
               <div className="text-right mt-1 h-6">
-                  {accountBalance.loading ? (
+                  {accountBalance.loading || isConnecting ? (
                       <Skeleton className="h-4 w-28" />
                   ) : accountBalance.balance !== null ? (
                       <p className="text-sm font-medium text-muted-foreground">
