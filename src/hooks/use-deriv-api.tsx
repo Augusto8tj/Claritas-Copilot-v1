@@ -513,6 +513,15 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         setIsCouncilAutopilotOn(false); // Turn off the switch
         return;
     }
+    if (isSubscribingRef.current) {
+        toast({
+            variant: "destructive",
+            title: "Aguarde",
+            description: "Aguarde a subscrição do ativo terminar antes de formar o conselho.",
+        });
+        setIsCouncilAutopilotOn(false); // Turn off the switch
+        return;
+    }
     setIsFetchingCouncil(true);
     try {
       const historicalData = await getHistoricalDataFromApi(symbol, undefined, 200);
@@ -734,7 +743,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         if (subscriptionIdRef.current) {
             console.log(`[Deriv WS Provider] Forgetting old subscription: ${subscriptionIdRef.current}`);
             ws.send(JSON.stringify({ "forget": subscriptionIdRef.current }));
-            subscriptionIdRef.current = null;
         }
 
         clearChartData();
@@ -893,7 +901,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   
       if (response.error) {
         // Centralized error handling
-        console.error("[Deriv WS Provider] Error received:", response.error.message);
+        console.error(`[Deriv WS Provider] Error received: "${response.error.message}"`);
         const reqId = response.req_id;
         
         if (response.msg_type === 'authorize') {
@@ -907,6 +915,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         } else if (response.msg_type === 'active_symbols') {
             setAssetGroups([]);
             setIsAssetsLoading(false);
+        } else if (response.msg_type === 'forget') {
+            // This can happen if the subscription ID is already forgotten or invalid.
+            // It's not a critical error, so we can just log it.
+            console.warn(`[Deriv WS Provider] Failed to forget subscription: ${response.error.message}`);
         }
         
         if (reqId && promisesRef.current.has(String(reqId))) {
@@ -1075,6 +1087,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             break;
 
         case 'forget':
+          subscriptionIdRef.current = null;
           console.log(`[Deriv WS Provider] Successfully forgot subscription.`);
           break;
       }
@@ -1517,3 +1530,5 @@ export function useDerivApi() {
   }
   return context;
 }
+
+    
