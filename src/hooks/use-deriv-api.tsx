@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -50,7 +49,6 @@ interface DerivApiContextType {
   operationsLog: Operation[];
   assetGroups: AssetGroup[];
   isAssetsLoading: boolean;
-  promisesRef: React.MutableRefObject<Map<string, PromiseCallbacks>>;
   setAccountType: (type: AccountType) => void;
   setTokens: (tokens: { demo?: string; real?: string }) => void;
   disconnect: (type: AccountType) => void;
@@ -103,7 +101,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const isProcessingQueueRef = useRef(false);
   const throttleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const THROTTLE_INTERVAL = 250;
-
 
   useEffect(() => {
     try {
@@ -359,33 +356,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             
             await makeRequest({ "proposal_open_contract": 1, "subscribe": 1 });
 
-            setIsAssetsLoading(true);
-            const assetsRes: any = await makeRequest({ active_symbols: 'full', product_type: 'basic' });
-             const groupedAssets: { [key: string]: Asset[] } = {};
-                assetsRes.active_symbols.forEach((symbol: any) => {
-                    let marketKey = symbol.market;
-                    if (symbol.market === 'synthetic_index' && symbol.submarket === 'basket_index') {
-                        marketKey = 'basket_index';
-                    }
-                    const groupName = marketNameMapping[marketKey] || 'Outros';
-                    if (!groupedAssets[groupName]) {
-                        groupedAssets[groupName] = [];
-                    }
-                    groupedAssets[groupName].push({
-                        value: symbol.symbol,
-                        label: symbol.display_name,
-                        marketIsOpen: symbol.exchange_is_open === 1,
-                        submarket: symbol.submarket,
-                        market: marketKey,
-                        minDuration: symbol.min_contract_duration,
-                    });
-                });
-                const finalAssetGroups: AssetGroup[] = Object.keys(groupedAssets)
-                    .map(label => ({ label, options: groupedAssets[label].sort((a, b) => a.label.localeCompare(b.label)) }))
-                    .sort((a, b) => a.label.localeCompare(b.label));
-                setAssetGroups(finalAssetGroups);
-                setIsAssetsLoading(false);
-
         } catch (error: any) {
             setConnectionError(`Falha na inicialização: ${error}`);
             setIsConnected(false);
@@ -419,6 +389,45 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       }
     };
   }, [activeToken, isLoading, toast, makeRequest]);
+
+  // Effect to fetch active symbols after connection
+  useEffect(() => {
+    if (isConnected && isAssetsLoading) {
+      makeRequest({ active_symbols: 'full', product_type: 'basic' })
+        .then((assetsRes: any) => {
+          const groupedAssets: { [key: string]: Asset[] } = {};
+          assetsRes.active_symbols.forEach((symbol: any) => {
+            let marketKey = symbol.market;
+            if (symbol.market === 'synthetic_index' && symbol.submarket === 'basket_index') {
+              marketKey = 'basket_index';
+            }
+            const groupName = marketNameMapping[marketKey] || 'Outros';
+            if (!groupedAssets[groupName]) {
+              groupedAssets[groupName] = [];
+            }
+            groupedAssets[groupName].push({
+              value: symbol.symbol,
+              label: symbol.display_name,
+              marketIsOpen: symbol.exchange_is_open === 1,
+              submarket: symbol.submarket,
+              market: marketKey,
+              minDuration: symbol.min_contract_duration,
+            });
+          });
+          const finalAssetGroups: AssetGroup[] = Object.keys(groupedAssets)
+            .map(label => ({ label, options: groupedAssets[label].sort((a, b) => a.label.localeCompare(b.label)) }))
+            .sort((a, b) => a.label.localeCompare(b.label));
+          setAssetGroups(finalAssetGroups);
+        })
+        .catch(error => {
+          console.error("Failed to fetch active symbols:", error);
+          setConnectionError("Failed to load asset list.");
+        })
+        .finally(() => {
+          setIsAssetsLoading(false);
+        });
+    }
+  }, [isConnected, isAssetsLoading, makeRequest]);
 
   const setAccountType = (type: AccountType) => {
     try {
@@ -483,7 +492,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     operationsLog,
     assetGroups,
     isAssetsLoading,
-    promisesRef,
     executeTrade,
     getHistoricalData,
     clearActiveContracts,
