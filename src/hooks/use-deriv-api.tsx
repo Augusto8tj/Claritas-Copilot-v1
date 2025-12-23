@@ -1087,7 +1087,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     };
   
     ws.onerror = (error) => {
-      console.error("[Deriv WS Provider] WebSocket error occurred.", error);
+      console.error("[Deriv WS Provider] WebSocket error occurred.");
       setConnectionError("Falha na conexão com a API da Deriv. Verifique o seu token e a ligação à internet.");
       setIsConnecting(false);
       setIsConnected(false);
