@@ -74,6 +74,7 @@ export interface Asset {
   label: string;
   marketIsOpen: boolean;
   submarket: string;
+  market: string;
 }
 
 export interface AssetGroup {

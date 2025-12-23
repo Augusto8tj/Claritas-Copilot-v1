@@ -27,37 +27,29 @@ interface AssetSelectorProps {
 }
 
 const filters = [
-    { label: "Todos", value: "all" },
-    { label: "Volatilidade", value: "volatility" },
-    { label: "Crash/Boom", value: "boom" },
-    { label: "Jump", value: "jump" },
-    { label: "Step", value: "step" },
-    { label: "Cestas Forex", value: "basket" },
+    { label: "Sintéticos", value: "synthetic_index" },
+    { label: "Forex", value: "forex" },
+    { label: "Matérias-Primas", value: "commodities", disabled: true },
+    { label: "Ações", value: "stock", disabled: true },
+    { label: "Cripto", value: "cryptocurrency", disabled: true },
 ];
 
 export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorProps) {
   const { assetGroups, isAssetsLoading } = useDerivApi();
   const [open, setOpen] = useState(false);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('synthetic_index');
 
   const filteredAssets = useMemo(() => {
-    if (filter === 'all') {
+    if (filter === 'all') { // Though 'all' is not a filter button, good to have a fallback
       return assetGroups;
     }
+    // This logic currently only works for synthetics, as it's what useDerivApi provides.
+    // It's structured to be easily expandable.
     return assetGroups.map(group => ({
       ...group,
       options: group.options.filter(option => {
-        const submarketLower = option.submarket.toLowerCase();
-        if (filter === 'volatility') {
-          return submarketLower.includes('volatility') || submarketLower.includes('crash') || submarketLower.includes('boom');
-        }
-        if (filter === 'boom') {
-          return submarketLower.includes('crash') || submarketLower.includes('boom');
-        }
-        if (filter === 'basket') {
-            return submarketLower.includes('basket_indices');
-        }
-        return submarketLower.includes(filter);
+         // The filter is directly on the market name from the API
+         return option.market === filter;
       })
     })).filter(group => group.options.length > 0);
   }, [assetGroups, filter]);
@@ -74,6 +66,15 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
   if (isAssetsLoading) {
     return <Skeleton className="w-full sm:w-[280px] h-10" />;
   }
+
+  // Find the currently selected asset's market to set the initial filter
+  useEffect(() => {
+    const asset = assetGroups.flatMap(g => g.options).find(a => a.value === selectedAsset);
+    if (asset && asset.market) {
+        setFilter(asset.market);
+    }
+  }, [selectedAsset, assetGroups]);
+
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -92,7 +93,7 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
         <Command>
           <CommandInput placeholder="Pesquisar ativo..." />
           <div className="p-2 border-b">
-              <p className="text-xs text-muted-foreground px-1 pb-1">Filtar por tipo:</p>
+              <p className="text-xs text-muted-foreground px-1 pb-1">Filtar por Mercado:</p>
               <div className="flex flex-wrap gap-1">
                 {filters.map(f => (
                     <Button 
@@ -101,6 +102,7 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
                         size="sm"
                         className="h-7 text-xs rounded-full"
                         onClick={() => setFilter(f.value)}
+                        disabled={f.disabled}
                     >
                         {f.label}
                     </Button>
@@ -108,7 +110,7 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
               </div>
           </div>
           <CommandList>
-            <CommandEmpty>Nenhum ativo encontrado.</CommandEmpty>
+            <CommandEmpty>Nenhum ativo encontrado para este filtro.</CommandEmpty>
             {filteredAssets.map((group) => (
               <CommandGroup key={group.label} heading={group.label}>
                 {group.options.map((option) => (

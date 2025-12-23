@@ -925,18 +925,19 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         case 'active_symbols':
             const groupedAssets: { [key: string]: Asset[] } = {};
             response.active_symbols.forEach((symbol: any) => {
-                if (symbol.market === 'synthetic_index') {
-                    const groupName = symbol.submarket_display_name;
-                    if (!groupedAssets[groupName]) {
-                        groupedAssets[groupName] = [];
-                    }
-                    groupedAssets[groupName].push({
-                        value: symbol.symbol,
-                        label: symbol.display_name,
-                        marketIsOpen: symbol.exchange_is_open === 1,
-                        submarket: symbol.submarket.toLowerCase(),
-                    });
+                const groupName = symbol.market_display_name;
+                const submarketName = symbol.submarket_display_name;
+
+                if (!groupedAssets[groupName]) {
+                    groupedAssets[groupName] = [];
                 }
+                groupedAssets[groupName].push({
+                    value: symbol.symbol,
+                    label: symbol.display_name,
+                    marketIsOpen: symbol.exchange_is_open === 1,
+                    submarket: symbol.submarket,
+                    market: symbol.market,
+                });
             });
             
             const finalAssetGroups: AssetGroup[] = Object.keys(groupedAssets)
