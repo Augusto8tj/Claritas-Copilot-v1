@@ -177,7 +177,7 @@ export function useMarketData() {
 
         try {
             if (subscriptionIdRef.current) {
-                ws.send(JSON.stringify({ "forget": subscriptionIdRef.current }));
+                await ws.send(JSON.stringify({ "forget": subscriptionIdRef.current, "req_id": Date.now() + Math.random() }));
             }
 
             const granularity = getGranularityForTimePeriod(newTimePeriod);
@@ -188,7 +188,8 @@ export function useMarketData() {
                 style: style,
                 end: 'latest',
                 count: 1000, 
-                subscribe: 1
+                subscribe: 1,
+                req_id: Date.now() + Math.random() // Add req_id to this request
             };
 
             if (style === 'candles') {
