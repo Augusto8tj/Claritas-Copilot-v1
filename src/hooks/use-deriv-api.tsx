@@ -65,6 +65,7 @@ interface DerivApiContextType {
   demoToken: string | null;
   realToken: string | null;
   activeToken: string | null;
+  activeSymbol: string | null;
   accountType: AccountType;
   accountBalance: AccountBalance;
   activeContracts: ActiveContract[];
@@ -85,7 +86,7 @@ interface DerivApiContextType {
   setIsCouncilAutopilotOn: (isOn: boolean) => void;
   strategyCouncil: RobotStrategy[];
   isFetchingCouncil: boolean;
-  fetchStrategyCouncil: (durationUnit: DurationUnit) => Promise<void>;
+  fetchStrategyCouncil: (symbol: string, durationUnit: DurationUnit) => Promise<void>;
   councilVotes: { [key: string]: { vote: 'RISE' | 'FALL' | 'HOLD', confidence: number, weight: number } };
   consensusThreshold: number;
   setConsensusThreshold: (threshold: number) => void;
@@ -113,6 +114,7 @@ interface DerivApiContextType {
   showBollingerBands: boolean;
   setShowBollingerBands: (show: boolean) => void;
   setAccountType: (type: AccountType) => void;
+  setActiveSymbol: (symbol: string) => void;
   setTokens: (tokens: { demo?: string; real?: string }) => void;
   disconnect: (type: AccountType) => void;
   refreshBalance: () => void;
@@ -422,6 +424,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [accountType, setAccountTypeState] = useState<AccountType>('demo');
   const [accountBalance, setAccountBalance] = useState<AccountBalance>({ balance: null, currency: null, loading: true });
   const [isLoading, setIsLoading] = useState(true);
+  const [activeSymbol, setActiveSymbol] = useState<string | null>(null);
   const [activeContracts, setActiveContracts] = useState<ActiveContract[]>([]);
   const [operationsLog, setOperationsLog] = useState<Operation[]>([]);
   const [priceTicks, setPriceTicks] = useState<TickData[]>([]);
@@ -479,25 +482,25 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const councilExecutionRef = useRef({ isExecuting: false });
   const isSubscribingRef = useRef(false);
 
-  const fetchStrategyCouncil = useCallback(async (durationUnit: DurationUnit) => {
-    if (!subscriptionDetailsRef.current || !subscriptionDetailsRef.current.symbol) {
+  const fetchStrategyCouncil = useCallback(async (symbol: string, durationUnit: DurationUnit) => {
+    if (!symbol) {
         toast({
             variant: "destructive",
             title: "Erro ao Formar Conselho",
-            description: "A conexão com o gráfico ainda não foi estabelecida. Tente novamente em alguns segundos.",
+            description: "Nenhum ativo selecionado para análise. Aguarde o gráfico carregar.",
         });
         setIsCouncilAutopilotOn(false); // Turn off the switch
         return;
     }
     setIsFetchingCouncil(true);
     try {
-      const historicalData = await getHistoricalDataFromApi(subscriptionDetailsRef.current.symbol, undefined, 200);
+      const historicalData = await getHistoricalDataFromApi(symbol, undefined, 200);
        if(!historicalData || historicalData.length < 50) {
             throw new Error("Dados históricos insuficientes para formar o conselho.");
         }
       setGeminiRequestCount(prev => prev + 10); // 10 requests for the council
       const result = await getStrategyCouncilAction({
-        symbol: subscriptionDetailsRef.current.symbol,
+        symbol: symbol,
         balance: dailyBalance,
         currency: accountBalance.currency || 'USD',
         historicalDataJson: JSON.stringify(historicalData),
@@ -710,6 +713,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     }
     
     isSubscribingRef.current = true;
+    setActiveSymbol(symbol);
 
     try {
         if (subscriptionDetailsRef.current?.id) {
@@ -755,12 +759,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 }, [clearChartData]);
  
  const fetchAutopilotStrategy = useCallback(async () => {
-    if (!isAutopilotOn || !subscriptionDetailsRef.current?.symbol) return;
+    if (!isAutopilotOn || !activeSymbol) return;
 
     // Risk management checks are now handled in the main useEffect
     console.log("[Autopilot] Fetching new strategy...");
     try {
-        const historicalData = await getHistoricalDataFromApi(subscriptionDetailsRef.current.symbol, undefined, 200);
+        const historicalData = await getHistoricalDataFromApi(activeSymbol, undefined, 200);
         if(!historicalData || historicalData.length < 50) {
             console.warn("[Autopilot] Not enough price data to define a strategy.");
             return;
@@ -768,7 +772,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         
         setGeminiRequestCount(prev => prev + 1);
         const result = await getAutotraderStrategyAction({
-            symbol: subscriptionDetailsRef.current.symbol,
+            symbol: activeSymbol,
             balance: dailyBalance,
             currency: accountBalance.currency || 'USD',
             stake: 10,
@@ -790,7 +794,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
        console.error("[Autopilot] Error fetching strategy:", e.message);
        setAutopilotStrategy(null);
     }
-  }, [isAutopilotOn, lastAutopilotLossSuggestion, dailyBalance, accountBalance.currency, operationsLog, toast]);
+  }, [isAutopilotOn, lastAutopilotLossSuggestion, dailyBalance, accountBalance.currency, operationsLog, toast, activeSymbol]);
 
     
   const handleAutopilotCheck = useCallback(() => {
@@ -1082,8 +1086,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       subscriptionDetailsRef.current = null;
     };
   
-    ws.onerror = () => {
-      console.error("[Deriv WS Provider] WebSocket error occurred.");
+    ws.onerror = (error) => {
+      console.error("[Deriv WS Provider] WebSocket error occurred.", error);
       setConnectionError("Falha na conexão com a API da Deriv. Verifique o seu token e a ligação à internet.");
       setIsConnecting(false);
       setIsConnected(false);
@@ -1268,12 +1272,18 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       const duration = firstRobot.suggestedDuration;
       const unit = firstRobot.suggestedDurationUnit;
 
+      if (!activeSymbol) {
+         toast({ title: "Erro de Execução", description: "Símbolo do ativo não encontrado.", variant: "destructive" });
+         councilExecutionRef.current.isExecuting = false;
+         return;
+      }
+      
       toast({
         title: "Consenso do Conselho!",
         description: `Executando ordem de ${direction.toUpperCase()} com confiança total de ${Math.max(riseConfidenceSum, fallConfidenceSum).toFixed(0)} e stake ajustado de $${stake.toFixed(2)}.`
       });
 
-      executeTrade(contractType, stake, subscriptionDetailsRef.current!.symbol, direction, duration, unit, 'Conselho')
+      executeTrade(contractType, stake, activeSymbol, direction, duration, unit, 'Conselho')
         .finally(() => {
           setTimeout(() => {
             councilExecutionRef.current.isExecuting = false;
@@ -1302,7 +1312,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       chartData,
       toast,
       operationsLog,
-      dailyTarget
+      dailyTarget,
+      activeSymbol
   ]);
 
 
@@ -1420,8 +1431,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     demoToken,
     realToken,
     activeToken,
+    activeSymbol,
     accountType,
     setAccountType,
+    setActiveSymbol,
     setTokens,
     disconnect,
     accountBalance,

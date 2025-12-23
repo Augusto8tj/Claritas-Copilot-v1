@@ -31,7 +31,6 @@ export type ChartType = 'Area' | 'Candle';
 const timePeriods: TimePeriod[] = ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '8h', '1d'];
 
 export default function DerivTraderPage() {
-  const [selectedAsset, setSelectedAsset] = useState("1HZ100V");
   const [zoomLevel, setZoomLevel] = useState(100); 
   
   const { 
@@ -46,6 +45,8 @@ export default function DerivTraderPage() {
     isConnecting,
     isAssetsLoading,
     activeToken,
+    activeSymbol,
+    setActiveSymbol,
     subscribeToSymbol,
     chartType,
     setChartType,
@@ -68,12 +69,19 @@ export default function DerivTraderPage() {
   });
 
   useEffect(() => {
-    if (isConnected && !isAssetsLoading && selectedAsset) {
+    if (isConnected && !isAssetsLoading && activeSymbol) {
       clearChartData(); // Limpa os dados antes de uma nova subscrição
-      subscribeToSymbol(selectedAsset, timePeriod, chartType);
+      subscribeToSymbol(activeSymbol, timePeriod, chartType);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected, isAssetsLoading, selectedAsset, timePeriod, chartType]);
+  }, [isConnected, isAssetsLoading, activeSymbol, timePeriod, chartType]);
+
+  useEffect(() => {
+    // Set a default active symbol once assets are loaded
+    if (!activeSymbol && !isAssetsLoading) {
+        setActiveSymbol("1HZ100V");
+    }
+  }, [activeSymbol, isAssetsLoading, setActiveSymbol]);
 
 
   useEffect(() => {
@@ -120,9 +128,9 @@ export default function DerivTraderPage() {
               Deriv Trader
               </h1>
               <AssetSelector 
-              selectedAsset={selectedAsset} 
+              selectedAsset={activeSymbol || ""} 
               onAssetChange={(asset) => {
-                setSelectedAsset(asset);
+                setActiveSymbol(asset);
                 clearActiveContracts();
               }} 
               />
@@ -153,7 +161,7 @@ export default function DerivTraderPage() {
               <CardHeader className="flex flex-row items-center justify-between space-y-0">
                   <div>
                       <CardTitle className="font-headline">
-                      Acompanhamento ({selectedAsset})
+                      Acompanhamento ({activeSymbol})
                       </CardTitle>
                       <CardDescription>
                       Desempenho em tempo real.
@@ -250,17 +258,17 @@ export default function DerivTraderPage() {
           </div>
           <div className="lg:col-span-4 space-y-6">
               <DerivTraderInterface 
-                  symbol={selectedAsset}
+                  symbol={activeSymbol || ""}
                   onTradeSuccess={(result) => handleTradeSuccess(result, 'Manual')}
                   isConnected={isConnected && !!activeToken}
               />
               <AutoTraderCouncilInterface />
               <AutoTraderInterface 
-                symbol={selectedAsset} 
+                symbol={activeSymbol || ""} 
                 onExecuteTrade={executeTrade} 
                 form={form}
               />
-              <AIAnalysisInterface symbol={selectedAsset} />
+              <AIAnalysisInterface symbol={activeSymbol || ""} />
           </div>
         </div>
       </div>

@@ -47,6 +47,7 @@ export function AutoTraderCouncilInterface() {
   const { toast } = useToast();
   const form = useFormContext<RiseFallFormValues>();
   const { 
+    activeSymbol,
     isConnected, 
     isCouncilAutopilotOn,
     setIsCouncilAutopilotOn,
@@ -83,9 +84,13 @@ export function AutoTraderCouncilInterface() {
             toast({ variant: "destructive", title: "Piloto Automático", description: "Conecte-se à corretora antes de ativar o conselho." });
             return;
         }
+        if (!activeSymbol) {
+             toast({ variant: "destructive", title: "Piloto Automático", description: "Aguarde o gráfico carregar completamente." });
+             return;
+        }
         setIsCouncilAutopilotOn(true);
         const { duration_unit } = form.getValues();
-        fetchStrategyCouncil(duration_unit);
+        fetchStrategyCouncil(activeSymbol, duration_unit);
     } else {
         setIsCouncilAutopilotOn(false);
     }
