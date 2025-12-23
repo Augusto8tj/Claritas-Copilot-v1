@@ -70,8 +70,8 @@ interface DerivApiContextType {
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
 
 export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
-  const [demoToken, setDemoToken] = useState<string | null>('YyyugNZrkIgWuz9');
-  const [realToken, setRealToken] = useState<string | null>('x2Fv5FK0kDdXF5a');
+  const [demoToken, setDemoToken] = useState<string | null>(null);
+  const [realToken, setRealToken] = useState<string | null>(null);
   const [accountType, setAccountTypeState] = useState<AccountType>('demo');
   const [accountBalance, setAccountBalance] = useState<AccountBalance>({ balance: null, currency: null, loading: true });
   const [isLoading, setIsLoading] = useState(true);
@@ -236,16 +236,17 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                     console.error(`[Deriv WS Provider] Error received: "${response.error.message}"`);
                  }
                 const reqId = response.req_id;
+                
+                if (response.msg_type === 'authorize') {
+                   setConnectionError(`Falha na autorização: ${response.error.message}`);
+                   setIsConnected(false);
+                   setIsConnecting(false);
+                 }
                 if (reqId && promisesRef.current.has(String(reqId))) {
                     const promise = promisesRef.current.get(String(reqId));
                     promise?.reject(response.error.message);
                     promisesRef.current.delete(String(reqId));
                 }
-                 if (response.msg_type === 'authorize') {
-                   setConnectionError(`Falha na autorização: ${response.error.message}`);
-                   setIsConnected(false);
-                   setIsConnecting(false);
-                 }
                 return;
             }
 
@@ -257,7 +258,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 return;
             }
             
-            // Handle immediate messages
             handleImmediateMessage(response);
         });
         
@@ -273,9 +273,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
               setIsConnected(true);
               setIsConnecting(false);
               setConnectionError(null);
-              ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
-              ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 }));
-              ws.send(JSON.stringify({ active_symbols: 'full', product_type: 'basic' }));
+              ws.send(JSON.stringify({ "balance": 1, "subscribe": 1, "req_id": Date.now() }));
+              ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1, "req_id": Date.now() + 1 }));
+              ws.send(JSON.stringify({ active_symbols: 'full', product_type: 'basic', "req_id": Date.now() + 2 }));
               setIsAssetsLoading(true);
               break;
 
@@ -335,7 +335,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 ));
 
                 if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                  wsRef.current.send(JSON.stringify({ "balance": 1 }));
+                  wsRef.current.send(JSON.stringify({ "balance": 1, "req_id": Date.now() }));
                 }
                 break;
         }
