@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState, useCallback } from "react";
@@ -71,8 +72,7 @@ export default function DerivTraderPage() {
     showBollingerBands,
     setShowBollingerBands,
     subscribeToSymbol,
-    priceTicks,
-  } = useMarketData(ws, promisesRef);
+  } = useMarketData();
   
   // Hook for single autopilot logic
   const {
@@ -278,14 +278,13 @@ export default function DerivTraderPage() {
                   />
               </CardContent>
               </Card>
-              <OperationsLog operations={operationsLog} priceTicks={priceTicks} />
+              <OperationsLog operations={operationsLog} />
           </div>
           <div className="lg:col-span-4 space-y-6">
               <DerivTraderInterface 
                   symbol={activeSymbol || ""}
                   isConnected={isConnected}
                   isConnecting={isConnecting}
-                  activeToken={activeToken}
                   executeTrade={executeTrade}
               />
               <AutoTraderCouncilInterface
