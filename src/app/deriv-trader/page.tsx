@@ -53,7 +53,6 @@ export default function DerivTraderPage() {
     timePeriod,
     setTimePeriod,
     executeTrade,
-    clearChartData,
     showBollingerBands,
     setShowBollingerBands,
   } = useDerivApi();
@@ -70,10 +69,9 @@ export default function DerivTraderPage() {
 
   useEffect(() => {
     if (isConnected && !isAssetsLoading && activeSymbol) {
-      clearChartData(); // Limpa os dados antes de uma nova subscrição
       subscribeToSymbol(activeSymbol, timePeriod, chartType);
     }
-  }, [isConnected, isAssetsLoading, activeSymbol, timePeriod, chartType, subscribeToSymbol, clearChartData]);
+  }, [isConnected, isAssetsLoading, activeSymbol, timePeriod, chartType, subscribeToSymbol]);
 
 
   useEffect(() => {

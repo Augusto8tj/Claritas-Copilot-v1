@@ -745,7 +745,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             ws.send(JSON.stringify({ "forget": subscriptionIdRef.current }));
         }
 
-        clearChartData();
+        // Call clear chart data logic directly here
+        setChartData([]);
+        setPriceTicks([]);
         setIsChartLoading(true);
         setChartError(null);
 
@@ -779,7 +781,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         setIsChartLoading(false);
         isSubscribingRef.current = false; // Release lock on error
     }
-}, [clearChartData]);
+}, []);
  
  const fetchAutopilotStrategy = useCallback(async () => {
     if (!isAutopilotOn || !activeSymbol) return;
