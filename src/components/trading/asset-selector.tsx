@@ -29,10 +29,10 @@ interface AssetSelectorProps {
 const filters = [
     { label: "Todos", value: "all" },
     { label: "Sintéticos", value: "synthetic_index" },
-    { label: "Forex", value: "forex", disabled: true },
-    { label: "Matérias-Primas", value: "commodities", disabled: true },
-    { label: "Ações", value: "stock", disabled: true },
-    { label: "Cripto", value: "cryptocurrency", disabled: true },
+    { label: "Forex", value: "forex" },
+    { label: "Matérias-Primas", value: "commodities" },
+    { label: "Ações", value: "stock" },
+    { label: "Cripto", value: "cryptocurrency" },
 ];
 
 export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorProps) {
@@ -68,7 +68,12 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
     if (isAssetsLoading) return; // Guard clause inside the hook
     const asset = assetGroups.flatMap(g => g.options).find(a => a.value === selectedAsset);
     if (asset && asset.market) {
-        setFilter(asset.market);
+        // Only set filter if it's one of the main categories
+        if (filters.some(f => f.value === asset.market)) {
+          setFilter(asset.market);
+        } else {
+          setFilter('synthetic_index'); // fallback to synthetics
+        }
     }
   }, [selectedAsset, assetGroups, isAssetsLoading]);
 
@@ -103,7 +108,6 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
                         size="sm"
                         className="h-7 text-xs rounded-full"
                         onClick={() => setFilter(f.value)}
-                        disabled={f.disabled}
                     >
                         {f.label}
                     </Button>
