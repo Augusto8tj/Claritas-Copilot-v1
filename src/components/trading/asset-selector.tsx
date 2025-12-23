@@ -69,11 +69,12 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
 
   // Find the currently selected asset's market to set the initial filter
   useEffect(() => {
+    if (isAssetsLoading) return; // Guard clause inside the hook
     const asset = assetGroups.flatMap(g => g.options).find(a => a.value === selectedAsset);
     if (asset && asset.market) {
         setFilter(asset.market);
     }
-  }, [selectedAsset, assetGroups]);
+  }, [selectedAsset, assetGroups, isAssetsLoading]);
 
 
   return (
