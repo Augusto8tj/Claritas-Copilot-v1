@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useEffect, useState, useCallback } from "react";
@@ -43,7 +42,6 @@ export default function DerivTraderPage() {
     },
   });
 
-  // Main API hook for connection and trading
   const { 
     accountType, 
     setAccountType, 
@@ -59,7 +57,6 @@ export default function DerivTraderPage() {
     executeTrade,
   } = useDerivApi();
 
-  // Hook for managing chart data and subscriptions
   const {
     chartData,
     isChartLoading,
@@ -73,48 +70,25 @@ export default function DerivTraderPage() {
     subscribeToSymbol,
   } = useMarketData();
   
-  // Hook for single autopilot logic
-  const {
-      isAutopilotOn,
-      setIsAutopilotOn,
-      autopilotStrategy,
-      dailyBalance: autopilotDailyBalance,
-      setDailyBalance: setAutopilotDailyBalance,
-      dailyTarget: autopilotDailyTarget,
-      setDailyTarget: setAutopilotDailyTarget,
-      geminiRequestCount: autopilotGeminiCount,
-      isLoading: isAutopilotLoading,
-      error: autopilotError,
-      currentRSI,
-      currentStoch
-  } = useAutopilot(activeSymbol, chartData, operationsLog, addActiveContract, executeTrade);
-
-  // Hook for robot council logic
-  const {
-      isCouncilAutopilotOn,
-      setIsCouncilAutopilotOn,
-      strategyCouncil,
-      isFetchingCouncil,
-      councilVotes,
-      geminiRequestCount: councilGeminiCount,
-      dailyBalance: councilDailyBalance,
-      setDailyBalance: setCouncilDailyBalance,
-      dailyTarget: councilDailyTarget,
-      setDailyTarget: setCouncilDailyTarget,
-      consensusThreshold,
-      setConsensusThreshold,
-      isDynamicConsensusOn,
-      setIsDynamicConsensusOn,
-      isMeritocracyOn,
-      setIsMeritocracyOn,
-      indicators,
-  } = useRobotCouncil(activeSymbol, chartData, operationsLog, addActiveContract, executeTrade);
-
-  // Hook for trade analysis logic
   const { analyzeSessionPerformance } = useTradeAnalysis(activeSymbol, operationsLog);
-  
 
-  const memoizedSubscribeToSymbol = useCallback(subscribeToSymbol, [subscribeToSymbol]);
+  const autopilot = useAutopilot(
+    activeSymbol,
+    chartData,
+    operationsLog,
+    addActiveContract,
+    executeTrade
+  );
+
+  const robotCouncil = useRobotCouncil(
+    activeSymbol,
+    chartData,
+    operationsLog,
+    addActiveContract,
+    executeTrade
+  );
+
+  const memoizedSubscribeToSymbol = useCallback(subscribeToSymbol, []);
 
   useEffect(() => {
     if (isConnected && !isAssetsLoading && activeSymbol) {
@@ -124,7 +98,6 @@ export default function DerivTraderPage() {
 
 
   useEffect(() => {
-    // Set a default active symbol once assets are loaded and if no symbol is active yet
     if (!isAssetsLoading && !activeSymbol && assetGroups.length > 0) {
         const firstAsset = assetGroups[0]?.options[0]?.value;
         if(firstAsset) {
@@ -160,183 +133,179 @@ export default function DerivTraderPage() {
   return (
     <FormProvider {...form}>
       <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0">
-          <div className="flex items-center gap-4">
-              <h1 className="text-3xl font-bold tracking-tight font-headline">
-              Deriv Trader
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4 flex-1">
+              <h1 className="text-3xl font-bold tracking-tight font-headline shrink-0">
+                Deriv Trader
               </h1>
               <AssetSelector 
-              selectedAsset={activeSymbol || ""} 
-              onAssetChange={(asset) => {
-                setActiveSymbol(asset);
-              }} 
-              assetGroups={assetGroups}
-              isAssetsLoading={isAssetsLoading}
+                selectedAsset={activeSymbol || ""} 
+                onAssetChange={(asset) => setActiveSymbol(asset)} 
+                assetGroups={assetGroups}
+                isAssetsLoading={isAssetsLoading}
               />
           </div>
-          <div className="flex flex-col items-end">
+          <div className="flex items-center justify-end gap-4">
               <ToggleGroup type="single" value={accountType} onValueChange={(value: any) => value && setAccountType(value)} defaultValue="demo" aria-label="Tipo de Conta">
                   <ToggleGroupItem value="demo" aria-label="Usar conta demo">Demo</ToggleGroupItem>
                   <ToggleGroupItem value="real" aria-label="Usar conta real">Real</ToggleGroupItem>
               </ToggleGroup>
-              <div className="text-right mt-1 h-6">
+              <div className="text-right h-6 w-40">
                   {accountBalance.loading || isConnecting ? (
-                      <Skeleton className="h-4 w-28" />
+                      <Skeleton className="h-5 w-full" />
                   ) : accountBalance.balance !== null ? (
-                      <p className="text-sm font-medium text-muted-foreground">
+                      <p className="text-sm font-medium text-muted-foreground truncate">
                           Saldo: <span className="font-bold text-foreground">{new Intl.NumberFormat('en-US', { style: 'currency', currency: accountBalance.currency || 'USD' }).format(accountBalance.balance)}</span>
                       </p>
                   ) : null}
               </div>
           </div>
         </div>
-        <p className="text-muted-foreground">
-          Nossa plataforma integrada para negociação de Opções e Multiplicadores.
-        </p>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-8 space-y-6">
-              <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                  <div>
-                      <CardTitle className="font-headline">
-                      Acompanhamento ({activeSymbol})
-                      </CardTitle>
-                      <CardDescription>
-                      Desempenho em tempo real.
-                      </CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                      {activeContracts.length > 0 && (
-                      <Button variant="outline" size="icon" className="h-10 w-10" onClick={clearActiveContracts}>
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Limpar linhas de negociação</span>
-                      </Button>
-                      )}
-                      <Button 
-                        variant="outline" 
-                        size="icon" 
-                        className={cn("h-10 w-10", showBollingerBands && "bg-accent")}
-                        onClick={() => setShowBollingerBands(!showBollingerBands)}
-                        disabled={chartType !== 'Candle'}
-                        aria-label="Toggle Bollinger Bands"
-                      >
-                          <Waves className="h-5 w-5" />
-                      </Button>
-                      <Popover>
-                          <PopoverTrigger asChild>
-                              <Button variant="outline" className="w-11 h-10 p-0">
-                                  {chartType === 'Area' ? <AreaChart className="w-5 h-5" /> : <CandlestickChart className="w-5 h-5" />}
-                                  <span className="sr-only">Alterar tipo de gráfico</span>
-                              </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-2">
-                              <div className="grid grid-cols-2 gap-2">
-                                  {chartTypes.map(type => (
-                                      <Button
-                                          key={type.label}
-                                          variant="ghost"
-                                          className={cn(
-                                              "flex flex-col h-auto p-2",
-                                              chartType === type.label && "bg-accent"
-                                          )}
-                                          onClick={() => setChartType(type.label)}
-                                          disabled={type.disabled}
-                                      >
-                                          {type.icon}
-                                          <span className="text-xs mt-1">{type.label}</span>
-                                      </Button>
-                                  ))}
-                              </div>
-                          </PopoverContent>
-                      </Popover>
-                     
-                       <Popover>
-                          <PopoverTrigger asChild>
-                               <Button variant="outline" className="w-[80px] h-10">
-                                  <Clock className="w-4 h-4 mr-2" />
-                                  <span>{timePeriod.toUpperCase()}</span>
-                              </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-2">
-                              <div className="grid grid-cols-4 gap-2">
-                                  {timePeriods.map(period => (
-                                      <Button
-                                          key={period}
-                                          variant={timePeriod === period ? "default" : "ghost"}
-                                          onClick={() => setTimePeriod(period)}
-                                          className="w-full"
-                                      >
-                                          {period.toUpperCase()}
-                                      </Button>
-                                  ))}
-                              </div>
-                          </PopoverContent>
-                      </Popover>
-                       <Button variant="outline" size="icon" onClick={() => handleZoom('in')} disabled={zoomLevel <= 20}>
-                          <Plus className="h-4 w-4" />
-                          <span className="sr-only">Zoom In</span>
-                      </Button>
-                      <Button variant="outline" size="icon" onClick={() => handleZoom('out')} disabled={zoomLevel >= 500}>
-                          <Minus className="h-4 w-4" />
-                          <span className="sr-only">Zoom Out</span>
-                      </Button>
 
-                  </div>
-              </CardHeader>
-              <CardContent className="relative">
-                  <MarketChart 
-                      activeContracts={activeContracts}
-                      zoomLevel={zoomLevel}
-                      chartData={chartData}
-                      isChartLoading={isChartLoading}
-                      chartError={chartError}
-                      chartType={chartType}
-                      timePeriod={timePeriod}
-                      showBollingerBands={showBollingerBands}
-                  />
-              </CardContent>
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          
+          {/* Main Content: Chart & Operations Log (Spans more columns on larger screens) */}
+          <div className="md:col-span-2 lg:col-span-3 space-y-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <div>
+                        <CardTitle className="font-headline text-lg">
+                            Gráfico ({activeSymbol})
+                        </CardTitle>
+                        <CardDescription className="text-xs">
+                            Desempenho em tempo real do ativo.
+                        </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {activeContracts.length > 0 && (
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={clearActiveContracts}>
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Limpar negociações</span>
+                        </Button>
+                        )}
+                        <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className={cn("h-8 w-8", showBollingerBands && "bg-accent")}
+                            onClick={() => setShowBollingerBands(!showBollingerBands)}
+                            disabled={chartType !== 'Candle'}
+                            aria-label="Toggle Bollinger Bands"
+                        >
+                            <Waves className="h-4 w-4" />
+                        </Button>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className="w-9 h-8 p-0">
+                                    {chartType === 'Area' ? <AreaChart className="w-4 h-4" /> : <CandlestickChart className="w-4 h-4" />}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-2">
+                                <ToggleGroup type="single" value={chartType} onValueChange={(v) => v && setChartType(v as ChartType)} className="grid grid-cols-2 gap-2">
+                                {chartTypes.map(type => (
+                                    <ToggleGroupItem value={type.label} key={type.label} disabled={type.disabled} className="flex flex-col h-auto p-2">
+                                        {type.icon}
+                                        <span className="text-xs mt-1">{type.label}</span>
+                                    </ToggleGroupItem>
+                                ))}
+                                </ToggleGroup>
+                            </PopoverContent>
+                        </Popover>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className="w-[70px] h-8 text-xs">
+                                    <Clock className="w-3 h-3 mr-1.5" />
+                                    <span>{timePeriod.toUpperCase()}</span>
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-2">
+                                <div className="grid grid-cols-4 gap-2">
+                                    {timePeriods.map(period => (
+                                        <Button
+                                            key={period}
+                                            variant={timePeriod === period ? "default" : "ghost"}
+                                            onClick={() => setTimePeriod(period)}
+                                            className="w-full h-8 text-xs"
+                                        >
+                                            {period.toUpperCase()}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleZoom('in')} disabled={zoomLevel <= 20}>
+                            <Plus className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleZoom('out')} disabled={zoomLevel >= 500}>
+                            <Minus className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <MarketChart 
+                        activeContracts={activeContracts}
+                        zoomLevel={zoomLevel}
+                        chartData={chartData}
+                        isChartLoading={isChartLoading}
+                        chartError={chartError}
+                        chartType={chartType}
+                        timePeriod={timePeriod}
+                        showBollingerBands={showBollingerBands}
+                    />
+                </CardContent>
               </Card>
+              <div className="md:hidden">
+                <DerivTraderInterface 
+                    symbol={activeSymbol || ""}
+                    isConnected={isConnected}
+                    executeTrade={executeTrade}
+                />
+              </div>
               <OperationsLog operations={operationsLog} />
           </div>
-          <div className="lg:col-span-4 space-y-6">
-              <DerivTraderInterface 
-                  symbol={activeSymbol || ""}
-                  isConnected={isConnected}
-                  executeTrade={executeTrade}
-              />
+
+          {/* Sidebar: Trading and AI Panels */}
+          <div className="md:col-span-1 lg:col-span-1 space-y-6">
+              <div className="hidden md:block">
+                <DerivTraderInterface 
+                    symbol={activeSymbol || ""}
+                    isConnected={isConnected}
+                    executeTrade={executeTrade}
+                />
+              </div>
               <AutoTraderCouncilInterface
-                isCouncilAutopilotOn={isCouncilAutopilotOn}
-                setIsCouncilAutopilotOn={setIsCouncilAutopilotOn}
-                strategyCouncil={strategyCouncil}
-                isFetchingCouncil={isFetchingCouncil}
-                councilVotes={councilVotes}
-                geminiRequestCount={councilGeminiCount}
-                dailyBalance={councilDailyBalance}
-                setDailyBalance={setCouncilDailyBalance}
-                dailyTarget={councilDailyTarget}
-                setDailyTarget={setCouncilDailyTarget}
-                consensusThreshold={consensusThreshold}
-                setConsensusThreshold={setConsensusThreshold}
-                isDynamicConsensusOn={isDynamicConsensusOn}
-                setIsDynamicConsensusOn={setIsDynamicConsensusOn}
-                isMeritocracyOn={isMeritocracyOn}
-                setIsMeritocracyOn={setIsMeritocracyOn}
-                indicators={indicators}
+                isCouncilAutopilotOn={robotCouncil.isCouncilAutopilotOn}
+                setIsCouncilAutopilotOn={robotCouncil.setIsCouncilAutopilotOn}
+                strategyCouncil={robotCouncil.strategyCouncil}
+                isFetchingCouncil={robotCouncil.isFetchingCouncil}
+                councilVotes={robotCouncil.councilVotes}
+                geminiRequestCount={robotCouncil.geminiRequestCount}
+                dailyBalance={robotCouncil.dailyBalance}
+                setDailyBalance={robotCouncil.setDailyBalance}
+                dailyTarget={robotCouncil.dailyTarget}
+                setDailyTarget={robotCouncil.setDailyTarget}
+                consensusThreshold={robotCouncil.consensusThreshold}
+                setConsensusThreshold={robotCouncil.setConsensusThreshold}
+                isDynamicConsensusOn={robotCouncil.isDynamicConsensusOn}
+                setIsDynamicConsensusOn={robotCouncil.setIsDynamicConsensusOn}
+                isMeritocracyOn={robotCouncil.isMeritocracyOn}
+                setIsMeritocracyOn={robotCouncil.setIsMeritocracyOn}
+                indicators={robotCouncil.indicators}
               />
               <AutoTraderInterface
-                isAutopilotOn={isAutopilotOn}
-                setIsAutopilotOn={setIsAutopilotOn}
-                autopilotStrategy={autopilotStrategy}
-                dailyBalance={autopilotDailyBalance}
-                setDailyBalance={setAutopilotDailyBalance}
-                dailyTarget={autopilotDailyTarget}
-                setDailyTarget={setAutopilotDailyTarget}
-                geminiRequestCount={autopilotGeminiCount}
-                isLoading={isAutopilotLoading}
-                error={autopilotError}
-                currentRSI={currentRSI}
-                currentStoch={currentStoch}
+                isAutopilotOn={autopilot.isAutopilotOn}
+                setIsAutopilotOn={autopilot.setIsAutopilotOn}
+                autopilotStrategy={autopilot.autopilotStrategy}
+                dailyBalance={autopilot.dailyBalance}
+                setDailyBalance={autopilot.setDailyBalance}
+                dailyTarget={autopilot.dailyTarget}
+                setDailyTarget={autopilot.setDailyTarget}
+                geminiRequestCount={autopilot.geminiRequestCount}
+                isLoading={autopilot.isLoading}
+                error={autopilot.error}
+                currentRSI={autopilot.currentRSI}
+                currentStoch={autopilot.currentStoch}
               />
               <AIAnalysisInterface 
                 analyzeSessionPerformance={analyzeSessionPerformance} 
