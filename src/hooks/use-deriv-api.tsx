@@ -1058,8 +1058,16 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       }
     };
   
-    ws.onclose = () => {
-      console.log("[Deriv WS Provider] Connection closed.");
+    ws.onclose = (event) => {
+      const wasClean = event.wasClean;
+      const code = event.code;
+      const reason = event.reason;
+      console.log(`[Deriv WS Provider] Connection closed. Was clean: ${wasClean}, Code: ${code}, Reason: ${reason || 'No reason given'}`);
+      
+      if (!wasClean) {
+        setConnectionError(`A conexão foi fechada: Código ${code} (${reason || 'Fecho Anormal'}).`);
+      }
+      
       setIsConnected(false);
       setIsConnecting(false);
       wsRef.current = null;
@@ -1067,8 +1075,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     };
   
     ws.onerror = (error) => {
-      console.error("[Deriv WS Provider] WebSocket error occurred:", error);
-      setConnectionError("Failed to connect to Deriv API.");
+      console.error("[Deriv WS Provider] WebSocket error occurred.");
+      setConnectionError("Falha na conexão com a API da Deriv. Verifique o seu token e a ligação à internet.");
       setIsConnecting(false);
       setIsConnected(false);
     };
