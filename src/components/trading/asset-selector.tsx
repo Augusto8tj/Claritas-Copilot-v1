@@ -45,10 +45,17 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
     }
     return assetGroups.map(group => ({
       ...group,
-      options: group.options.filter(option => 
-        option.submarket.toLowerCase().includes(filter) || // for "volatility", "jump", "step"
-        (filter === 'boom' && (option.submarket.toLowerCase().includes('crash') || option.submarket.toLowerCase().includes('boom'))) // for crash/boom
-      )
+      options: group.options.filter(option => {
+        const submarketLower = option.submarket.toLowerCase();
+        if (filter === 'volatility') {
+          // The user pointed out the submarket name is "continuous indices"
+          return submarketLower.includes('continuous indices');
+        }
+        if (filter === 'boom') {
+          return submarketLower.includes('crash') || submarketLower.includes('boom');
+        }
+        return submarketLower.includes(filter);
+      })
     })).filter(group => group.options.length > 0);
   }, [assetGroups, filter]);
   
