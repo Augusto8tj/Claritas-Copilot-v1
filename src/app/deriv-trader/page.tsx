@@ -31,6 +31,7 @@ const timePeriods: TimePeriod[] = ['1m', '2m', '3m', '5m', '10m', '15m', '30m', 
 
 export default function DerivTraderPage() {
   const [activeSymbol, setActiveSymbol] = useState<string | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(100);
 
   const form = useForm<RiseFallFormValues>({
     resolver: zodResolver(riseFallSchema),
@@ -141,6 +142,17 @@ export default function DerivTraderPage() {
     }
   }, [timePeriod, chartType, setChartType]);
 
+ const handleZoom = (direction: 'in' | 'out') => {
+    setZoomLevel(prevZoom => {
+        let newZoom;
+        if (direction === 'in') {
+            newZoom = Math.max(20, prevZoom - 20);
+        } else {
+            newZoom = Math.min(500, prevZoom + 20);
+        }
+        return newZoom;
+    });
+  };
 
   const chartTypes: { label: ChartType, icon: React.ReactNode, disabled: boolean }[] = [
     { label: 'Area', icon: <AreaChart className="w-8 h-8 mx-auto" />, disabled: false },
@@ -263,12 +275,21 @@ export default function DerivTraderPage() {
                               </div>
                           </PopoverContent>
                       </Popover>
+                       <Button variant="outline" size="icon" onClick={() => handleZoom('in')} disabled={zoomLevel <= 20}>
+                          <Plus className="h-4 w-4" />
+                          <span className="sr-only">Zoom In</span>
+                      </Button>
+                      <Button variant="outline" size="icon" onClick={() => handleZoom('out')} disabled={zoomLevel >= 500}>
+                          <Minus className="h-4 w-4" />
+                          <span className="sr-only">Zoom Out</span>
+                      </Button>
 
                   </div>
               </CardHeader>
               <CardContent className="relative">
                   <MarketChart 
                       activeContracts={activeContracts}
+                      zoomLevel={zoomLevel}
                       chartData={chartData}
                       isChartLoading={isChartLoading}
                       chartError={chartError}
