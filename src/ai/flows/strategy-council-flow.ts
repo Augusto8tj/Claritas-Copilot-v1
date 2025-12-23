@@ -34,7 +34,7 @@ const robotSpecialistPrompt = ai.definePrompt({
     name: 'robotSpecialistPrompt',
     input: { schema: RobotSpecialistInputSchema },
     output: { schema: RobotStrategySchema },
-    model: 'googleai/gemini-2.5-pro',
+    model: 'googleai/gemini-1.5-flash',
     system: `Você é um analista quantitativo sênior, especialista em criar UM robô-analista de trading para a estratégia específica solicitada, com múltiplos níveis de confiança.
 
 A sua tarefa é criar UM robô para o ativo solicitado, otimizado para o horizonte de tempo ('durationUnit'), usando a estratégia: {{{strategyType}}}.
