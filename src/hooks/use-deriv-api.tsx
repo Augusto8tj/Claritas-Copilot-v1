@@ -668,7 +668,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     initiator: OperationInitiator
 ): Promise<TradeResult> => {
       if (!wsRef.current || !isConnected) {
-        throw new Error("A conexão com a Deriv API não está ativa.");
+        throw new Error("A conexão com a API da Deriv não está ativa.");
       }
 
       try {
@@ -1530,5 +1530,3 @@ export function useDerivApi() {
   }
   return context;
 }
-
-    
