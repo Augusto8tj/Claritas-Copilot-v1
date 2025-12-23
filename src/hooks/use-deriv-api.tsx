@@ -76,7 +76,7 @@ const marketNameMapping: Record<string, string> = {
     'commodities': 'Matérias-Primas',
     'stock_index': 'Índices de Ações',
     'cryptocurrency': 'Criptomoedas',
-    'basket_index': 'Índices de Cesta'
+    'basket_index': 'Cestas de Moedas e Matérias-Primas'
 };
 
 
@@ -110,8 +110,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       const storedRealToken = localStorage.getItem(DERIV_REAL_TOKEN_KEY);
       const storedAccountType = localStorage.getItem(DERIV_ACCOUNT_TYPE_KEY) as AccountType | null;
       
-      setDemoToken(storedDemoToken || 'YyyugNZrkIgWuz9');
-      setRealToken(storedRealToken || 'x2Fv5FK0kDdXF5a');
+      setDemoToken(storedDemoToken || null);
+      setRealToken(storedRealToken || null);
       if (storedAccountType) setAccountTypeState(storedAccountType);
     } catch (error) {
       console.error("Failed to access localStorage:", error);
@@ -301,8 +301,13 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             case 'active_symbols':
                 const groupedAssets: { [key: string]: Asset[] } = {};
                 response.active_symbols.forEach((symbol: any) => {
-                    const market = symbol.market;
-                    const groupName = marketNameMapping[market] || 'Outros';
+                    let marketKey = symbol.market;
+                    // Special handling for basket indices. They are part of 'synthetic_index' but conceptually separate.
+                    if (symbol.market === 'synthetic_index' && symbol.submarket === 'basket_index') {
+                        marketKey = 'basket_index';
+                    }
+                    
+                    const groupName = marketNameMapping[marketKey] || 'Outros';
 
                     if (!groupedAssets[groupName]) {
                         groupedAssets[groupName] = [];
@@ -313,7 +318,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                         label: symbol.display_name,
                         marketIsOpen: symbol.exchange_is_open === 1,
                         submarket: symbol.submarket,
-                        market: symbol.market,
+                        market: marketKey, // Use the corrected marketKey
                         minDuration: symbol.min_contract_duration,
                     });
                 });
@@ -358,6 +363,13 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
     ws.onmessage = (event) => {
         const response = JSON.parse(event.data);
+        const reqId = response.req_id;
+        
+        if (reqId && promisesRef.current.has(String(reqId))) {
+            // This is a response to a promise, not a subscription message for this hook
+            return;
+        }
+        
         messageQueueRef.current.push(response);
         if (!isProcessingQueueRef.current) {
             isProcessingQueueRef.current = true;
@@ -393,7 +405,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           clearTimeout(throttleTimeoutRef.current);
       }
     };
-  }, [activeToken, isLoading, toast]);
+  }, [activeToken, isLoading, toast, buyContract, requestProposal]);
 
   const setAccountType = (type: AccountType) => {
     try {
