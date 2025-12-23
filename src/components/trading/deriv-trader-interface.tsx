@@ -22,19 +22,29 @@ import { Checkbox } from "../ui/checkbox";
 import { Label } from "../ui/label";
 import { Separator } from "../ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useDerivApi } from "@/hooks/use-deriv-api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import { AITradeSuggestion } from "./ai-trade-suggestion";
 
 import type { DurationUnit, RiseFallFormValues } from "./deriv-trader-interface.types";
+import type { TradeResult } from "@/services/deriv-api-service";
+import type { OperationInitiator } from "./operations-log.types";
 
 type TradeType = 'rise_fall' | 'higher_lower' | 'touch_no_touch';
 
 interface DerivTraderInterfaceProps {
   symbol: string;
   isConnected: boolean;
+  executeTrade: (
+    contractType: string,
+    stake: number,
+    symbol: string,
+    tradeDirection: 'rise' | 'fall',
+    duration: number,
+    durationUnit: DurationUnit,
+    initiator: OperationInitiator,
+  ) => Promise<TradeResult>;
 }
 
 const durationUnitLabels: Record<DurationUnit, string> = {
@@ -59,10 +69,9 @@ const tradeTypeLabels: Record<TradeType, string> = {
   touch_no_touch: "Touch/No Touch",
 };
 
-export function DerivTraderInterface({ symbol, isConnected }: DerivTraderInterfaceProps) {
+export function DerivTraderInterface({ symbol, isConnected, executeTrade }: DerivTraderInterfaceProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<"rise" | "fall" | null>(null);
-  const { executeTrade, isConnecting, activeToken } = useDerivApi();
   const [tradeType, setTradeType] = useState<TradeType>('rise_fall');
 
   const form = useFormContext<RiseFallFormValues>();
@@ -134,7 +143,7 @@ export function DerivTraderInterface({ symbol, isConnected }: DerivTraderInterfa
 
   const payout = (form.watch('stake') * 1.942).toFixed(2);
   const payoutPercentage = "94.20%";
-  const isButtonDisabled = !!loading || isConnecting || !isConnected || !activeToken;
+  const isButtonDisabled = !!loading || !isConnected;
 
   return (
     <div className="space-y-6">

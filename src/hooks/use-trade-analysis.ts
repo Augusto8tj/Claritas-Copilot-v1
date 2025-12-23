@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useDerivApi } from './use-deriv-api';
 import { analyzeOperationsAction } from '@/app/actions/trading-actions';
 import { analyzeTradeLossAction } from '@/app/actions/ai-actions';
 import { getHistoricalData } from '@/services/deriv-api-service';

@@ -45,7 +45,6 @@ export default function DerivTraderPage() {
 
   // Main API hook for connection and trading
   const { 
-    ws,
     accountType, 
     setAccountType, 
     accountBalance, 
@@ -58,7 +57,6 @@ export default function DerivTraderPage() {
     assetGroups,
     addActiveContract,
     executeTrade,
-    promisesRef
   } = useDerivApi();
 
   // Hook for managing chart data and subscriptions
@@ -305,7 +303,6 @@ export default function DerivTraderPage() {
               <DerivTraderInterface 
                   symbol={activeSymbol || ""}
                   isConnected={isConnected}
-                  isConnecting={isConnecting}
                   executeTrade={executeTrade}
               />
               <AutoTraderCouncilInterface

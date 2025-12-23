@@ -3,7 +3,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useFormContext } from "react-hook-form";
-import { useDerivApi } from "@/hooks/use-deriv-api";
 import { useToast } from "@/hooks/use-toast";
 import { getHistoricalData } from "@/services/deriv-api-service";
 import { getAutotraderStrategyAction } from '@/app/actions/ai-actions';
@@ -12,6 +11,11 @@ import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-f
 import { useTradeAnalysis } from "./use-trade-analysis";
 import type { ChartData } from "./use-market-data";
 import type { Operation } from "@/components/trading/operations-log.types";
+import type { TradeResult } from "@/services/deriv-api-service";
+import type { OperationInitiator } from "@/components/trading/operations-log.types";
+import type { DurationUnit } from "@/components/trading/deriv-trader-interface.types";
+import type { ActiveContract } from "./use-deriv-api";
+
 
 // Indicator Calculation Helpers
 const calculateRSI = (data: { price: number }[], period = 14) => {
@@ -44,10 +48,17 @@ export function useAutopilot(
     activeSymbol: string | null,
     chartData: ChartData[],
     operationsLog: Operation[],
-    addActiveContract: (contract: any) => void,
-    executeTrade: any
+    addActiveContract: (contract: ActiveContract) => void,
+    executeTrade: (
+        contractType: string,
+        stake: number,
+        symbol: string,
+        tradeDirection: 'rise' | 'fall',
+        duration: number,
+        durationUnit: DurationUnit,
+        initiator: OperationInitiator
+    ) => Promise<TradeResult>,
 ) {
-    const { isConnected } = useDerivApi();
     const { analyzeLosingTrade } = useTradeAnalysis(activeSymbol, operationsLog);
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
@@ -140,7 +151,7 @@ export function useAutopilot(
     // Effect to check and execute trades based on strategy
     useEffect(() => {
         const checkAndExecute = async () => {
-            if (isExecuting || !isAutopilotOn || !autopilotStrategy || (currentRSI === null && currentStoch === null)) return;
+            if (isExecuting || !isAutopilotOn || !autopilotStrategy || (currentRSI === null && currentStoch === null) || !activeSymbol) return;
 
             let conditionMet = false;
             if (autopilotStrategy.strategyName === 'RSI_BASIC' && autopilotStrategy.rsiThreshold && currentRSI !== null) {
@@ -160,9 +171,9 @@ export function useAutopilot(
                 
                 let contractType = direction === 'RISE' ? (allowEquals ? 'CALLE' : 'CALL') : (allowEquals ? 'PUTE' : 'PUT');
 
-                const result = await executeTrade(contractType, suggestedStake, activeSymbol!, direction.toLowerCase() as 'rise' | 'fall', suggestedDuration, 't', 'Piloto');
+                const result = await executeTrade(contractType, suggestedStake, activeSymbol, direction.toLowerCase() as 'rise' | 'fall', suggestedDuration, 't', 'Piloto');
                 
-                if (result.success && result.contractId) {
+                if (result.success && result.contractId && result.entryTick && result.entryTime) {
                     addActiveContract({
                         contractId: result.contractId,
                         entryTick: result.entryTick,
@@ -180,7 +191,7 @@ export function useAutopilot(
 
     // Effect for risk management (stop loss/profit target)
     useEffect(() => {
-        if (!isAutopilotOn) return;
+        if (!isAutopilotOn || !operationsLog) return;
 
         const today = new Date().toDateString();
         const dailyPnL = operationsLog
@@ -200,7 +211,7 @@ export function useAutopilot(
     
     // Effect to handle losing trades analysis
     useEffect(() => {
-      if (operationsLog.length === 0) return;
+      if (!operationsLog || operationsLog.length === 0) return;
       const lastOp = operationsLog[0];
       if (lastOp && lastOp.status === 'lost' && lastOp.initiator === 'Piloto') {
           analyzeLosingTrade(lastOp, autopilotStrategy).then(suggestion => {
@@ -210,14 +221,6 @@ export function useAutopilot(
           });
       }
     }, [operationsLog, analyzeLosingTrade, autopilotStrategy]);
-
-    // Turn off autopilot if connection is lost
-    useEffect(() => {
-        if(!isConnected && isAutopilotOn) {
-            setIsAutopilotOn(false);
-            toast({ variant: "destructive", title: "Piloto Automático Desativado", description: "A conexão com a corretora foi perdida." });
-        }
-    }, [isConnected, isAutopilotOn, toast]);
 
     return {
         isAutopilotOn,
