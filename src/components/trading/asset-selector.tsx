@@ -29,11 +29,12 @@ interface AssetSelectorProps {
 
 const marketFilters = [
     { label: "Todos", value: "all" },
-    { label: "Sintéticos", value: "synthetic_index" },
-    { label: "Forex", value: "forex" },
-    { label: "Matérias-Primas", value: "commodities" },
-    { label: "Ações", value: "stock" },
-    { label: "Cripto", value: "cryptocurrency" },
+    { label: "Sintéticos", value: "synthetic_index", disabled: false },
+    { label: "Cestas Forex", value: "basket_indices", disabled: false },
+    { label: "Forex", value: "forex", disabled: false },
+    { label: "Matérias-Primas", value: "commodities", disabled: false },
+    { label: "Ações", value: "stock", disabled: false },
+    { label: "Cripto", value: "cryptocurrency", disabled: false },
 ];
 
 export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorProps) {
@@ -135,6 +136,7 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
                           size="sm"
                           className="h-7 text-xs rounded-full"
                           onClick={() => setFilter(f.value)}
+                          disabled={f.disabled}
                       >
                           {f.label}
                       </Button>
@@ -152,8 +154,9 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
                     <div>
                         <p className="text-xs text-muted-foreground px-1 pb-1">Duração:</p>
                         <ToggleGroup type="single" value={durationFilter} onValueChange={(v) => v && setDurationFilter(v)} className="w-full">
-                            <ToggleGroupItem value="all" className="w-full text-xs h-8">Todas</ToggleGroupItem>
-                            <ToggleGroupItem value="tick" className="w-full text-xs h-8">Ticks</ToggleGroupItem>
+                            <ToggleGroupItem value="all" className="w-1/3 text-xs h-8">Todas</ToggleGroupItem>
+                            <ToggleGroupItem value="tick" className="w-1/3 text-xs h-8">Ticks</ToggleGroupItem>
+                            <ToggleGroupItem value="time" className="w-1/3 text-xs h-8">Tempo</ToggleGroupItem>
                         </ToggleGroup>
                     </div>
                </div>
