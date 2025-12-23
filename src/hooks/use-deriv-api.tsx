@@ -110,8 +110,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       const storedRealToken = localStorage.getItem(DERIV_REAL_TOKEN_KEY);
       const storedAccountType = localStorage.getItem(DERIV_ACCOUNT_TYPE_KEY) as AccountType | null;
       
-      setDemoToken(storedDemoToken || null);
-      setRealToken(storedRealToken || null);
+      setDemoToken(storedDemoToken || process.env.NEXT_PUBLIC_DERIV_DEMO_TOKEN || null);
+      setRealToken(storedRealToken || process.env.NEXT_PUBLIC_DERIV_REAL_TOKEN || null);
       if (storedAccountType) setAccountTypeState(storedAccountType);
     } catch (error) {
       console.error("Failed to access localStorage:", error);
