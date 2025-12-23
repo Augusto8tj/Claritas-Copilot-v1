@@ -35,7 +35,7 @@ const marketFilters = [
     { label: "Forex", value: "forex" },
     { label: "Matérias-Primas", value: "commodities" },
     { label: "Cestas", value: "basket_index" },
-    { label: "Índices", value: "stock_index" },
+    { label: "Índices", value: "stock_index" }, // CORREÇÃO AQUI
     { label: "Cripto", value: "cryptocurrency" },
 ];
 
@@ -101,7 +101,13 @@ export function AssetSelector({ selectedAsset, onAssetChange, assetGroups, isAss
     
     const asset = assetGroups.flatMap(g => g.options).find(a => a.value === selectedAsset);
     if (asset && asset.market) {
-        setFilter(asset.market);
+        // Check if the current filter value exists in our marketFilters list
+        const filterExists = marketFilters.some(f => f.value === asset.market);
+        if (filterExists) {
+            setFilter(asset.market);
+        } else {
+            setFilter('all'); // Fallback to 'all' if the market isn't in our filter list
+        }
     }
   }, [selectedAsset, assetGroups, isAssetsLoading]);
 
