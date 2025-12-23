@@ -23,9 +23,7 @@ import { riseFallSchema, type RiseFallFormValues } from "@/components/trading/de
 import { AutoTraderInterface } from "@/components/trading/auto-trader-interface";
 import { AutoTraderCouncilInterface } from "@/components/trading/auto-trader-council-interface";
 import type { OperationInitiator } from "@/components/trading/operations-log.types";
-
-export type TimePeriod = '1m' | '15m' | '30m' | '1h' | '8h' | '1d';
-export type ChartType = 'Area' | 'Candle';
+import { useMarketData, type TimePeriod, type ChartType } from "@/hooks/use-market-data";
 
 const timePeriods: TimePeriod[] = ['1m', '15m', '30m', '1h', '8h', '1d'];
 
@@ -42,15 +40,21 @@ export default function DerivTraderPage() {
     addActiveContract,
     operationsLog,
     isConnected,
-    activeToken,
-    subscribeToSymbol,
-    chartType,
-    setChartType,
-    timePeriod,
-    setTimePeriod,
     executeTrade,
-    clearChartData,
   } = useDerivApi();
+
+  const {
+      chartData,
+      isChartLoading,
+      chartError,
+      chartType,
+      setChartType,
+      timePeriod,
+      setTimePeriod,
+      showBollingerBands,
+      setShowBollingerBands,
+      subscribeToSymbol,
+  } = useMarketData();
 
   const form = useForm<RiseFallFormValues>({
     resolver: zodResolver(riseFallSchema),
@@ -64,7 +68,6 @@ export default function DerivTraderPage() {
 
   useEffect(() => {
     if (isConnected && selectedAsset) {
-      clearChartData(); // Limpa os dados antes de uma nova subscrição
       subscribeToSymbol(selectedAsset, timePeriod, chartType);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -208,6 +211,12 @@ export default function DerivTraderPage() {
                   <MarketChart 
                       activeContracts={activeContracts}
                       zoomLevel={zoomLevel}
+                      chartData={chartData}
+                      isChartLoading={isChartLoading}
+                      chartError={chartError}
+                      chartType={chartType}
+                      timePeriod={timePeriod}
+                      showBollingerBands={showBollingerBands}
                   />
                   <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2">
                       <Button variant="outline" size="icon" onClick={() => handleZoom('in')} disabled={zoomLevel <= 20}>
@@ -227,7 +236,7 @@ export default function DerivTraderPage() {
               <DerivTraderInterface 
                   symbol={selectedAsset}
                   onTradeSuccess={(result) => handleTradeSuccess(result, 'Manual')}
-                  isConnected={isConnected && !!activeToken}
+                  isConnected={isConnected}
               />
               <AutoTraderCouncilInterface />
               <AutoTraderInterface 

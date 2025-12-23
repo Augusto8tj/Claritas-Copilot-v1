@@ -62,7 +62,7 @@ const tradeTypeLabels: Record<TradeType, string> = {
 export function DerivTraderInterface({ symbol, isConnected }: DerivTraderInterfaceProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<"rise" | "fall" | null>(null);
-  const { executeTrade, addActiveContract, isConnecting, activeToken } = useDerivApi();
+  const { executeTrade, isConnecting, activeToken } = useDerivApi();
   const [tradeType, setTradeType] = useState<TradeType>('rise_fall');
 
   const form = useFormContext<RiseFallFormValues>();
@@ -123,12 +123,6 @@ export function DerivTraderInterface({ symbol, isConnected }: DerivTraderInterfa
         title: "Ordem Executada!",
         description: `Sua negociação para ${symbol} foi aberta.`,
       });
-      addActiveContract({
-          contractId: result.contractId,
-          entryTick: result.entryTick!,
-          entryTime: result.entryTime!,
-          initiator: 'Manual'
-      })
     } else {
       toast({
         variant: "destructive",
@@ -339,7 +333,7 @@ export function DerivTraderInterface({ symbol, isConnected }: DerivTraderInterfa
             </div>
         </CardContent>
         </Card>
-        <AITradeSuggestion symbol={symbol} onExecuteTrade={handleTrade}/>
+        <AITradeSuggestion symbol={symbol} />
     </div>
   );
 }

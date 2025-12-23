@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { AreaChart, Trash2, Plus, Minus, CandlestickChart, Waves, Clock } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { useDerivApi, type AccountType } from "@/hooks/use-deriv-api";
+import { useDerivApi } from "@/hooks/use-deriv-api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OperationsLog } from "@/components/trading/operations-log";
 import { AIAnalysisInterface } from "@/components/trading/ai-analysis-interface";
@@ -21,16 +21,15 @@ import { riseFallSchema, type RiseFallFormValues } from "@/components/trading/de
 import { AutoTraderInterface } from "@/components/trading/auto-trader-interface";
 import { AutoTraderCouncilInterface } from "@/components/trading/auto-trader-council-interface";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useMarketData, type TimePeriod, type ChartType } from "@/hooks/use-market-data";
 
-
-export type TimePeriod = '1m' | '2m' | '3m' | '5m' | '10m' | '15m' | '30m' | '1h' | '8h' | '1d';
-export type ChartType = 'Area' | 'Candle';
 
 const timePeriods: TimePeriod[] = ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '8h', '1d'];
 
 export default function DerivTraderPage() {
   const [zoomLevel, setZoomLevel] = useState(100); 
-  
+  const [activeSymbol, setActiveSymbol] = useState<string | null>(null);
+
   const { 
     accountType, 
     setAccountType, 
@@ -41,17 +40,22 @@ export default function DerivTraderPage() {
     isConnected,
     isConnecting,
     isAssetsLoading,
-    activeToken,
-    activeSymbol,
-    setActiveSymbol,
-    subscribeToSymbol,
+    assetGroups,
+  } = useDerivApi();
+
+  const {
+    chartData,
+    isChartLoading,
+    chartError,
     chartType,
     setChartType,
     timePeriod,
     setTimePeriod,
     showBollingerBands,
     setShowBollingerBands,
-  } = useDerivApi();
+    subscribeToSymbol,
+  } = useMarketData();
+
 
   const form = useForm<RiseFallFormValues>({
     resolver: zodResolver(riseFallSchema),
@@ -67,17 +71,20 @@ export default function DerivTraderPage() {
 
   useEffect(() => {
     if (isConnected && !isAssetsLoading && activeSymbol) {
-      memoizedSubscribeToSymbol(activeSymbol, timePeriod, chartType);
+        memoizedSubscribeToSymbol(activeSymbol, timePeriod);
     }
-  }, [isConnected, isAssetsLoading, activeSymbol, timePeriod, chartType, memoizedSubscribeToSymbol]);
+  }, [isConnected, isAssetsLoading, activeSymbol, timePeriod, memoizedSubscribeToSymbol]);
 
 
   useEffect(() => {
     // Set a default active symbol once assets are loaded and if no symbol is active yet
-    if (!isAssetsLoading && !activeSymbol) {
-        setActiveSymbol("1HZ100V");
+    if (!isAssetsLoading && !activeSymbol && assetGroups.length > 0) {
+        const firstAsset = assetGroups[0]?.options[0]?.value;
+        if(firstAsset) {
+            setActiveSymbol(firstAsset);
+        }
     }
-  }, [isAssetsLoading, activeSymbol, setActiveSymbol]);
+  }, [isAssetsLoading, activeSymbol, assetGroups]);
 
 
   useEffect(() => {
@@ -225,6 +232,12 @@ export default function DerivTraderPage() {
                   <MarketChart 
                       activeContracts={activeContracts}
                       zoomLevel={zoomLevel}
+                      chartData={chartData}
+                      isChartLoading={isChartLoading}
+                      chartError={chartError}
+                      chartType={chartType}
+                      timePeriod={timePeriod}
+                      showBollingerBands={showBollingerBands}
                   />
                   <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2">
                       <Button variant="outline" size="icon" onClick={() => handleZoom('in')} disabled={zoomLevel <= 20}>
@@ -243,7 +256,7 @@ export default function DerivTraderPage() {
           <div className="lg:col-span-4 space-y-6">
               <DerivTraderInterface 
                   symbol={activeSymbol || ""}
-                  isConnected={isConnected && !!activeToken}
+                  isConnected={isConnected}
               />
               <AutoTraderCouncilInterface />
               <AutoTraderInterface />

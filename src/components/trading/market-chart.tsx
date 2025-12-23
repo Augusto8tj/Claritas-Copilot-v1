@@ -4,10 +4,9 @@
 
 import * as React from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Label, BarChart, Bar, ComposedChart, ReferenceDot, Area } from "recharts";
-import { useDerivApi, type ActiveContract } from "@/hooks/use-deriv-api";
 import { Loader2 } from "lucide-react";
-import type { CandleData, TickData } from '@/hooks/use-deriv-api';
-
+import type { CandleData, TickData, ChartData, ActiveContract } from '@/hooks/use-market-data';
+import type { TimePeriod, ChartType } from '@/hooks/use-market-data';
 
 const Candlestick = (props: any) => {
     const { x, y, width, height, payload, yAxis } = props;
@@ -48,12 +47,26 @@ const Candlestick = (props: any) => {
 interface MarketChartProps {
   activeContracts: ActiveContract[];
   zoomLevel: number;
+  chartData: ChartData[];
+  isChartLoading: boolean;
+  chartError: string | null;
+  chartType: ChartType;
+  timePeriod: TimePeriod;
+  showBollingerBands: boolean;
 }
 
 
-export function MarketChart({ activeContracts, zoomLevel }: MarketChartProps) {
-  const { chartData, isChartLoading, chartError, chartType, timePeriod, showBollingerBands } = useDerivApi();
-
+export function MarketChart({ 
+    activeContracts, 
+    zoomLevel,
+    chartData,
+    isChartLoading,
+    chartError,
+    chartType,
+    timePeriod,
+    showBollingerBands,
+}: MarketChartProps) {
+  
   const visibleData = React.useMemo(() => {
     if (chartData.length > zoomLevel) {
         return chartData.slice(chartData.length - zoomLevel);

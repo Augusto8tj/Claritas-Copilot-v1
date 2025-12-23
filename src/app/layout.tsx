@@ -1,10 +1,11 @@
+
 import type {Metadata} from 'next';
 import './globals.css';
 import { AppLayout } from '@/components/layout/app-layout';
 import { Toaster } from '@/components/ui/toaster';
 import { ThemeProvider } from '@/hooks/use-theme';
 import { AuthProvider } from '@/hooks/use-auth';
-import { DerivApiProvider } from '@/hooks/use-deriv-api.tsx';
+import { DerivApiProvider } from '@/hooks/use-deriv-api';
 
 
 export const metadata: Metadata = {
@@ -28,10 +29,10 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <DerivApiProvider>
-              <AppLayout>
-                {children}
-              </AppLayout>
-              <Toaster />
+                <AppLayout>
+                  {children}
+                </AppLayout>
+                <Toaster />
             </DerivApiProvider>
           </AuthProvider>
         </ThemeProvider>

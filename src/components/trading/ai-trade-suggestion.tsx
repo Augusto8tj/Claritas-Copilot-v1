@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -21,10 +22,10 @@ import { useToast } from "@/hooks/use-toast";
 import { Switch } from "../ui/switch";
 import { Label } from "../ui/label";
 import type { RiseFallFormValues } from "./deriv-trader-interface.types";
+import { useMarketData } from "@/hooks/use-market-data";
 
 interface AITradeSuggestionProps {
   symbol: string;
-  onExecuteTrade: (tradeDirection: 'rise' | 'fall') => Promise<void>;
 }
 
 type AwaitingEntryState = {
@@ -33,22 +34,26 @@ type AwaitingEntryState = {
     initialPrices: number[];
 };
 
-export function AITradeSuggestion({ symbol, onExecuteTrade }: AITradeSuggestionProps) {
+export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
   const [analysisResult, setAnalysisResult] = useState<AssetAnalysisOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
   const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(null);
   const [timeSinceAnalysis, setTimeSinceAnalysis] = useState<string>("");
-  const { accountBalance, operationsLog, priceTicks, executeTrade, dailyBalance } = useDerivApi();
+  const { accountBalance, operationsLog, executeTrade } = useDerivApi();
+  const { chartData } = useMarketData();
   const { toast } = useToast();
   const [autoExecute, setAutoExecute] = useState(false);
   const [isAwaitingEntry, setIsAwaitingEntry] = useState<AwaitingEntryState | null>(null);
+  const [dailyBalance, setDailyBalance] = useState(100);
 
   const form = useFormContext<RiseFallFormValues>();
 
   const CONFIDENCE_THRESHOLD = 80;
   const AWAIT_TIMEOUT = 10000; // 10 seconds to wait for an entry point
+
+  const priceTicks = chartData.filter(d => 'price' in d) as { epoch: number, price: number }[];
 
   const handleAnalyze = useCallback(async () => {
     setIsAnalyzing(true);
@@ -130,7 +135,7 @@ export function AITradeSuggestion({ symbol, onExecuteTrade }: AITradeSuggestionP
         contractType = formValues.allowEquals ? 'PUTE' : 'PUT';
     }
     
-    await executeTrade(contractType, suggestedStake, symbol, direction, suggestedDuration, formValues.duration_unit);
+    await executeTrade(contractType, suggestedStake, symbol, direction, suggestedDuration, formValues.duration_unit, 'Manual');
     
     setTimeout(() => {
         setAnalysisResult(null); 
