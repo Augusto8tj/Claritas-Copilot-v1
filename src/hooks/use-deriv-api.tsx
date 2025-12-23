@@ -491,6 +491,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const promisesRef = useRef<Map<string, { resolve: (value: any) => void, reject: (reason?: any) => void }>>(new Map());
+  const subscriptionIdRef = useRef<string | null>(null);
   
   const strategyIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const STRATEGY_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutos
@@ -730,10 +731,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     setActiveSymbol(symbol);
 
     try {
-        const currentSubId = wsRef.current?.url.split('?')[1];
-        if (currentSubId) {
-            console.log(`[Deriv WS Provider] Forgetting old subscription: ${currentSubId}`);
-            ws.send(JSON.stringify({ "forget": currentSubId }));
+        if (subscriptionIdRef.current) {
+            console.log(`[Deriv WS Provider] Forgetting old subscription: ${subscriptionIdRef.current}`);
+            ws.send(JSON.stringify({ "forget": subscriptionIdRef.current }));
+            subscriptionIdRef.current = null;
         }
 
         clearChartData();
@@ -1050,12 +1051,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
         case 'history': // Initial tick data
         case 'candles': // Initial candle data
-            if (response.echo_req.subscribe === 1) {
-              const subId = response.subscription.id;
-              if (wsRef.current) {
-                  wsRef.current.url += `?sub_id=${subId}`; // A bit hacky, but stores the id
-              }
-              console.log(`[Deriv WS Provider] New subscription active: ${subId}`);
+            if (response.echo_req.subscribe === 1 && response.subscription?.id) {
+                subscriptionIdRef.current = response.subscription.id;
+                console.log(`[Deriv WS Provider] New subscription active: ${subscriptionIdRef.current}`);
             }
             const rawData = response.candles || response.history.prices.map((p:number, i:number) => ({
                 epoch: response.history.times[i], 
