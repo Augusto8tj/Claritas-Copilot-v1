@@ -70,8 +70,8 @@ interface DerivApiContextType {
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
 
 export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
-  const [demoToken, setDemoToken] = useState<string | null>(null);
-  const [realToken, setRealToken] = useState<string | null>(null);
+  const [demoToken, setDemoToken] = useState<string | null>('YyyugNZrkIgWuz9');
+  const [realToken, setRealToken] = useState<string | null>('x2Fv5FK0kDdXF5a');
   const [accountType, setAccountTypeState] = useState<AccountType>('demo');
   const [accountBalance, setAccountBalance] = useState<AccountBalance>({ balance: null, currency: null, loading: true });
   const [isLoading, setIsLoading] = useState(true);
@@ -87,14 +87,20 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const promisesRef = useRef<Map<string, PromiseCallbacks>>(new Map());
 
+  const messageQueueRef = useRef<any[]>([]);
+  const isProcessingQueueRef = useRef(false);
+  const throttleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const THROTTLE_INTERVAL = 250;
+
+
   useEffect(() => {
     try {
       const storedDemoToken = localStorage.getItem(DERIV_DEMO_TOKEN_KEY);
       const storedRealToken = localStorage.getItem(DERIV_REAL_TOKEN_KEY);
       const storedAccountType = localStorage.getItem(DERIV_ACCOUNT_TYPE_KEY) as AccountType | null;
       
-      if (storedDemoToken) setDemoToken(storedDemoToken);
-      if (storedRealToken) setRealToken(storedRealToken);
+      setDemoToken(storedDemoToken || 'YyyugNZrkIgWuz9');
+      setRealToken(storedRealToken || 'x2Fv5FK0kDdXF5a');
       if (storedAccountType) setAccountTypeState(storedAccountType);
     } catch (error) {
       console.error("Failed to access localStorage:", error);
@@ -215,33 +221,54 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     wsRef.current = ws;
   
-    ws.onmessage = (event) => {
-        const response = JSON.parse(event.data);
-
-        // Handle promise resolutions
-        const reqId = response.req_id;
-        if (reqId && promisesRef.current.has(String(reqId))) {
-            const promise = promisesRef.current.get(String(reqId));
-            if (response.error) {
-                promise?.reject(response.error.message);
-            } else {
-                promise?.resolve(response);
-            }
-            promisesRef.current.delete(String(reqId));
-            return; 
-        }
-        
-        if (response.error) {
-            console.error(`[Deriv WS Provider] Error received: "${response.error.message}"`);
-            if (response.msg_type === 'authorize') {
-              setConnectionError(`Falha na autorização: ${response.error.message}`);
-              setIsConnected(false);
-              setIsConnecting(false);
-            }
+    const processMessageQueue = () => {
+        if (messageQueueRef.current.length === 0) {
+            isProcessingQueueRef.current = false;
             return;
         }
+
+        const responsesToProcess = [...messageQueueRef.current];
+        messageQueueRef.current = [];
+
+        responsesToProcess.forEach(response => {
+            if (response.error) {
+                 if (response.error.code !== 'AlreadySubscribed') {
+                    console.error(`[Deriv WS Provider] Error received: "${response.error.message}"`);
+                 }
+                const reqId = response.req_id;
+                if (reqId && promisesRef.current.has(String(reqId))) {
+                    const promise = promisesRef.current.get(String(reqId));
+                    promise?.reject(response.error.message);
+                    promisesRef.current.delete(String(reqId));
+                }
+                 if (response.msg_type === 'authorize') {
+                   setConnectionError(`Falha na autorização: ${response.error.message}`);
+                   setIsConnected(false);
+                   setIsConnecting(false);
+                 }
+                return;
+            }
+
+            const reqId = response.req_id;
+            if (reqId && promisesRef.current.has(String(reqId))) {
+                const promise = promisesRef.current.get(String(reqId));
+                promise?.resolve(response);
+                promisesRef.current.delete(String(reqId));
+                return;
+            }
+            
+            // Handle immediate messages
+            handleImmediateMessage(response);
+        });
         
-        switch (response.msg_type) {
+        isProcessingQueueRef.current = false;
+        if (messageQueueRef.current.length > 0) {
+           throttleTimeoutRef.current = setTimeout(processMessageQueue, THROTTLE_INTERVAL);
+        }
+    };
+
+    const handleImmediateMessage = (response: any) => {
+         switch (response.msg_type) {
             case 'authorize':
               setIsConnected(true);
               setIsConnecting(false);
@@ -263,29 +290,19 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             case 'active_symbols':
                 const groupedAssets: { [key: string]: Asset[] } = {};
                 response.active_symbols.forEach((symbol: any) => {
-                    if (symbol.market === 'forex' && symbol.submarket === 'major_pairs' && symbol.symbol.endsWith('USD')) {
-                        const groupName = symbol.market_display_name;
-                        if (!groupedAssets[groupName]) { groupedAssets[groupName] = []; }
-                        groupedAssets[groupName].push({
-                            value: symbol.symbol,
-                            label: symbol.display_name,
-                            marketIsOpen: symbol.exchange_is_open === 1,
-                            submarket: symbol.submarket,
-                            market: symbol.market,
-                            minDuration: symbol.min_contract_duration,
-                        });
-                    } else if (symbol.market === 'synthetic_index') {
-                        const groupName = symbol.market_display_name;
-                         if (!groupedAssets[groupName]) { groupedAssets[groupName] = []; }
-                        groupedAssets[groupName].push({
-                            value: symbol.symbol,
-                            label: symbol.display_name,
-                            marketIsOpen: symbol.exchange_is_open === 1,
-                            submarket: symbol.submarket,
-                            market: symbol.market,
-                            minDuration: symbol.min_contract_duration,
-                        });
-                    }
+                    if (!symbol.market.startsWith('synthetic')) return;
+                    
+                    const groupName = symbol.market_display_name;
+                    if (!groupedAssets[groupName]) { groupedAssets[groupName] = []; }
+                    
+                    groupedAssets[groupName].push({
+                        value: symbol.symbol,
+                        label: symbol.display_name,
+                        marketIsOpen: symbol.exchange_is_open === 1,
+                        submarket: symbol.submarket,
+                        market: symbol.market,
+                        minDuration: symbol.min_contract_duration,
+                    });
                 });
                 const finalAssetGroups: AssetGroup[] = Object.keys(groupedAssets)
                     .map(label => ({ label, options: groupedAssets[label].sort((a, b) => a.label.localeCompare(b.label)) }))
@@ -322,6 +339,16 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 }
                 break;
         }
+    }
+
+
+    ws.onmessage = (event) => {
+        const response = JSON.parse(event.data);
+        messageQueueRef.current.push(response);
+        if (!isProcessingQueueRef.current) {
+            isProcessingQueueRef.current = true;
+            processMessageQueue();
+        }
     };
   
     ws.onopen = () => {
@@ -330,7 +357,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   
     ws.onclose = (event) => {
       const { wasClean, code, reason } = event;
-      setConnectionError(`A conexão foi fechada: Código ${code} (${reason || 'Fecho Anormal'}).`);
+      if (!wasClean) {
+        setConnectionError(`A conexão foi fechada: Código ${code} (${reason || 'Fecho Anormal'}).`);
+      }
       setIsConnected(false);
       setIsConnecting(false);
       wsRef.current = null;
@@ -345,6 +374,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       if (wsRef.current) {
         wsRef.current.close();
+      }
+       if (throttleTimeoutRef.current) {
+          clearTimeout(throttleTimeoutRef.current);
       }
     };
   }, [activeToken, isLoading, toast]);
