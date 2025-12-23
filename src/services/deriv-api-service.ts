@@ -75,6 +75,7 @@ export interface Asset {
   marketIsOpen: boolean;
   submarket: string;
   market: string;
+  minDuration: string;
 }
 
 export interface AssetGroup {

@@ -937,6 +937,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                     marketIsOpen: symbol.exchange_is_open === 1,
                     submarket: symbol.submarket,
                     market: symbol.market,
+                    minDuration: symbol.min_contract_duration,
                 });
             });
             
