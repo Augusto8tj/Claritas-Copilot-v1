@@ -39,20 +39,22 @@ const calculateMA = (data: { price: number }[], period: number) => {
 const calculateEMA = (data: number[], period: number): number[] => {
     if (data.length < period) return [];
     let emaArray: number[] = [];
-    emaArray.push(data.slice(0, period).reduce((a, b) => a + b, 0) / period);
     const k = 2 / (period + 1);
+    emaArray.push(data.slice(0, period).reduce((a, b) => a + b, 0) / period);
     for (let i = period; i < data.length; i++) {
         emaArray.push(data[i] * k + emaArray[emaArray.length - 1] * (1 - k));
     }
-    return emaArray;
+    return emaArray.slice(emaArray.length - data.length + period - 1);
 };
 const calculateRSI = (data: { price: number }[], period = 14) => {
     if (data.length < period + 1) return null;
     const prices = data.map(d => d.price);
     let gains = 0; let losses = 0;
-    for (let i = prices.length - period; i < prices.length; i++) {
+    for (let i = 1; i < prices.length; i++) {
         const diff = prices[i] - prices[i - 1];
-        if (diff >= 0) gains += diff; else losses -= diff;
+        if (i >= prices.length - period) {
+            if (diff >= 0) gains += diff; else losses -= diff;
+        }
     }
     if (losses === 0) return 100;
     const rs = (gains / period) / (losses / period);
@@ -85,8 +87,8 @@ const detectPriceActionPattern = (data: { open: number, high: number, low: numbe
     const body = Math.abs(open - close);
     const upperWick = high - Math.max(open, close);
     const lowerWick = Math.min(open, close) - low;
-    if (lowerWick > body * 2 && upperWick < body) return 'hammer';
-    if (upperWick > body * 2 && lowerWick < body) return 'shooting_star';
+    if (lowerWick > body * 2 && upperWick < body * 0.5) return 'hammer';
+    if (upperWick > body * 2 && lowerWick < body * 0.5) return 'shooting_star';
     return null;
 };
 const calculateADX = (data: { high: number, low: number, close: number }[], period = 14) => {
@@ -99,13 +101,18 @@ const calculateADX = (data: { high: number, low: number, close: number }[], peri
         plusDMs.push(upMove > downMove && upMove > 0 ? upMove : 0);
         minusDMs.push(downMove > upMove && downMove > 0 ? downMove : 0);
     }
-    const smoothedTR = calculateEMA(trs, period), smoothedPlusDM = calculateEMA(plusDMs, period), smoothedMinusDM = calculateEMA(minusDMs, period);
-    const validLength = Math.min(smoothedTR.length, smoothedPlusDM.length, smoothedMinusDM.length);
+    const smoothedTRs = calculateEMA(trs, period);
+    const smoothedPlusDMs = calculateEMA(plusDMs, period);
+    const smoothedMinusDMs = calculateEMA(minusDMs, period);
+    const validLength = Math.min(smoothedTRs.length, smoothedPlusDMs.length, smoothedMinusDMs.length);
     if (validLength === 0) return null;
+    
     let plusDIs = [], minusDIs = [];
+    const offset = smoothedPlusDMs.length - validLength;
     for (let i = 0; i < validLength; i++) {
-        plusDIs.push(smoothedTR[i] === 0 ? 0 : 100 * (smoothedPlusDM[i] / smoothedTR[i]));
-        minusDIs.push(smoothedTR[i] === 0 ? 0 : 100 * (smoothedMinusDM[i] / smoothedTR[i]));
+        const tr = smoothedTRs[i + offset];
+        plusDIs.push(tr === 0 ? 0 : 100 * (smoothedPlusDMs[i + offset] / tr));
+        minusDIs.push(tr === 0 ? 0 : 100 * (smoothedMinusDMs[i + offset] / tr));
     }
     const dxs = plusDIs.map((plusDI, i) => (plusDI + minusDIs[i] === 0) ? 0 : 100 * (Math.abs(plusDI - minusDIs[i]) / (plusDI + minusDIs[i])));
     const adx = calculateEMA(dxs, period);
@@ -114,9 +121,10 @@ const calculateADX = (data: { high: number, low: number, close: number }[], peri
 const calculateATR = (data: { high: number, low: number, close: number }[], period = 14): number | null => {
     if (data.length < period) return null;
     let trs = [];
-    for (let i = data.length - period; i < data.length; i++) {
-        const c = data[i], p = data[i - 1];
-        if (p) trs.push(Math.max(c.high - c.low, Math.abs(c.high - p.close), Math.abs(c.low - p.close)));
+    const relevantData = data.slice(-period);
+    for (let i = 1; i < relevantData.length; i++) {
+        const c = relevantData[i], p = relevantData[i-1];
+        trs.push(Math.max(c.high - c.low, Math.abs(c.high - p.close), Math.abs(c.low - p.close)));
     }
     return trs.length ? trs.reduce((a, b) => a + b, 0) / trs.length : null;
 };
@@ -137,9 +145,9 @@ const calculateIchimokuCloud = (data: { high: number, low: number, close: number
 const calculateAwesomeOscillator = (data: { high: number, low: number }[]) => {
     if (data.length < 34) return null;
     const median = data.map(d => (d.high + d.low) / 2);
-    const shortMA = median.slice(-5).reduce((a, b) => a + b, 0) / 5;
-    const longMA = median.slice(-34).reduce((a, b) => a + b, 0) / 34;
-    return shortMA - longMA;
+    const sma5 = median.slice(-5).reduce((a, b) => a + b, 0) / 5;
+    const sma34 = median.slice(-34).reduce((a, b) => a + b, 0) / 34;
+    return sma5 - sma34;
 };
 const calculateVolumeProfile = (data: { close: number, volume?: number }[], bars: number) => {
     if (data.length < bars) return null;
@@ -167,14 +175,9 @@ const calculateVolatility = (data: { price: number }[], period = 20) => {
     return Math.sqrt(variance);
 };
 
-export function useRobotCouncil(
-    activeSymbol: string | null,
-    chartData: ChartData[],
-    operationsLog: Operation[],
-    addActiveContract: (contract: any) => void,
-    executeTrade: any
-) {
-    const { isConnected } = useDerivApi();
+export function useRobotCouncil() {
+    const { isConnected, addActiveContract, executeTrade } = useDerivApi();
+    const { activeSymbol, chartData, operationsLog } = useDerivApi(); // Assuming these are now provided by the main hook
     const { analyzeLosingTrade } = useTradeAnalysis(activeSymbol, operationsLog);
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
@@ -187,6 +190,7 @@ export function useRobotCouncil(
     const [dailyBalance, setDailyBalance] = useState(100);
     const [dailyTarget, setDailyTarget] = useState(50);
     const [consensusThreshold, setConsensusThreshold] = useState(300);
+    const [dynamicConsensus, setDynamicConsensus] = useState(300);
     const [isDynamicConsensusOn, setIsDynamicConsensusOn] = useState(true);
     const [isMeritocracyOn, setIsMeritocracyOn] = useState(true);
     const [robotPerformance, setRobotPerformance] = useState<RobotPerformance[]>([]);
@@ -288,6 +292,16 @@ export function useRobotCouncil(
     useEffect(() => {
         if (!isCouncilAutopilotOn || !strategyCouncil.length || councilExecutionRef.current.isExecuting) return;
 
+        // Dynamic Consensus Logic
+        let currentThreshold = consensusThreshold;
+        if (isDynamicConsensusOn) {
+            const baseThreshold = 250;
+            const volatilityFactor = (indicators.atr ?? 0) * 1000;
+            const dynamicThreshold = Math.round(baseThreshold + volatilityFactor);
+            currentThreshold = Math.max(150, Math.min(700, dynamicThreshold));
+            setDynamicConsensus(currentThreshold);
+        }
+
         const newVotes: CouncilVotes = {};
         let riseConfidenceSum = 0, fallConfidenceSum = 0;
 
@@ -296,17 +310,20 @@ export function useRobotCouncil(
             let weight = 1.0;
             if (isMeritocracyOn) {
                 const perf = robotPerformance.find(p => p.id === robot.id);
-                if (perf && (perf.wins + perf.losses) > 5) weight = 0.5 + (perf.wins / (perf.wins + perf.losses));
+                if (perf && (perf.wins + perf.losses) > 3) {
+                     const winRate = perf.wins / (perf.wins + perf.losses);
+                     weight = 0.5 + winRate; // Weight from 0.5 to 1.5
+                }
             }
 
-            // Simplified voting logic for brevity
             switch(robot.strategyType) {
-                case 'RSI': 
+                case 'RSI':
                     if(indicators.rsi && robot.strongBuyThreshold && indicators.rsi <= robot.strongBuyThreshold) { vote = 'RISE'; confidence = robot.strongConfidence; }
                     else if (indicators.rsi && robot.weakBuyThreshold && indicators.rsi <= robot.weakBuyThreshold) { vote = 'RISE'; confidence = robot.weakConfidence; }
-                    // ... fall conditions
+                    else if (indicators.rsi && robot.strongSellThreshold && indicators.rsi >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                    else if (indicators.rsi && robot.weakSellThreshold && indicators.rsi >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
                     break;
-                // ... other cases
+                 // Add more detailed voting logic for other strategies here in the future
             }
 
             newVotes[robot.id] = { vote, confidence, weight };
@@ -315,12 +332,12 @@ export function useRobotCouncil(
         });
         setCouncilVotes(newVotes);
 
-        const consensusReached = Math.max(riseConfidenceSum, fallConfidenceSum) >= consensusThreshold;
+        const consensusReached = Math.max(riseConfidenceSum, fallConfidenceSum) >= currentThreshold;
         if (consensusReached) {
             councilExecutionRef.current.isExecuting = true;
             const direction = riseConfidenceSum > fallConfidenceSum ? 'rise' : 'fall';
-            const stake = strategyCouncil[0].suggestedStake; // Simplified
-            toast({ title: "Consenso Atingido!", description: `Executando ordem de ${direction.toUpperCase()}.` });
+            const stake = strategyCouncil[0].suggestedStake;
+            toast({ title: "Consenso Atingido!", description: `Executando ordem de ${direction.toUpperCase()} com confiança de ${Math.round(Math.max(riseConfidenceSum, fallConfidenceSum))}.` });
             executeTrade(direction === 'rise' ? 'CALL' : 'PUT', stake, activeSymbol!, direction, 5, 't', 'Conselho')
                 .then((res: any) => {
                     if (res.success && res.contractId) addActiveContract({ contractId: res.contractId, entryTick: res.entryTick!, entryTime: res.entryTime!, initiator: 'Conselho' });
@@ -329,7 +346,7 @@ export function useRobotCouncil(
         }
 
     }, [
-        isCouncilAutopilotOn, strategyCouncil, indicators, consensusThreshold, isMeritocracyOn, robotPerformance, 
+        isCouncilAutopilotOn, strategyCouncil, indicators, consensusThreshold, isDynamicConsensusOn, isMeritocracyOn, robotPerformance, 
         executeTrade, activeSymbol, toast, addActiveContract
     ]);
 
@@ -344,7 +361,7 @@ export function useRobotCouncil(
         setDailyBalance,
         dailyTarget,
         setDailyTarget,
-        consensusThreshold,
+        consensusThreshold: isDynamicConsensusOn ? dynamicConsensus : consensusThreshold,
         setConsensusThreshold,
         isDynamicConsensusOn,
         setIsDynamicConsensusOn,
@@ -353,3 +370,5 @@ export function useRobotCouncil(
         indicators,
     };
 }
+
+    
