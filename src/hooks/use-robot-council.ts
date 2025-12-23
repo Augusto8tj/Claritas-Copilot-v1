@@ -6,12 +6,11 @@ import { useDerivApi } from './use-deriv-api';
 import { useToast } from './use-toast';
 import { getHistoricalData } from '@/services/deriv-api-service';
 import { getStrategyCouncilAction } from '@/app/actions/ai-actions';
+import { calculateAllIndicators } from '@/services/indicator-service';
 import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
 import type { RiseFallFormValues } from '@/components/trading/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
-import type { Operation } from '@/components/trading/operations-log.types';
-import type { ChartData } from './use-market-data';
 
 type RobotVote = {
     vote: 'RISE' | 'FALL' | 'HOLD';
@@ -29,155 +28,15 @@ interface RobotPerformance {
     totalProfit: number;
 }
 
-// Indicator Calculation Helpers
-const calculateMA = (data: { price: number }[], period: number) => {
-    if (data.length < period) return null;
-    const relevantData = data.slice(-period);
-    const sum = relevantData.reduce((acc, tick) => acc + tick.price, 0);
-    return sum / period;
-};
-const calculateEMA = (data: number[], period: number): number[] => {
-    if (data.length < period) return [];
-    let emaArray: number[] = [];
-    const k = 2 / (period + 1);
-    emaArray.push(data.slice(0, period).reduce((a, b) => a + b, 0) / period);
-    for (let i = period; i < data.length; i++) {
-        emaArray.push(data[i] * k + emaArray[emaArray.length - 1] * (1 - k));
-    }
-    return emaArray.slice(emaArray.length - data.length + period - 1);
-};
-const calculateRSI = (data: { price: number }[], period = 14) => {
-    if (data.length < period + 1) return null;
-    const prices = data.map(d => d.price);
-    let gains = 0; let losses = 0;
-    for (let i = 1; i < prices.length; i++) {
-        const diff = prices[i] - prices[i - 1];
-        if (i >= prices.length - period) {
-            if (diff >= 0) gains += diff; else losses -= diff;
-        }
-    }
-    if (losses === 0) return 100;
-    const rs = (gains / period) / (losses / period);
-    return 100 - (100 / (1 + rs));
-};
-const calculateStochastic = (data: { high: number, low: number, close: number }[], period = 14) => {
-    if (data.length < period) return null;
-    const relevantData = data.slice(-period);
-    const lowestLow = Math.min(...relevantData.map(d => d.low));
-    const highestHigh = Math.max(...relevantData.map(d => d.high));
-    const currentClose = relevantData[relevantData.length - 1].close;
-    if (highestHigh === lowestLow) return 50;
-    return 100 * ((currentClose - lowestLow) / (highestHigh - lowestLow));
-};
-const calculateMACD = (data: { price: number }[], fast = 12, slow = 26, signal = 9) => {
-    if (data.length < slow) return null;
-    const prices = data.map(d => d.price);
-    const emaFast = calculateEMA(prices, fast);
-    const emaSlow = calculateEMA(prices, slow);
-    const macdLine: number[] = [];
-    const startOffset = emaFast.length - emaSlow.length;
-    for (let i = 0; i < emaSlow.length; i++) macdLine.push(emaFast[i + startOffset] - emaSlow[i]);
-    const signalLine = calculateEMA(macdLine, signal);
-    if (!macdLine.length || !signalLine.length) return null;
-    return { macd: macdLine.pop()!, signal: signalLine.pop()! };
-};
-const detectPriceActionPattern = (data: { open: number, high: number, low: number, close: number }[]): string | null => {
-    if (data.length < 1) return null;
-    const { open, high, low, close } = data[data.length - 1];
-    const body = Math.abs(open - close);
-    const upperWick = high - Math.max(open, close);
-    const lowerWick = Math.min(open, close) - low;
-    if (lowerWick > body * 2 && upperWick < body * 0.5) return 'hammer';
-    if (upperWick > body * 2 && lowerWick < body * 0.5) return 'shooting_star';
-    return null;
-};
-const calculateADX = (data: { high: number, low: number, close: number }[], period = 14) => {
-    if (data.length < period * 2) return null;
-    let trs = [], plusDMs = [], minusDMs = [];
-    for (let i = 1; i < data.length; i++) {
-        const c = data[i], p = data[i - 1];
-        trs.push(Math.max(c.high - c.low, Math.abs(c.high - p.close), Math.abs(c.low - p.close)));
-        const upMove = c.high - p.high, downMove = p.low - c.low;
-        plusDMs.push(upMove > downMove && upMove > 0 ? upMove : 0);
-        minusDMs.push(downMove > upMove && downMove > 0 ? downMove : 0);
-    }
-    const smoothedTRs = calculateEMA(trs, period);
-    const smoothedPlusDMs = calculateEMA(plusDMs, period);
-    const smoothedMinusDMs = calculateEMA(minusDMs, period);
-    const validLength = Math.min(smoothedTRs.length, smoothedPlusDMs.length, smoothedMinusDMs.length);
-    if (validLength === 0) return null;
-    
-    let plusDIs = [], minusDIs = [];
-    const offset = smoothedPlusDMs.length - validLength;
-    for (let i = 0; i < validLength; i++) {
-        const tr = smoothedTRs[i + offset];
-        plusDIs.push(tr === 0 ? 0 : 100 * (smoothedPlusDMs[i + offset] / tr));
-        minusDIs.push(tr === 0 ? 0 : 100 * (smoothedMinusDMs[i + offset] / tr));
-    }
-    const dxs = plusDIs.map((plusDI, i) => (plusDI + minusDIs[i] === 0) ? 0 : 100 * (Math.abs(plusDI - minusDIs[i]) / (plusDI + minusDIs[i])));
-    const adx = calculateEMA(dxs, period);
-    return adx.length ? adx.pop()! : null;
-};
-const calculateATR = (data: { high: number, low: number, close: number }[], period = 14): number | null => {
-    if (data.length < period) return null;
-    let trs = [];
-    const relevantData = data.slice(-period);
-    for (let i = 1; i < relevantData.length; i++) {
-        const c = relevantData[i], p = relevantData[i-1];
-        trs.push(Math.max(c.high - c.low, Math.abs(c.high - p.close), Math.abs(c.low - p.close)));
-    }
-    return trs.length ? trs.reduce((a, b) => a + b, 0) / trs.length : null;
-};
-const calculateIchimokuCloud = (data: { high: number, low: number, close: number }[]) => {
-    if (data.length < 52) return null;
-    const last = data[data.length - 1];
-    const tenkanSen = (Math.max(...data.slice(-9).map(d => d.high)) + Math.min(...data.slice(-9).map(d => d.low))) / 2;
-    const kijunSen = (Math.max(...data.slice(-26).map(d => d.high)) + Math.min(...data.slice(-26).map(d => d.low))) / 2;
-    const senkouSpanA = (tenkanSen + kijunSen) / 2;
-    const pastDataForB = data.slice(-52, -26);
-    const senkouSpanB = (Math.max(...pastDataForB.map(d => d.high)) + Math.min(...pastDataForB.map(d => d.low))) / 2;
-    const inCloud = last.close > Math.min(senkouSpanA, senkouSpanB) && last.close < Math.max(senkouSpanA, senkouSpanB);
-    let trend: 'bullish' | 'bearish' | 'neutral' = 'neutral';
-    if (last.close > Math.max(senkouSpanA, senkouSpanB)) trend = 'bullish';
-    if (last.close < Math.min(senkouSpanA, senkouSpanB)) trend = 'bearish';
-    return { inCloud, trend };
-};
-const calculateAwesomeOscillator = (data: { high: number, low: number }[]) => {
-    if (data.length < 34) return null;
-    const median = data.map(d => (d.high + d.low) / 2);
-    const sma5 = median.slice(-5).reduce((a, b) => a + b, 0) / 5;
-    const sma34 = median.slice(-34).reduce((a, b) => a + b, 0) / 34;
-    return sma5 - sma34;
-};
-const calculateVolumeProfile = (data: { close: number, volume?: number }[], bars: number) => {
-    if (data.length < bars) return null;
-    const relevant = data.slice(-bars);
-    const levels: { [k: string]: number } = {};
-    relevant.forEach(c => {
-        if (!c.close || !c.volume) return;
-        const price = c.close.toFixed(4);
-        levels[price] = (levels[price] || 0) + c.volume;
-    });
-    let poc = null, maxVol = 0;
-    for (const price in levels) {
-        if (levels[price] > maxVol) {
-            maxVol = levels[price];
-            poc = parseFloat(price);
-        }
-    }
-    return poc;
-};
-const calculateVolatility = (data: { price: number }[], period = 20) => {
-    if (data.length < period) return 0;
-    const prices = data.slice(-period).map(d => d.price);
-    const mean = prices.reduce((a, b) => a + b, 0) / period;
-    const variance = prices.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / period;
-    return Math.sqrt(variance);
-};
 
-export function useRobotCouncil() {
-    const { isConnected, addActiveContract, executeTrade } = useDerivApi();
-    const { activeSymbol, chartData, operationsLog } = useDerivApi(); // Assuming these are now provided by the main hook
+export function useRobotCouncil(
+    activeSymbol: string | null,
+    operationsLog: any[],
+    addActiveContract: (contract: any) => void,
+    executeTrade: (...args: any[]) => Promise<any>,
+    chartData: any[]
+) {
+    const { isConnected } = useDerivApi();
     const { analyzeLosingTrade } = useTradeAnalysis(activeSymbol, operationsLog);
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
@@ -195,6 +54,8 @@ export function useRobotCouncil() {
     const [isMeritocracyOn, setIsMeritocracyOn] = useState(true);
     const [robotPerformance, setRobotPerformance] = useState<RobotPerformance[]>([]);
     
+    const councilExecutionRef = useRef({ isExecuting: false });
+
     const [indicators, setIndicators] = useState({
         rsi: null as number | null,
         stoch: null as number | null,
@@ -209,7 +70,6 @@ export function useRobotCouncil() {
         volumePoc: null as number | null,
     });
 
-    const councilExecutionRef = useRef({ isExecuting: false });
 
     useEffect(() => {
         try {
@@ -261,38 +121,15 @@ export function useRobotCouncil() {
 
     // Indicator calculation
     useEffect(() => {
-        if (!chartData) return;
-        const candleData = chartData.filter(d => 'close' in d) as { open: number, high: number, low: number, close: number, volume?: number, price: number }[];
-        if (candleData.length < 2) return;
-        
-        candleData.forEach(c => c.price = c.close); // Add price for RSI calc
-
-        const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
-        setIndicators({
-            rsi: calculateRSI(candleData),
-            stoch: calculateStochastic(candleData),
-            ma: {
-                short: maRobot?.shortPeriod ? calculateMA(candleData, maRobot.shortPeriod) : null,
-                long: maRobot?.longPeriod ? calculateMA(candleData, maRobot.longPeriod) : null
-            },
-            bollingerBands: null, // Placeholder
-            macd: calculateMACD(candleData),
-            priceAction: detectPriceActionPattern(candleData),
-            adx: calculateADX(candleData),
-            atr: calculateATR(candleData),
-            ichimoku: calculateIchimokuCloud(candleData),
-            awesomeOscillator: calculateAwesomeOscillator(candleData),
-            volumePoc: strategyCouncil.some(r => r.strategyType === 'VOLUME_PROFILE' && r.profileBars) 
-                ? calculateVolumeProfile(candleData, strategyCouncil.find(r => r.strategyType === 'VOLUME_PROFILE')!.profileBars!) 
-                : null
-        });
+        if (!chartData || chartData.length < 2 || strategyCouncil.length === 0) return;
+        const allIndicators = calculateAllIndicators(chartData, strategyCouncil);
+        setIndicators(allIndicators);
     }, [chartData, strategyCouncil]);
 
     // Voting and Execution Logic
     useEffect(() => {
         if (!isCouncilAutopilotOn || !strategyCouncil.length || councilExecutionRef.current.isExecuting) return;
 
-        // Dynamic Consensus Logic
         let currentThreshold = consensusThreshold;
         if (isDynamicConsensusOn) {
             const baseThreshold = 250;
@@ -333,12 +170,15 @@ export function useRobotCouncil() {
         setCouncilVotes(newVotes);
 
         const consensusReached = Math.max(riseConfidenceSum, fallConfidenceSum) >= currentThreshold;
-        if (consensusReached) {
+        if (consensusReached && activeSymbol) {
             councilExecutionRef.current.isExecuting = true;
             const direction = riseConfidenceSum > fallConfidenceSum ? 'rise' : 'fall';
             const stake = strategyCouncil[0].suggestedStake;
             toast({ title: "Consenso Atingido!", description: `Executando ordem de ${direction.toUpperCase()} com confiança de ${Math.round(Math.max(riseConfidenceSum, fallConfidenceSum))}.` });
-            executeTrade(direction === 'rise' ? 'CALL' : 'PUT', stake, activeSymbol!, direction, 5, 't', 'Conselho')
+            
+            const { duration, duration_unit } = form.getValues();
+
+            executeTrade(direction === 'rise' ? 'CALL' : 'PUT', stake, activeSymbol, direction, duration, duration_unit, 'Conselho')
                 .then((res: any) => {
                     if (res.success && res.contractId) addActiveContract({ contractId: res.contractId, entryTick: res.entryTick!, entryTime: res.entryTime!, initiator: 'Conselho' });
                 })
@@ -347,7 +187,7 @@ export function useRobotCouncil() {
 
     }, [
         isCouncilAutopilotOn, strategyCouncil, indicators, consensusThreshold, isDynamicConsensusOn, isMeritocracyOn, robotPerformance, 
-        executeTrade, activeSymbol, toast, addActiveContract
+        executeTrade, activeSymbol, toast, addActiveContract, form
     ]);
 
     return {
@@ -370,5 +210,3 @@ export function useRobotCouncil() {
         indicators,
     };
 }
-
-    
