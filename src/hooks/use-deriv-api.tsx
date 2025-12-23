@@ -138,6 +138,24 @@ interface DerivApiContextType {
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
 
+// Debounce hook to prevent excessive re-renders and calculations
+function useDebounce<T>(value: T, delay: number): T {
+    const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [value, delay]);
+
+    return debouncedValue;
+}
+
+
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
         case '1m': return 0;
@@ -474,13 +492,15 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const promisesRef = useRef<Map<string, { resolve: (value: any) => void, reject: (reason?: any) => void }>>(new Map());
   
-  const subscriptionDetailsRef = useRef<{ id: string, symbol: string, timePeriod: TimePeriod, chartType: ChartType } | null>(null);
-  
   const strategyIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const STRATEGY_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutos
 
   const councilExecutionRef = useRef({ isExecuting: false });
   const isSubscribingRef = useRef(false);
+
+  const debouncedPriceTicks = useDebounce(priceTicks, 250); // Debounce ticks by 250ms
+  const debouncedChartData = useDebounce(chartData, 250); // Debounce chart data by 250ms
+
 
   const fetchStrategyCouncil = useCallback(async (symbol: string, durationUnit: DurationUnit) => {
     if (!symbol) {
@@ -705,21 +725,15 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         console.warn("[Deriv WS Provider] Cannot subscribe, WS not open.");
         return;
     }
-
-    const currentSub = subscriptionDetailsRef.current;
-    if (currentSub && currentSub.symbol === symbol && currentSub.timePeriod === newTimePeriod && currentSub.chartType === newChartType) {
-        console.log(`[Deriv WS Provider] Already subscribed to ${symbol} with the same parameters. Ignoring.`);
-        return;
-    }
     
     isSubscribingRef.current = true;
     setActiveSymbol(symbol);
 
     try {
-        if (subscriptionDetailsRef.current?.id) {
-            console.log(`[Deriv WS Provider] Forgetting old subscription: ${subscriptionDetailsRef.current.id}`);
-            ws.send(JSON.stringify({ "forget": subscriptionDetailsRef.current.id }));
-            subscriptionDetailsRef.current = null;
+        const currentSubId = wsRef.current?.url.split('?')[1];
+        if (currentSubId) {
+            console.log(`[Deriv WS Provider] Forgetting old subscription: ${currentSubId}`);
+            ws.send(JSON.stringify({ "forget": currentSubId }));
         }
 
         clearChartData();
@@ -999,7 +1013,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             break;
 
         case 'tick':
-          if (response.subscription?.id === subscriptionDetailsRef.current?.id) {
+          if (response.echo_req.ticks_history === activeSymbol) {
               const tick = response.tick;
               const newTick = { epoch: tick.epoch, price: tick.quote };
               setPriceTicks(prevTicks => [...prevTicks.slice(-999), newTick]);
@@ -1011,7 +1025,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           break;
 
         case 'ohlc':
-           if (response.subscription?.id === subscriptionDetailsRef.current?.id) {
+           if (response.echo_req.ticks_history === activeSymbol) {
               const candle = response.ohlc;
               const newCandle: CandleData = {
                   epoch: candle.epoch,
@@ -1037,13 +1051,11 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         case 'history': // Initial tick data
         case 'candles': // Initial candle data
             if (response.echo_req.subscribe === 1) {
-              subscriptionDetailsRef.current = {
-                  id: response.subscription.id,
-                  symbol: response.echo_req.ticks_history,
-                  timePeriod: timePeriod,
-                  chartType: chartType,
-              };
-              console.log(`[Deriv WS Provider] New subscription active: ${response.subscription.id}`);
+              const subId = response.subscription.id;
+              if (wsRef.current) {
+                  wsRef.current.url += `?sub_id=${subId}`; // A bit hacky, but stores the id
+              }
+              console.log(`[Deriv WS Provider] New subscription active: ${subId}`);
             }
             const rawData = response.candles || response.history.prices.map((p:number, i:number) => ({
                 epoch: response.history.times[i], 
@@ -1083,7 +1095,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       setIsConnected(false);
       setIsConnecting(false);
       wsRef.current = null;
-      subscriptionDetailsRef.current = null;
     };
   
     ws.onerror = (error) => {
@@ -1103,8 +1114,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
 
  useEffect(() => {
-    const priceDataSource: { price: number }[] = priceTicks.length > 0 ? priceTicks : (chartData as CandleData[]).filter(d => 'close' in d).map(c => ({ price: c.close }));
-    const candleDataSource: CandleData[] = chartData.filter(d => 'open' in d) as CandleData[];
+    const priceDataSource: { price: number }[] = debouncedPriceTicks.length > 0 ? debouncedPriceTicks : (debouncedChartData as CandleData[]).filter(d => 'close' in d).map(c => ({ price: c.close }));
+    const candleDataSource: CandleData[] = debouncedChartData.filter(d => 'open' in d) as CandleData[];
 
     if (priceDataSource.length > 1) {
         setCurrentRSI(calculateRSI(priceDataSource));
@@ -1140,14 +1151,14 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         setAwesomeOscillator(null);
         setVolumePoc(null);
     }
-}, [chartData, priceTicks, timePeriod, strategyCouncil]);
+}, [debouncedChartData, debouncedPriceTicks, timePeriod, strategyCouncil]);
 
   
   // Dynamic Consensus Logic
   useEffect(() => {
     if (!isDynamicConsensusOn || !isCouncilAutopilotOn) return;
 
-    const priceDataSource: { price: number }[] = priceTicks.length > 0 ? priceTicks : (chartData as CandleData[]).filter(d => 'close' in d).map(c => ({ price: c.close }));
+    const priceDataSource: { price: number }[] = debouncedPriceTicks.length > 0 ? debouncedPriceTicks : (debouncedChartData as CandleData[]).filter(d => 'close' in d).map(c => ({ price: c.close }));
     if (priceDataSource.length < 20) return;
 
     const volatility = calculateVolatility(priceDataSource, 20);
@@ -1168,7 +1179,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       toast({ title: "Consenso Dinâmico", description: `Volatilidade detetada. Novo limiar de consenso: ${newThreshold}.` });
     }
 
-  }, [priceTicks, chartData, isDynamicConsensusOn, isCouncilAutopilotOn, consensusThreshold, setConsensusThreshold, toast]);
+  }, [debouncedPriceTicks, debouncedChartData, isDynamicConsensusOn, isCouncilAutopilotOn, consensusThreshold, setConsensusThreshold, toast]);
 
 
   // Council voting and execution logic
@@ -1245,7 +1256,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         }
         
         // Volatility Modulation (ATR)
-        const lastPrice = chartData.length > 0 ? (chartData[chartData.length - 1] as CandleData).close : 0;
+        const lastPrice = debouncedChartData.length > 0 ? (debouncedChartData[debouncedChartData.length - 1] as CandleData).close : 0;
         if (currentATR && lastPrice > 0) {
             const normalizedATR = (currentATR / lastPrice) * 100;
             if (normalizedATR > 0.1) { // High volatility example threshold
@@ -1308,8 +1319,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       currentAwesomeOscillator,
       currentVolumePoc,
       executeTrade, 
-      priceTicks,
-      chartData,
+      debouncedPriceTicks,
+      debouncedChartData,
       toast,
       operationsLog,
       dailyTarget,
