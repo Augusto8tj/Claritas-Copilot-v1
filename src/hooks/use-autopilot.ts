@@ -1,10 +1,10 @@
 
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useFormContext } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
-import { getHistoricalData } from "@/services/deriv-api-service";
 import { getAutotraderStrategyAction } from '@/app/actions/ai-actions';
 import type { RiseFallFormValues } from "@/components/trading/deriv-trader-interface.types";
 import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
@@ -15,6 +15,7 @@ import type { TradeResult } from "@/services/deriv-api-service";
 import type { OperationInitiator } from "@/components/trading/operations-log.types";
 import type { DurationUnit } from "@/components/trading/deriv-trader-interface.types";
 import type { ActiveContract } from "./use-deriv-api";
+import { useDerivApi } from "./use-deriv-api";
 
 
 // Indicator Calculation Helpers
@@ -59,6 +60,7 @@ export function useAutopilot(
         initiator: OperationInitiator
     ) => Promise<TradeResult>,
 ) {
+    const { getHistoricalData } = useDerivApi();
     const { analyzeLosingTrade } = useTradeAnalysis(activeSymbol, operationsLog);
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
@@ -118,7 +120,7 @@ export function useAutopilot(
         } finally {
             setIsLoading(false);
         }
-      }, [isAutopilotOn, activeSymbol, dailyBalance, operationsLog, lastAutopilotLossSuggestion, toast]);
+      }, [isAutopilotOn, activeSymbol, dailyBalance, operationsLog, lastAutopilotLossSuggestion, toast, getHistoricalData]);
     
     // Effect for indicator calculation
     useEffect(() => {

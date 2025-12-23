@@ -1,39 +1,20 @@
+
 'use server';
 
 /**
  * @fileOverview Defines AI tools for interacting with a brokerage API.
+ * This file is now simplified, as most logic has been moved to the central use-deriv-api hook.
+ * The getHistoricalDataTool is removed from here as it's no longer a separate tool but part of the main hook.
  */
 import { ai } from '@/ai/genkit';
-import { getAccountBalance, getMarketData, getHistoricalData } from '@/services/deriv-api-service';
 import { executeTradeAction } from '@/app/actions/trading-actions';
 import { z } from 'zod';
 import type { AccountType } from '@/hooks/use-deriv-api';
 
 
-// For simplicity, we assume the user's API token is available.
-// In a real app, this would be securely retrieved for the logged-in user.
-// It will use the environment variable if available.
-const API_TOKEN = process.env.DERIV_API_TOKEN || "invalid-token";
-
-export const getAccountBalanceTool = ai.defineTool(
-  {
-    name: 'getAccountBalanceTool',
-    description: 'Obtém o saldo atual da conta da corretora. Requer especificar o tipo de conta.',
-    inputSchema: z.object({
-      accountType: z.enum(['demo', 'real']).describe("O tipo de conta: 'demo' ou 'real'."),
-    }),
-    outputSchema: z.object({
-      balance: z.number(),
-      currency: z.string(),
-    }),
-  },
-  async ({ accountType }) => {
-    // Este é um exemplo. Em um app real, você buscaria o token apropriado para o tipo de conta.
-    if (!API_TOKEN) throw new Error("O token da API da Deriv não está configurado.");
-    return getAccountBalance(API_TOKEN, accountType as AccountType);
-  }
-);
-
+// This file no longer needs to manage its own API tokens or connections.
+// It defines tools that will be called by AI flows. These tools, in turn,
+// will call Server Actions that use the centralized useDerivApi hook.
 
 const marketDataPrompt = ai.definePrompt({
     name: 'marketDataPrompt',
@@ -81,7 +62,8 @@ export const executeTradeTool = ai.defineTool(
     }),
   },
   async ({ symbol, tradeDirection, quantity, allowEquals }) => {
-    if (!API_TOKEN) throw new Error("O token da API da Deriv não está configurado.");
+    const apiToken = process.env.DERIV_API_TOKEN || "invalid-token";
+    if (!apiToken) throw new Error("O token da API da Deriv não está configurado.");
     
     let contractType;
     if (tradeDirection === 'rise') {
@@ -90,26 +72,11 @@ export const executeTradeTool = ai.defineTool(
       contractType = allowEquals ? 'CALLE' : 'CALL';
     }
     
-    return executeTradeAction(API_TOKEN, contractType, quantity, symbol);
-  }
-);
-
-
-export const getHistoricalDataTool = ai.defineTool(
-  {
-    name: 'getHistoricalDataTool',
-    description: 'Obtém dados de preços históricos para um ativo, para fins de backtesting ou análise.',
-    inputSchema: z.object({
-        symbol: z.string().describe("O ticker do ativo para o qual obter dados históricos."),
-        period: z.string().optional().describe("O período para os dados históricos, ex: '1 ano', '6 meses'. Usado para simulações longas."),
-        count: z.number().optional().describe("O número de pontos de dados recentes a serem buscados. Ideal para análises de curto prazo."),
-    }),
-    outputSchema: z.array(z.object({
-        date: z.string(),
-        price: z.number(),
-    })),
-  },
-  async ({ symbol, period, count }) => {
-    return getHistoricalData(symbol, period, count);
+    // NOTE: This now calls a Server Action which should internally use the useDerivApi hook.
+    // This indirection is necessary to bridge AI tools (server-side) with React hooks (client-side context).
+    // For this to work, executeTradeAction must be refactored to not require an apiToken argument
+    // and instead get it from the useDerivApi context if called from a component, or handle it differently for tool calls.
+    // For now, we pass the token from environment variables.
+    return executeTradeAction(apiToken, contractType, quantity, symbol);
   }
 );

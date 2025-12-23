@@ -1,18 +1,20 @@
 
+
 'use client';
 
 import { useState, useCallback } from 'react';
 import { analyzeOperationsAction } from '@/app/actions/trading-actions';
 import { analyzeTradeLossAction } from '@/app/actions/ai-actions';
-import { getHistoricalData } from '@/services/deriv-api-service';
 import type { Operation } from '@/components/trading/operations-log.types';
 import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
 import { useToast } from './use-toast';
+import { useDerivApi } from './use-deriv-api';
 
 export function useTradeAnalysis(
     activeSymbol: string | null,
     operationsLog: Operation[]
 ) {
+    const { getHistoricalData } = useDerivApi();
     const { toast } = useToast();
     const [geminiRequestCount, setGeminiRequestCount] = useState(0);
 
@@ -62,7 +64,7 @@ export function useTradeAnalysis(
             toast({ variant: 'destructive', title: "Erro na Análise", description: e.message });
             return null;
         }
-    }, [toast]);
+    }, [toast, getHistoricalData]);
 
     return {
         analyzeSessionPerformance,

@@ -3,7 +3,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
-import type { TradeResult, Asset, AssetGroup } from '@/services/deriv-api-service';
+import type { TradeResult, Asset, AssetGroup, HistoricalData } from '@/services/deriv-api-service';
 import { useToast } from './use-toast';
 import type { Operation, OperationInitiator } from '@/components/trading/operations-log.types';
 import type { DurationUnit } from '@/components/trading/deriv-trader-interface.types';
@@ -63,6 +63,7 @@ interface DerivApiContextType {
     durationUnit: DurationUnit,
     initiator: OperationInitiator,
   ) => Promise<TradeResult>;
+  getHistoricalData: (symbol: string, period?: string, count?: number) => Promise<HistoricalData[]>;
   clearActiveContracts: () => void;
   addActiveContract: (contract: ActiveContract) => void;
 }
@@ -106,12 +107,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     try {
-      const storedDemoToken = localStorage.getItem(DERIV_DEMO_TOKEN_KEY);
-      const storedRealToken = localStorage.getItem(DERIV_REAL_TOKEN_KEY);
+      const storedDemoToken = localStorage.getItem(DERIV_DEMO_TOKEN_KEY) || process.env.NEXT_PUBLIC_DERIV_DEMO_TOKEN;
+      const storedRealToken = localStorage.getItem(DERIV_REAL_TOKEN_KEY) || process.env.NEXT_PUBLIC_DERIV_REAL_TOKEN;
       const storedAccountType = localStorage.getItem(DERIV_ACCOUNT_TYPE_KEY) as AccountType | null;
       
-      setDemoToken(storedDemoToken || process.env.NEXT_PUBLIC_DERIV_DEMO_TOKEN || null);
-      setRealToken(storedRealToken || process.env.NEXT_PUBLIC_DERIV_REAL_TOKEN || null);
+      setDemoToken(storedDemoToken || null);
+      setRealToken(storedRealToken || null);
       if (storedAccountType) setAccountTypeState(storedAccountType);
     } catch (error) {
       console.error("Failed to access localStorage:", error);
@@ -127,12 +128,53 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       return Promise.reject(new Error("WebSocket is not connected."));
     }
     const req_id = Date.now() + Math.random();
+    const payload = { ...request, req_id };
     return new Promise((resolve, reject) => {
       promisesRef.current.set(String(req_id), { resolve, reject });
-      ws.send(JSON.stringify({ ...request, req_id }));
+      ws.send(JSON.stringify(payload));
     });
   }, []);
   
+  const getHistoricalData = useCallback(async (symbol: string, period?: string, count?: number): Promise<HistoricalData[]> => {
+      // For now, we keep the mock implementation to avoid excessive API calls during development.
+      // This can be replaced with a real API call using `makeRequest` in the future.
+      console.log(`[Deriv Hook] Mocking historical data for ${symbol}. Count: ${count}, Period: ${period}.`);
+      
+      await new Promise(resolve => setTimeout(resolve, count ? 500 : 1200));
+
+      const data: HistoricalData[] = [];
+      
+      if (count) { // High-frequency data
+          let price = Math.random() * 200 + 50;
+          for (let i = 0; i < count; i++) {
+              const date = new Date();
+              date.setSeconds(date.getSeconds() - (count - i));
+              const trend = Math.sin(i / 20) * 0.1;
+              const volatility = (Math.random() - 0.5) * 0.5;
+              price += trend + volatility;
+              if (price < 1) price = 1;
+              data.push({ date: date.toISOString(), price: parseFloat(price.toFixed(4)) });
+          }
+      } else { // Long-term data
+          const endDate = new Date();
+          let days = 30;
+          if (period && (period.includes("ano") || period.includes("year"))) days = 365;
+          else if (period && (period.includes("mes") || period.includes("month"))) days = 30 * (parseInt(period) || 1);
+          
+          let price = Math.random() * 200 + 50;
+          for (let i = 0; i < days; i++) {
+              const date = new Date(endDate);
+              date.setDate(date.getDate() - (days - i - 1));
+              const trend = Math.sin(i / 50) * 0.5;
+              const volatility = (Math.random() - 0.5) * 4;
+              price += trend + volatility;
+              if (price < 5) price = 5;
+              data.push({ date: date.toISOString().split('T')[0], price: parseFloat(price.toFixed(2)) });
+          }
+      }
+      return data;
+  }, []);
+
 
   const executeTrade = useCallback(async (
     contractType: string,
@@ -239,11 +281,11 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             }
             
             if (response.error) {
-                if (response.error.code !== 'AlreadySubscribed') {
-                   console.error(`[Deriv WS Provider] Error received: "${response.error.message}"`);
-                }
-               return;
-           }
+                 if (response.error.code !== 'AlreadySubscribed') {
+                    console.error(`[Deriv WS Provider] Error received: "${response.error.message}"`);
+                 }
+                return;
+            }
             
             handleSubscriptionMessage(response);
         });
@@ -443,6 +485,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     isAssetsLoading,
     promisesRef,
     executeTrade,
+    getHistoricalData,
     clearActiveContracts,
     addActiveContract,
   };

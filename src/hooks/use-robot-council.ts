@@ -1,10 +1,10 @@
 
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDerivApi } from './use-deriv-api';
 import { useToast } from './use-toast';
-import { getHistoricalData } from '@/services/deriv-api-service';
 import { getStrategyCouncilAction } from '@/app/actions/ai-actions';
 import { calculateAllIndicators } from '@/services/indicator-service';
 import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
@@ -36,7 +36,7 @@ export function useRobotCouncil(
     executeTrade: (...args: any[]) => Promise<any>,
     chartData: any[]
 ) {
-    const { isConnected } = useDerivApi();
+    const { isConnected, getHistoricalData } = useDerivApi();
     const { analyzeLosingTrade } = useTradeAnalysis(activeSymbol, operationsLog);
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
@@ -110,7 +110,7 @@ export function useRobotCouncil(
         } finally {
             setIsFetchingCouncil(false);
         }
-    }, [activeSymbol, dailyBalance, form, toast]);
+    }, [activeSymbol, dailyBalance, form, toast, getHistoricalData]);
 
     // Main logic trigger
     useEffect(() => {

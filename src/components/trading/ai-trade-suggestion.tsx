@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -17,7 +18,6 @@ import type { AssetAnalysisOutput } from "@/ai/flows/asset-analysis-flow.types";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { cn } from "@/lib/utils";
 import { useDerivApi } from "@/hooks/use-deriv-api";
-import { getHistoricalData } from "@/services/deriv-api-service";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "../ui/switch";
 import { Label } from "../ui/label";
@@ -41,7 +41,7 @@ export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
   const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(null);
   const [timeSinceAnalysis, setTimeSinceAnalysis] = useState<string>("");
-  const { accountBalance, operationsLog, executeTrade } = useDerivApi();
+  const { accountBalance, operationsLog, executeTrade, getHistoricalData } = useDerivApi();
   const { chartData } = useMarketData();
   const { toast } = useToast();
   const [autoExecute, setAutoExecute] = useState(false);
@@ -119,7 +119,7 @@ export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
     }
 
     setIsAnalyzing(false);
-  }, [symbol, form, accountBalance, dailyBalance, operationsLog, autoExecute, priceTicks, toast]);
+  }, [symbol, form, accountBalance, dailyBalance, operationsLog, autoExecute, priceTicks, toast, getHistoricalData]);
   
   const handleExecute = useCallback(async (direction: 'rise' | 'fall') => {
     setIsExecuting(true);
