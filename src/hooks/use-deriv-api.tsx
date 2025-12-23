@@ -480,7 +480,15 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const isSubscribingRef = useRef(false);
 
   const fetchStrategyCouncil = useCallback(async (durationUnit: DurationUnit) => {
-    if (!subscriptionDetailsRef.current?.symbol) return;
+    if (!subscriptionDetailsRef.current || !subscriptionDetailsRef.current.symbol) {
+        toast({
+            variant: "destructive",
+            title: "Erro ao Formar Conselho",
+            description: "A conexão com o gráfico ainda não foi estabelecida. Tente novamente em alguns segundos.",
+        });
+        setIsCouncilAutopilotOn(false); // Turn off the switch
+        return;
+    }
     setIsFetchingCouncil(true);
     try {
       const historicalData = await getHistoricalDataFromApi(subscriptionDetailsRef.current.symbol, undefined, 200);
@@ -506,7 +514,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       setStrategyCouncil([]);
     }
     setIsFetchingCouncil(false);
-  }, [dailyBalance, accountBalance.currency, toast]);
+  }, [dailyBalance, accountBalance.currency, toast, setIsCouncilAutopilotOn]);
   
   const updateRobotPerformance = useCallback((contractResult: any) => {
         if (!isCouncilAutopilotOn || strategyCouncil.length === 0) return;
@@ -1074,7 +1082,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       subscriptionDetailsRef.current = null;
     };
   
-    ws.onerror = (error) => {
+    ws.onerror = () => {
       console.error("[Deriv WS Provider] WebSocket error occurred.");
       setConnectionError("Falha na conexão com a API da Deriv. Verifique o seu token e a ligação à internet.");
       setIsConnecting(false);
