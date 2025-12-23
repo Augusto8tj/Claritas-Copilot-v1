@@ -12,6 +12,7 @@ import { z } from "zod";
 import { getFinancialSummary, getInsights } from "@/services/financial-data-service";
 import { auth } from "@/lib/firebase";
 import { type GoalProjectionInput } from "@/ai/flows/goal-projection.types";
+import WebSocket from 'ws';
 
 
 const goalProjectionSchema = z.object({
@@ -115,4 +116,71 @@ export async function checkGeminiConnection(): Promise<{ success: boolean; error
         console.error("[Health Check] Gemini API error:", e);
         return { success: false, error: e.message || "Ocorreu um erro desconhecido ao contatar a API do Gemini." };
     }
+}
+
+export async function checkDerivConnection(token: string): Promise<{ success: boolean; error?: string, assetCount?: number }> {
+    if (!token) {
+        return { success: false, error: "O token da API não foi fornecido." };
+    }
+    const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
+
+    return new Promise((resolve) => {
+        const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+        let timeoutId: NodeJS.Timeout;
+
+        const cleanup = () => {
+            clearTimeout(timeoutId);
+            if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+                ws.close();
+            }
+        };
+
+        ws.onopen = () => {
+            ws.send(JSON.stringify({ "authorize": token, "req_id": 1 }));
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const response = JSON.parse(event.data.toString());
+                if (response.error) {
+                    resolve({ success: false, error: response.error.message });
+                    cleanup();
+                    return;
+                }
+
+                if (response.msg_type === 'authorize' && response.req_id === 1) {
+                    if (response.authorize) {
+                        // Successfully authorized, now request active symbols
+                        ws.send(JSON.stringify({ active_symbols: 'brief', product_type: 'basic', "req_id": 2 }));
+                    } else {
+                        resolve({ success: false, error: "Autorização falhou. Token inválido." });
+                        cleanup();
+                    }
+                } else if (response.msg_type === 'active_symbols' && response.req_id === 2) {
+                    resolve({ success: true, assetCount: response.active_symbols.length });
+                    cleanup();
+                }
+            } catch (e) {
+                resolve({ success: false, error: "Erro ao processar resposta da API." });
+                cleanup();
+            }
+        };
+
+        ws.onerror = (error) => {
+            resolve({ success: false, error: `Erro de WebSocket: ${error.message}` });
+            cleanup();
+        };
+
+        ws.onclose = (event) => {
+            if (!event.wasClean) {
+                 resolve({ success: false, error: "A conexão com a API da Deriv foi encerrada inesperadamente." });
+                 cleanup();
+            }
+        };
+
+        timeoutId = setTimeout(() => {
+            resolve({ success: false, error: "Tempo de conexão esgotado." });
+            cleanup();
+        }, 10000); // 10-second timeout
+    });
 }

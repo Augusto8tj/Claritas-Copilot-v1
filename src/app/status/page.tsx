@@ -1,6 +1,7 @@
 import { HealthCheckCard } from "@/components/status/health-check-card";
 import { checkGeminiConnection } from "@/app/actions";
 import { ListModelsCard } from "@/components/status/list-models-card";
+import { DerivConnectionCard } from "@/components/status/deriv-connection-card";
 
 export const revalidate = 0; // Disable cache for this page
 
@@ -40,7 +41,10 @@ export default async function StatusPage() {
           configurePath="/settings"
         />
       </div>
-      <ListModelsCard />
+      <div className="grid gap-6 md:grid-cols-2">
+        <ListModelsCard />
+        <DerivConnectionCard />
+      </div>
     </div>
   );
 }
