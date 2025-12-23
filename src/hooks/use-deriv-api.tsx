@@ -69,6 +69,17 @@ interface DerivApiContextType {
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
 
+// Mapeia os valores de 'market' da API para nomes de grupo legíveis.
+const marketNameMapping: Record<string, string> = {
+    'synthetic_index': 'Índices Sintéticos',
+    'forex': 'Forex',
+    'commodities': 'Matérias-Primas',
+    'stock_index': 'Índices de Ações',
+    'cryptocurrency': 'Criptomoedas',
+    'basket_index': 'Índices de Cesta'
+};
+
+
 export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [demoToken, setDemoToken] = useState<string | null>(null);
   const [realToken, setRealToken] = useState<string | null>(null);
@@ -290,11 +301,13 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             case 'active_symbols':
                 const groupedAssets: { [key: string]: Asset[] } = {};
                 response.active_symbols.forEach((symbol: any) => {
-                    if (!symbol.market.startsWith('synthetic')) return;
-                    
-                    const groupName = symbol.market_display_name;
-                    if (!groupedAssets[groupName]) { groupedAssets[groupName] = []; }
-                    
+                    const market = symbol.market;
+                    const groupName = marketNameMapping[market] || 'Outros';
+
+                    if (!groupedAssets[groupName]) {
+                        groupedAssets[groupName] = [];
+                    }
+
                     groupedAssets[groupName].push({
                         value: symbol.symbol,
                         label: symbol.display_name,
@@ -304,6 +317,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                         minDuration: symbol.min_contract_duration,
                     });
                 });
+
                 const finalAssetGroups: AssetGroup[] = Object.keys(groupedAssets)
                     .map(label => ({ label, options: groupedAssets[label].sort((a, b) => a.label.localeCompare(b.label)) }))
                     .sort((a, b) => a.label.localeCompare(b.label));
@@ -335,7 +349,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 ));
 
                 if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                  wsRef.current.send(JSON.stringify({ "balance": 1, "req_id": Date.now() }));
+                  wsRef.current.send(JSON.stringify({ "balance": 1, "req_id": Date.now() + 3 }));
                 }
                 break;
         }

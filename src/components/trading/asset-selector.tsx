@@ -25,20 +25,21 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 interface AssetSelectorProps {
   selectedAsset: string;
   onAssetChange: (value: string) => void;
+  assetGroups: { label: string, options: Asset[] }[];
+  isAssetsLoading: boolean;
 }
 
 const marketFilters = [
     { label: "Todos", value: "all" },
-    { label: "Sintéticos", value: "synthetic_index", disabled: false },
-    { label: "Cestas Forex", value: "basket_indices", disabled: false },
-    { label: "Forex", value: "forex", disabled: false },
-    { label: "Matérias-Primas", value: "commodities", disabled: false },
-    { label: "Ações", value: "stock", disabled: false },
-    { label: "Cripto", value: "cryptocurrency", disabled: false },
+    { label: "Sintéticos", value: "synthetic_index" },
+    { label: "Forex", value: "forex" },
+    { label: "Matérias-Primas", value: "commodities" },
+    { label: "Cestas", value: "basket_index" },
+    { label: "Índices", value: "stock_index" },
+    { label: "Cripto", value: "cryptocurrency" },
 ];
 
-export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorProps) {
-  const { assetGroups, isAssetsLoading } = useDerivApi();
+export function AssetSelector({ selectedAsset, onAssetChange, assetGroups, isAssetsLoading }: AssetSelectorProps) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('all');
   const [marketStatusFilter, setMarketStatusFilter] = useState('all');
@@ -136,7 +137,6 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
                           size="sm"
                           className="h-7 text-xs rounded-full"
                           onClick={() => setFilter(f.value)}
-                          disabled={f.disabled}
                       >
                           {f.label}
                       </Button>
