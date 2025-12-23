@@ -133,7 +133,6 @@ interface DerivApiContextType {
   subscribeToSymbol: (symbol: string, timePeriod: TimePeriod, chartType: ChartType) => Promise<void>;
   setChartType: (type: ChartType) => void;
   setTimePeriod: (period: TimePeriod) => void;
-  clearChartData: () => void;
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
@@ -502,6 +501,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const debouncedPriceTicks = useDebounce(priceTicks, 250); // Debounce ticks by 250ms
   const debouncedChartData = useDebounce(chartData, 250); // Debounce chart data by 250ms
 
+  // --- Throttling state for incoming messages ---
+  const messageQueueRef = useRef<any[]>([]);
+  const isProcessingQueueRef = useRef(false);
+  const lastProcessTimeRef = useRef(0);
+  const THROTTLE_INTERVAL = 250; // Process messages every 250ms
+
 
   const fetchStrategyCouncil = useCallback(async (symbol: string, durationUnit: DurationUnit) => {
     if (!symbol) {
@@ -653,11 +658,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   
   const activeToken = accountType === 'demo' ? demoToken : realToken;
 
-  const clearChartData = useCallback(() => {
-    setChartData([]);
-    setPriceTicks([]);
-  }, []);
-
   const executeTrade = useCallback(async (
     contractType: string,
     stake: number,
@@ -726,7 +726,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   
  const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod, newChartType: ChartType) => {
     if (isSubscribingRef.current) {
-        console.log("[Deriv WS Provider] Subscription already in progress. Ignoring.");
+        console.warn("[Deriv WS Provider] Subscription already in progress. Ignoring.");
         return;
     }
 
@@ -738,6 +738,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     
     isSubscribingRef.current = true;
     setActiveSymbol(symbol);
+    setChartData([]);
+    setPriceTicks([]);
+    setIsChartLoading(true);
+    setChartError(null);
 
     try {
         if (subscriptionIdRef.current) {
@@ -745,19 +749,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             ws.send(JSON.stringify({ "forget": subscriptionIdRef.current }));
         }
 
-        // Call clear chart data logic directly here
-        setChartData([]);
-        setPriceTicks([]);
-        setIsChartLoading(true);
-        setChartError(null);
-
         const granularity = getGranularityForTimePeriod(newTimePeriod);
         const isTickHistory = granularity === 0;
         const style = isTickHistory ? 'ticks' : 'candles';
-
-        if (style === 'candles' && isTickHistory) {
-            throw new Error(`Período de tempo inválido para gráfico de velas: ${newTimePeriod}`);
-        }
 
         const request: any = {
             ticks_history: symbol,
@@ -779,7 +773,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         console.error(`[Deriv WS Provider] Subscription Error: ${e.message}`);
         setChartError(e.message);
         setIsChartLoading(false);
-        isSubscribingRef.current = false; // Release lock on error
+        isSubscribingRef.current = false;
     }
 }, []);
  
@@ -881,7 +875,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         return;
     }
     
-    // If the token changes, we need a new connection.
     if (wsRef.current) {
         wsRef.current.close();
     }
@@ -893,56 +886,94 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     wsRef.current = ws;
   
-    ws.onopen = () => {
-      console.log("[Deriv WS Provider] Connection opened. Authorizing...");
-      ws.send(JSON.stringify({ "authorize": activeToken }));
+    const processMessageQueue = () => {
+        if (messageQueueRef.current.length === 0) {
+            isProcessingQueueRef.current = false;
+            return;
+        }
+        
+        const responsesToProcess = [...messageQueueRef.current];
+        messageQueueRef.current = [];
+        
+        let latestTick: TickData | null = null;
+        let latestOHLC: CandleData | null = null;
+        
+        responsesToProcess.forEach(response => {
+             const reqId = response.req_id;
+             if (reqId && promisesRef.current.has(String(reqId))) {
+                 promisesRef.current.get(String(reqId))?.resolve(response);
+                 promisesRef.current.delete(String(reqId));
+                 return;
+             }
+
+             if (response.error) {
+                 console.error(`[Deriv WS Provider] Error in batched message: "${response.error.message}"`);
+                 // Handle specific errors for state updates
+                 if (response.echo_req?.ticks_history || response.echo_req?.candles) {
+                     setChartError(response.error.message);
+                     setIsChartLoading(false);
+                     isSubscribingRef.current = false;
+                 }
+                 return;
+             }
+             
+             switch (response.msg_type) {
+                case 'tick':
+                    if (response.echo_req.ticks_history === activeSymbol) {
+                      latestTick = { epoch: response.tick.epoch, price: response.tick.quote };
+                    }
+                    break;
+                case 'ohlc':
+                     if (response.echo_req.ticks_history === activeSymbol) {
+                       latestOHLC = {
+                           epoch: response.ohlc.epoch,
+                           open: parseFloat(response.ohlc.open),
+                           high: parseFloat(response.ohlc.high),
+                           low: parseFloat(response.ohlc.low),
+                           close: parseFloat(response.ohlc.close),
+                           volume: response.ohlc.volume ? parseFloat(response.ohlc.volume) : undefined,
+                       };
+                     }
+                    break;
+                // --- Handle non-tick/ohlc messages immediately ---
+                default:
+                    handleImmediateMessage(response);
+                    break;
+             }
+        });
+
+        if (latestTick) {
+          setPriceTicks(prevTicks => [...prevTicks.slice(-999), latestTick!]);
+          const isTickChart = getGranularityForTimePeriod(timePeriod) === 0;
+          if(isTickChart) {
+              setChartData(prev => [...(prev as TickData[]).slice(-999), latestTick!]);
+          }
+        }
+        if (latestOHLC) {
+            setChartData(prev => {
+                const data = calculateBollingerBands([...(prev as CandleData[]).slice(-999), latestOHLC!]);
+                if (data.length > 0 && data[data.length - 1].epoch === latestOHLC!.epoch) {
+                    const newData = [...data];
+                    newData[data.length - 1] = latestOHLC!;
+                    return newData;
+                } else {
+                    return data;
+                }
+            });
+        }
+
+        lastProcessTimeRef.current = Date.now();
+        setTimeout(processMessageQueue, THROTTLE_INTERVAL);
     };
-  
-    ws.onmessage = (event) => {
-      const response = JSON.parse(event.data);
-  
-      if (response.error) {
-        // Centralized error handling
-        console.error(`[Deriv WS Provider] Error received: "${response.error.message}"`);
-        const reqId = response.req_id;
-        
-        if (response.msg_type === 'authorize') {
-            setConnectionError(response.error.message);
-            setIsConnected(false);
-            setIsConnecting(false);
-        } else if (response.echo_req?.ticks_history || response.echo_req?.candles) {
-            setChartError(response.error.message);
-            setIsChartLoading(false);
-            isSubscribingRef.current = false; // Release lock on error
-        } else if (response.msg_type === 'active_symbols') {
-            setAssetGroups([]);
-            setIsAssetsLoading(false);
-        } else if (response.msg_type === 'forget') {
-            // This can happen if the subscription ID is already forgotten or invalid.
-            // It's not a critical error, so we can just log it.
-            console.warn(`[Deriv WS Provider] Failed to forget subscription: ${response.error.message}`);
-        }
-        
-        if (reqId && promisesRef.current.has(String(reqId))) {
-            promisesRef.current.get(String(reqId))?.reject(new Error(response.error.message));
-            promisesRef.current.delete(String(reqId));
-        }
-        return; // Stop processing on error
-      }
-  
-      const reqId = response.req_id;
-      if (reqId && promisesRef.current.has(String(reqId))) {
-        promisesRef.current.get(String(reqId))?.resolve(response);
-        promisesRef.current.delete(String(reqId));
-        return;
-      }
-  
+
+    const handleImmediateMessage = (response: any) => {
+      // This function processes messages that don't need throttling
       switch (response.msg_type) {
         case 'authorize':
           setIsConnected(true);
           setIsConnecting(false);
           setConnectionError(null);
-          console.log("[Deriv WS Provider] Authorization successful. Ready for subscriptions.");
+          console.log("[Deriv WS Provider] Authorization successful.");
           ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
           ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 }));
           ws.send(JSON.stringify({ active_symbols: 'full', product_type: 'basic' }));
@@ -956,16 +987,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
               loading: false
           });
           break;
-
+        
         case 'active_symbols':
             const groupedAssets: { [key: string]: Asset[] } = {};
             response.active_symbols.forEach((symbol: any) => {
                 const groupName = symbol.market_display_name;
-                const submarketName = symbol.submarket_display_name;
-
-                if (!groupedAssets[groupName]) {
-                    groupedAssets[groupName] = [];
-                }
+                if (!groupedAssets[groupName]) { groupedAssets[groupName] = []; }
                 groupedAssets[groupName].push({
                     value: symbol.symbol,
                     label: symbol.display_name,
@@ -975,14 +1002,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                     minDuration: symbol.min_contract_duration,
                 });
             });
-            
             const finalAssetGroups: AssetGroup[] = Object.keys(groupedAssets)
-                .map(label => ({
-                    label,
-                    options: groupedAssets[label].sort((a, b) => a.label.localeCompare(b.label)),
-                }))
+                .map(label => ({ label, options: groupedAssets[label].sort((a, b) => a.label.localeCompare(b.label)) }))
                 .sort((a, b) => a.label.localeCompare(b.label));
-
             setAssetGroups(finalAssetGroups);
             setIsAssetsLoading(false);
             break;
@@ -1000,12 +1022,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 variant: isLoss ? "destructive" : "default",
             });
 
-            const updatedLog = operationsLog.map(op =>
-                  op.id === contract.contract_id
-                    ? { ...op, status: profit >= 0 ? 'won' : 'lost', result: profit }
-                    : op
-                );
-              setOperationsLog(updatedLog);
+            setOperationsLog(prevLog => prevLog.map(op =>
+                  op.id === contract.contract_id ? { ...op, status: profit >= 0 ? 'won' : 'lost', result: profit } : op
+            ));
             
             const activeContract = activeContracts.find(c => c.contractId === contract.contract_id);
             setActiveContracts(prev => prev.map(c => 
@@ -1026,95 +1045,58 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
               wsRef.current.send(JSON.stringify({ "balance": 1 }));
             }
             break;
-
-        case 'tick':
-          if (response.echo_req.ticks_history === activeSymbol) {
-              const tick = response.tick;
-              const newTick = { epoch: tick.epoch, price: tick.quote };
-              setPriceTicks(prevTicks => [...prevTicks.slice(-999), newTick]);
-              const isTickChart = getGranularityForTimePeriod(timePeriod) === 0;
-              if(isTickChart) {
-                  setChartData(prev => [...(prev as TickData[]).slice(-999), newTick]);
-              }
-          }
-          break;
-
-        case 'ohlc':
-           if (response.echo_req.ticks_history === activeSymbol) {
-              const candle = response.ohlc;
-              const newCandle: CandleData = {
-                  epoch: candle.epoch,
-                  open: parseFloat(candle.open),
-                  high: parseFloat(candle.high),
-                  low: parseFloat(candle.low),
-                  close: parseFloat(candle.close),
-                  volume: candle.volume ? parseFloat(candle.volume) : undefined,
-              };
-              setChartData(prev => {
-                  const data = calculateBollingerBands([...(prev as CandleData[]).slice(-999), newCandle]);
-                  if (data.length > 0 && data[data.length - 1].epoch === newCandle.epoch) {
-                      const newData = [...data];
-                      newData[data.length - 1] = newCandle;
-                      return newData;
-                  } else {
-                      return data;
-                  }
-              });
-           }
-           break;
-
-        case 'history': // Initial tick data
-        case 'candles': // Initial candle data
+        
+        case 'history':
+        case 'candles':
             if (response.echo_req.subscribe === 1 && response.subscription?.id) {
                 subscriptionIdRef.current = response.subscription.id;
-                console.log(`[Deriv WS Provider] New subscription active: ${subscriptionIdRef.current}`);
             }
             const rawData = response.candles || response.history.prices.map((p:number, i:number) => ({
-                epoch: response.history.times[i], 
-                close: p,
-                open: p, // Simplified for tick history
-                high: p,
-                low: p,
+                epoch: response.history.times[i], close: p, open: p, high: p, low: p,
             }));
             const formattedData = rawData.map((c: any) => ({...c, open: parseFloat(c.open), high: parseFloat(c.high), low: parseFloat(c.low), close: parseFloat(c.close)}));
 
             if(response.history) {
               setPriceTicks(formattedData.map((d:any) => ({ epoch: d.epoch, price: d.close })));
             }
-            
             const dataWithBands = calculateBollingerBands(formattedData);
             setChartData(dataWithBands);
             setIsChartLoading(false);
-            isSubscribingRef.current = false; // Release lock after data is received
+            isSubscribingRef.current = false;
             break;
-
+            
         case 'forget':
           subscriptionIdRef.current = null;
           console.log(`[Deriv WS Provider] Successfully forgot subscription.`);
           break;
       }
     };
+
+    ws.onopen = () => {
+      console.log("[Deriv WS Provider] Connection opened. Authorizing...");
+      ws.send(JSON.stringify({ "authorize": activeToken }));
+    };
+  
+    ws.onmessage = (event) => {
+        messageQueueRef.current.push(JSON.parse(event.data));
+        if (!isProcessingQueueRef.current) {
+            isProcessingQueueRef.current = true;
+            processMessageQueue();
+        }
+    };
   
     ws.onclose = (event) => {
-      const wasClean = event.wasClean;
-      const code = event.code;
-      const reason = event.reason;
-      console.log(`[Deriv WS Provider] Connection closed. Was clean: ${wasClean}, Code: ${code}, Reason: ${reason || 'No reason given'}`);
-      
-      if (!wasClean) {
-        setConnectionError(`A conexão foi fechada: Código ${code} (${reason || 'Fecho Anormal'}).`);
-      }
-      
+      const { wasClean, code, reason } = event;
+      console.warn(`[Deriv WS Provider] Connection closed. Clean: ${wasClean}, Code: ${code}, Reason: ${reason || 'N/A'}`);
+      setConnectionError(`A conexão foi fechada: Código ${code} (${reason || 'Fecho Anormal'}).`);
       setIsConnected(false);
       setIsConnecting(false);
       wsRef.current = null;
     };
   
-    ws.onerror = (error) => {
+    ws.onerror = () => {
+      // Error details are better handled in onclose
       console.error("[Deriv WS Provider] WebSocket error occurred.");
-      setConnectionError("Falha na conexão com a API da Deriv. Verifique o seu token e a ligação à internet.");
-      setIsConnecting(false);
-      setIsConnected(false);
     };
   
     return () => {
@@ -1123,7 +1105,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         wsRef.current.close();
       }
     };
-  }, [activeToken, isLoading, timePeriod, chartType, accountType, toast, handleLosingTrade, operationsLog, activeContracts, updateRobotPerformance]);
+  }, [activeToken, isLoading, toast, handleLosingTrade, operationsLog, activeContracts, updateRobotPerformance, timePeriod]);
 
 
  useEffect(() => {
@@ -1428,8 +1410,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
 
 
-  const clearActiveContracts = () => setActiveContracts([]);
-  
+  const clearActiveContracts = () => {
+    setActiveContracts([]);
+  };
+
   const addActiveContract = (contract: ActiveContract) => {
     setActiveContracts(prev => [...prev, contract]);
   }
@@ -1515,7 +1499,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     addActiveContract,
     getAnalysis,
     subscribeToSymbol,
-    clearChartData
   };
 
   return (

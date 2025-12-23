@@ -129,7 +129,6 @@ export default function DerivTraderPage() {
               selectedAsset={activeSymbol || ""} 
               onAssetChange={(asset) => {
                 setActiveSymbol(asset);
-                clearActiveContracts();
               }} 
               />
           </div>
