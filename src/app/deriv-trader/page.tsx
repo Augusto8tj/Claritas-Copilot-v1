@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState, useCallback } from "react";
@@ -70,8 +71,6 @@ export default function DerivTraderPage() {
     subscribeToSymbol,
   } = useMarketData();
   
-  const { analyzeSessionPerformance } = useTradeAnalysis(activeSymbol, operationsLog);
-
   const autopilot = useAutopilot(
     activeSymbol,
     chartData,
@@ -87,8 +86,10 @@ export default function DerivTraderPage() {
     addActiveContract,
     executeTrade
   );
+  
+  const { analyzeSessionPerformance } = useTradeAnalysis(activeSymbol, operationsLog);
 
-  const memoizedSubscribeToSymbol = useCallback(subscribeToSymbol, []);
+  const memoizedSubscribeToSymbol = useCallback(subscribeToSymbol, [subscribeToSymbol]);
 
   useEffect(() => {
     if (isConnected && !isAssetsLoading && activeSymbol) {
@@ -164,10 +165,10 @@ export default function DerivTraderPage() {
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
-          {/* Main Content: Chart & Operations Log (Spans more columns on larger screens) */}
-          <div className="md:col-span-2 lg:col-span-3 space-y-6">
+          {/* Left Column: Trading Terminal */}
+          <div className="space-y-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <div>
@@ -255,25 +256,15 @@ export default function DerivTraderPage() {
                     />
                 </CardContent>
               </Card>
-              <div className="md:hidden">
-                <DerivTraderInterface 
-                    symbol={activeSymbol || ""}
-                    isConnected={isConnected}
-                    executeTrade={executeTrade}
-                />
-              </div>
-              <OperationsLog operations={operationsLog} />
+              <DerivTraderInterface 
+                  symbol={activeSymbol || ""}
+                  isConnected={isConnected}
+                  executeTrade={executeTrade}
+              />
           </div>
 
-          {/* Sidebar: Trading and AI Panels */}
-          <div className="md:col-span-1 lg:col-span-1 space-y-6">
-              <div className="hidden md:block">
-                <DerivTraderInterface 
-                    symbol={activeSymbol || ""}
-                    isConnected={isConnected}
-                    executeTrade={executeTrade}
-                />
-              </div>
+          {/* Right Column: AI Copilot */}
+          <div className="space-y-6">
               <AutoTraderCouncilInterface
                 isCouncilAutopilotOn={robotCouncil.isCouncilAutopilotOn}
                 setIsCouncilAutopilotOn={robotCouncil.setIsCouncilAutopilotOn}
@@ -310,6 +301,7 @@ export default function DerivTraderPage() {
               <AIAnalysisInterface 
                 analyzeSessionPerformance={analyzeSessionPerformance} 
               />
+              <OperationsLog operations={operationsLog} />
           </div>
         </div>
       </div>
