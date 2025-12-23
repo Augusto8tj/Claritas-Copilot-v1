@@ -27,8 +27,9 @@ interface AssetSelectorProps {
 }
 
 const filters = [
+    { label: "Todos", value: "all" },
     { label: "Sintéticos", value: "synthetic_index" },
-    { label: "Forex", value: "forex" },
+    { label: "Forex", value: "forex", disabled: true },
     { label: "Matérias-Primas", value: "commodities", disabled: true },
     { label: "Ações", value: "stock", disabled: true },
     { label: "Cripto", value: "cryptocurrency", disabled: true },
@@ -37,10 +38,10 @@ const filters = [
 export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorProps) {
   const { assetGroups, isAssetsLoading } = useDerivApi();
   const [open, setOpen] = useState(false);
-  const [filter, setFilter] = useState('synthetic_index');
+  const [filter, setFilter] = useState('all');
 
   const filteredAssets = useMemo(() => {
-    if (filter === 'all') { // Though 'all' is not a filter button, good to have a fallback
+    if (filter === 'all') {
       return assetGroups;
     }
     // This logic currently only works for synthetics, as it's what useDerivApi provides.
@@ -62,11 +63,6 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
     return "Selecione um ativo";
   }, [assetGroups, selectedAsset]);
 
-
-  if (isAssetsLoading) {
-    return <Skeleton className="w-full sm:w-[280px] h-10" />;
-  }
-
   // Find the currently selected asset's market to set the initial filter
   useEffect(() => {
     if (isAssetsLoading) return; // Guard clause inside the hook
@@ -76,6 +72,10 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
     }
   }, [selectedAsset, assetGroups, isAssetsLoading]);
 
+
+  if (isAssetsLoading) {
+    return <Skeleton className="w-full sm:w-[280px] h-10" />;
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
