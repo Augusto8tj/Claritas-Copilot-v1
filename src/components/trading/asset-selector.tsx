@@ -30,10 +30,10 @@ interface AssetSelectorProps {
 const marketFilters = [
     { label: "Todos", value: "all" },
     { label: "Sintéticos", value: "synthetic_index" },
-    { label: "Forex", value: "forex", disabled: true },
-    { label: "Matérias-Primas", value: "commodities", disabled: true },
-    { label: "Ações", value: "stock", disabled: true },
-    { label: "Cripto", value: "cryptocurrency", disabled: true },
+    { label: "Forex", value: "forex" },
+    { label: "Matérias-Primas", value: "commodities" },
+    { label: "Ações", value: "stock" },
+    { label: "Cripto", value: "cryptocurrency" },
 ];
 
 export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorProps) {
@@ -57,10 +57,10 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
     // 2. Filter by Duration Type
     if (durationFilter === 'tick') {
         // Corrected logic: check if the minDuration string ends with 't'
-        assets = assets.filter(a => a.minDuration.endsWith('t'));
+        assets = assets.filter(a => a.minDuration && a.minDuration.endsWith('t'));
     } else if (durationFilter === 'time') {
         // Corrected logic: check if the minDuration string does NOT end with 't'
-        assets = assets.filter(a => !a.minDuration.endsWith('t'));
+        assets = assets.filter(a => a.minDuration && !a.minDuration.endsWith('t'));
     }
 
     // 3. Filter by Market Type
