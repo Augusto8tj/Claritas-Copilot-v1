@@ -501,11 +501,11 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const debouncedPriceTicks = useDebounce(priceTicks, 250); // Debounce ticks by 250ms
   const debouncedChartData = useDebounce(chartData, 250); // Debounce chart data by 250ms
 
-  // --- Throttling state for incoming messages ---
+  // Throttling state
   const messageQueueRef = useRef<any[]>([]);
   const isProcessingQueueRef = useRef(false);
-  const lastProcessTimeRef = useRef(0);
-  const THROTTLE_INTERVAL = 250; // Process messages every 250ms
+  const throttleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const THROTTLE_INTERVAL = 250; 
 
 
   const fetchStrategyCouncil = useCallback(async (symbol: string, durationUnit: DurationUnit) => {
@@ -887,14 +887,14 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     wsRef.current = ws;
   
     const processMessageQueue = () => {
+        isProcessingQueueRef.current = false;
         if (messageQueueRef.current.length === 0) {
-            isProcessingQueueRef.current = false;
             return;
         }
-        
+
         const responsesToProcess = [...messageQueueRef.current];
         messageQueueRef.current = [];
-        
+
         let latestTick: TickData | null = null;
         let latestOHLC: CandleData | null = null;
         
@@ -903,12 +903,11 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
              if (reqId && promisesRef.current.has(String(reqId))) {
                  promisesRef.current.get(String(reqId))?.resolve(response);
                  promisesRef.current.delete(String(reqId));
-                 return;
+                 return; // Stop processing this message further
              }
 
              if (response.error) {
-                 console.error(`[Deriv WS Provider] Error in batched message: "${response.error.message}"`);
-                 // Handle specific errors for state updates
+                 console.error(`[Deriv WS Provider] Error received: "${response.error.message}"`);
                  if (response.echo_req?.ticks_history || response.echo_req?.candles) {
                      setChartError(response.error.message);
                      setIsChartLoading(false);
@@ -935,13 +934,13 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                        };
                      }
                     break;
-                // --- Handle non-tick/ohlc messages immediately ---
                 default:
                     handleImmediateMessage(response);
                     break;
              }
         });
 
+        // Batch state updates
         if (latestTick) {
           setPriceTicks(prevTicks => [...prevTicks.slice(-999), latestTick!]);
           const isTickChart = getGranularityForTimePeriod(timePeriod) === 0;
@@ -949,25 +948,21 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
               setChartData(prev => [...(prev as TickData[]).slice(-999), latestTick!]);
           }
         }
+
         if (latestOHLC) {
             setChartData(prev => {
-                const data = calculateBollingerBands([...(prev as CandleData[]).slice(-999), latestOHLC!]);
+                const data = [...(prev as CandleData[]).slice(-999)];
                 if (data.length > 0 && data[data.length - 1].epoch === latestOHLC!.epoch) {
-                    const newData = [...data];
-                    newData[data.length - 1] = latestOHLC!;
-                    return newData;
+                    data[data.length - 1] = latestOHLC!;
+                    return calculateBollingerBands(data);
                 } else {
-                    return data;
+                    return calculateBollingerBands([...data, latestOHLC!]);
                 }
             });
         }
-
-        lastProcessTimeRef.current = Date.now();
-        setTimeout(processMessageQueue, THROTTLE_INTERVAL);
     };
 
     const handleImmediateMessage = (response: any) => {
-      // This function processes messages that don't need throttling
       switch (response.msg_type) {
         case 'authorize':
           setIsConnected(true);
@@ -1072,17 +1067,18 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    ws.onopen = () => {
-      console.log("[Deriv WS Provider] Connection opened. Authorizing...");
-      ws.send(JSON.stringify({ "authorize": activeToken }));
-    };
-  
     ws.onmessage = (event) => {
         messageQueueRef.current.push(JSON.parse(event.data));
         if (!isProcessingQueueRef.current) {
             isProcessingQueueRef.current = true;
-            processMessageQueue();
+            if(throttleTimeoutRef.current) clearTimeout(throttleTimeoutRef.current);
+            throttleTimeoutRef.current = setTimeout(processMessageQueue, THROTTLE_INTERVAL);
         }
+    };
+  
+    ws.onopen = () => {
+      console.log("[Deriv WS Provider] Connection opened. Authorizing...");
+      ws.send(JSON.stringify({ "authorize": activeToken }));
     };
   
     ws.onclose = (event) => {
@@ -1095,7 +1091,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     };
   
     ws.onerror = () => {
-      // Error details are better handled in onclose
       console.error("[Deriv WS Provider] WebSocket error occurred.");
     };
   
@@ -1103,6 +1098,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       if (wsRef.current) {
         console.log("[Deriv WS Provider] Cleaning up WebSocket connection.");
         wsRef.current.close();
+      }
+      if (throttleTimeoutRef.current) {
+        clearTimeout(throttleTimeoutRef.current);
       }
     };
   }, [activeToken, isLoading, toast, handleLosingTrade, operationsLog, activeContracts, updateRobotPerformance, timePeriod]);
