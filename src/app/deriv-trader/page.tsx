@@ -73,15 +73,15 @@ export default function DerivTraderPage() {
       clearChartData(); // Limpa os dados antes de uma nova subscrição
       subscribeToSymbol(activeSymbol, timePeriod, chartType);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected, isAssetsLoading, activeSymbol, timePeriod, chartType]);
+  }, [isConnected, isAssetsLoading, activeSymbol, timePeriod, chartType, subscribeToSymbol, clearChartData]);
+
 
   useEffect(() => {
-    // Set a default active symbol once assets are loaded
-    if (!activeSymbol && !isAssetsLoading) {
+    // Set a default active symbol once assets are loaded and if no symbol is active yet
+    if (!isAssetsLoading && !activeSymbol) {
         setActiveSymbol("1HZ100V");
     }
-  }, [activeSymbol, isAssetsLoading, setActiveSymbol]);
+  }, [isAssetsLoading, activeSymbol, setActiveSymbol]);
 
 
   useEffect(() => {
