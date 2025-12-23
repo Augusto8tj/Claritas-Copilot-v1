@@ -1,19 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getInsights } from "@/services/financial-data-service";
 import { Lightbulb } from "lucide-react";
 
-async function getMockInsights() {
-  // Simula uma pequena demora de rede sem chamar a API real
-  await new Promise(resolve => setTimeout(resolve, 50));
-  return [
-      "Seu gasto com 'Compras' aumentou 15% este mês. Que tal revisar assinaturas não utilizadas?",
-      "Você economizou R$250 em 'Alimentação' comparado ao mês passado. Ótimo trabalho!",
-      "Considere aplicar R$500 do seu saldo atual na sua meta 'Viagem para o Japão' para acelerar o progresso."
-    ];
-}
-
-
 export async function AIInsightCard() {
-  const insights = await getMockInsights();
+  // Alterado para buscar insights reais da IA em vez de dados de exemplo.
+  const insights = await getInsights();
 
   return (
     <Card className="col-span-4 bg-primary/5 border-primary/20">
