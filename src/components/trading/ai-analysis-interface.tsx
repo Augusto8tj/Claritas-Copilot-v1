@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState } from "react";
@@ -11,22 +12,18 @@ import {
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
 import { Loader2, Sparkles, BrainCircuit } from "lucide-react";
-import { useDerivApi } from "@/hooks/use-deriv-api";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
+import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
 
-interface AIAnalysisInterfaceProps {
-    symbol: string;
-}
-
-export function AIAnalysisInterface({ symbol }: AIAnalysisInterfaceProps) {
+export function AIAnalysisInterface() {
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const { getAnalysis, operationsLog } = useDerivApi();
+  const { analyzeSessionPerformance } = useTradeAnalysis();
 
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
     setAnalysisResult(null);
-    const result = await getAnalysis(symbol);
+    const result = await analyzeSessionPerformance();
     setAnalysisResult(result);
     setIsAnalyzing(false);
   };
@@ -47,7 +44,7 @@ export function AIAnalysisInterface({ symbol }: AIAnalysisInterfaceProps) {
           variant="outline"
           className="w-full"
           onClick={handleAnalyze}
-          disabled={isAnalyzing || operationsLog.length === 0}
+          disabled={isAnalyzing}
         >
           {isAnalyzing ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />

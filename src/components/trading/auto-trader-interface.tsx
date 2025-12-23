@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -9,154 +10,41 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
-import { Loader2, Zap, BrainCircuit, Bot, Power, Info } from "lucide-react";
-import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
+import { Loader2, Zap, Bot, Power, Info } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
-import { useDerivApi } from "@/hooks/use-deriv-api";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { Separator } from "../ui/separator";
-import type { RiseFallFormValues } from "./deriv-trader-interface.types";
-import type { UseFormReturn } from "react-hook-form";
 import { Badge } from "../ui/badge";
 import { Input } from "../ui/input";
-import type { OperationInitiator } from "./operations-log.types";
+import { useAutopilot } from "@/hooks/use-autopilot";
 
-interface AutoTraderInterfaceProps {
-  symbol: string;
-  onExecuteTrade: (
-    contractType: string,
-    stake: number,
-    symbol: string,
-    tradeDirection: 'rise' | 'fall',
-    duration: number,
-    durationUnit: any,
-    initiator: OperationInitiator,
-  ) => Promise<any>;
-  form: UseFormReturn<RiseFallFormValues>;
-}
-
-
-export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTraderInterfaceProps) {
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isExecuting, setIsExecuting] = useState<boolean>(false);
-  
+export function AutoTraderInterface() {
   const { toast } = useToast();
-  const { 
-    isConnected, 
-    priceTicks, 
+  const {
     isAutopilotOn,
     setIsAutopilotOn,
     autopilotStrategy,
-    fetchAutopilotStrategy,
-    currentRSI,
-    currentStoch,
-    geminiRequestCount,
     dailyBalance,
     setDailyBalance,
     dailyTarget,
-    setDailyTarget
-  } = useDerivApi();
-  
-  const strategyIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const STRATEGY_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutos
-
-
-  const checkAndExecute = useCallback(async () => {
-    if (isExecuting || !isAutopilotOn || !autopilotStrategy || (currentRSI === null && currentStoch === null)) return;
-
-    let conditionMet = false;
-    if (autopilotStrategy.strategyName === 'RSI_BASIC' && autopilotStrategy.rsiThreshold && currentRSI !== null) {
-        if (autopilotStrategy.direction === 'RISE' && currentRSI <= autopilotStrategy.rsiThreshold) {
-            conditionMet = true;
-        } else if (autopilotStrategy.direction === 'FALL' && currentRSI >= autopilotStrategy.rsiThreshold) {
-            conditionMet = true;
-        }
-    } else if (autopilotStrategy.strategyName === 'STOCH_BASIC' && autopilotStrategy.stochThreshold && currentStoch !== null) {
-        if (autopilotStrategy.direction === 'RISE' && currentStoch <= autopilotStrategy.stochThreshold) {
-            conditionMet = true;
-        } else if (autopilotStrategy.direction === 'FALL' && currentStoch >= autopilotStrategy.stochThreshold) {
-            conditionMet = true;
-        }
-    }
-
-    if (conditionMet) {
-        setIsExecuting(true);
-        const { allowEquals } = form.getValues();
-        const stake = autopilotStrategy.suggestedStake;
-        const duration = autopilotStrategy.suggestedDuration;
-        
-        toast({ title: "Piloto Automático", description: `Condição de ${autopilotStrategy.direction} atingida! Executando com Aposta: $${stake.toFixed(2)} e Duração: ${duration} ticks.` });
-        
-        let contractType: string;
-        if (autopilotStrategy.direction === 'RISE') {
-            contractType = allowEquals ? 'CALLE' : 'CALL';
-        } else { // 'FALL'
-            contractType = allowEquals ? 'PUTE' : 'PUT';
-        }
-
-        await onExecuteTrade(contractType, stake, symbol, autopilotStrategy.direction.toLowerCase() as 'rise' | 'fall', duration, 't', 'Piloto');
-        
-        // Pause for a short while after execution to prevent rapid-fire trades
-        setTimeout(() => setIsExecuting(false), 10000); 
-    }
-  }, [isExecuting, isAutopilotOn, autopilotStrategy, currentRSI, currentStoch, form, onExecuteTrade, symbol, toast]);
+    setDailyTarget,
+    geminiRequestCount,
+    isLoading,
+    error,
+    currentRSI,
+    currentStoch
+  } = useAutopilot();
 
   const handleToggleAutopilot = (isOn: boolean) => {
     if (isOn) {
-        if (!isConnected) {
-            toast({ variant: "destructive", title: "Piloto Automático", description: "Conecte-se à corretora antes de ativar o piloto automático." });
-            return;
-        }
         setIsAutopilotOn(true);
     } else {
         setIsAutopilotOn(false);
     }
   };
 
-  // Effect to manage the strategy refresh interval based on isAutopilotOn state
-  useEffect(() => {
-    if (isAutopilotOn) {
-        console.log("[Autopilot] Turned ON. Fetching initial strategy and starting check cycle.");
-        fetchAutopilotStrategy(); 
-        
-        if (strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
-        
-        strategyIntervalRef.current = setInterval(fetchAutopilotStrategy, STRATEGY_REFRESH_INTERVAL);
-    } else {
-         console.log("[Autopilot] Turned OFF. Clearing check cycle.");
-        if (strategyIntervalRef.current) {
-            clearInterval(strategyIntervalRef.current);
-            strategyIntervalRef.current = null;
-        }
-    }
-
-    // Cleanup on component unmount
-    return () => {
-        if (strategyIntervalRef.current) {
-            clearInterval(strategyIntervalRef.current);
-        }
-    };
-}, [isAutopilotOn, fetchAutopilotStrategy]);
-
-
-  // Turn off autopilot if connection is lost
-  useEffect(() => {
-      if(!isConnected && isAutopilotOn) {
-          setIsAutopilotOn(false);
-          toast({ variant: "destructive", title: "Piloto Automático Desativado", description: "A conexão com a corretora foi perdida." });
-      }
-  }, [isConnected, isAutopilotOn, toast, setIsAutopilotOn]);
-
-
-  useEffect(() => {
-    if (isAutopilotOn) {
-        checkAndExecute();
-    }
-  }, [isAutopilotOn, checkAndExecute, currentRSI, currentStoch]);
-  
   const getActiveIndicatorValue = () => {
     if (!autopilotStrategy) return "N/A";
     if (autopilotStrategy.strategyName === 'RSI_BASIC') return currentRSI?.toFixed(2) ?? "Calculando...";
@@ -169,7 +57,6 @@ export function AutoTraderInterface({ symbol, onExecuteTrade, form }: AutoTrader
     if (autopilotStrategy.strategyName === 'STOCH_BASIC') return "Estocástico Atual";
     return "Indicador";
   }
-
 
   return (
     <Card>

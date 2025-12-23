@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useCallback, Fragment } from "react";
+import { useState, Fragment } from "react";
 import {
   Card,
   CardContent,
@@ -11,7 +12,6 @@ import {
 import { Button } from "../ui/button";
 import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
-import { useDerivApi } from "@/hooks/use-deriv-api";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "../ui/input";
 import { useFormContext } from "react-hook-form";
 import type { RiseFallFormValues } from "./deriv-trader-interface.types";
+import { useRobotCouncil } from "@/hooks/use-robot-council";
 
 const indicatorIcons: { [key: string]: React.ReactNode } = {
     RSI: <BrainCircuit className="h-4 w-4" />,
@@ -54,51 +55,29 @@ const robotCategories: Record<string, RobotStrategy['strategyType'][]> = {
 export function AutoTraderCouncilInterface() {
   const { toast } = useToast();
   const form = useFormContext<RiseFallFormValues>();
-  const { 
-    activeSymbol,
-    isConnected, 
-    isCouncilAutopilotOn,
-    setIsCouncilAutopilotOn,
-    strategyCouncil,
-    fetchStrategyCouncil,
-    isFetchingCouncil,
-    councilVotes,
-    geminiRequestCount,
-    dailyBalance,
-    setDailyBalance,
-    dailyTarget,
-    setDailyTarget,
-    consensusThreshold,
-    setConsensusThreshold,
-    isDynamicConsensusOn,
-    setIsDynamicConsensusOn,
-    isMeritocracyOn,
-    setIsMeritocracyOn,
-    currentRSI,
-    currentStoch,
-    currentMA,
-    currentBollingerBands,
-    currentMACD,
-    currentPriceAction,
-    currentADX,
-    currentIchimoku,
-    currentAwesomeOscillator,
-    currentVolumePoc,
-  } = useDerivApi();
+  const {
+      isCouncilAutopilotOn,
+      setIsCouncilAutopilotOn,
+      strategyCouncil,
+      isFetchingCouncil,
+      councilVotes,
+      geminiRequestCount,
+      dailyBalance,
+      setDailyBalance,
+      dailyTarget,
+      setDailyTarget,
+      consensusThreshold,
+      setConsensusThreshold,
+      isDynamicConsensusOn,
+      setIsDynamicConsensusOn,
+      isMeritocracyOn,
+      setIsMeritocracyOn,
+      indicators,
+  } = useRobotCouncil();
   
   const handleToggleAutopilot = (isOn: boolean) => {
     if (isOn) {
-        if (!isConnected) {
-            toast({ variant: "destructive", title: "Piloto Automático", description: "Conecte-se à corretora antes de ativar o conselho." });
-            return;
-        }
-        if (!activeSymbol) {
-             toast({ variant: "destructive", title: "Piloto Automático", description: "Aguarde o gráfico carregar completamente." });
-             return;
-        }
         setIsCouncilAutopilotOn(true);
-        const { duration_unit } = form.getValues();
-        fetchStrategyCouncil(activeSymbol, duration_unit);
     } else {
         setIsCouncilAutopilotOn(false);
     }
@@ -134,31 +113,31 @@ export function AutoTraderCouncilInterface() {
   const renderIndicatorValue = (robot: RobotStrategy) => {
     switch (robot.strategyType) {
         case 'RSI':
-            return <p>RSI Atual: <strong>{currentRSI?.toFixed(2) ?? "..."}</strong></p>;
+            return <p>RSI Atual: <strong>{indicators.rsi?.toFixed(2) ?? "..."}</strong></p>;
         case 'STOCHASTIC':
-            return <p>Estocástico Atual: <strong>{currentStoch?.toFixed(2) ?? "..."}</strong></p>;
+            return <p>Estocástico Atual: <strong>{indicators.stoch?.toFixed(2) ?? "..."}</strong></p>;
         case 'MOVING_AVERAGE_CROSS':
-            const shortMA = currentMA.short?.toFixed(4) ?? "-";
-            const longMA = currentMA.long?.toFixed(4) ?? "-";
+            const shortMA = indicators.ma.short?.toFixed(4) ?? "-";
+            const longMA = indicators.ma.long?.toFixed(4) ?? "-";
             return <p>Médias Atuais: <strong>{shortMA} / {longMA}</strong></p>;
         case 'BOLLINGER_BANDS':
-            if (!currentBollingerBands) return <p>Bandas: <strong>...</strong></p>;
-            const { upper, lower } = currentBollingerBands;
+            if (!indicators.bollingerBands) return <p>Bandas: <strong>...</strong></p>;
+            const { upper, lower } = indicators.bollingerBands;
             return <p>Bandas: <strong>{lower.toFixed(4)} / {upper.toFixed(4)}</strong></p>;
         case 'MACD_CROSS':
-            if (!currentMACD) return <p>MACD: <strong>...</strong></p>;
-            const { macd, signal } = currentMACD;
+            if (!indicators.macd) return <p>MACD: <strong>...</strong></p>;
+            const { macd, signal } = indicators.macd;
             return <p>MACD/Sinal: <strong>{macd.toFixed(4)} / {signal.toFixed(4)}</strong></p>;
         case 'PRICE_ACTION_PATTERN':
-             return <p>Último Padrão: <strong>{currentPriceAction || "Nenhum"}</strong></p>;
+             return <p>Último Padrão: <strong>{indicators.priceAction || "Nenhum"}</strong></p>;
         case 'ADX_TREND':
-            return <p>Força da Tendência (ADX): <strong>{currentADX?.toFixed(2) ?? "..."}</strong></p>;
+            return <p>Força da Tendência (ADX): <strong>{indicators.adx?.toFixed(2) ?? "..."}</strong></p>;
         case 'ICHIMOKU_CLOUD':
-            return <p>Ichimoku: <strong>{currentIchimoku ? (currentIchimoku.inCloud ? 'Na Nuvem' : currentIchimoku.trend) : '...'}</strong></p>;
+            return <p>Ichimoku: <strong>{indicators.ichimoku ? (indicators.ichimoku.inCloud ? 'Na Nuvem' : indicators.ichimoku.trend) : '...'}</strong></p>;
         case 'AWESOME_OSCILLATOR':
-            return <p>AO: <strong>{currentAwesomeOscillator?.toFixed(4) ?? '...'}</strong></p>;
+            return <p>AO: <strong>{indicators.awesomeOscillator?.toFixed(4) ?? '...'}</strong></p>;
         case 'VOLUME_PROFILE':
-            return <p>POC: <strong>{currentVolumePoc?.toFixed(4) ?? '...'}</strong></p>;
+            return <p>POC: <strong>{indicators.volumePoc?.toFixed(4) ?? '...'}</strong></p>;
         default:
             return null;
     }

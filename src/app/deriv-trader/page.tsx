@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DerivTraderInterface } from "@/components/trading/deriv-trader-interface";
@@ -13,15 +13,13 @@ import { Button } from "@/components/ui/button";
 import { AreaChart, Trash2, Plus, Minus, CandlestickChart, Waves, Clock } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { useDerivApi, type AccountType, type ActiveContract } from "@/hooks/use-deriv-api";
+import { useDerivApi, type AccountType } from "@/hooks/use-deriv-api";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { TradeResult } from "@/services/deriv-api-service";
 import { OperationsLog } from "@/components/trading/operations-log";
 import { AIAnalysisInterface } from "@/components/trading/ai-analysis-interface";
 import { riseFallSchema, type RiseFallFormValues } from "@/components/trading/deriv-trader-interface.types";
 import { AutoTraderInterface } from "@/components/trading/auto-trader-interface";
 import { AutoTraderCouncilInterface } from "@/components/trading/auto-trader-council-interface";
-import type { OperationInitiator } from "@/components/trading/operations-log.types";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 
@@ -39,7 +37,6 @@ export default function DerivTraderPage() {
     accountBalance, 
     activeContracts, 
     clearActiveContracts, 
-    addActiveContract,
     operationsLog,
     isConnected,
     isConnecting,
@@ -52,7 +49,6 @@ export default function DerivTraderPage() {
     setChartType,
     timePeriod,
     setTimePeriod,
-    executeTrade,
     showBollingerBands,
     setShowBollingerBands,
   } = useDerivApi();
@@ -66,12 +62,14 @@ export default function DerivTraderPage() {
       allowEquals: false,
     },
   });
+  
+  const memoizedSubscribeToSymbol = useCallback(subscribeToSymbol, [subscribeToSymbol]);
 
   useEffect(() => {
     if (isConnected && !isAssetsLoading && activeSymbol) {
-      subscribeToSymbol(activeSymbol, timePeriod, chartType);
+      memoizedSubscribeToSymbol(activeSymbol, timePeriod, chartType);
     }
-  }, [isConnected, isAssetsLoading, activeSymbol, timePeriod, chartType, subscribeToSymbol]);
+  }, [isConnected, isAssetsLoading, activeSymbol, timePeriod, chartType, memoizedSubscribeToSymbol]);
 
 
   useEffect(() => {
@@ -94,17 +92,6 @@ export default function DerivTraderPage() {
     { label: 'Candle', icon: <CandlestickChart className="w-8 h-8 mx-auto" />, disabled: ['1m', '2m', '3m'].includes(timePeriod) },
   ];
   
-  const handleTradeSuccess = (tradeResult: TradeResult, initiator: OperationInitiator) => {
-      if (tradeResult.success && tradeResult.contractId && tradeResult.entryTick && tradeResult.entryTime) {
-          addActiveContract({
-              contractId: tradeResult.contractId,
-              entryTick: tradeResult.entryTick,
-              entryTime: tradeResult.entryTime,
-              initiator: initiator,
-          });
-      }
-  }
-
   const handleZoom = (direction: 'in' | 'out') => {
     setZoomLevel(prevZoom => {
         let newZoom;
@@ -256,16 +243,11 @@ export default function DerivTraderPage() {
           <div className="lg:col-span-4 space-y-6">
               <DerivTraderInterface 
                   symbol={activeSymbol || ""}
-                  onTradeSuccess={(result) => handleTradeSuccess(result, 'Manual')}
                   isConnected={isConnected && !!activeToken}
               />
               <AutoTraderCouncilInterface />
-              <AutoTraderInterface 
-                symbol={activeSymbol || ""} 
-                onExecuteTrade={executeTrade} 
-                form={form}
-              />
-              <AIAnalysisInterface symbol={activeSymbol || ""} />
+              <AutoTraderInterface />
+              <AIAnalysisInterface />
           </div>
         </div>
       </div>

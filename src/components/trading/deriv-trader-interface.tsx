@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -27,15 +28,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import { AITradeSuggestion } from "./ai-trade-suggestion";
 
-import type { TradeResult } from "@/services/deriv-api-service";
 import type { DurationUnit, RiseFallFormValues } from "./deriv-trader-interface.types";
-import type { OperationInitiator } from "./operations-log.types";
 
 type TradeType = 'rise_fall' | 'higher_lower' | 'touch_no_touch';
 
 interface DerivTraderInterfaceProps {
   symbol: string;
-  onTradeSuccess: (result: TradeResult) => void;
   isConnected: boolean;
 }
 
@@ -61,10 +59,10 @@ const tradeTypeLabels: Record<TradeType, string> = {
   touch_no_touch: "Touch/No Touch",
 };
 
-export function DerivTraderInterface({ symbol, onTradeSuccess, isConnected }: DerivTraderInterfaceProps) {
+export function DerivTraderInterface({ symbol, isConnected }: DerivTraderInterfaceProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<"rise" | "fall" | null>(null);
-  const { executeTrade, isConnecting, activeToken } = useDerivApi();
+  const { executeTrade, addActiveContract, isConnecting, activeToken } = useDerivApi();
   const [tradeType, setTradeType] = useState<TradeType>('rise_fall');
 
   const form = useFormContext<RiseFallFormValues>();
@@ -120,12 +118,17 @@ export function DerivTraderInterface({ symbol, onTradeSuccess, isConnected }: De
     const result = await executeTrade(contractType, data.stake, symbol, tradeDirection, data.duration, data.duration_unit, 'Manual');
     setLoading(null);
 
-    if (result.success) {
+    if (result.success && result.contractId) {
       toast({
         title: "Ordem Executada!",
         description: `Sua negociação para ${symbol} foi aberta.`,
       });
-      onTradeSuccess(result);
+      addActiveContract({
+          contractId: result.contractId,
+          entryTick: result.entryTick!,
+          entryTime: result.entryTime!,
+          initiator: 'Manual'
+      })
     } else {
       toast({
         variant: "destructive",
