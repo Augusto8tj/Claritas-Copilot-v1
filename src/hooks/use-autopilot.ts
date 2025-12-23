@@ -6,10 +6,12 @@ import { useFormContext } from "react-hook-form";
 import { useDerivApi } from "@/hooks/use-deriv-api";
 import { useToast } from "@/hooks/use-toast";
 import { getHistoricalData } from "@/services/deriv-api-service";
-import { getAutotraderStrategyAction, analyzeTradeLossAction } from '@/app/actions/ai-actions';
+import { getAutotraderStrategyAction } from '@/app/actions/ai-actions';
 import type { RiseFallFormValues } from "@/components/trading/deriv-trader-interface.types";
 import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
 import { useTradeAnalysis } from "./use-trade-analysis";
+import type { ChartData } from "./use-market-data";
+import type { Operation } from "@/components/trading/operations-log.types";
 
 // Indicator Calculation Helpers
 const calculateRSI = (data: { price: number }[], period = 14) => {
@@ -38,15 +40,15 @@ const calculateStochastic = (data: { high: number, low: number, close: number }[
     return 100 * ((currentClose - lowestLow) / (highestHigh - lowestLow));
 };
 
-export function useAutopilot() {
-    const { 
-        isConnected, 
-        activeSymbol,
-        chartData,
-        executeTrade,
-        operationsLog
-    } = useDerivApi();
-    const { analyzeLosingTrade } = useTradeAnalysis();
+export function useAutopilot(
+    activeSymbol: string | null,
+    chartData: ChartData[],
+    operationsLog: Operation[],
+    addActiveContract: (contract: any) => void,
+    executeTrade: any
+) {
+    const { isConnected } = useDerivApi();
+    const { analyzeLosingTrade } = useTradeAnalysis(activeSymbol, operationsLog);
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
@@ -109,8 +111,10 @@ export function useAutopilot() {
     
     // Effect for indicator calculation
     useEffect(() => {
+        if (!chartData) return;
         const candleData = chartData.filter(d => 'close' in d) as { high: number, low: number, close: number, price: number }[];
         if (candleData.length > 14) {
+            candleData.forEach(c => { c.price = c.close });
             setCurrentRSI(calculateRSI(candleData));
             setCurrentStoch(calculateStochastic(candleData));
         }
@@ -156,14 +160,23 @@ export function useAutopilot() {
                 
                 let contractType = direction === 'RISE' ? (allowEquals ? 'CALLE' : 'CALL') : (allowEquals ? 'PUTE' : 'PUT');
 
-                await executeTrade(contractType, suggestedStake, activeSymbol!, direction.toLowerCase() as 'rise' | 'fall', suggestedDuration, 't', 'Piloto');
+                const result = await executeTrade(contractType, suggestedStake, activeSymbol!, direction.toLowerCase() as 'rise' | 'fall', suggestedDuration, 't', 'Piloto');
+                
+                if (result.success && result.contractId) {
+                    addActiveContract({
+                        contractId: result.contractId,
+                        entryTick: result.entryTick,
+                        entryTime: result.entryTime,
+                        initiator: 'Piloto'
+                    });
+                }
                 
                 setTimeout(() => setIsExecuting(false), 10000); 
             }
         };
 
         checkAndExecute();
-    }, [isAutopilotOn, isExecuting, autopilotStrategy, currentRSI, currentStoch, form, executeTrade, activeSymbol, toast]);
+    }, [isAutopilotOn, isExecuting, autopilotStrategy, currentRSI, currentStoch, form, executeTrade, activeSymbol, toast, addActiveContract]);
 
     // Effect for risk management (stop loss/profit target)
     useEffect(() => {
@@ -187,6 +200,7 @@ export function useAutopilot() {
     
     // Effect to handle losing trades analysis
     useEffect(() => {
+      if (operationsLog.length === 0) return;
       const lastOp = operationsLog[0];
       if (lastOp && lastOp.status === 'lost' && lastOp.initiator === 'Piloto') {
           analyzeLosingTrade(lastOp, autopilotStrategy).then(suggestion => {

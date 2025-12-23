@@ -10,6 +10,8 @@ import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
 import type { RiseFallFormValues } from '@/components/trading/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
+import type { Operation } from '@/components/trading/operations-log.types';
+import type { ChartData } from './use-market-data';
 
 type RobotVote = {
     vote: 'RISE' | 'FALL' | 'HOLD';
@@ -165,9 +167,15 @@ const calculateVolatility = (data: { price: number }[], period = 20) => {
     return Math.sqrt(variance);
 };
 
-export function useRobotCouncil() {
-    const { isConnected, activeSymbol, chartData, executeTrade, operationsLog, addActiveContract } = useDerivApi();
-    const { analyzeLosingTrade } = useTradeAnalysis();
+export function useRobotCouncil(
+    activeSymbol: string | null,
+    chartData: ChartData[],
+    operationsLog: Operation[],
+    addActiveContract: (contract: any) => void,
+    executeTrade: any
+) {
+    const { isConnected } = useDerivApi();
+    const { analyzeLosingTrade } = useTradeAnalysis(activeSymbol, operationsLog);
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
@@ -249,6 +257,7 @@ export function useRobotCouncil() {
 
     // Indicator calculation
     useEffect(() => {
+        if (!chartData) return;
         const candleData = chartData.filter(d => 'close' in d) as { open: number, high: number, low: number, close: number, volume?: number, price: number }[];
         if (candleData.length < 2) return;
         
@@ -313,10 +322,10 @@ export function useRobotCouncil() {
             const stake = strategyCouncil[0].suggestedStake; // Simplified
             toast({ title: "Consenso Atingido!", description: `Executando ordem de ${direction.toUpperCase()}.` });
             executeTrade(direction === 'rise' ? 'CALL' : 'PUT', stake, activeSymbol!, direction, 5, 't', 'Conselho')
-                .then(res => {
+                .then((res: any) => {
                     if (res.success && res.contractId) addActiveContract({ contractId: res.contractId, entryTick: res.entryTick!, entryTime: res.entryTime!, initiator: 'Conselho' });
                 })
-                .finally(() => setTimeout(() => councilExecutionRef.current.isExecuting = false, 10000));
+                .finally(() => setTimeout(() => { councilExecutionRef.current.isExecuting = false; }, 10000));
         }
 
     }, [

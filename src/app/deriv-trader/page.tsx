@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useEffect, useState, useCallback } from "react";
@@ -22,15 +21,29 @@ import { AutoTraderInterface } from "@/components/trading/auto-trader-interface"
 import { AutoTraderCouncilInterface } from "@/components/trading/auto-trader-council-interface";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useMarketData, type TimePeriod, type ChartType } from "@/hooks/use-market-data";
+import { useAutopilot } from "@/hooks/use-autopilot";
+import { useRobotCouncil } from "@/hooks/use-robot-council";
+import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
 
 
 const timePeriods: TimePeriod[] = ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '8h', '1d'];
 
 export default function DerivTraderPage() {
-  const [zoomLevel, setZoomLevel] = useState(100); 
   const [activeSymbol, setActiveSymbol] = useState<string | null>(null);
 
+  const form = useForm<RiseFallFormValues>({
+    resolver: zodResolver(riseFallSchema),
+    defaultValues: {
+      stake: 10,
+      duration: 25,
+      duration_unit: "s",
+      allowEquals: false,
+    },
+  });
+
+  // Main API hook for connection and trading
   const { 
+    ws,
     accountType, 
     setAccountType, 
     accountBalance, 
@@ -41,8 +54,12 @@ export default function DerivTraderPage() {
     isConnecting,
     isAssetsLoading,
     assetGroups,
+    addActiveContract,
+    executeTrade,
+    promisesRef
   } = useDerivApi();
 
+  // Hook for managing chart data and subscriptions
   const {
     chartData,
     isChartLoading,
@@ -54,19 +71,50 @@ export default function DerivTraderPage() {
     showBollingerBands,
     setShowBollingerBands,
     subscribeToSymbol,
-  } = useMarketData();
-
-
-  const form = useForm<RiseFallFormValues>({
-    resolver: zodResolver(riseFallSchema),
-    defaultValues: {
-      stake: 10,
-      duration: 25,
-      duration_unit: "s",
-      allowEquals: false,
-    },
-  });
+    priceTicks,
+  } = useMarketData(ws, promisesRef);
   
+  // Hook for single autopilot logic
+  const {
+      isAutopilotOn,
+      setIsAutopilotOn,
+      autopilotStrategy,
+      dailyBalance: autopilotDailyBalance,
+      setDailyBalance: setAutopilotDailyBalance,
+      dailyTarget: autopilotDailyTarget,
+      setDailyTarget: setAutopilotDailyTarget,
+      geminiRequestCount: autopilotGeminiCount,
+      isLoading: isAutopilotLoading,
+      error: autopilotError,
+      currentRSI,
+      currentStoch
+  } = useAutopilot(activeSymbol, chartData, operationsLog, addActiveContract, executeTrade);
+
+  // Hook for robot council logic
+  const {
+      isCouncilAutopilotOn,
+      setIsCouncilAutopilotOn,
+      strategyCouncil,
+      isFetchingCouncil,
+      councilVotes,
+      geminiRequestCount: councilGeminiCount,
+      dailyBalance: councilDailyBalance,
+      setDailyBalance: setCouncilDailyBalance,
+      dailyTarget: councilDailyTarget,
+      setDailyTarget: setCouncilDailyTarget,
+      consensusThreshold,
+      setConsensusThreshold,
+      isDynamicConsensusOn,
+      setIsDynamicConsensusOn,
+      isMeritocracyOn,
+      setIsMeritocracyOn,
+      indicators,
+  } = useRobotCouncil(activeSymbol, chartData, operationsLog, addActiveContract, executeTrade);
+
+  // Hook for trade analysis logic
+  const { analyzeSessionPerformance } = useTradeAnalysis(activeSymbol, operationsLog);
+  
+
   const memoizedSubscribeToSymbol = useCallback(subscribeToSymbol, [subscribeToSymbol]);
 
   useEffect(() => {
@@ -99,18 +147,6 @@ export default function DerivTraderPage() {
     { label: 'Candle', icon: <CandlestickChart className="w-8 h-8 mx-auto" />, disabled: ['1m', '2m', '3m'].includes(timePeriod) },
   ];
   
-  const handleZoom = (direction: 'in' | 'out') => {
-    setZoomLevel(prevZoom => {
-        let newZoom;
-        if (direction === 'in') {
-            newZoom = Math.max(20, prevZoom - 20);
-        } else {
-            newZoom = Math.min(500, prevZoom + 20);
-        }
-        return newZoom;
-    });
-  };
-
   return (
     <FormProvider {...form}>
       <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
@@ -124,10 +160,12 @@ export default function DerivTraderPage() {
               onAssetChange={(asset) => {
                 setActiveSymbol(asset);
               }} 
+              assetGroups={assetGroups}
+              isAssetsLoading={isAssetsLoading}
               />
           </div>
           <div className="flex flex-col items-end">
-              <ToggleGroup type="single" value={accountType} onValueChange={(value: AccountType) => value && setAccountType(value)} defaultValue="demo" aria-label="Tipo de Conta">
+              <ToggleGroup type="single" value={accountType} onValueChange={(value: any) => value && setAccountType(value)} defaultValue="demo" aria-label="Tipo de Conta">
                   <ToggleGroupItem value="demo" aria-label="Usar conta demo">Demo</ToggleGroupItem>
                   <ToggleGroupItem value="real" aria-label="Usar conta real">Real</ToggleGroupItem>
               </ToggleGroup>
@@ -231,7 +269,6 @@ export default function DerivTraderPage() {
               <CardContent className="relative">
                   <MarketChart 
                       activeContracts={activeContracts}
-                      zoomLevel={zoomLevel}
                       chartData={chartData}
                       isChartLoading={isChartLoading}
                       chartError={chartError}
@@ -239,28 +276,54 @@ export default function DerivTraderPage() {
                       timePeriod={timePeriod}
                       showBollingerBands={showBollingerBands}
                   />
-                  <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2">
-                      <Button variant="outline" size="icon" onClick={() => handleZoom('in')} disabled={zoomLevel <= 20}>
-                          <Plus className="h-4 w-4" />
-                          <span className="sr-only">Zoom In</span>
-                      </Button>
-                      <Button variant="outline" size="icon" onClick={() => handleZoom('out')} disabled={zoomLevel >= 500}>
-                          <Minus className="h-4 w-4" />
-                          <span className="sr-only">Zoom Out</span>
-                      </Button>
-                  </div>
               </CardContent>
               </Card>
-              <OperationsLog operations={operationsLog} />
+              <OperationsLog operations={operationsLog} priceTicks={priceTicks} />
           </div>
           <div className="lg:col-span-4 space-y-6">
               <DerivTraderInterface 
                   symbol={activeSymbol || ""}
                   isConnected={isConnected}
+                  isConnecting={isConnecting}
+                  activeToken={activeToken}
+                  executeTrade={executeTrade}
               />
-              <AutoTraderCouncilInterface />
-              <AutoTraderInterface />
-              <AIAnalysisInterface />
+              <AutoTraderCouncilInterface
+                isCouncilAutopilotOn={isCouncilAutopilotOn}
+                setIsCouncilAutopilotOn={setIsCouncilAutopilotOn}
+                strategyCouncil={strategyCouncil}
+                isFetchingCouncil={isFetchingCouncil}
+                councilVotes={councilVotes}
+                geminiRequestCount={councilGeminiCount}
+                dailyBalance={councilDailyBalance}
+                setDailyBalance={setCouncilDailyBalance}
+                dailyTarget={councilDailyTarget}
+                setDailyTarget={setCouncilDailyTarget}
+                consensusThreshold={consensusThreshold}
+                setConsensusThreshold={setConsensusThreshold}
+                isDynamicConsensusOn={isDynamicConsensusOn}
+                setIsDynamicConsensusOn={setIsDynamicConsensusOn}
+                isMeritocracyOn={isMeritocracyOn}
+                setIsMeritocracyOn={setIsMeritocracyOn}
+                indicators={indicators}
+              />
+              <AutoTraderInterface
+                isAutopilotOn={isAutopilotOn}
+                setIsAutopilotOn={setIsAutopilotOn}
+                autopilotStrategy={autopilotStrategy}
+                dailyBalance={autopilotDailyBalance}
+                setDailyBalance={setAutopilotDailyBalance}
+                dailyTarget={autopilotDailyTarget}
+                setDailyTarget={setAutopilotDailyTarget}
+                geminiRequestCount={autopilotGeminiCount}
+                isLoading={isAutopilotLoading}
+                error={autopilotError}
+                currentRSI={currentRSI}
+                currentStoch={currentStoch}
+              />
+              <AIAnalysisInterface 
+                analyzeSessionPerformance={analyzeSessionPerformance} 
+              />
           </div>
         </div>
       </div>

@@ -3,15 +3,17 @@
 
 import { useState, useCallback } from 'react';
 import { useDerivApi } from './use-deriv-api';
-import { analyzeOperationsAction, analyzeMqlCodeAction, runStrategyBacktestAction } from '@/app/actions/trading-actions';
+import { analyzeOperationsAction } from '@/app/actions/trading-actions';
 import { analyzeTradeLossAction } from '@/app/actions/ai-actions';
 import { getHistoricalData } from '@/services/deriv-api-service';
 import type { Operation } from '@/components/trading/operations-log.types';
 import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
 import { useToast } from './use-toast';
 
-export function useTradeAnalysis() {
-    const { operationsLog, activeSymbol } = useDerivApi();
+export function useTradeAnalysis(
+    activeSymbol: string | null,
+    operationsLog: Operation[]
+) {
     const { toast } = useToast();
     const [geminiRequestCount, setGeminiRequestCount] = useState(0);
 
@@ -66,6 +68,6 @@ export function useTradeAnalysis() {
     return {
         analyzeSessionPerformance,
         analyzeLosingTrade,
-        geminiRequestCount, // Exposing this if needed elsewhere
+        geminiRequestCount,
     };
 }
