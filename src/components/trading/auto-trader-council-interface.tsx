@@ -42,6 +42,14 @@ const voteIcons: { [key: string]: React.ReactNode } = {
     HOLD: <HelpCircle className="h-4 w-4 text-yellow-500" />,
 }
 
+const robotCategories: Record<string, RobotStrategy['strategyType'][]> = {
+    'Especialistas em Momentum': ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'AWESOME_OSCILLATOR'],
+    'Especialistas em Tendência': ['MOVING_AVERAGE_CROSS', 'ADX_TREND', 'ICHIMOKU_CLOUD'],
+    'Especialistas em Volatilidade': ['BOLLINGER_BANDS'],
+    'Especialistas em Padrões': ['PRICE_ACTION_PATTERN'],
+    'Especialistas em Volume': ['VOLUME_PROFILE'],
+};
+
 
 export function AutoTraderCouncilInterface() {
   const { toast } = useToast();
@@ -156,6 +164,20 @@ export function AutoTraderCouncilInterface() {
     }
   }
 
+  const groupedRobots = strategyCouncil.reduce((acc, robot) => {
+    for (const category in robotCategories) {
+        if (robotCategories[category].includes(robot.strategyType)) {
+            if (!acc[category]) {
+                acc[category] = [];
+            }
+            acc[category].push(robot);
+            break;
+        }
+    }
+    return acc;
+  }, {} as Record<string, RobotStrategy[]>);
+
+
   return (
     <Card>
       <CardHeader>
@@ -254,38 +276,45 @@ export function AutoTraderCouncilInterface() {
                         Conselho em Sessão
                     </AlertTitle>
                     <AlertDescription className="text-primary/90 space-y-3 mt-2">
-                        {strategyCouncil.map((robot, index) => {
-                            const voteData = councilVotes[robot.id];
-                            const vote = voteData?.vote || 'HOLD';
-                            const weight = voteData?.weight || 1.0;
-                            const confidence = voteData?.confidence || 0;
-                            return (
-                            <Fragment key={robot.id}>
-                                <div className="text-xs space-y-1">
-                                    <div className="flex justify-between items-center">
-                                        <p className="font-bold flex items-center gap-1.5">{indicatorIcons[robot.strategyType] || <Bot />} Robô {index + 1}: {robot.strategyType}</p>
-                                        {isMeritocracyOn && weight !== 1.0 && (
-                                            <Badge variant="secondary" className="flex items-center gap-1">
-                                                <Award className="h-3 w-3" />
-                                                x{weight.toFixed(2)}
-                                            </Badge>
-                                        )}
-                                    </div>
-                                    <p className="italic pl-5">{robot.justification}</p>
-                                    <div className="pl-5 text-xs">{renderStrategyParams(robot)}</div>
-                                    <div className="pl-5 text-xs">{renderIndicatorValue(robot)}</div>
-                                    <div className={cn("pl-5 font-bold flex items-center gap-1", 
-                                        vote === 'RISE' && 'text-green-600',
-                                        vote === 'FALL' && 'text-red-600',
-                                        vote === 'HOLD' && 'text-yellow-600',
-                                    )}>
-                                        Voto Atual: {vote} {voteIcons[vote]}
-                                        {confidence > 0 && <span className="font-normal">(Conf: {confidence})</span>}
-                                    </div>
-                                </div>
-                                {index < strategyCouncil.length - 1 && <Separator className="bg-primary/20"/>}
-                           </Fragment>
-                        )})}
+                         {Object.entries(groupedRobots).map(([category, robots]) => (
+                            <div key={category}>
+                                <h4 className="font-semibold text-sm text-primary/100 mb-2">{category}</h4>
+                                {robots.map((robot, index) => {
+                                    const voteData = councilVotes[robot.id];
+                                    const vote = voteData?.vote || 'HOLD';
+                                    const weight = voteData?.weight || 1.0;
+                                    const confidence = voteData?.confidence || 0;
+                                    return (
+                                        <Fragment key={robot.id}>
+                                            <div className="text-xs space-y-1">
+                                                <div className="flex justify-between items-center">
+                                                    <p className="font-bold flex items-center gap-1.5">{indicatorIcons[robot.strategyType] || <Bot />} {robot.strategyType}</p>
+                                                    {isMeritocracyOn && weight !== 1.0 && (
+                                                        <Badge variant="secondary" className="flex items-center gap-1">
+                                                            <Award className="h-3 w-3" />
+                                                            x{weight.toFixed(2)}
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                <p className="italic pl-5">{robot.justification}</p>
+                                                <div className="pl-5 text-xs">{renderStrategyParams(robot)}</div>
+                                                <div className="pl-5 text-xs">{renderIndicatorValue(robot)}</div>
+                                                <div className={cn("pl-5 font-bold flex items-center gap-1",
+                                                    vote === 'RISE' && 'text-green-600',
+                                                    vote === 'FALL' && 'text-red-600',
+                                                    vote === 'HOLD' && 'text-yellow-600',
+                                                )}>
+                                                    Voto Atual: {vote} {voteIcons[vote]}
+                                                    {confidence > 0 && <span className="font-normal">(Conf: {confidence})</span>}
+                                                </div>
+                                            </div>
+                                            {index < robots.length - 1 && <Separator className="bg-primary/10 my-2" />}
+                                        </Fragment>
+                                    )
+                                })}
+                                <Separator className="bg-primary/20 mt-3" />
+                            </div>
+                        ))}
                     </AlertDescription>
                 </Alert>
             ) : (
