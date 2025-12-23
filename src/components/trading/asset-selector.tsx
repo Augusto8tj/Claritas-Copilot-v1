@@ -30,16 +30,16 @@ interface AssetSelectorProps {
 const marketFilters = [
     { label: "Todos", value: "all" },
     { label: "Sintéticos", value: "synthetic_index" },
-    { label: "Forex", value: "forex" },
-    { label: "Matérias-Primas", value: "commodities" },
-    { label: "Ações", value: "stock" },
-    { label: "Cripto", value: "cryptocurrency" },
+    { label: "Forex", value: "forex", disabled: true },
+    { label: "Matérias-Primas", value: "commodities", disabled: true },
+    { label: "Ações", value: "stock", disabled: true },
+    { label: "Cripto", value: "cryptocurrency", disabled: true },
 ];
 
 export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorProps) {
   const { assetGroups, isAssetsLoading } = useDerivApi();
   const [open, setOpen] = useState(false);
-  const [marketTypeFilter, setMarketTypeFilter] = useState('all');
+  const [filter, setFilter] = useState('all');
   const [marketStatusFilter, setMarketStatusFilter] = useState('all');
   const [durationFilter, setDurationFilter] = useState('all');
 
@@ -56,21 +56,16 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
 
     // 2. Filter by Duration Type
     if (durationFilter === 'tick') {
-        assets = assets.filter(a => a.minDuration === '5t'); // Assumes tick contracts start at 5 ticks
+        // Corrected logic: check if the minDuration string ends with 't'
+        assets = assets.filter(a => a.minDuration.endsWith('t'));
     } else if (durationFilter === 'time') {
-        assets = assets.filter(a => a.minDuration !== '5t');
+        // Corrected logic: check if the minDuration string does NOT end with 't'
+        assets = assets.filter(a => !a.minDuration.endsWith('t'));
     }
 
     // 3. Filter by Market Type
-    if (marketTypeFilter !== 'all') {
-      if (marketTypeFilter === 'synthetic_index') {
-          // Special combined filter for synthetics
-          assets = assets.filter(a => 
-              a.market === 'synthetic_index'
-          );
-      } else {
-          assets = assets.filter(a => a.market === marketTypeFilter);
-      }
+    if (filter !== 'all') {
+      assets = assets.filter(a => a.market === filter);
     }
 
     // Regroup assets after filtering
@@ -88,7 +83,7 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
         options: regrouped[label],
     })).filter(group => group.options.length > 0);
 
-  }, [assetGroups, marketTypeFilter, marketStatusFilter, durationFilter]);
+  }, [assetGroups, filter, marketStatusFilter, durationFilter]);
   
   const selectedAssetLabel = useMemo(() => {
      for (const group of assetGroups) {
@@ -100,15 +95,11 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
 
   // Find the currently selected asset's market to set the initial filter
    useEffect(() => {
-    if (isAssetsLoading) return; 
+    if (isAssetsLoading) return;
     
     const asset = assetGroups.flatMap(g => g.options).find(a => a.value === selectedAsset);
     if (asset && asset.market) {
-        if (marketFilters.some(f => f.value === asset.market)) {
-          setMarketTypeFilter(asset.market);
-        } else {
-          setMarketTypeFilter('synthetic_index'); 
-        }
+        setFilter(asset.market);
     }
   }, [selectedAsset, assetGroups, isAssetsLoading]);
 
@@ -140,10 +131,10 @@ export function AssetSelector({ selectedAsset, onAssetChange }: AssetSelectorPro
                   {marketFilters.map(f => (
                       <Button 
                           key={f.value}
-                          variant={marketTypeFilter === f.value ? "default" : "outline"}
+                          variant={filter === f.value ? "default" : "outline"}
                           size="sm"
                           className="h-7 text-xs rounded-full"
-                          onClick={() => setMarketTypeFilter(f.value)}
+                          onClick={() => setFilter(f.value)}
                       >
                           {f.label}
                       </Button>
