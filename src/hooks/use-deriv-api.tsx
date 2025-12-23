@@ -101,6 +101,7 @@ interface DerivApiContextType {
   currentMACD: { macd: number, signal: number } | null;
   currentPriceAction: string | null;
   currentADX: number | null;
+  currentATR: number | null;
   currentIchimoku: { inCloud: boolean, trend: 'bullish' | 'bearish' | 'neutral' } | null;
   currentAwesomeOscillator: number | null;
   currentVolumePoc: number | null;
@@ -279,14 +280,20 @@ const calculateADX = (data: CandleData[], period = 14) => {
     const smoothedPlusDM = calculateEMA(plusDMs, period);
     const smoothedMinusDM = calculateEMA(minusDMs, period);
     
-    if (smoothedTR.length === 0) return null;
+    if (smoothedTR.length === 0 || smoothedTR.some(val => val === 0)) return null;
     
     const validLength = Math.min(smoothedTR.length, smoothedPlusDM.length, smoothedMinusDM.length);
+    if(validLength === 0) return null;
+
     const plusDIs = [];
     const minusDIs = [];
 
     for(let i = 0; i < validLength; i++) {
-        if(smoothedTR[i] === 0) continue;
+        if(smoothedTR[i] === 0) { // Avoid division by zero
+            plusDIs.push(0);
+            minusDIs.push(0);
+            continue;
+        };
         plusDIs.push(100 * (smoothedPlusDM[i] / smoothedTR[i]));
         minusDIs.push(100 * (smoothedMinusDM[i] / smoothedTR[i]));
     }
@@ -296,6 +303,22 @@ const calculateADX = (data: CandleData[], period = 14) => {
     const adx = calculateEMA(dxs, period);
     if (!adx || adx.length === 0) return null;
     return adx[adx.length - 1];
+};
+
+
+const calculateATR = (data: CandleData[], period = 14): number | null => {
+    if (data.length < period) return null;
+    let trs = [];
+    for (let i = data.length - period; i < data.length; i++) {
+        const c = data[i];
+        const p = data[i-1];
+        if (!p) continue;
+        const tr = Math.max(c.high - c.low, Math.abs(c.high - p.close), Math.abs(c.low - p.close));
+        trs.push(tr);
+    }
+    if (trs.length === 0) return null;
+    const atr = trs.reduce((a, b) => a + b, 0) / trs.length;
+    return atr;
 };
 
 
@@ -361,36 +384,6 @@ const calculateVolumeProfile = (data: CandleData[], bars: number) => {
     return poc;
 };
 
-
-const calculateATR = (data: CandleData[], period = 14) => {
-    if (data.length < period) return null;
-    let trs = [];
-    for (let i = data.length - period; i < data.length; i++) {
-        const c = data[i];
-        const p = data[i-1];
-        if (!p) continue;
-        const tr = Math.max(c.high - c.low, Math.abs(c.high - p.close), Math.abs(c.low - p.close));
-        trs.push(tr);
-    }
-    if (trs.length === 0) return null;
-    const atr = trs.reduce((a, b) => a + b, 0) / trs.length;
-    return atr;
-}
-
-const calculateOBV = (data: CandleData[]) => {
-    if (data.length < 2) return null;
-    let obv = 0;
-    for (let i = 1; i < data.length; i++) {
-        const c = data[i];
-        const p = data[i-1];
-        if (c.close > p.close) {
-            obv += c.volume || 0;
-        } else if (c.close < p.close) {
-            obv -= c.volume || 0;
-        }
-    }
-    return obv;
-}
 
 
 const calculateVolatility = (data: { price: number }[], period = 20): number => {
@@ -464,6 +457,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [currentMACD, setMACD] = useState<{ macd: number, signal: number } | null>(null);
   const [currentPriceAction, setPriceAction] = useState<string | null>(null);
   const [currentADX, setADX] = useState<number | null>(null);
+  const [currentATR, setATR] = useState<number | null>(null);
   const [currentIchimoku, setCurrentIchimoku] = useState<{ inCloud: boolean, trend: 'bullish' | 'bearish' | 'neutral' } | null>(null);
   const [currentAwesomeOscillator, setAwesomeOscillator] = useState<number | null>(null);
   const [currentVolumePoc, setVolumePoc] = useState<number | null>(null);
@@ -1108,6 +1102,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     if (candleDataSource.length > 1) {
         setPriceAction(detectPriceActionPattern(candleDataSource));
         setADX(calculateADX(candleDataSource));
+        setATR(calculateATR(candleDataSource));
         setCurrentStoch(calculateStochastic(candleDataSource));
         setCurrentIchimoku(calculateIchimokuCloud(candleDataSource));
         setAwesomeOscillator(calculateAwesomeOscillator(candleDataSource));
@@ -1119,6 +1114,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     } else {
         setPriceAction(null);
         setADX(null);
+        setATR(null);
         setCurrentStoch(null);
         setCurrentIchimoku(null);
         setAwesomeOscillator(null);
@@ -1214,10 +1210,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     
     if (consensusReached) {
         const direction = riseConfidenceSum > fallConfidenceSum ? 'rise' : 'fall';
-        
-        // --- Risk Analyst Veto Logic ---
-        const lastTwoCouncilTrades = operationsLog.filter(op => op.initiator === 'Conselho').slice(0, 2);
-        const hasLossStreak = lastTwoCouncilTrades.length === 2 && lastTwoCouncilTrades.every(op => op.status === 'lost');
+        let stakeMultiplier = 1.0;
+
+        // --- Risk Analyst Veto & Modulation Logic ---
+        const hasLossStreak = operationsLog.filter(op => op.initiator === 'Conselho').slice(0, 2).every(op => op.status === 'lost');
 
         if (dailyTarget > 0 && dailyPnL >= dailyTarget * 0.8) {
             toast({ title: "Analista de Risco (VETO)", description: "Meta de lucro quase atingida. Bloqueando novas operações para proteger ganhos." });
@@ -1227,18 +1223,38 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             toast({ title: "Analista de Risco (VETO)", description: "Série de perdas detetada. Pausando operações para reavaliação.", variant: "destructive" });
             return;
         }
-        // --- End of Veto Logic ---
+        
+        // Volatility Modulation (ATR)
+        const lastPrice = chartData.length > 0 ? (chartData[chartData.length - 1] as CandleData).close : 0;
+        if (currentATR && lastPrice > 0) {
+            const normalizedATR = (currentATR / lastPrice) * 100;
+            if (normalizedATR > 0.1) { // High volatility example threshold
+                stakeMultiplier *= 0.75; // Reduce stake by 25%
+                toast({ title: "Analista de Volatilidade", description: "Volatilidade alta detetada. Reduzindo o risco da operação.", variant: "default" });
+            }
+        }
+        
+        // Trend Strength Modulation (ADX)
+        if (currentADX) {
+            if (currentADX < 20) { // Weak/No trend
+                stakeMultiplier *= 0.5; // Reduce stake by 50%
+                toast({ title: "Analista de Tendência", description: "Mercado sem tendência definida. Reduzindo o risco.", variant: "default" });
+            } else if (currentADX > 40) { // Strong trend
+                stakeMultiplier *= 1.25; // Increase stake by 25%
+            }
+        }
+        // --- End of Veto & Modulation Logic ---
 
       councilExecutionRef.current.isExecuting = true;
       const contractType = direction === 'rise' ? 'CALL' : 'PUT';
       const firstRobot = strategyCouncil[0];
-      const stake = firstRobot.suggestedStake;
+      const stake = firstRobot.suggestedStake * stakeMultiplier;
       const duration = firstRobot.suggestedDuration;
       const unit = firstRobot.suggestedDurationUnit;
 
       toast({
         title: "Consenso do Conselho!",
-        description: `Executando ordem de ${direction.toUpperCase()} com confiança total de ${Math.max(riseConfidenceSum, fallConfidenceSum).toFixed(0)}.`
+        description: `Executando ordem de ${direction.toUpperCase()} com confiança total de ${Math.max(riseConfidenceSum, fallConfidenceSum).toFixed(0)} e stake ajustado de $${stake.toFixed(2)}.`
       });
 
       executeTrade(contractType, stake, subscriptionDetailsRef.current!.symbol, direction, duration, unit, 'Conselho')
@@ -1261,11 +1277,13 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       currentMACD,
       currentPriceAction,
       currentADX,
+      currentATR,
       currentIchimoku,
       currentAwesomeOscillator,
       currentVolumePoc,
       executeTrade, 
       priceTicks,
+      chartData,
       toast,
       operationsLog,
       dailyTarget
@@ -1425,6 +1443,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     currentMACD,
     currentPriceAction,
     currentADX,
+    currentATR,
     currentIchimoku,
     currentAwesomeOscillator,
     currentVolumePoc,
