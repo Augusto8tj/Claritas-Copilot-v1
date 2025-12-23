@@ -121,36 +121,18 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   
   const activeToken = accountType === 'demo' ? demoToken : realToken;
 
-  const requestProposal = useCallback(async (
-    ws: WebSocket,
-    params: { contractType: string; quantity: number; symbol: string; duration: number, duration_unit: DurationUnit }
-  ): Promise<any> => {
-      const req_id = Date.now() + Math.random();
-      const proposalRequest = {
-          "proposal": 1,
-          "amount": params.quantity,
-          "basis": "stake",
-          "contract_type": params.contractType,
-          "currency": "USD",
-          "duration": params.duration,
-          "duration_unit": params.duration_unit,
-          "symbol": params.symbol,
-          "req_id": req_id
-      };
-
-      return new Promise((resolve, reject) => {
-          promisesRef.current.set(String(req_id), { resolve, reject });
-          ws.send(JSON.stringify(proposalRequest));
-      });
+  const makeRequest = useCallback(<T>(request: object): Promise<T> => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      return Promise.reject(new Error("WebSocket is not connected."));
+    }
+    const req_id = Date.now() + Math.random();
+    return new Promise((resolve, reject) => {
+      promisesRef.current.set(String(req_id), { resolve, reject });
+      ws.send(JSON.stringify({ ...request, req_id }));
+    });
   }, []);
-
-  const buyContract = useCallback(async (ws: WebSocket, proposalId: string, price: number): Promise<any> => {
-      const req_id = Date.now() + Math.random();
-      return new Promise((resolve, reject) => {
-          promisesRef.current.set(String(req_id), { resolve, reject });
-          ws.send(JSON.stringify({ "buy": proposalId, "price": price, "req_id": req_id }));
-      });
-  }, []);
+  
 
   const executeTrade = useCallback(async (
     contractType: string,
@@ -161,18 +143,20 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     durationUnit: DurationUnit,
     initiator: OperationInitiator
   ): Promise<TradeResult> => {
-      const ws = wsRef.current;
-      if (!ws || !isConnected) {
+      if (!wsRef.current || !isConnected) {
         throw new Error("A conexão com a API da Deriv não está ativa.");
       }
 
       try {
-        const proposalResponse = await requestProposal(ws, { 
-            contractType, 
-            quantity: stake, 
-            symbol,
-            duration: duration,
-            duration_unit: durationUnit,
+        const proposalResponse: any = await makeRequest({ 
+            "proposal": 1,
+            "amount": stake,
+            "basis": "stake",
+            "contract_type": contractType,
+            "currency": "USD",
+            "duration": duration,
+            "duration_unit": durationUnit,
+            "symbol": symbol,
         });
 
         const proposal = proposalResponse.proposal;
@@ -180,7 +164,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           throw new Error("Falha ao obter uma proposta de negociação da API.");
         }
         
-        const buyResponse = await buyContract(ws, proposal.id, proposal.ask_price);
+        const buyResponse: any = await makeRequest({ "buy": proposal.id, "price": proposal.ask_price });
         const buyResult = buyResponse.buy;
         
         const newOperation: Operation = {
@@ -208,7 +192,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
          const message = error instanceof Error ? error.message : "Um erro desconhecido ocorreu.";
          return { success: false, message };
       }
-  }, [isConnected, requestProposal, buyContract]);
+  }, [isConnected, makeRequest]);
   
   useEffect(() => {
     if (!activeToken || isLoading) {
@@ -242,34 +226,26 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         messageQueueRef.current = [];
 
         responsesToProcess.forEach(response => {
-            if (response.error) {
-                 if (response.error.code !== 'AlreadySubscribed') {
-                    console.error(`[Deriv WS Provider] Error received: "${response.error.message}"`);
-                 }
-                const reqId = response.req_id;
-                
-                if (response.msg_type === 'authorize') {
-                   setConnectionError(`Falha na autorização: ${response.error.message}`);
-                   setIsConnected(false);
-                   setIsConnecting(false);
-                 }
-                if (reqId && promisesRef.current.has(String(reqId))) {
-                    const promise = promisesRef.current.get(String(reqId));
-                    promise?.reject(response.error.message);
-                    promisesRef.current.delete(String(reqId));
-                }
-                return;
-            }
-
             const reqId = response.req_id;
             if (reqId && promisesRef.current.has(String(reqId))) {
                 const promise = promisesRef.current.get(String(reqId));
-                promise?.resolve(response);
+                if (response.error) {
+                    promise?.reject(response.error.message);
+                } else {
+                    promise?.resolve(response);
+                }
                 promisesRef.current.delete(String(reqId));
                 return;
             }
             
-            handleImmediateMessage(response);
+            if (response.error) {
+                if (response.error.code !== 'AlreadySubscribed') {
+                   console.error(`[Deriv WS Provider] Error received: "${response.error.message}"`);
+                }
+               return;
+           }
+            
+            handleSubscriptionMessage(response);
         });
         
         isProcessingQueueRef.current = false;
@@ -278,18 +254,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    const handleImmediateMessage = (response: any) => {
+    const handleSubscriptionMessage = (response: any) => {
          switch (response.msg_type) {
-            case 'authorize':
-              setIsConnected(true);
-              setIsConnecting(false);
-              setConnectionError(null);
-              ws.send(JSON.stringify({ "balance": 1, "subscribe": 1, "req_id": Date.now() }));
-              ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1, "req_id": Date.now() + 1 }));
-              ws.send(JSON.stringify({ active_symbols: 'full', product_type: 'basic', "req_id": Date.now() + 2 }));
-              setIsAssetsLoading(true);
-              break;
-
             case 'balance':
               setAccountBalance({
                   balance: response.balance.balance,
@@ -298,38 +264,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
               });
               break;
             
-            case 'active_symbols':
-                const groupedAssets: { [key: string]: Asset[] } = {};
-                response.active_symbols.forEach((symbol: any) => {
-                    let marketKey = symbol.market;
-                    // Special handling for basket indices. They are part of 'synthetic_index' but conceptually separate.
-                    if (symbol.market === 'synthetic_index' && symbol.submarket === 'basket_index') {
-                        marketKey = 'basket_index';
-                    }
-                    
-                    const groupName = marketNameMapping[marketKey] || 'Outros';
-
-                    if (!groupedAssets[groupName]) {
-                        groupedAssets[groupName] = [];
-                    }
-
-                    groupedAssets[groupName].push({
-                        value: symbol.symbol,
-                        label: symbol.display_name,
-                        marketIsOpen: symbol.exchange_is_open === 1,
-                        submarket: symbol.submarket,
-                        market: marketKey, // Use the corrected marketKey
-                        minDuration: symbol.min_contract_duration,
-                    });
-                });
-
-                const finalAssetGroups: AssetGroup[] = Object.keys(groupedAssets)
-                    .map(label => ({ label, options: groupedAssets[label].sort((a, b) => a.label.localeCompare(b.label)) }))
-                    .sort((a, b) => a.label.localeCompare(b.label));
-                setAssetGroups(finalAssetGroups);
-                setIsAssetsLoading(false);
-                break;
-
             case 'proposal_open_contract':
                 const contract = response.proposal_open_contract;
                 if (!contract || !contract.is_sold) return;
@@ -354,7 +288,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 ));
 
                 if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                  wsRef.current.send(JSON.stringify({ "balance": 1, "req_id": Date.now() + 3 }));
+                  makeRequest({"balance": 1}).then((res: any) => handleSubscriptionMessage(res));
                 }
                 break;
         }
@@ -363,13 +297,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
     ws.onmessage = (event) => {
         const response = JSON.parse(event.data);
-        const reqId = response.req_id;
-        
-        if (reqId && promisesRef.current.has(String(reqId))) {
-            // This is a response to a promise, not a subscription message for this hook
-            return;
-        }
-        
         messageQueueRef.current.push(response);
         if (!isProcessingQueueRef.current) {
             isProcessingQueueRef.current = true;
@@ -377,8 +304,52 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         }
     };
   
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ "authorize": activeToken }));
+    ws.onopen = async () => {
+        try {
+            await makeRequest({ "authorize": activeToken });
+            setIsConnected(true);
+            setIsConnecting(false);
+            setConnectionError(null);
+            
+            // Sequentially request initial data
+            const balanceRes: any = await makeRequest({ "balance": 1, "subscribe": 1 });
+            handleSubscriptionMessage(balanceRes);
+            
+            await makeRequest({ "proposal_open_contract": 1, "subscribe": 1 });
+
+            setIsAssetsLoading(true);
+            const assetsRes: any = await makeRequest({ active_symbols: 'full', product_type: 'basic' });
+             const groupedAssets: { [key: string]: Asset[] } = {};
+                assetsRes.active_symbols.forEach((symbol: any) => {
+                    let marketKey = symbol.market;
+                    if (symbol.market === 'synthetic_index' && symbol.submarket === 'basket_index') {
+                        marketKey = 'basket_index';
+                    }
+                    const groupName = marketNameMapping[marketKey] || 'Outros';
+                    if (!groupedAssets[groupName]) {
+                        groupedAssets[groupName] = [];
+                    }
+                    groupedAssets[groupName].push({
+                        value: symbol.symbol,
+                        label: symbol.display_name,
+                        marketIsOpen: symbol.exchange_is_open === 1,
+                        submarket: symbol.submarket,
+                        market: marketKey,
+                        minDuration: symbol.min_contract_duration,
+                    });
+                });
+                const finalAssetGroups: AssetGroup[] = Object.keys(groupedAssets)
+                    .map(label => ({ label, options: groupedAssets[label].sort((a, b) => a.label.localeCompare(b.label)) }))
+                    .sort((a, b) => a.label.localeCompare(b.label));
+                setAssetGroups(finalAssetGroups);
+                setIsAssetsLoading(false);
+
+        } catch (error: any) {
+            setConnectionError(`Falha na inicialização: ${error}`);
+            setIsConnected(false);
+            setIsConnecting(false);
+            ws.close();
+        }
     };
   
     ws.onclose = (event) => {
@@ -405,7 +376,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           clearTimeout(throttleTimeoutRef.current);
       }
     };
-  }, [activeToken, isLoading, toast, buyContract, requestProposal]);
+  }, [activeToken, isLoading, toast, makeRequest]);
 
   const setAccountType = (type: AccountType) => {
     try {
