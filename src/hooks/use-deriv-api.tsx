@@ -36,6 +36,9 @@ export type PromiseCallbacks = {
   reject: (reason?: any) => void 
 };
 
+// Callback para passar dados de mercado para outros hooks
+export type MarketDataCallback = (data: any) => void;
+
 interface DerivApiContextType {
   ws: WebSocket | null;
   isConnected: boolean;
@@ -66,6 +69,10 @@ interface DerivApiContextType {
   getHistoricalData: (symbol: string, period?: string, count?: number) => Promise<HistoricalData[]>;
   clearActiveContracts: () => void;
   addActiveContract: (contract: ActiveContract) => void;
+  // Nova função para registrar um ouvinte de dados de mercado
+  addMarketDataListener: (callback: MarketDataCallback) => void;
+  // Nova função para remover o ouvinte
+  removeMarketDataListener: (callback: MarketDataCallback) => void;
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
@@ -98,6 +105,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const promisesRef = useRef<Map<string, PromiseCallbacks>>(new Map());
+  // Lista de callbacks para notificar sobre novos dados de mercado
+  const marketDataListenersRef = useRef<MarketDataCallback[]>([]);
 
   const messageQueueRef = useRef<any[]>([]);
   const isProcessingQueueRef = useRef(false);
@@ -106,8 +115,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     try {
-      const storedDemoToken = localStorage.getItem(DERIV_DEMO_TOKEN_KEY) || process.env.NEXT_PUBLIC_DERIV_DEMO_TOKEN;
-      const storedRealToken = localStorage.getItem(DERIV_REAL_TOKEN_KEY) || process.env.NEXT_PUBLIC_DERIV_REAL_TOKEN;
+      const storedDemoToken = localStorage.getItem(DERIV_DEMO_TOKEN_KEY);
+      const storedRealToken = localStorage.getItem(DERIV_REAL_TOKEN_KEY);
       const storedAccountType = localStorage.getItem(DERIV_ACCOUNT_TYPE_KEY) as AccountType | null;
       
       setDemoToken(storedDemoToken || null);
@@ -128,16 +137,13 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             return reject(new Error("WebSocket is not connected."));
         }
         
-        // A API da Deriv REQUER que req_id seja um NÚMERO INTEIRO
         const req_id = Date.now() + Math.floor(Math.random() * 1000000);
         const payload = { ...request, req_id };
         
         console.log('[Deriv WS] Making request:', { type: Object.keys(request)[0], req_id });
         
-        // Mas usamos string como chave no Map
         promisesRef.current.set(String(req_id), { resolve, reject });
         
-        // Timeout for the request
         const timeoutId = setTimeout(() => {
             if (promisesRef.current.has(String(req_id))) {
                 promisesRef.current.delete(String(req_id));
@@ -145,7 +151,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             }
         }, 15000);
         
-        // Atualiza para limpar o timeout quando resolver
         const originalResolve = resolve;
         const originalReject = reject;
         
@@ -283,6 +288,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     wsRef.current = ws;
 
     const handleSubscriptionMessage = (response: any) => {
+      // Notifica todos os ouvintes sobre a nova mensagem
+      marketDataListenersRef.current.forEach(callback => callback(response));
+      
       switch (response.msg_type) {
          case 'balance':
            setAccountBalance({
@@ -316,7 +324,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
              ));
 
              if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                // Use a numeric req_id for this non-blocking request
                 const req_id = Date.now() + Math.floor(Math.random() * 1000000);
                 wsRef.current.send(JSON.stringify({"balance": 1, "req_id": req_id}));
              }
@@ -367,58 +374,30 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    ws.onmessage = (event) => {
+      try {
+          const response = JSON.parse(event.data);
+          
+          if (response.msg_type === 'authorize' || response.error) {
+              console.log('[Deriv WS] Received message:', response);
+          }
+          
+          messageQueueRef.current.push(response);
+          
+          if (!isProcessingQueueRef.current) {
+              isProcessingQueueRef.current = true;
+              processMessageQueue();
+          }
+      } catch (parseError) {
+          console.error('[Deriv WS] Failed to parse message:', parseError);
+      }
+    };
+
     ws.onopen = async () => {
         console.log('[Deriv WS] Connection opened, attempting authorization...');
         
         try {
-            // Cria uma Promise manual para a autorização
-            const authResponse: any = await new Promise((resolve, reject) => {
-                const req_id = Date.now() + Math.floor(Math.random() * 1000000);
-                const payload = { authorize: activeToken, req_id };
-                
-                console.log('[Deriv WS] Sending authorization request with req_id:', req_id);
-                
-                // Armazena a promise
-                promisesRef.current.set(String(req_id), { resolve, reject });
-                
-                // Timeout de 15 segundos
-                const timeoutId = setTimeout(() => {
-                    if (promisesRef.current.has(String(req_id))) {
-                        promisesRef.current.delete(String(req_id));
-                        reject(new Error('Authorization timeout - no response from server'));
-                    }
-                }, 15000);
-                
-                // Limpa o timeout se resolver antes
-                const originalResolve = resolve;
-                const originalReject = reject;
-                
-                promisesRef.current.set(String(req_id), {
-                    resolve: (value: any) => {
-                        clearTimeout(timeoutId);
-                        originalResolve(value);
-                    },
-                    reject: (reason: any) => {
-                        clearTimeout(timeoutId);
-                        originalReject(reason);
-                    }
-                });
-    
-                // Envia a requisição
-                ws.send(JSON.stringify(payload));
-            });
-    
-            console.log('[Deriv WS] Authorization response:', authResponse);
-    
-            // Verifica se houve erro na autorização
-            if (authResponse.error) {
-                throw new Error(`Authorization failed: ${authResponse.error.message || JSON.stringify(authResponse.error)}`);
-            }
-    
-            // Verifica se a resposta tem os dados esperados
-            if (!authResponse.authorize) {
-                throw new Error('Invalid authorization response - missing authorize data');
-            }
+            const authResponse: any = await makeRequest({ authorize: activeToken });
     
             console.log('[Deriv WS] Authorization successful');
             
@@ -426,54 +405,14 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             setIsConnecting(false);
             setConnectionError(null);
             
-            // Envia subscrições (não precisam de await)
-            console.log('[Deriv WS] Subscribing to proposal_open_contract and balance...');
             ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 }));
             ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
     
-            // Requisita lista de ativos
             console.log('[Deriv WS] Requesting active symbols...');
-            const assetsRes: any = await new Promise((resolve, reject) => {
-                const req_id = Date.now() + Math.floor(Math.random() * 1000000);
-                const payload = { active_symbols: 'full', product_type: 'basic', req_id };
-                
-                promisesRef.current.set(String(req_id), { resolve, reject });
-                
-                const timeoutId = setTimeout(() => {
-                    if (promisesRef.current.has(String(req_id))) {
-                        promisesRef.current.delete(String(req_id));
-                        reject(new Error('Assets request timeout'));
-                    }
-                }, 15000);
-                
-                const originalResolve = resolve;
-                const originalReject = reject;
-                
-                promisesRef.current.set(String(req_id), {
-                    resolve: (value: any) => {
-                        clearTimeout(timeoutId);
-                        originalResolve(value);
-                    },
-                    reject: (reason: any) => {
-                        clearTimeout(timeoutId);
-                        originalReject(reason);
-                    }
-                });
-    
-                ws.send(JSON.stringify(payload));
-            });
+            const assetsRes: any = await makeRequest({ active_symbols: 'full', product_type: 'basic' });
     
             console.log('[Deriv WS] Received assets response');
     
-            if (assetsRes.error) {
-                throw new Error(`Failed to fetch assets: ${assetsRes.error.message}`);
-            }
-    
-            if (!assetsRes.active_symbols || !Array.isArray(assetsRes.active_symbols)) {
-                throw new Error('Invalid assets response - missing active_symbols array');
-            }
-    
-            // Processa os ativos
             const groupedAssets: { [key: string]: Asset[] } = {};
             assetsRes.active_symbols.forEach((symbol: any) => {
                 let marketKey = symbol.market;
@@ -507,46 +446,17 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             console.error('[Deriv WS] Initialization error:', error);
             
             let errorMessage = 'Erro desconhecido ao conectar';
-            
-            if (error instanceof Error) {
-                errorMessage = error.message;
-            } else if (typeof error === 'string') {
-                errorMessage = error;
-            } else if (error && typeof error === 'object') {
-                errorMessage = JSON.stringify(error);
-            }
+            if (error instanceof Error) { errorMessage = error.message; }
             
             setConnectionError(`Falha na inicialização: ${errorMessage}`);
             setIsConnected(false);
             setIsConnecting(false);
             setIsAssetsLoading(false);
             
-            // Fecha a conexão em caso de erro
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.close();
-            }
+            if (ws.readyState === WebSocket.OPEN) { ws.close(); }
         }
     };
   
-    ws.onmessage = (event) => {
-      try {
-          const response = JSON.parse(event.data);
-          
-          if (response.msg_type === 'authorize' || response.error) {
-              console.log('[Deriv WS] Received message:', response);
-          }
-          
-          messageQueueRef.current.push(response);
-          
-          if (!isProcessingQueueRef.current) {
-              isProcessingQueueRef.current = true;
-              processMessageQueue();
-          }
-      } catch (parseError) {
-          console.error('[Deriv WS] Failed to parse message:', parseError);
-      }
-    };
-
     ws.onclose = (event) => {
       console.log('[Deriv WS] Connection closed', event.reason);
       const { wasClean, code, reason } = event;
@@ -573,7 +483,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           clearTimeout(throttleTimeoutRef.current);
       }
     };
-  }, [activeToken, isLoading]);
+  }, [activeToken, isLoading, makeRequest]);
 
 
   const setAccountType = (type: AccountType) => {
@@ -636,7 +546,18 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         case '1d': return 86400;
         default: return 0;
     }
-}
+  }
+
+  const addMarketDataListener = (callback: MarketDataCallback) => {
+    marketDataListenersRef.current.push(callback);
+  };
+
+  const removeMarketDataListener = (callback: MarketDataCallback) => {
+    marketDataListenersRef.current = marketDataListenersRef.current.filter(
+      (cb) => cb !== callback
+    );
+  };
+
 
   const contextValue: DerivApiContextType = {
     ws: wsRef.current,
@@ -660,6 +581,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     getHistoricalData,
     clearActiveContracts,
     addActiveContract,
+    addMarketDataListener,
+    removeMarketDataListener,
   };
 
   return (

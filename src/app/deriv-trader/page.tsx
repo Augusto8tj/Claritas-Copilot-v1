@@ -79,7 +79,6 @@ export default function DerivTraderPage() {
 
   const robotCouncil = useRobotCouncil(
     activeSymbol,
-    chartData,
     operationsLog,
     addActiveContract,
     executeTrade,

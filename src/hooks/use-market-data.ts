@@ -16,7 +16,7 @@ export type CandleData = {
   epoch: number;
   open: number;
   high: number;
-ax: number;
+  low: number;
   close: number;
   volume?: number;
   bollingerBands?: [number, number];
@@ -41,7 +41,7 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
 }
 
 export function useMarketData(activeSymbol: string | null) {
-    const { ws, makeRequest, isConnected } = useDerivApi();
+    const { makeRequest, isConnected, addMarketDataListener, removeMarketDataListener } = useDerivApi();
     const [chartData, setChartData] = useState<ChartData[]>([]);
     const [isChartLoading, setIsChartLoading] = useState(true);
     const [chartError, setChartError] = useState<string | null>(null);
@@ -57,8 +57,6 @@ export function useMarketData(activeSymbol: string | null) {
     const THROTTLE_INTERVAL = 250;
 
     useEffect(() => {
-        if (!ws || !isConnected) return;
-
         const processMessageQueue = () => {
             if (messageQueueRef.current.length === 0) {
                 isProcessingQueueRef.current = false;
@@ -95,13 +93,14 @@ export function useMarketData(activeSymbol: string | null) {
                         };
                         break;
                     case 'history':
+                        setChartData(response.history.prices.map((p: number, i: number) => ({ epoch: response.history.times[i], price: p })));
+                        setIsChartLoading(false);
+                        break;
                     case 'candles':
                         if (response.subscription?.id) {
                             subscriptionIdRef.current = response.subscription.id;
                         }
-                        const rawData = response.candles || (response.history ? response.history.prices.map((p: number, i: number) => ({
-                            epoch: response.history.times[i], close: p, open: p, high: p, low: p,
-                        })) : []);
+                        const rawData = response.candles || [];
                         const formattedData = rawData.map((c: any) => ({ ...c, open: parseFloat(c.open), high: parseFloat(c.high), low: parseFloat(c.low), close: parseFloat(c.close) }));
                         setChartData(formattedData);
                         setIsChartLoading(false);
@@ -113,7 +112,14 @@ export function useMarketData(activeSymbol: string | null) {
             });
             
             if (latestTick) {
-                setChartData(prev => [...(prev as TickData[]).slice(-999), latestTick!]);
+                 setChartData(prev => {
+                    const data = [...(prev as TickData[])];
+                    if(data.length > 0 && data[data.length-1].epoch === latestTick!.epoch){
+                        data[data.length -1] = latestTick!;
+                        return data;
+                    }
+                    return [...data.slice(-999), latestTick!]
+                });
             }
 
             if (latestOHLC) {
@@ -134,35 +140,26 @@ export function useMarketData(activeSymbol: string | null) {
             }
         };
 
-        const messageHandler = (event: MessageEvent) => {
-            try {
-                const response = JSON.parse(event.data);
-                if (response.req_id) {
-                    // Ignore messages with req_id as they are handled by promises in useDerivApi
-                    return;
-                }
-                messageQueueRef.current.push(response);
-                if (!isProcessingQueueRef.current) {
-                    isProcessingQueueRef.current = true;
-                    processMessageQueue();
-                }
-            } catch (error) {
-                console.error("Error parsing WebSocket message:", error);
+        const marketDataCallback = (data: any) => {
+            messageQueueRef.current.push(data);
+            if (!isProcessingQueueRef.current) {
+                isProcessingQueueRef.current = true;
+                processMessageQueue();
             }
         };
 
-        ws.addEventListener('message', messageHandler);
+        addMarketDataListener(marketDataCallback);
         return () => {
-            ws.removeEventListener('message', messageHandler);
+            removeMarketDataListener(marketDataCallback);
             if (throttleTimeoutRef.current) {
                 clearTimeout(throttleTimeoutRef.current);
             }
         };
-    }, [ws, isConnected]);
+    }, [addMarketDataListener, removeMarketDataListener]);
 
 
     const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod) => {
-        if (!ws || !isConnected) return;
+        if (!isConnected) return;
         
         setIsChartLoading(true);
         setChartData([]);
@@ -195,21 +192,19 @@ export function useMarketData(activeSymbol: string | null) {
             setChartError(e.message);
             setIsChartLoading(false);
         }
-    }, [ws, isConnected, makeRequest]);
+    }, [isConnected, makeRequest]);
 
-    // This effect now handles subscribing and unsubscribing
     useEffect(() => {
         if(activeSymbol && isConnected) {
             subscribeToSymbol(activeSymbol, timePeriod);
         }
 
-        // Cleanup function to forget subscription when component unmounts or symbol changes
         return () => {
-            if (ws && isConnected && subscriptionIdRef.current) {
+            if (isConnected && subscriptionIdRef.current) {
                 makeRequest({ "forget": subscriptionIdRef.current }).catch(e => console.error("Error forgetting subscription:", e));
             }
         }
-    }, [activeSymbol, timePeriod, isConnected, subscribeToSymbol, ws, makeRequest]);
+    }, [activeSymbol, timePeriod, isConnected, subscribeToSymbol, makeRequest]);
 
 
     return {
