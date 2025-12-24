@@ -15,6 +15,8 @@ import {
   Line,
   Label,
   ReferenceDot,
+  Bar,
+  Cell,
 } from 'recharts';
 import { Loader2 } from "lucide-react";
 import type { CandleData, ChartData, ActiveContract, TimePeriod, ChartType, TickData } from '@/hooks/use-market-data';
@@ -23,9 +25,12 @@ import type { CandleData, ChartData, ActiveContract, TimePeriod, ChartType, Tick
    UTIL — Domínio Y estável, robusto e profissional
 ========================================================= */
 const getStableYDomain = (values: number[], padding = 0.06): [number, number] => {
-  if (values.length < 2) return ['auto', 'auto'] as any;
+  // Filtra apenas números válidos e positivos antes de calcular
+  const validValues = values.filter(v => typeof v === 'number' && isFinite(v) && v > 0);
+  
+  if (validValues.length < 2) return ['auto', 'auto'] as any;
 
-  const sorted = [...values].sort((a, b) => a - b);
+  const sorted = [...validValues].sort((a, b) => a - b);
   const low = sorted[Math.floor(sorted.length * 0.02)];
   const high = sorted[Math.floor(sorted.length * 0.98)];
 
@@ -36,7 +41,7 @@ const getStableYDomain = (values: number[], padding = 0.06): [number, number] =>
   const range = high - low || high * 0.01;
 
   return [
-    low - range * padding,
+    Math.max(0, low - range * padding), // Garante que o gráfico não mostre negativo
     high + range * padding,
   ];
 };
@@ -163,10 +168,19 @@ export function MarketChart({
 
   const visibleData = React.useMemo(() => {
     if (!chartData) return [];
-    if (chartData.length > zoomLevel) {
-      return chartData.slice(chartData.length - zoomLevel);
+
+    // 1. FILTRAGEM DE DADOS SUJOS
+    // Removemos qualquer dado onde o preço/close seja <= 0 ou inválido
+    const cleanData = chartData.filter((d) => {
+        const value = 'price' in d ? (d as TickData).price : (d as CandleData).close;
+        return typeof value === 'number' && isFinite(value) && value > 0;
+    });
+
+    // 2. Lógica de Zoom
+    if (cleanData.length > zoomLevel) {
+        return cleanData.slice(cleanData.length - zoomLevel);
     }
-    return chartData;
+    return cleanData;
   }, [chartData, zoomLevel]);
 
   const priceFormatter = (v: number) => {
@@ -243,7 +257,7 @@ export function MarketChart({
             />
 
             <Line
-              type="stepAfter"
+              type="monotone"
               dataKey="price"
               stroke="hsl(var(--primary))"
               strokeWidth={2}
