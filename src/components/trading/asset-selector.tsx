@@ -35,7 +35,7 @@ const marketFilters = [
     { label: "Forex", value: "forex" },
     { label: "Matérias-Primas", value: "commodities" },
     { label: "Cestas", value: "basket_index" },
-    { label: "Índices", value: "stock_index" }, // CORREÇÃO AQUI
+    { label: "Índices", value: "stock_index" },
     { label: "Cripto", value: "cryptocurrency" },
 ];
 
@@ -45,9 +45,24 @@ export function AssetSelector({ selectedAsset, onAssetChange, assetGroups, isAss
   const [marketStatusFilter, setMarketStatusFilter] = useState('all');
   const [durationFilter, setDurationFilter] = useState('all');
 
+  // Debug: Log para ver os valores reais dos ativos
+  useEffect(() => {
+    if (!isAssetsLoading && assetGroups.length > 0) {
+      const allAssets = assetGroups.flatMap(g => g.options);
+      const uniqueMarkets = [...new Set(allAssets.map(a => a.market))];
+      console.log('🔍 Mercados únicos disponíveis:', uniqueMarkets);
+      console.log('📊 Total de ativos:', allAssets.length);
+      
+      // Log de alguns ativos para verificar estrutura
+      console.log('📝 Exemplo de ativos:', allAssets.slice(0, 3));
+    }
+  }, [assetGroups, isAssetsLoading]);
 
   const filteredAssets = useMemo(() => {
     let assets = assetGroups.flatMap(g => g.options);
+
+    console.log('🎯 Filtros ativos:', { filter, marketStatusFilter, durationFilter });
+    console.log('📦 Total antes dos filtros:', assets.length);
 
     // 1. Filter by Market Status
     if (marketStatusFilter === 'open') {
@@ -55,19 +70,27 @@ export function AssetSelector({ selectedAsset, onAssetChange, assetGroups, isAss
     } else if (marketStatusFilter === 'closed') {
       assets = assets.filter(a => !a.marketIsOpen);
     }
+    console.log('📦 Após filtro de status:', assets.length);
 
     // 2. Filter by Duration Type
     if (durationFilter === 'tick') {
-        // Corrected logic: check if the minDuration string ends with 't'
         assets = assets.filter(a => a.minDuration && a.minDuration.endsWith('t'));
     } else if (durationFilter === 'time') {
-        // Corrected logic: check if the minDuration string does NOT end with 't'
         assets = assets.filter(a => a.minDuration && !a.minDuration.endsWith('t'));
     }
+    console.log('📦 Após filtro de duração:', assets.length);
 
     // 3. Filter by Market Type
     if (filter !== 'all') {
-      assets = assets.filter(a => a.market === filter);
+      const beforeMarketFilter = assets.length;
+      assets = assets.filter(a => {
+        const matches = a.market === filter;
+        if (!matches && beforeMarketFilter < 10) {
+          console.log(`❌ Asset ${a.label} tem market="${a.market}", esperado="${filter}"`);
+        }
+        return matches;
+      });
+      console.log(`📦 Após filtro de mercado (${filter}):`, assets.length);
     }
 
     // Regroup assets after filtering
@@ -80,10 +103,14 @@ export function AssetSelector({ selectedAsset, onAssetChange, assetGroups, isAss
         regrouped[groupLabel].push(asset);
     });
 
-    return Object.keys(regrouped).map(label => ({
+    const result = Object.keys(regrouped).map(label => ({
         label,
         options: regrouped[label],
     })).filter(group => group.options.length > 0);
+
+    console.log('✅ Grupos finais:', result.length, 'com total de ativos:', result.reduce((acc, g) => acc + g.options.length, 0));
+
+    return result;
 
   }, [assetGroups, filter, marketStatusFilter, durationFilter]);
   
@@ -101,12 +128,12 @@ export function AssetSelector({ selectedAsset, onAssetChange, assetGroups, isAss
     
     const asset = assetGroups.flatMap(g => g.options).find(a => a.value === selectedAsset);
     if (asset && asset.market) {
-        // Check if the current filter value exists in our marketFilters list
         const filterExists = marketFilters.some(f => f.value === asset.market);
         if (filterExists) {
             setFilter(asset.market);
         } else {
-            setFilter('all'); // Fallback to 'all' if the market isn't in our filter list
+            console.warn('⚠️ Market do ativo não encontrado nos filtros:', asset.market);
+            setFilter('all');
         }
     }
   }, [selectedAsset, assetGroups, isAssetsLoading]);
@@ -115,6 +142,20 @@ export function AssetSelector({ selectedAsset, onAssetChange, assetGroups, isAss
   if (isAssetsLoading) {
     return <Skeleton className="w-full sm:w-[280px] h-10" />;
   }
+
+  // Conta quantos ativos cada filtro tem
+  const filterCounts = useMemo(() => {
+    const allAssets = assetGroups.flatMap(g => g.options);
+    const counts: Record<string, number> = { all: allAssets.length };
+    
+    marketFilters.forEach(f => {
+      if (f.value !== 'all') {
+        counts[f.value] = allAssets.filter(a => a.market === f.value).length;
+      }
+    });
+    
+    return counts;
+  }, [assetGroups]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -143,8 +184,9 @@ export function AssetSelector({ selectedAsset, onAssetChange, assetGroups, isAss
                           size="sm"
                           className="h-7 text-xs rounded-full"
                           onClick={() => setFilter(f.value)}
+                          disabled={filterCounts[f.value] === 0}
                       >
-                          {f.label}
+                          {f.label} {filterCounts[f.value] !== undefined && `(${filterCounts[f.value]})`}
                       </Button>
                   ))}
                 </div>
