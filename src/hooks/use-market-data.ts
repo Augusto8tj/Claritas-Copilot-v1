@@ -67,7 +67,7 @@ const addDataPoint = <T extends ChartData>(prevData: T[], newPoint: T): T[] => {
 /* =========================================================
    HOOK PRINCIPAL
 ========================================================= */
-export function useMarketData(activeSymbol: string | null) {
+export function useMarketData(activeSymbol: string | null, dataCount: number = 100) {
     const { makeRequest, isConnected, addMarketDataListener, removeMarketDataListener } = useDerivApi();
     
     // Estados visuais
@@ -237,7 +237,7 @@ export function useMarketData(activeSymbol: string | null) {
                 const request: any = {
                     ticks_history: activeSymbol,
                     adjust_start_time: 1,
-                    count: 100,
+                    count: dataCount,
                     end: 'latest',
                     style: isCandleRequest ? 'candles' : 'ticks',
                     subscribe: 1,
@@ -267,7 +267,7 @@ export function useMarketData(activeSymbol: string | null) {
             }
         };
 
-    }, [activeSymbol, timePeriod, chartType, isConnected, makeRequest]);
+    }, [activeSymbol, timePeriod, chartType, isConnected, makeRequest, dataCount]);
 
 
     return {

@@ -335,40 +335,40 @@ const HeaderInfo = ({
 interface MarketChartProps {
   activeSymbol: string;
   activeContracts: ActiveContract[];
+  chartData: ChartData[];
+  isChartLoading: boolean;
+  chartError: string | null;
+  chartType: ChartType;
+  setChartType: (type: ChartType) => void;
+  timePeriod: TimePeriod;
+  setTimePeriod: (period: TimePeriod) => void;
+  showBollingerBands: boolean;
+  setShowBollingerBands: (show: boolean) => void;
+  handleZoom: (direction: 'in' | 'out') => void;
 }
 
 export function MarketChart({
   activeSymbol,
   activeContracts,
+  chartData,
+  isChartLoading,
+  chartError,
+  chartType,
+  setChartType,
+  timePeriod,
+  setTimePeriod,
+  showBollingerBands,
+  setShowBollingerBands,
+  handleZoom,
 }: MarketChartProps) {
 
-  const [zoomLevel, setZoomLevel] = React.useState(100);
   const [chartTheme, setChartTheme] = React.useState<'light' | 'dark'>('dark');
   
-  const { 
-    chartData, 
-    isChartLoading, 
-    chartError, 
-    chartType, 
-    setChartType, 
-    timePeriod, 
-    setTimePeriod, 
-    showBollingerBands, 
-    setShowBollingerBands 
-  } = useMarketData(activeSymbol);
-
   const colors = THEMES[chartTheme];
 
   const chartRef = React.useRef<any>(null);
   const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
   const [crosshairX, setCrosshairX] = React.useState<number | null>(null);
-
-  const visibleData = React.useMemo(() => {
-    if (chartData.length > zoomLevel) {
-        return chartData.slice(chartData.length - zoomLevel);
-    }
-    return chartData;
-  }, [chartData, zoomLevel]);
 
   const priceFormatter = (v: number) => {
     if (!v || isNaN(v)) return "";
@@ -378,45 +378,25 @@ export function MarketChart({
   };
 
   const latestPrice = React.useMemo(() => {
-    if (visibleData.length === 0) return null;
-    const last = visibleData[visibleData.length - 1];
+    if (chartData.length === 0) return null;
+    const last = chartData[chartData.length - 1];
     return 'price' in last ? (last as TickData).price : (last as CandleData).close;
-  }, [visibleData]);
+  }, [chartData]);
 
   const prevPrice = React.useMemo(() => {
-    if (visibleData.length < 2) return latestPrice || 0;
-    const secondLast = visibleData[visibleData.length - 2];
+    if (chartData.length < 2) return latestPrice || 0;
+    const secondLast = chartData[chartData.length - 2];
     return 'price' in secondLast ? (secondLast as TickData).price : (secondLast as CandleData).close;
-  }, [visibleData, latestPrice]);
+  }, [chartData, latestPrice]);
 
   const componentKey = `${activeSymbol}-${chartType}-${timePeriod}`;
-
-  const handleZoom = (direction: 'in' | 'out') => {
-    setZoomLevel(prevZoom => {
-        let newZoom;
-        if (direction === 'in') {
-            newZoom = Math.max(20, prevZoom - 20);
-        } else {
-            newZoom = Math.min(500, prevZoom + 20);
-        }
-        return newZoom;
-    });
-  };
-
-  const handleWheelZoom = (e: React.WheelEvent<HTMLDivElement>) => {
-    if (e.ctrlKey) {
-        e.preventDefault();
-        const direction = e.deltaY < 0 ? 'in' : 'out';
-        handleZoom(direction);
-    }
-  };
 
   const chartTypes: { label: ChartType, icon: React.ReactNode, disabled: boolean }[] = [
     { label: 'Area', icon: <AreaChart className="w-4 h-4" />, disabled: false },
     { label: 'Candle', icon: <CandlestickChart className="w-4 h-4" />, disabled: ['1m', '2m', '3m'].includes(timePeriod) },
   ];
 
-  if (isChartLoading && visibleData.length === 0) {
+  if (isChartLoading && chartData.length === 0) {
     return (
       <div className="h-[400px] w-full flex items-center justify-center" style={{backgroundColor: colors.BACKGROUND}}>
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -433,7 +413,7 @@ export function MarketChart({
     );
   }
 
-  if (visibleData.length === 0) {
+  if (chartData.length === 0) {
      return <div className="h-[400px] w-full flex items-center justify-center" style={{backgroundColor: colors.BACKGROUND, color: colors.TEXT}}>Aguardando dados...</div>;
   }
 
@@ -441,11 +421,11 @@ export function MarketChart({
      MODO TICKS (Área com Gradiente Azul)
   -------------------------------------------------------- */
   if (chartType === 'Area') {
-    const data = visibleData as TickData[];
+    const data = chartData as TickData[];
     const yDomain = getStableYDomain(data.map(d => d.price));
 
     return (
-      <div key={componentKey} className="h-[400px] w-full relative group" style={{ backgroundColor: colors.BACKGROUND }} onWheel={handleWheelZoom}>
+      <div key={componentKey} className="h-[400px] w-full relative group" style={{ backgroundColor: colors.BACKGROUND }}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ right: 0, left: 0, top: 40, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={colors.GRID} vertical={true} />
@@ -533,8 +513,7 @@ export function MarketChart({
             setShowBollingerBands={setShowBollingerBands} 
             chartTheme={chartTheme} 
             setChartTheme={setChartTheme} 
-            handleZoom={handleZoom} 
-            zoomLevel={zoomLevel}
+            handleZoom={handleZoom}
         />
       </div>
     );
@@ -543,7 +522,7 @@ export function MarketChart({
   /* --------------------------------------------------------
      MODO CANDLES (Canvas Premium com Hover & Crosshair)
   -------------------------------------------------------- */
-  const candleData = visibleData as CandleData[];
+  const candleData = chartData as CandleData[];
   const allValues = candleData.flatMap(d => [d.high, d.low, d.bollingerUpper, d.bollingerLower]);
   const yDomain = getStableYDomain(allValues.filter(v => v !== undefined) as number[]);
 
@@ -568,7 +547,6 @@ export function MarketChart({
       style={{ backgroundColor: colors.BACKGROUND }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      onWheel={handleWheelZoom}
     >
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
@@ -675,8 +653,7 @@ export function MarketChart({
           setShowBollingerBands={setShowBollingerBands} 
           chartTheme={chartTheme} 
           setChartTheme={setChartTheme} 
-          handleZoom={handleZoom} 
-          zoomLevel={zoomLevel}
+          handleZoom={handleZoom}
       />
 
     </div>
@@ -703,7 +680,6 @@ interface FloatingControlsProps {
     chartTheme: 'light' | 'dark';
     setChartTheme: (theme: 'light' | 'dark') => void;
     handleZoom: (direction: 'in' | 'out') => void;
-    zoomLevel: number;
 }
 
 const FloatingControls: React.FC<FloatingControlsProps> = ({
@@ -721,7 +697,6 @@ const FloatingControls: React.FC<FloatingControlsProps> = ({
     chartTheme,
     setChartTheme,
     handleZoom,
-    zoomLevel
 }) => {
 
     const chartButtonClass = cn("h-8 w-8 p-0 border", colors.BUTTON_BG);
@@ -797,17 +772,13 @@ const FloatingControls: React.FC<FloatingControlsProps> = ({
                         </div>
                     </PopoverContent>
                 </Popover>
-                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('in')} disabled={zoomLevel <= 20}>
+                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('in')}>
                     <Plus className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('out')} disabled={zoomLevel >= 500}>
+                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('out')}>
                     <Minus className="h-4 w-4" />
                 </Button>
             </div>
         </>
     );
 };
-
-    
-
-    

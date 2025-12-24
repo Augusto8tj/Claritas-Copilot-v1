@@ -13,12 +13,14 @@ import {
 import { Button } from "../ui/button";
 import { Loader2, Sparkles, BrainCircuit } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
-import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
 
-export function AIAnalysisInterface() {
+interface AIAnalysisInterfaceProps {
+    analyzeSessionPerformance: () => Promise<string>;
+}
+
+export function AIAnalysisInterface({ analyzeSessionPerformance }: AIAnalysisInterfaceProps) {
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const { analyzeSessionPerformance } = useTradeAnalysis();
 
   const handleAnalyze = async () => {
     setIsAnalyzing(true);

@@ -18,10 +18,14 @@ import { AIAnalysisInterface } from "@/components/trading/ai-analysis-interface"
 import { riseFallSchema, type RiseFallFormValues } from "@/components/trading/deriv-trader-interface.types";
 import { AutoTraderCouncilInterface } from "@/components/trading/auto-trader-council-interface";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useMarketData } from "@/hooks/use-market-data";
+import { useRobotCouncil } from "@/hooks/use-robot-council";
+import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
 
 
 export default function DerivTraderPage() {
   const [activeSymbol, setActiveSymbol] = useState<string | null>('1HZ75V');
+  const [zoomLevel, setZoomLevel] = useState(100);
 
   const form = useForm<RiseFallFormValues>({
     resolver: zodResolver(riseFallSchema),
@@ -45,7 +49,24 @@ export default function DerivTraderPage() {
     isAssetsLoading,
     assetGroups,
     executeTrade,
+    addActiveContract,
   } = useDerivApi();
+
+  const handleZoom = (direction: 'in' | 'out') => {
+    setZoomLevel(prevZoom => {
+        let newZoom;
+        if (direction === 'in') {
+            newZoom = Math.max(20, prevZoom - 20);
+        } else {
+            newZoom = Math.min(500, prevZoom + 20);
+        }
+        return newZoom;
+    });
+  };
+
+  const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod, showBollingerBands, setShowBollingerBands } = useMarketData(activeSymbol, zoomLevel);
+  const { analyzeSessionPerformance } = useTradeAnalysis(activeSymbol, operationsLog);
+  const robotCouncil = useRobotCouncil(activeSymbol, chartData, operationsLog, addActiveContract, executeTrade);
   
   return (
     <FormProvider {...form}>
@@ -104,10 +125,20 @@ export default function DerivTraderPage() {
                         )}
                     </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent onWheel={handleZoom}>
                     <MarketChart 
                         activeSymbol={activeSymbol || ''}
                         activeContracts={activeContracts}
+                        chartData={chartData}
+                        isChartLoading={isChartLoading}
+                        chartError={chartError}
+                        chartType={chartType}
+                        setChartType={setChartType}
+                        timePeriod={timePeriod}
+                        setTimePeriod={setTimePeriod}
+                        showBollingerBands={showBollingerBands}
+                        setShowBollingerBands={setShowBollingerBands}
+                        handleZoom={handleZoom}
                     />
                 </CardContent>
               </Card>
@@ -121,7 +152,7 @@ export default function DerivTraderPage() {
           {/* Right Column: AI Copilot */}
           <div className="space-y-6">
               <AutoTraderCouncilInterface />
-              <AIAnalysisInterface />
+              <AIAnalysisInterface analyzeSessionPerformance={analyzeSessionPerformance} />
               <OperationsLog operations={operationsLog} />
           </div>
         </div>
