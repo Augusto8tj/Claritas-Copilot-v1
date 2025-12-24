@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -23,14 +22,12 @@ import type { CandleData, ChartData, ActiveContract, TimePeriod, ChartType, Tick
    UTIL — Domínio Y estável
 ========================================================= */
 const getStableYDomain = (values: number[], padding = 0.1): [number, number] => {
-  // Filtra lixo e zeros antes de calcular
   const validValues = values
-    .map(Number) // Garante que é número
+    .map(Number)
     .filter(v => !isNaN(v) && isFinite(v) && v > 0);
   
   if (validValues.length === 0) return ['auto', 'auto'] as any;
 
-  // Se for uma linha reta (todos valores iguais)
   if (validValues.every(v => v === validValues[0])) {
       const val = validValues[0];
       return [val * 0.999, val * 1.001];
@@ -41,13 +38,13 @@ const getStableYDomain = (values: number[], padding = 0.1): [number, number] => 
   const range = max - min || (max * 0.01);
 
   return [
-    Math.max(0, min - range * padding), // Garante chão em 0
+    Math.max(0, min - range * padding),
     max + range * padding,
   ];
 };
 
 /* =====================================================
-   CANVAS CANDLE LAYER
+   CANVAS CANDLE LAYER — MODERN & PRO
 ===================================================== */
 function CanvasCandles({ data, chartRef }: { data: CandleData[]; chartRef: React.RefObject<any>; }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
@@ -64,9 +61,9 @@ function CanvasCandles({ data, chartRef }: { data: CandleData[]; chartRef: React
     const { width, height } = offset;
     const dpr = window.devicePixelRatio || 1;
     
-    // Evita redesenhar se as dimensões forem inválidas
     if (width <= 0 || height <= 0) return;
 
+    // Configura canvas para alta resolução (Retina display ready)
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     canvas.style.width = `${width}px`;
@@ -78,11 +75,28 @@ function CanvasCandles({ data, chartRef }: { data: CandleData[]; chartRef: React
     const yScale = yAxisMap[0]?.scale;
 
     if (!xScale || !yScale) return;
+
+    // --- 1. RESOLUÇÃO DE CORES DO TEMA ---
+    // Pega as cores exatas do CSS (Tailwind/Shadcn variables)
+    const computedStyle = getComputedStyle(document.documentElement);
     
-    const candleWidth = Math.max(3, (width / data.length) * 0.7);
+    // Cor de ALTA (Bullish) - Geralmente Verde ou Laranja (no seu caso --chart-2)
+    const rawBullish = computedStyle.getPropertyValue('--chart-2').trim() || '142 76% 36%'; 
+    const colorBullish = rawBullish.startsWith('hsl') ? rawBullish : `hsl(${rawBullish})`;
+
+    // Cor de BAIXA (Bearish) - Vermelho (--destructive)
+    const rawBearish = computedStyle.getPropertyValue('--destructive').trim() || '0 84% 60%';
+    const colorBearish = rawBearish.startsWith('hsl') ? rawBearish : `hsl(${rawBearish})`;
+
+    // --- 2. CÁLCULO DE LARGURA DINÂMICA ---
+    // Calcula a largura da barra baseada no zoom.
+    // Deixa 20% de espaço (gap) entre as velas para visual limpo
+    const availableWidth = width / data.length;
+    const gap = Math.max(1, availableWidth * 0.2); 
+    const barWidth = Math.max(2, availableWidth - gap);
+    const halfBarWidth = barWidth / 2;
 
     data.forEach(d => {
-      // Proteção extra contra dados inválidos no Canvas
       if (!d.open || !d.close || d.open <= 0) return;
 
       const x = xScale(d.epoch);
@@ -93,19 +107,34 @@ function CanvasCandles({ data, chartRef }: { data: CandleData[]; chartRef: React
       const highY = yScale(d.high);
       const lowY = yScale(d.low);
       
-      const bullish = d.close >= d.open;
-      ctx.strokeStyle = bullish ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))';
-      ctx.fillStyle = ctx.strokeStyle;
+      const isBullish = d.close >= d.open;
+      
+      // Define a cor
+      const color = isBullish ? colorBullish : colorBearish;
+      ctx.fillStyle = color;
+      ctx.strokeStyle = color;
 
+      // --- 3. DESENHO DO PAVIO (WICK) ---
+      // Linha fina centralizada
+      ctx.lineWidth = 1; 
       ctx.beginPath();
-      ctx.moveTo(x, highY);
-      ctx.lineTo(x, lowY);
+      // O '+ 0.5' ajuda a alinhar pixels para evitar blur em telas normais
+      const xPixel = Math.floor(x) + 0.5; 
+      ctx.moveTo(xPixel, Math.floor(highY));
+      ctx.lineTo(xPixel, Math.floor(lowY));
       ctx.stroke();
 
+      // --- 4. DESENHO DO CORPO (BODY) ---
       const bodyTop = Math.min(openY, closeY);
       const bodyHeight = Math.max(1, Math.abs(openY - closeY));
-
-      ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+      
+      // Preenche o corpo
+      ctx.fillRect(
+          Math.floor(x - halfBarWidth), 
+          Math.floor(bodyTop), 
+          Math.floor(barWidth), 
+          Math.floor(bodyHeight)
+      );
     });
 
   }, [data, chartRef]);
@@ -126,6 +155,7 @@ function CanvasCandles({ data, chartRef }: { data: CandleData[]; chartRef: React
 
   return <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 1 }} />;
 }
+
 
 /* =========================================================
    COMPONENTE PRINCIPAL
@@ -156,11 +186,10 @@ export function MarketChart({
 
   const chartRef = React.useRef<any>(null);
 
-  // 1. DATA CLEANING & MEMOIZATION
+  // Filtra dados para evitar sujeira
   const visibleData = React.useMemo(() => {
     if (!chartData || chartData.length === 0) return [];
 
-    // Filtra dados inválidos, zeros, strings vazias
     const clean = chartData.filter((d) => {
         const val = 'price' in d ? (d as TickData).price : (d as CandleData).close;
         const num = Number(val);
@@ -186,8 +215,7 @@ export function MarketChart({
     return 'price' in last ? (last as TickData).price : (last as CandleData).close;
   }, [visibleData]);
 
-  // CHAVE MESTRA: Força o React a recriar o componente se o ativo ou tipo mudar
-  // Isso resolve o problema do "gráfico não se adapta aos novos valores"
+  // CHAVE MESTRA: Reseta o gráfico na troca de ativo
   const componentKey = `${activeSymbol}-${chartType}-${timePeriod}`;
 
   if (isChartLoading && visibleData.length === 0) {
@@ -207,13 +235,12 @@ export function MarketChart({
     );
   }
 
-  // Se não tem dados válidos após o filtro, não tenta renderizar o gráfico
   if (visibleData.length === 0) {
      return <div className="h-[400px] w-full flex items-center justify-center text-muted-foreground">Aguardando dados...</div>;
   }
 
   /* =======================================================
-     TICKS (Área / Line)
+     TICKS (Área / Line) - Mantido igual, foco nas candles abaixo
   ======================================================= */
   if (chartType === 'Area') {
     const data = visibleData as TickData[];
@@ -224,7 +251,6 @@ export function MarketChart({
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ right: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-
             <XAxis
               dataKey="epoch"
               type="number"
@@ -236,7 +262,6 @@ export function MarketChart({
               axisLine={false}
               minTickGap={30}
             />
-
             <YAxis
               domain={yDomain}
               tickFormatter={priceFormatter}
@@ -246,31 +271,26 @@ export function MarketChart({
               fontSize={11}
               tickLine={false}
               axisLine={false}
-              allowDataOverflow={false} // Importante para não cortar dados válidos
+              allowDataOverflow={false}
             />
-
             <Tooltip
               labelFormatter={l => new Date(l * 1000).toLocaleString('pt-BR')}
               formatter={(value: number) => [priceFormatter(value), "Preço"]}
               contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }}
-              isAnimationActive={false} // Desativa animação do tooltip para performance
+              isAnimationActive={false}
             />
-
             <Line
               type="monotone"
               dataKey="price"
               stroke="hsl(var(--primary))"
               strokeWidth={2}
               dot={false}
-              isAnimationActive={false} // Remove a animação de "crescimento" que causa o bug na troca de ativo
+              isAnimationActive={false}
             />
-
             {latestPrice && (
               <ReferenceLine y={latestPrice} stroke="hsl(var(--primary))" strokeDasharray="4 4" />
             )}
-            
             {activeContracts.map(contract => (
-              // Proteção: Só desenha o ponto se entryTick for válido e > 0
               contract.entryTick > 0 && (
                 <ReferenceDot
                     key={contract.contractId}
@@ -290,7 +310,7 @@ export function MarketChart({
   }
 
   /* =======================================================
-     CANDLES (Canvas)
+     CANDLES (Canvas) - AGORA COM DESIGN MODERNO
   ======================================================= */
   const candleData = visibleData as CandleData[];
   const allValues = candleData.flatMap(d => [d.high, d.low, d.bollingerUpper, d.bollingerLower]);
@@ -298,6 +318,10 @@ export function MarketChart({
 
   return (
     <div key={componentKey} className="h-[400px] w-full relative">
+       {/* 
+           Usamos ComposedChart apenas para desenhar eixos, grid e tooltips.
+           Não passamos 'Line' ou 'Bar' aqui dentro, o desenho é todo no CanvasCandles
+       */}
        <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={candleData} ref={chartRef} margin={{ top: 5, right: 0, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
@@ -329,11 +353,12 @@ export function MarketChart({
                     labelFormatter={l => new Date(l * 1000).toLocaleString('pt-BR')}
                     contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }}
                     isAnimationActive={false}
+                    cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '4 4' }}
                 />
 
                 {showBollingerBands && (
                     <>
-                        <Area dataKey="bollingerUpper" stackId="bollinger" stroke="none" fill="hsl(var(--primary) / 0.1)" isAnimationActive={false} />
+                        <Area dataKey="bollingerUpper" stackId="bollinger" stroke="none" fill="hsl(var(--primary) / 0.05)" isAnimationActive={false} />
                         <Area dataKey="bollingerLower" stackId="bollinger" stroke="none" fill="hsl(var(--background))" isAnimationActive={false} />
                     </>
                 )}
@@ -360,6 +385,8 @@ export function MarketChart({
                 )}
             </ComposedChart>
         </ResponsiveContainer>
+        
+        {/* Camada de Canvas desenha as velas com as cores corretas e nitidez */}
         <CanvasCandles data={candleData} chartRef={chartRef} />
     </div>
   );
