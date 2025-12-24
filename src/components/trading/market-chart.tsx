@@ -26,7 +26,6 @@ import type { CandleData, ChartData, ActiveContract, TimePeriod, ChartType, Tick
 const COLORS = {
   BULLISH: '#26a69a', // Verde Profissional
   BEARISH: '#ef5350', // Vermelho Profissional
-  WICK: '#000000',    // (Opcional) Se quiser pavios pretos, mas usaremos a cor da vela
   TEXT: '#333333',
   GRID: '#e0e0e0',
 };
@@ -94,7 +93,7 @@ function CanvasCandles({ data, chartRef }: { data: CandleData[]; chartRef: React
     const yScale = yAxisMap[0].scale;
 
     // Cálculo da largura da vela
-    // Subtrai um "gap" fixo de 20% ou mínimo de 1px
+    // Subtrai um "gap" fixo de 30% ou mínimo de 1px
     const dataLength = data.length;
     const slotWidth = width / dataLength;
     const gap = Math.max(1, slotWidth * 0.3); 
@@ -256,16 +255,16 @@ export function MarketChart({
     const yDomain = getStableYDomain(data.map(d => d.price));
 
     return (
-      <div key={componentKey} className="h-[400px] w-full relative group bg-white dark:bg-neutral-950">
+      <div key={componentKey} className="h-[400px] w-full relative group bg-background">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ right: 0, left: 0, top: 10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={true} />
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.5)" vertical={true} />
             <XAxis
               dataKey="epoch"
               type="number"
               domain={['dataMin', 'dataMax']}
               tickFormatter={e => new Date(e * 1000).toLocaleTimeString('pt-BR')}
-              stroke="#888"
+              stroke="hsl(var(--muted-foreground))"
               fontSize={11}
               tickLine={false}
               axisLine={false}
@@ -276,7 +275,7 @@ export function MarketChart({
               tickFormatter={priceFormatter}
               orientation="right"
               width={60}
-              stroke="#888"
+              stroke="hsl(var(--muted-foreground))"
               fontSize={11}
               tickLine={false}
               axisLine={false}
@@ -285,20 +284,20 @@ export function MarketChart({
             <Tooltip
               labelFormatter={l => new Date(l * 1000).toLocaleString('pt-BR')}
               formatter={(value: number) => [priceFormatter(value), "Preço"]}
-              contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '4px', border: '1px solid #ddd', fontSize: '12px' }}
+              contentStyle={{ backgroundColor: 'hsl(var(--background) / 0.9)', borderRadius: 'var(--radius)', border: '1px solid hsl(var(--border))', fontSize: '12px' }}
               isAnimationActive={false}
             />
             <Line
               type="monotone"
               dataKey="price"
-              stroke="#007bff"
+              stroke="hsl(var(--primary))"
               strokeWidth={2}
               dot={false}
               isAnimationActive={false}
             />
             {latestPrice && (
-              <ReferenceLine y={latestPrice} stroke="#007bff" strokeDasharray="3 3">
-                  <Label value={priceFormatter(latestPrice)} position="right" fill="#fff" offset={5} className="bg-blue-600 px-1 text-xs" />
+              <ReferenceLine y={latestPrice} stroke="hsl(var(--primary))" strokeDasharray="3 3">
+                  <Label value={priceFormatter(latestPrice)} position="right" fill="hsl(var(--foreground))" offset={10} className="text-xs bg-background/50 px-1 py-0.5 rounded" />
               </ReferenceLine>
             )}
             {activeContracts.map(contract => (
@@ -308,8 +307,8 @@ export function MarketChart({
                     x={contract.entryTime}
                     y={contract.entryTick}
                     r={4}
-                    fill="#ff9800"
-                    stroke="white"
+                    fill="hsl(var(--accent))"
+                    stroke="hsl(var(--background))"
                     strokeWidth={2}
                 />
               )
@@ -328,21 +327,21 @@ export function MarketChart({
   const yDomain = getStableYDomain(allValues.filter(v => v !== undefined) as number[]);
 
   return (
-    <div key={componentKey} className="h-[400px] w-full relative bg-white dark:bg-neutral-950">
+    <div key={componentKey} className="h-[400px] w-full relative bg-background">
        <ResponsiveContainer width="100%" height="100%">
             {/* 
                 Usamos o ComposedChart apenas para desenhar Grid, Eixos e Tooltip.
                 O 'data' aqui serve apenas para o Recharts calcular as escalas X/Y.
             */}
             <ComposedChart data={candleData} ref={chartRef} margin={{ top: 10, right: 0, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="1 0" stroke="#f0f0f0" vertical={true} horizontal={true} />
+                <CartesianGrid strokeDasharray="1 0" stroke="hsl(var(--border) / 0.5)" vertical={true} horizontal={true} />
 
                 <XAxis
                     dataKey="epoch"
                     type="number"
                     domain={['dataMin', 'dataMax']}
                     tickFormatter={e => new Date(e * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    stroke="#888"
+                    stroke="hsl(var(--muted-foreground))"
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
@@ -354,7 +353,7 @@ export function MarketChart({
                     tickFormatter={priceFormatter}
                     orientation="right"
                     width={60}
-                    stroke="#888"
+                    stroke="hsl(var(--muted-foreground))"
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
@@ -362,15 +361,15 @@ export function MarketChart({
 
                 <Tooltip
                     labelFormatter={l => new Date(l * 1000).toLocaleString('pt-BR')}
-                    contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', border: '1px solid #e0e0e0', borderRadius: '4px', fontSize: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
+                    contentStyle={{ backgroundColor: 'hsl(var(--background) / 0.95)', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)', fontSize: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
                     isAnimationActive={false}
-                    cursor={{ stroke: '#666', strokeWidth: 1, strokeDasharray: '4 4' }}
+                    cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '4 4' }}
                 />
 
                 {showBollingerBands && (
                     <>
-                        <Area dataKey="bollingerUpper" stackId="bollinger" stroke="none" fill="rgba(0, 123, 255, 0.05)" isAnimationActive={false} />
-                        <Area dataKey="bollingerLower" stackId="bollinger" stroke="none" fill="rgba(255, 255, 255, 0)" isAnimationActive={false} />
+                        <Area dataKey="bollingerUpper" stackId="bollinger" stroke="none" fill="hsl(var(--primary) / 0.05)" isAnimationActive={false} />
+                        <Area dataKey="bollingerLower" stackId="bollinger" stroke="none" fill="transparent" isAnimationActive={false} />
                     </>
                 )}
 
@@ -382,8 +381,8 @@ export function MarketChart({
                         x={contract.entryTime}
                         y={contract.entryTick}
                         r={4}
-                        fill="#ff9800"
-                        stroke="white"
+                        fill="hsl(var(--accent))"
+                        stroke="hsl(var(--background))"
                         strokeWidth={2}
                         ifOverflow="visible"
                     />
@@ -396,15 +395,18 @@ export function MarketChart({
                          <Label 
                             value={priceFormatter(latestPrice)} 
                             position="right"
-                            fill="#fff"
+                            fill="hsl(var(--background))"
                             className="text-xs font-bold"
-                            offset={0}
-                            // O Recharts não suporta estilo CSS complexo no Label facilmente, 
-                            // mas o badge azul da referência é desenhado pelo 'viewBox' customizado ou CSS externo.
-                            // Para simplicidade, mantemos texto simples aqui.
+                            style={{ transform: 'translateX(5px)'}}
+                            content={({ viewBox }) => (
+                                <g transform={`translate(${viewBox.x}, ${viewBox.y})`}>
+                                    <rect x={5} y={-8} width={50} height={16} fill="hsl(var(--primary))" rx={4} />
+                                    <text x={30} y={4} textAnchor="middle" fill="hsl(var(--primary-foreground))" fontSize="11" fontWeight="bold">
+                                        {priceFormatter(latestPrice)}
+                                    </text>
+                                </g>
+                            )}
                          />
-                         {/* Badge simulado com Dot se necessário, mas o Label acima é o padrão */}
-                         <ReferenceDot x={candleData[candleData.length-1]?.epoch} y={latestPrice} r={3} fill={COLORS.TEXT} stroke="none" />
                     </ReferenceLine>
                 )}
             </ComposedChart>
