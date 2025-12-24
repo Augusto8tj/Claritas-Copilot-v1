@@ -36,8 +36,8 @@ export default function DerivTraderPage() {
     resolver: zodResolver(riseFallSchema),
     defaultValues: {
       stake: 10,
-      duration: 25,
-      duration_unit: "s",
+      duration: 5,
+      duration_unit: "t",
       allowEquals: false,
     },
   });
@@ -85,7 +85,7 @@ export default function DerivTraderPage() {
     chartData
   );
   
-  const { analyzeSessionPerformance } = useTradeAnalysis(activeSymbol, operationsLog);
+  const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
 
   useEffect(() => {
     if (!isAssetsLoading && !activeSymbol && assetGroups.length > 0) {
@@ -270,7 +270,7 @@ export default function DerivTraderPage() {
                 currentStoch={autopilot.currentStoch}
               />
               <AIAnalysisInterface 
-                analyzeSessionPerformance={analyzeSessionPerformance} 
+                analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} 
               />
               <OperationsLog operations={operationsLog} />
           </div>

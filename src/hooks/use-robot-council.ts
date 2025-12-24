@@ -11,6 +11,12 @@ import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
 import type { RiseFallFormValues } from '@/components/trading/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
+import type { Operation, OperationInitiator } from '@/components/trading/operations-log.types';
+import type { ChartData } from './use-market-data';
+import type { ActiveContract } from './use-deriv-api';
+import type { DurationUnit } from '@/components/trading/deriv-trader-interface.types';
+import type { TradeResult } from '@/services/deriv-api-service';
+
 
 type RobotVote = {
     vote: 'RISE' | 'FALL' | 'HOLD';
@@ -31,13 +37,21 @@ interface RobotPerformance {
 
 export function useRobotCouncil(
     activeSymbol: string | null,
-    operationsLog: any[],
-    addActiveContract: (contract: any) => void,
-    executeTrade: (...args: any[]) => Promise<any>,
-    chartData: any[]
+    operationsLog: Operation[],
+    addActiveContract: (contract: ActiveContract) => void,
+    executeTrade: (
+        contractType: string,
+        stake: number,
+        symbol: string,
+        tradeDirection: 'rise' | 'fall',
+        duration: number,
+        durationUnit: DurationUnit,
+        initiator: OperationInitiator
+    ) => Promise<TradeResult>,
+    chartData: ChartData[]
 ) {
     const { isConnected, getHistoricalData } = useDerivApi();
-    const { analyzeLosingTrade } = useTradeAnalysis(activeSymbol, operationsLog);
+    const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 

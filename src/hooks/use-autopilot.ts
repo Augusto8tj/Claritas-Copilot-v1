@@ -61,7 +61,7 @@ export function useAutopilot(
     ) => Promise<TradeResult>,
 ) {
     const { getHistoricalData } = useDerivApi();
-    const { analyzeLosingTrade } = useTradeAnalysis(activeSymbol, operationsLog);
+    const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
@@ -216,13 +216,13 @@ export function useAutopilot(
       if (!operationsLog || operationsLog.length === 0) return;
       const lastOp = operationsLog[0];
       if (lastOp && lastOp.status === 'lost' && lastOp.initiator === 'Piloto') {
-          analyzeLosingTrade(lastOp, autopilotStrategy).then(suggestion => {
+          tradeAnalysis.analyzeLosingTrade(lastOp, autopilotStrategy).then(suggestion => {
               if (suggestion) {
                   setLastAutopilotLossSuggestion(suggestion);
               }
           });
       }
-    }, [operationsLog, analyzeLosingTrade, autopilotStrategy]);
+    }, [operationsLog, tradeAnalysis, autopilotStrategy]);
 
     return {
         isAutopilotOn,
