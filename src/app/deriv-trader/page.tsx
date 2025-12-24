@@ -37,8 +37,8 @@ export default function DerivTraderPage() {
     resolver: zodResolver(riseFallSchema),
     defaultValues: {
       stake: 10,
-      duration: 5,
-      duration_unit: "t",
+      duration: 28,
+      duration_unit: "s",
       allowEquals: false,
     },
   });
@@ -80,10 +80,10 @@ export default function DerivTraderPage() {
 
   const robotCouncil = useRobotCouncil(
     activeSymbol,
+    chartData,
     operationsLog,
     addActiveContract,
-    executeTrade,
-    chartData
+    executeTrade
   );
   
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);

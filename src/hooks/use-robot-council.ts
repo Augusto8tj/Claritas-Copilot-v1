@@ -37,6 +37,7 @@ interface RobotPerformance {
 
 export function useRobotCouncil(
     activeSymbol: string | null,
+    chartData: ChartData[],
     operationsLog: Operation[],
     addActiveContract: (contract: ActiveContract) => void,
     executeTrade: (
@@ -47,8 +48,7 @@ export function useRobotCouncil(
         duration: number,
         durationUnit: DurationUnit,
         initiator: OperationInitiator
-    ) => Promise<TradeResult>,
-    chartData: ChartData[]
+    ) => Promise<TradeResult>
 ) {
     const { isConnected, getHistoricalData } = useDerivApi();
     const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
@@ -94,8 +94,7 @@ export function useRobotCouncil(
 
     const fetchStrategyCouncil = useCallback(async () => {
         if (!activeSymbol) {
-            toast({ variant: "destructive", title: "Erro", description: "Símbolo do ativo não está selecionado." });
-            setIsCouncilAutopilotOn(false);
+            // This check is now redundant due to the useEffect guard, but it's good practice.
             return;
         }
         setIsFetchingCouncil(true);
