@@ -75,7 +75,7 @@ export function useMarketData(activeSymbol: string | null) {
     const [chartData, setChartData] = useState<ChartData[]>([]);
     const [isChartLoading, setIsChartLoading] = useState(!!activeSymbol);
     const [chartError, setChartError] = useState<string | null>(null);
-    const [chartType, setChartType] = useState<ChartType>('Area');
+    const [chartType, setChartType] = useState<ChartType>('Candle');
     const [timePeriod, setTimePeriod] = useState<TimePeriod>('5m');
 
     // Refs de Controle (Critical para evitar Race Conditions)
