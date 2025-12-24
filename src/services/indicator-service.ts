@@ -2,7 +2,35 @@
  * @fileOverview A service dedicated to calculating various technical trading indicators.
  */
 
-import type { ChartData, CandleData } from '@/hooks/use-market-data'
+import type { ChartData, CandleData, TickData } from '@/hooks/use-market-data'
+import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
+
+// ===== PRIVATE HELPERS =====
+
+const calculateRSI = (data: CandleData[], period = 14) => {
+    if (data.length < period) return null;
+    let gains = 0;
+    let losses = 0;
+
+    for (let i = data.length - period; i < data.length; i++) {
+        const difference = data[i].close - data[i - 1].close;
+        if (difference >= 0) gains += difference;
+        else losses -= difference;
+    }
+    if (losses === 0) return 100;
+    const rs = (gains / period) / (losses / period);
+    return 100 - (100 / (1 + rs));
+};
+
+const calculateStochastic = (data: CandleData[], period = 14) => {
+    if (data.length < period) return null;
+    const relevantData = data.slice(-period);
+    const lowestLow = Math.min(...relevantData.map(d => d.low));
+    const highestHigh = Math.max(...relevantData.map(d => d.high));
+    const currentClose = relevantData[relevantData.length - 1].close;
+    if (highestHigh === lowestLow) return 50; // Avoid division by zero
+    return 100 * ((currentClose - lowestLow) / (highestHigh - lowestLow));
+};
 
 // ===== PUBLIC INDICATOR FUNCTIONS =====
 
@@ -65,8 +93,8 @@ export const calcVWAP = (data: CandleData[]): (number | null)[] => {
  */
 export const calcBollingerBands = (
   data: CandleData[],
-  period: number,
-  stdDev: number
+  period = 20,
+  stdDev = 2
 ): ({ upper: number; middle: number; lower: number } | null)[] => {
   return data.map((d, i) => {
     if (i < period - 1) return null;
@@ -87,4 +115,54 @@ export const calcBollingerBands = (
       lower: middle - stdDev * sd,
     };
   });
+};
+
+
+/**
+ * Calculates all necessary indicators based on the current chart data and the strategies in the council.
+ * @param chartData The raw data from the chart (ticks or candles).
+ * @param council The array of robot strategies.
+ * @returns An object containing the latest calculated values for all required indicators.
+ */
+export const calculateAllIndicators = (chartData: ChartData[], council: RobotStrategy[]) => {
+    const candles = chartData.filter(d => 'close' in d) as CandleData[];
+    
+    if (candles.length < 2) {
+        return {
+            rsi: null, stoch: null, ma: { short: null, long: null },
+            bollingerBands: null, macd: null, priceAction: null,
+            adx: null, atr: null, ichimoku: null, awesomeOscillator: null,
+            volumePoc: null,
+        };
+    }
+
+    const latestCandle = candles[candles.length - 1];
+
+    const rsi = calculateRSI(candles, 14);
+    const stoch = calculateStochastic(candles, 14);
+
+    // Placeholder for other indicators until they are fully implemented
+    const ma = { short: null, long: null };
+    const bollingerBands = null;
+    const macd = null;
+    const priceAction = null;
+    const adx = null;
+    const atr = null;
+    const ichimoku = null;
+    const awesomeOscillator = null;
+    const volumePoc = null;
+
+    return {
+        rsi,
+        stoch,
+        ma,
+        bollingerBands,
+        macd,
+        priceAction,
+        adx,
+        atr,
+        ichimoku,
+        awesomeOscillator,
+        volumePoc,
+    };
 };
