@@ -10,6 +10,7 @@ import {
   Tooltip,
   ReferenceLine,
   Area,
+  Line,
   Label,
   ReferenceDot,
   LineChart,
@@ -37,6 +38,7 @@ const THEMES = {
     BORDER: '#30363d',
     HIGHLIGHT: '#484f58',
     SHADOW: 'rgba(0, 0, 0, 0.5)',
+    LINE: '#2962ff',
     BUTTON_BG: 'bg-transparent hover:bg-white/10 border-white/20 text-white/80 hover:text-white',
   },
   light: {
@@ -49,6 +51,7 @@ const THEMES = {
     BORDER: '#dee2e6',
     HIGHLIGHT: '#f1f3f5',
     SHADOW: 'rgba(0, 0, 0, 0.1)',
+    LINE: '#2962ff',
     BUTTON_BG: 'bg-white/50 hover:bg-black/5 border-black/20 text-black/80 hover:text-black',
   }
 };
@@ -364,25 +367,18 @@ export function MarketChart({
     if (v < 10) return v.toFixed(4);
     return v.toFixed(2);
   };
-  
-  const visibleData = React.useMemo(() => {
-    if (chartData.length > zoomLevel) {
-        return chartData.slice(chartData.length - zoomLevel);
-    }
-    return chartData;
-  }, [chartData, zoomLevel]);
 
   const latestPrice = React.useMemo(() => {
-    if (visibleData.length === 0) return null;
-    const last = visibleData[visibleData.length - 1];
+    if (chartData.length === 0) return null;
+    const last = chartData[chartData.length - 1];
     return 'price' in last ? (last as TickData).price : (last as CandleData).close;
-  }, [visibleData]);
+  }, [chartData]);
 
   const prevPrice = React.useMemo(() => {
-    if (visibleData.length < 2) return latestPrice || 0;
-    const secondLast = visibleData[visibleData.length - 2];
+    if (chartData.length < 2) return latestPrice || 0;
+    const secondLast = chartData[chartData.length - 2];
     return 'price' in secondLast ? (secondLast as TickData).price : (secondLast as CandleData).close;
-  }, [visibleData, latestPrice]);
+  }, [chartData, latestPrice]);
 
   const componentKey = `${activeSymbol}-${chartType}-${timePeriod}-${zoomLevel}`;
 
@@ -391,7 +387,7 @@ export function MarketChart({
     { label: 'Candle', icon: <CandlestickChart className="w-4 h-4" />, disabled: ['1m'].includes(timePeriod) },
   ];
 
-  if (isChartLoading && visibleData.length === 0) {
+  if (isChartLoading && chartData.length === 0) {
     return (
       <div className="h-[400px] w-full flex items-center justify-center" style={{backgroundColor: colors.BACKGROUND}}>
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -408,7 +404,7 @@ export function MarketChart({
     );
   }
 
-  if (visibleData.length === 0) {
+  if (chartData.length === 0) {
      return <div className="h-[400px] w-full flex items-center justify-center" style={{backgroundColor: colors.BACKGROUND, color: colors.TEXT}}>Aguardando dados...</div>;
   }
 
@@ -416,7 +412,7 @@ export function MarketChart({
      MODO TICKS (Área com Gradiente Azul)
   -------------------------------------------------------- */
   if (chartType === 'Area') {
-    const data = visibleData as TickData[];
+    const data = chartData as TickData[];
     const yDomain = getStableYDomain(data.map(d => d.price));
 
     return (
@@ -461,14 +457,14 @@ export function MarketChart({
             />
             <defs>
               <linearGradient id="blueGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#2962ff" stopOpacity="0.6"/>
-                <stop offset="100%" stopColor="#2962ff" stopOpacity="0.1"/>
+                <stop offset="0%" stopColor={colors.LINE} stopOpacity="0.6"/>
+                <stop offset="100%" stopColor={colors.LINE} stopOpacity="0.1"/>
               </linearGradient>
             </defs>
             <Area
               type="monotone"
               dataKey="price"
-              stroke="#2962ff"
+              stroke={colors.LINE}
               strokeWidth={2}
               fill="url(#blueGradient)"
               isAnimationActive={false}
@@ -519,7 +515,7 @@ export function MarketChart({
   /* --------------------------------------------------------
      MODO CANDLES (Canvas Premium com Hover & Crosshair)
   -------------------------------------------------------- */
-  const candleData = visibleData as CandleData[];
+  const candleData = chartData as CandleData[];
   const allValues = candleData.flatMap(d => [d.high, d.low, d.bollingerUpper, d.bollingerLower]);
   const yDomain = getStableYDomain(allValues.filter(v => v !== undefined) as number[]);
 
@@ -775,10 +771,10 @@ const FloatingControls: React.FC<FloatingControlsProps> = ({
                         </div>
                     </PopoverContent>
                 </Popover>
-                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('in')} disabled={zoomLevel <= 20}>
+                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('in')}>
                     <Plus className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('out')} disabled={zoomLevel >= 500}>
+                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('out')}>
                     <Minus className="h-4 w-4" />
                 </Button>
             </div>

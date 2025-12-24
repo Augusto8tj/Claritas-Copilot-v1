@@ -67,7 +67,7 @@ const addDataPoint = <T extends ChartData>(prevData: T[], newPoint: T): T[] => {
 /* =========================================================
    HOOK PRINCIPAL
 ========================================================= */
-export function useMarketData(activeSymbol: string | null, dataCount: number = 1000) {
+export function useMarketData(activeSymbol: string | null, dataCount: number = 100) {
     const { makeRequest, isConnected, addMarketDataListener, removeMarketDataListener } = useDerivApi();
     
     // Estados visuais
@@ -86,12 +86,12 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 1
     // Ajuste automático do tipo de gráfico baseado no timePeriod
     useEffect(() => {
         const isLowTimeFrame = ['1m'].includes(timePeriod);
-        if (isLowTimeFrame) {
+        if (isLowTimeFrame && chartType !== 'Area') {
             setChartType('Area');
-        } else {
+        } else if (!isLowTimeFrame && chartType !== 'Candle') {
             setChartType('Candle');
         }
-    }, [timePeriod]);
+    }, [timePeriod, chartType]);
 
     // --------------------------------------------------------------------------
     // 1. Lógica de Processamento de Dados (Ouvinte)
@@ -268,8 +268,7 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 1
                 makeRequest({ forget: activeSubscriptionIdRef.current }).catch(e => console.error("Cleanup falhou ao cancelar subscrição:", e));
             }
         };
-    // A DEPENDÊNCIA de dataCount foi removida para impedir re-subscrições no zoom
-    }, [activeSymbol, timePeriod, isConnected, makeRequest]);
+    }, [activeSymbol, timePeriod, isConnected, makeRequest, dataCount]);
 
 
     return {

@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState, useCallback } from "react";
@@ -25,9 +23,7 @@ import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
 
 export default function DerivTraderPage() {
   const [activeSymbol, setActiveSymbol] = useState<string | null>('1HZ75V');
-  // O 'zoomLevel' agora é um multiplicador para a quantidade de dados.
-  // 1 = 100 velas, 2 = 200 velas, etc.
-  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomLevel, setZoomLevel] = useState(100);
 
   const form = useForm<RiseFallFormValues>({
     resolver: zodResolver(riseFallSchema),
@@ -54,16 +50,14 @@ export default function DerivTraderPage() {
     addActiveContract,
   } = useDerivApi();
   
-  // O número de velas a pedir é calculado com base no multiplicador de zoom
-  const dataCount = 100 * zoomLevel;
-
   const handleZoom = (direction: 'in' | 'out') => {
     setZoomLevel(prevZoom => {
+        const change = 20; // Aumenta ou diminui 20 velas por vez
         let newZoom;
         if (direction === 'in') {
-            newZoom = Math.max(1, prevZoom - 1);
+            newZoom = Math.max(50, prevZoom - change); // Mínimo de 50 velas
         } else {
-            newZoom = Math.min(5, prevZoom + 1);
+            newZoom = Math.min(500, prevZoom + change); // Máximo de 500 velas
         }
         return newZoom;
     });
@@ -77,7 +71,7 @@ export default function DerivTraderPage() {
       }
   };
   
-  const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod, showBollingerBands, setShowBollingerBands } = useMarketData(activeSymbol, dataCount);
+  const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod, showBollingerBands, setShowBollingerBands } = useMarketData(activeSymbol, zoomLevel);
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
   const robotCouncil = useRobotCouncil(activeSymbol, chartData, operationsLog, addActiveContract, executeTrade);
   
