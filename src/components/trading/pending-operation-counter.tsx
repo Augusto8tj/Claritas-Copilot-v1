@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
-import type { DurationUnit } from './deriv-trader-interface';
+import type { DurationUnit } from './deriv-trader-interface.types';
 import { useDerivApi } from '@/hooks/use-deriv-api';
 
 interface PendingOperationCounterProps {
@@ -38,7 +38,7 @@ export function PendingOperationCounter({ duration, durationUnit, entryTime }: P
   }, [duration, durationUnit, entryTime]);
 
   useEffect(() => {
-    if (durationUnit !== 't') return;
+    if (durationUnit !== 't' || !priceTicks) return;
     
     // Contar ticks que ocorreram APÓS o tempo de entrada da operação
     const relevantTicks = priceTicks.filter(tick => tick.epoch * 1000 > entryTime);
@@ -85,4 +85,3 @@ export function PendingOperationCounter({ duration, durationUnit, entryTime }: P
     </>
   );
 }
-

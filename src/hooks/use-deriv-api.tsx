@@ -53,6 +53,7 @@ interface DerivApiContextType {
   operationsLog: Operation[];
   assetGroups: AssetGroup[];
   isAssetsLoading: boolean;
+  priceTicks: { epoch: number, price: number }[]; // Expose price ticks
   setAccountType: (type: AccountType) => void;
   setTokens: (tokens: { demo?: string; real?: string }) => void;
   disconnect: (type: AccountType) => void;
@@ -89,8 +90,8 @@ const marketNameMapping: Record<string, string> = {
 
 
 export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
-  const [demoToken, setDemoToken] = useState<string | null>('ljUGk6wbLSrtEDo');
-  const [realToken, setRealToken] = useState<string | null>('GU5MwbX1kwvSoyw');
+  const [demoToken, setDemoToken] = useState<string | null>(null);
+  const [realToken, setRealToken] = useState<string | null>(null);
   const [accountType, setAccountTypeState] = useState<AccountType>('demo');
   const [accountBalance, setAccountBalance] = useState<AccountBalance>({ balance: null, currency: null, loading: true });
   const [isLoading, setIsLoading] = useState(true);
@@ -98,6 +99,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [operationsLog, setOperationsLog] = useState<Operation[]>([]);
   const [assetGroups, setAssetGroups] = useState<AssetGroup[]>([]);
   const [isAssetsLoading, setIsAssetsLoading] = useState(true);
+  const [priceTicks, setPriceTicks] = useState<{ epoch: number, price: number }[]>([]); // State for price ticks
   const { toast } = useToast();
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -119,8 +121,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       const storedRealToken = localStorage.getItem(DERIV_REAL_TOKEN_KEY);
       const storedAccountType = localStorage.getItem(DERIV_ACCOUNT_TYPE_KEY) as AccountType | null;
       
-      setDemoToken(storedDemoToken || 'ljUGk6wbLSrtEDo');
-      setRealToken(storedRealToken || 'GU5MwbX1kwvSoyw');
+      setDemoToken(storedDemoToken);
+      setRealToken(storedRealToken);
       if (storedAccountType) setAccountTypeState(storedAccountType);
     } catch (error) {
       console.error("Failed to access localStorage:", error);
@@ -292,6 +294,11 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       marketDataListenersRef.current.forEach(callback => callback(response));
       
       switch (response.msg_type) {
+         case 'tick':
+           if (response.tick) {
+              setPriceTicks(prev => [...prev.slice(-999), { epoch: response.tick.epoch, price: response.tick.quote }]);
+           }
+           break;
          case 'balance':
            setAccountBalance({
                balance: response.balance.balance,
@@ -576,6 +583,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     operationsLog,
     assetGroups,
     isAssetsLoading,
+    priceTicks, // Expose price ticks
     makeRequest,
     executeTrade,
     getHistoricalData,
