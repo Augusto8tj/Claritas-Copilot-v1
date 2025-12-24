@@ -31,9 +31,11 @@ export type ChartData = TickData | CandleData;
 /* =========================================================
    HELPERS
 ========================================================= */
+const MAX_DATA_POINTS = 1000;
+
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
-        case '1m': return 0; // 0 = ticks (para a API, mas vamos tratar ticks vs candles na lógica)
+        case '1m': return 0; // Ticks
         case '2m': return 120;
         case '3m': return 180;
         case '5m': return 300;
@@ -47,6 +49,21 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     }
 };
 
+const validateNumber = (val: any, fallback = 0): number => {
+    const num = Number(val);
+    return isFinite(num) ? num : fallback;
+};
+
+const addDataPoint = <T extends ChartData>(prevData: T[], newPoint: T): T[] => {
+    const data = [...prevData];
+    if (data.length >= MAX_DATA_POINTS) {
+        data.shift(); // Remove o mais antigo
+    }
+    data.push(newPoint);
+    return data;
+};
+
+
 /* =========================================================
    HOOK PRINCIPAL
 ========================================================= */
@@ -55,7 +72,7 @@ export function useMarketData(activeSymbol: string | null) {
     
     // Estados visuais
     const [chartData, setChartData] = useState<ChartData[]>([]);
-    const [isChartLoading, setIsChartLoading] = useState(false); // Começa false, ativa ao trocar
+    const [isChartLoading, setIsChartLoading] = useState(!!activeSymbol);
     const [chartError, setChartError] = useState<string | null>(null);
     const [chartType, setChartType] = useState<ChartType>('Area');
     const [timePeriod, setTimePeriod] = useState<TimePeriod>('5m');
@@ -78,14 +95,15 @@ export function useMarketData(activeSymbol: string | null) {
     // 1. Lógica de Processamento de Dados (Ouvinte)
     // --------------------------------------------------------------------------
     const handleMarketData = useCallback((response: any) => {
-        // Se estamos no meio de uma troca de ativo, ignoramos qualquer dado chegando
         if (isSwitchingRef.current) return;
+        
+        const responseSymbol = response.echo_req?.ticks_history || response.echo_req?.candles || response.tick?.symbol;
+        if (responseSymbol && responseSymbol !== currentSymbolRef.current) {
+            return; // Ignora dados de uma subscrição antiga
+        }
 
-        // Se houver erro na resposta
         if (response.error) {
-            // Verifica se o erro pertence à requisição atual
-            const reqSymbol = response.echo_req?.ticks_history || response.echo_req?.candles;
-            if (reqSymbol === currentSymbolRef.current) {
+            if (responseSymbol === currentSymbolRef.current) {
                 setChartError(response.error.message);
                 setIsChartLoading(false);
             }
@@ -94,23 +112,17 @@ export function useMarketData(activeSymbol: string | null) {
 
         const msgType = response.msg_type;
 
-        // A. Histórico de Ticks (Snapshot inicial para Area Chart)
         if (msgType === 'history') {
-            const history = response.history;
-            const prices = history.prices;
-            const times = history.times;
+            const { prices, times } = response.history;
             const formatted: TickData[] = prices.map((p: number, i: number) => ({
                 epoch: times[i],
-                price: p
+                price: validateNumber(p)
             })).filter((d: TickData) => d.price > 0);
             
             setChartData(formatted);
             setIsChartLoading(false);
         }
-
-        // B. Histórico de Candles (Snapshot inicial para Candle Chart)
         else if (msgType === 'candles') {
-            // Salva o ID da subscrição se houver
             if (response.subscription?.id) {
                 activeSubscriptionIdRef.current = response.subscription.id;
             }
@@ -118,57 +130,46 @@ export function useMarketData(activeSymbol: string | null) {
             const rawCandles = response.candles || [];
             const formatted: CandleData[] = rawCandles.map((c: any) => ({
                 epoch: c.epoch,
-                open: Number(c.open),
-                high: Number(c.high),
-                low: Number(c.low),
-                close: Number(c.close)
+                open: validateNumber(c.open),
+                high: validateNumber(c.high),
+                low: validateNumber(c.low),
+                close: validateNumber(c.close)
             })).filter((c: CandleData) => c.close > 0);
 
             const withBands = calculateBollingerBands(formatted);
             setChartData(withBands);
             setIsChartLoading(false);
         }
-
-        // C. Update em Tempo Real (Tick)
         else if (msgType === 'tick') {
-            // Só aceita o tick se pertencer à subscrição ativa ou ao símbolo ativo
-            if (activeSubscriptionIdRef.current && response.subscription?.id !== activeSubscriptionIdRef.current) {
-                return;
-            }
+            if (activeSubscriptionIdRef.current && response.subscription?.id !== activeSubscriptionIdRef.current) return;
 
             const tick = response.tick;
-            const newTick: TickData = { epoch: tick.epoch, price: tick.quote };
+            const newTick: TickData = { epoch: tick.epoch, price: validateNumber(tick.quote) };
+            if (newTick.price === 0) return;
 
             setChartData(prev => {
-                // Evita updates em array vazio se o histórico ainda não carregou
                 if (prev.length === 0) return [newTick];
-                
                 const last = prev[prev.length - 1] as TickData;
-                // Se for update do mesmo segundo, atualiza o último
                 if (last.epoch === newTick.epoch) {
                     const newData = [...prev];
                     newData[newData.length - 1] = newTick;
                     return newData;
                 }
-                // Senão adiciona novo e mantém tamanho controlado
-                return [...prev.slice(-1000), newTick];
+                return addDataPoint(prev, newTick);
             });
         }
-
-        // D. Update em Tempo Real (OHLC / Candle)
         else if (msgType === 'ohlc') {
-            if (activeSubscriptionIdRef.current && response.subscription?.id !== activeSubscriptionIdRef.current) {
-                return;
-            }
+            if (activeSubscriptionIdRef.current && response.subscription?.id !== activeSubscriptionIdRef.current) return;
 
             const ohlc = response.ohlc;
             const newCandle: CandleData = {
                 epoch: ohlc.epoch,
-                open: Number(ohlc.open),
-                high: Number(ohlc.high),
-                low: Number(ohlc.low),
-                close: Number(ohlc.close_quote || ohlc.close), // API Deriv às vezes usa close_quote em streams
+                open: validateNumber(ohlc.open),
+                high: validateNumber(ohlc.high),
+                low: validateNumber(ohlc.low),
+                close: validateNumber(ohlc.close),
             };
+            if (newCandle.close === 0) return;
 
             setChartData(prev => {
                 if (prev.length === 0) return calculateBollingerBands([newCandle]);
@@ -176,29 +177,29 @@ export function useMarketData(activeSymbol: string | null) {
                 const data = [...(prev as CandleData[])];
                 const last = data[data.length - 1];
 
-                // Se estamos na mesma vela (mesmo epoch ou dentro da granularidade), atualiza a última
                 if (last.epoch === newCandle.epoch) {
                     data[data.length - 1] = newCandle;
                 } else {
-                    // Nova vela fechou, adiciona nova
-                    if (data.length > 1000) data.shift();
                     data.push(newCandle);
+                    if (data.length > MAX_DATA_POINTS) data.shift();
                 }
                 
-                // Recalcula bandas (idealmente só para as últimas, mas aqui recalculamos tudo para segurança)
                 return calculateBollingerBands(data);
             });
         }
-
     }, []);
 
     // --------------------------------------------------------------------------
     // 2. Lifecycle do Listener
     // --------------------------------------------------------------------------
+    const handleMarketDataRef = useRef(handleMarketData);
+    handleMarketDataRef.current = handleMarketData;
+
     useEffect(() => {
-        addMarketDataListener(handleMarketData);
-        return () => removeMarketDataListener(handleMarketData);
-    }, [addMarketDataListener, removeMarketDataListener, handleMarketData]);
+        const handler = (data: any) => handleMarketDataRef.current(data);
+        addMarketDataListener(handler);
+        return () => removeMarketDataListener(handler);
+    }, [addMarketDataListener, removeMarketDataListener]);
 
 
     // --------------------------------------------------------------------------
@@ -206,28 +207,29 @@ export function useMarketData(activeSymbol: string | null) {
     // --------------------------------------------------------------------------
     useEffect(() => {
         const subscribeToSymbol = async () => {
-            if (!isConnected || !activeSymbol) return;
+            if (!isConnected || !activeSymbol) {
+                if (!activeSymbol) setIsChartLoading(false);
+                return;
+            }
 
-            // --- FASE 1: LIMPEZA IMEDIATA (Atomic) ---
-            isSwitchingRef.current = true; // Trava o listener de receber lixo antigo
+            isSwitchingRef.current = true;
             currentSymbolRef.current = activeSymbol;
             
-            // Limpa dados VISUAIS instantaneamente
             setChartData([]); 
             setIsChartLoading(true);
             setChartError(null);
 
-            // --- FASE 2: CANCELAMENTO DO ANTERIOR ---
             if (activeSubscriptionIdRef.current) {
                 try {
                     await makeRequest({ forget: activeSubscriptionIdRef.current });
                 } catch (e) {
-                    console.warn("Erro ao esquecer subscrição antiga", e);
+                    console.error(`Falha ao cancelar subscrição ${activeSubscriptionIdRef.current}:`, e);
                 }
                 activeSubscriptionIdRef.current = null;
             }
+            
+            isSwitchingRef.current = false; // Pode destravar agora
 
-            // --- FASE 3: NOVA REQUISIÇÃO ---
             try {
                 const isCandleRequest = chartType === 'Candle';
                 const granularity = isCandleRequest ? getGranularityForTimePeriod(timePeriod) : 0;
@@ -235,34 +237,37 @@ export function useMarketData(activeSymbol: string | null) {
                 const request: any = {
                     ticks_history: activeSymbol,
                     adjust_start_time: 1,
-                    count: 100,
+                    count: 100, // Alterado para 100
                     end: 'latest',
                     style: isCandleRequest ? 'candles' : 'ticks',
-                    subscribe: 1, // Assinar updates
+                    subscribe: 1,
                 };
 
                 if (isCandleRequest && granularity > 0) {
                     request.granularity = granularity;
                 }
-
-                // Destrava o listener logo antes de enviar o request, 
-                // pois o próximo msg que vier já será resposta disso (ou erro)
-                isSwitchingRef.current = false;
-
-                const response = await makeRequest(request);
-
-                // O ID da subscrição será capturado pelo `handleMarketData` quando a resposta de 'candles' ou 'history' chegar.
+                
+                // A resposta e o ID da subscrição serão tratados pelo `handleMarketData`
+                await makeRequest(request);
 
             } catch (error: any) {
-                setChartError(error.message || "Erro desconhecido");
-                setIsChartLoading(false);
-                isSwitchingRef.current = false;
+                if(currentSymbolRef.current === activeSymbol) { // Só define erro se ainda for o ativo atual
+                    setChartError(error.message || "Erro ao subscrever dados de mercado.");
+                    setIsChartLoading(false);
+                }
             }
         };
 
         subscribeToSymbol();
+        
+        // Cleanup na desmontagem do componente
+        return () => {
+            if (activeSubscriptionIdRef.current) {
+                makeRequest({ forget: activeSubscriptionIdRef.current }).catch(e => console.error("Cleanup falhou ao cancelar subscrição:", e));
+            }
+        };
 
-    }, [activeSymbol, timePeriod, chartType, isConnected, makeRequest]); // Dependências controladas
+    }, [activeSymbol, timePeriod, chartType, isConnected, makeRequest]);
 
 
     return {
