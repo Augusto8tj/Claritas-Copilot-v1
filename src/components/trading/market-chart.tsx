@@ -41,32 +41,6 @@ const Candlestick = (props: any) => {
     );
 };
 
-// Componente customizado para renderizar pontos de contrato com label
-const ContractDot = (props: any) => {
-    const { cx, cy, payload, dataKey, fill, stroke, strokeWidth, label, r } = props;
-    
-    if (!cx || !cy || isNaN(cx) || isNaN(cy)) {
-        return null;
-    }
-
-    return (
-        <g>
-            <circle cx={cx} cy={cy} r={r || 6} fill={fill} stroke={stroke} strokeWidth={strokeWidth || 2} />
-            {label && (
-                <text 
-                    x={cx} 
-                    y={cy - 15} 
-                    textAnchor="middle" 
-                    fill={fill}
-                    fontSize={11}
-                    fontWeight="bold"
-                >
-                    {label}
-                </text>
-            )}
-        </g>
-    );
-};
 
 interface MarketChartProps {
   activeContracts: ActiveContract[];
@@ -78,6 +52,7 @@ interface MarketChartProps {
   timePeriod: TimePeriod;
   showBollingerBands: boolean;
 }
+
 
 export function MarketChart({ 
     activeContracts, 
@@ -97,332 +72,259 @@ export function MarketChart({
     return chartData;
   }, [chartData, zoomLevel]);
 
-  // Debug dos contratos ativos
-  React.useEffect(() => {
-    if (activeContracts.length > 0) {
-      console.log('📊 Contratos ativos no gráfico:', activeContracts);
-      console.log('📈 Dados do gráfico (primeiros 3):', visibleData.slice(0, 3));
-      console.log('📈 Dados do gráfico (últimos 3):', visibleData.slice(-3));
+  const priceTickFormatter = (value: any) => {
+    if (typeof value !== 'number') return value;
+    if (value > 1000) {
+      return `${(value / 1000).toFixed(0)}k`;
     }
-  }, [activeContracts, visibleData]);
-
-  // Função para renderizar os contratos no gráfico
-  const renderContractMarkers = (contracts: ActiveContract[]) => {
-    return contracts.map(contract => {
-      console.log('🎯 Renderizando contrato:', {
-        id: contract.contractId,
-        entryTime: contract.entryTime,
-        entryTick: contract.entryTick,
-        exitTime: contract.exitTime,
-        exitTick: contract.exitTick,
-        status: contract.status
-      });
-
-      return (
-        <React.Fragment key={contract.contractId}>
-          {/* Ponto de Entrada */}
-          <ReferenceDot
-            x={contract.entryTime}
-            y={contract.entryTick}
-            r={6}
-            fill="hsl(var(--accent))"
-            stroke="white"
-            strokeWidth={2}
-            label={{ 
-              value: 'ENTRADA', 
-              position: 'top',
-              fill: 'hsl(var(--accent))',
-              fontSize: 11,
-              fontWeight: 'bold'
-            }}
-          />
-          
-          {/* Linha de Entrada */}
-          <ReferenceLine 
-            y={contract.entryTick} 
-            stroke="hsl(var(--accent))" 
-            strokeDasharray="3 3"
-            strokeWidth={1}
-            opacity={0.5}
-          />
-
-          {/* Ponto de Saída (se o contrato fechou) */}
-          {contract.status !== 'open' && contract.exitTime && contract.exitTick && (
-            <>
-              <ReferenceDot
-                x={contract.exitTime}
-                y={contract.exitTick}
-                r={6}
-                fill={contract.status === 'won' ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))'}
-                stroke="white"
-                strokeWidth={2}
-                label={{ 
-                  value: contract.status === 'won' ? '✓ LUCRO' : '✗ PERDA',
-                  position: 'top',
-                  fill: contract.status === 'won' ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))',
-                  fontSize: 11,
-                  fontWeight: 'bold'
-                }}
-              />
-              
-              {/* Linha de Saída */}
-              <ReferenceLine 
-                y={contract.exitTick} 
-                stroke={contract.status === 'won' ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))'} 
-                strokeDasharray="3 3"
-                strokeWidth={1}
-                opacity={0.5}
-              />
-            </>
-          )}
-        </React.Fragment>
-      );
-    });
+    if (value < 10) {
+        return value.toFixed(4);
+    }
+    return value.toFixed(2);
   };
   
   const renderChart = () => {
-    // Verifica se há dados
-    if (!visibleData || visibleData.length === 0) {
-      return (
-        <div className="h-full w-full flex items-center justify-center">
-          <p className="text-muted-foreground">Aguardando dados do mercado...</p>
-        </div>
-      );
-    }
+     // For '1m', '2m', '3m', we only have tick data, so we must use a LineChart.
+     if (['1m','2m','3m'].includes(timePeriod)) {
+        const tickData = visibleData as TickData[];
+        if (!tickData || tickData.length === 0) return null;
+        
+        const xDomain = tickData.length > 0 ? [tickData[0].epoch, tickData[tickData.length - 1].epoch] : [0, 0];
+        
+        const prices = tickData.map(d => d.price);
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        const priceRange = maxPrice - minPrice;
+        const margin = priceRange * 0.1; // 10% margin
+        const yDomain: [number, number] = [minPrice - margin, maxPrice + margin];
 
-    // Para períodos de tick (1m, 2m, 3m), usa gráfico de linha
-    if (['1m','2m','3m'].includes(timePeriod)) {
-      const tickData = visibleData as TickData[];
-      
-      // Valida os dados
-      const validTickData = tickData.filter(d => d.epoch && d.price && !isNaN(d.price));
-      
-      if (validTickData.length === 0) {
+
         return (
-          <div className="h-full w-full flex items-center justify-center">
-            <p className="text-muted-foreground">Dados de tick inválidos</p>
-          </div>
+            <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={[...tickData]}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis
+                        dataKey="epoch"
+                        stroke="hsl(var(--muted-foreground))"
+                        fontSize={12}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleTimeString('pt-BR')}
+                        type="number"
+                        domain={xDomain}
+                    />
+                    <YAxis
+                        dataKey="price"
+                        stroke="hsl(var(--muted-foreground))"
+                        fontSize={12}
+                        tickLine={false}
+                        axisLine={false}
+                        domain={yDomain}
+                        tickFormatter={priceTickFormatter}
+                        orientation="right"
+                        width={80}
+                    />
+                    <Tooltip
+                        formatter={(value: number, name, props: any) => [Number(value).toFixed(4), "Preço"]}
+                        labelFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleString('pt-BR')}
+                        labelStyle={{ color: 'hsl(var(--foreground))' }}
+                        contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
+                        animationDuration={0}
+                    />
+                    <Line
+                        isAnimationActive={false}
+                        type="monotone"
+                        dataKey="price"
+                        stroke="hsl(var(--primary))"
+                        strokeWidth={2}
+                        dot={false}
+                    />
+                     {activeContracts.map(contract => (
+                        <React.Fragment key={contract.contractId}>
+                            {/* Entry Dot */}
+                            <ReferenceDot
+                                x={contract.entryTime}
+                                y={contract.entryTick}
+                                r={5}
+                                fill="hsl(var(--accent))"
+                                stroke="white"
+                                strokeWidth={2}
+                            />
+                            {/* Exit Dot */}
+                            {contract.status !== 'open' && contract.exitTime && contract.exitTick && (
+                                <ReferenceDot
+                                    x={contract.exitTime}
+                                    y={contract.exitTick}
+                                    r={5}
+                                    fill={contract.status === 'won' ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))'}
+                                    stroke="white"
+                                    strokeWidth={2}
+                                />
+                            )}
+                        </React.Fragment>
+                    ))}
+                </LineChart>
+            </ResponsiveContainer>
+        )
+     }
+
+     // For other time periods, we have candle data.
+     const candleData = visibleData as CandleData[];
+     if (!candleData || candleData.length === 0) return null;
+     
+     const allLows = candleData.map(d => d.low).filter(v => v !== undefined);
+     const allHighs = candleData.map(d => d.high).filter(v => v !== undefined);
+
+     if(allLows.length === 0 || allHighs.length === 0) return null;
+
+     const minPrice = Math.min(...allLows);
+     const maxPrice = Math.max(...allHighs);
+     const priceRange = maxPrice - minPrice;
+     const margin = priceRange * 0.1; // 10% margin
+     const yDomain: [number, number] = [minPrice - margin, maxPrice + margin];
+     
+
+     // Show candle chart if selected
+     if (chartType === 'Candle') {
+        return (
+            <ResponsiveContainer width="100%" height="100%">
+                 <ComposedChart data={candleData} barGap={-3} barCategoryGap="30%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis 
+                        dataKey="epoch" 
+                        tickFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit'})} 
+                        type="number"
+                        domain={['dataMin', 'dataMax']}
+                        stroke="hsl(var(--muted-foreground))"
+                        fontSize={12}
+                    />
+                    <YAxis 
+                        domain={yDomain}
+                        tickFormatter={priceTickFormatter}
+                        orientation="right"
+                        stroke="hsl(var(--muted-foreground))"
+                        fontSize={12}
+                        width={80}
+                    />
+                    <Tooltip
+                        labelFormatter={(label) => new Date(label * 1000).toLocaleString('pt-BR')}
+                        formatter={(value, name, props) => {
+                            if (name === 'bollingerBands') return null;
+                            if (props.payload) {
+                                const { open, high, low, close } = props.payload;
+                                return [
+                                    `Abertura: ${open?.toFixed(4)}`,
+                                    `Máxima: ${high?.toFixed(4)}`,
+                                    `Mínima: ${low?.toFixed(4)}`,
+                                    `Fechamento: ${close?.toFixed(4)}`
+                                ];
+                            }
+                            return [value];
+                        }}
+                         contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
+                    />
+                    {showBollingerBands && (
+                     <Area 
+                        dataKey="bollingerBands" 
+                        stroke="hsl(var(--primary) / 0.5)"
+                        fill="hsl(var(--primary) / 0.1)"
+                        isAnimationActive={false} 
+                        type="monotone"
+                     />
+                    )}
+                     <Bar dataKey="close" shape={<Candlestick />} isAnimationActive={false} />
+                     {activeContracts.map(contract => (
+                        <React.Fragment key={contract.contractId}>
+                            <ReferenceDot
+                                x={contract.entryTime}
+                                y={contract.entryTick}
+                                r={5}
+                                fill="hsl(var(--accent))"
+                                stroke="white"
+                                strokeWidth={2}
+                            />
+                            {contract.status !== 'open' && contract.exitTime && contract.exitTick && (
+                                <ReferenceDot
+                                    x={contract.exitTime}
+                                    y={contract.exitTick}
+                                    r={5}
+                                    fill={contract.status === 'won' ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))'}
+                                    stroke="white"
+                                    strokeWidth={2}
+                                />
+                            )}
+                        </React.Fragment>
+                    ))}
+                </ComposedChart>
+            </ResponsiveContainer>
         );
-      }
+     }
 
-      const xDomain: [number, number] = [
-        validTickData[0].epoch, 
-        validTickData[validTickData.length - 1].epoch
-      ];
-      
-      // Calcula domínio Y com margem
-      const prices = validTickData.map(d => d.price);
-      const minPrice = Math.min(...prices);
-      const maxPrice = Math.max(...prices);
-      const priceRange = maxPrice - minPrice;
-      const margin = priceRange * 0.1; // 10% de margem
-      
-      return (
+     // Fallback to a line chart using the 'close' price from candle data.
+     return (
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={validTickData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis
-              dataKey="epoch"
-              stroke="hsl(var(--muted-foreground))"
-              fontSize={12}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(epoch: number) => {
-                const date = new Date(epoch * 1000);
-                return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-              }}
-              type="number"
-              domain={xDomain}
-              scale="time"
-            />
-            <YAxis
-              stroke="hsl(var(--muted-foreground))"
-              fontSize={12}
-              tickLine={false}
-              axisLine={false}
-              domain={[minPrice - margin, maxPrice + margin]}
-              tickFormatter={(value) => Number(value).toFixed(4)}
-              orientation="right"
-              width={80}
-            />
-            <Tooltip
-              formatter={(value: number) => [Number(value).toFixed(4), "Preço"]}
-              labelFormatter={(epoch: number) => {
-                const date = new Date(epoch * 1000);
-                return date.toLocaleString('pt-BR');
-              }}
-              labelStyle={{ color: 'hsl(var(--foreground))' }}
-              contentStyle={{ 
-                backgroundColor: 'hsl(var(--background))', 
-                borderColor: 'hsl(var(--border))', 
-                borderRadius: 'var(--radius)' 
-              }}
-              animationDuration={0}
-            />
-            <Line
-              isAnimationActive={false}
-              type="monotone"
-              dataKey="price"
-              stroke="hsl(var(--primary))"
-              strokeWidth={2}
-              dot={false}
-            />
-            {renderContractMarkers(activeContracts)}
-          </LineChart>
+            <LineChart data={candleData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis
+                    dataKey="epoch"
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit'})}
+                    type="number"
+                    domain={['dataMin', 'dataMax']}
+                />
+                <YAxis
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    domain={yDomain}
+                    tickFormatter={priceTickFormatter}
+                    orientation="right"
+                    width={80}
+                />
+                <Tooltip
+                    formatter={(value: number, name, props: any) => [Number(value).toFixed(4), "Preço de Fechamento"]}
+                    labelFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleString('pt-BR')}
+                    labelStyle={{ color: 'hsl(var(--foreground))' }}
+                    contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
+                />
+                <Line
+                    isAnimationActive={false}
+                    type="monotone"
+                    dataKey="close"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    dot={false}
+                />
+                {activeContracts.map(contract => (
+                    <React.Fragment key={contract.contractId}>
+                        <ReferenceDot
+                            x={contract.entryTime}
+                            y={contract.entryTick}
+                            r={5}
+                            fill="hsl(var(--accent))"
+                            stroke="white"
+                            strokeWidth={2}
+                        />
+                        {contract.status !== 'open' && contract.exitTime && contract.exitTick && (
+                            <ReferenceDot
+                                x={contract.exitTime}
+                                y={contract.exitTick}
+                                r={5}
+                                fill={contract.status === 'won' ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))'}
+                                stroke="white"
+                                strokeWidth={2}
+                            />
+                        )}
+                    </React.Fragment>
+                ))}
+            </LineChart>
         </ResponsiveContainer>
-      );
-    }
-
-    // Para outros períodos, usa dados de candle
-    const candleData = visibleData as CandleData[];
-    
-    // Valida os dados de candle
-    const validCandleData = candleData.filter(d => 
-      d.epoch && 
-      d.open && d.high && d.low && d.close &&
-      !isNaN(d.open) && !isNaN(d.high) && !isNaN(d.low) && !isNaN(d.close)
-    );
-
-    if (validCandleData.length === 0) {
-      return (
-        <div className="h-full w-full flex items-center justify-center">
-          <p className="text-muted-foreground">Dados de candle inválidos</p>
-        </div>
-      );
-    }
-
-    // Calcula domínio Y
-    const allLows = validCandleData.map(d => d.low);
-    const allHighs = validCandleData.map(d => d.high);
-    const minPrice = Math.min(...allLows);
-    const maxPrice = Math.max(...allHighs);
-    const priceRange = maxPrice - minPrice;
-    const margin = priceRange * 0.1;
-    const yDomain: [number, number] = [minPrice - margin, maxPrice + margin];
-
-    // Gráfico de Candles
-    if (chartType === 'Candle') {
-      return (
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={validCandleData} barGap={0} barCategoryGap="5%">
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis 
-              dataKey="epoch" 
-              tickFormatter={(epoch: number) => {
-                const date = new Date(epoch * 1000);
-                return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-              }}
-              type="number"
-              domain={['dataMin', 'dataMax']}
-              stroke="hsl(var(--muted-foreground))"
-              fontSize={12}
-              scale="time"
-            />
-            <YAxis 
-              domain={yDomain}
-              tickFormatter={(val) => Number(val).toFixed(4)}
-              orientation="right"
-              stroke="hsl(var(--muted-foreground))"
-              fontSize={12}
-              width={80}
-            />
-            <Tooltip
-              labelFormatter={(label) => {
-                const date = new Date(label * 1000);
-                return date.toLocaleString('pt-BR');
-              }}
-              formatter={(value, name, props) => {
-                if (name === 'bollingerBands') return null;
-                if (props.payload) {
-                  const { open, high, low, close } = props.payload;
-                  return [
-                    <div key="candle-info" style={{ fontSize: '12px' }}>
-                      <div>Abertura: {open?.toFixed(4)}</div>
-                      <div>Máxima: {high?.toFixed(4)}</div>
-                      <div>Mínima: {low?.toFixed(4)}</div>
-                      <div>Fechamento: {close?.toFixed(4)}</div>
-                    </div>
-                  ];
-                }
-                return [value];
-              }}
-              contentStyle={{ 
-                backgroundColor: 'hsl(var(--background))', 
-                borderColor: 'hsl(var(--border))', 
-                borderRadius: 'var(--radius)' 
-              }}
-            />
-            {showBollingerBands && (
-              <Area 
-                dataKey="bollingerBands" 
-                stroke="hsl(var(--primary) / 0.5)"
-                fill="hsl(var(--primary) / 0.1)"
-                isAnimationActive={false} 
-                type="monotone"
-              />
-            )}
-            <Bar dataKey="close" shape={<Candlestick />} isAnimationActive={false} />
-            {renderContractMarkers(activeContracts)}
-          </ComposedChart>
-        </ResponsiveContainer>
-      );
-    }
-
-    // Gráfico de Linha (fallback)
-    return (
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={validCandleData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis
-            dataKey="epoch"
-            stroke="hsl(var(--muted-foreground))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-            tickFormatter={(epoch: number) => {
-              const date = new Date(epoch * 1000);
-              return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-            }}
-            type="number"
-            domain={['dataMin', 'dataMax']}
-            scale="time"
-          />
-          <YAxis
-            stroke="hsl(var(--muted-foreground))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-            domain={yDomain}
-            tickFormatter={(value) => Number(value).toFixed(4)}
-            orientation="right"
-            width={80}
-          />
-          <Tooltip
-            formatter={(value: number) => [Number(value).toFixed(4), "Preço de Fechamento"]}
-            labelFormatter={(epoch: number) => {
-              const date = new Date(epoch * 1000);
-              return date.toLocaleString('pt-BR');
-            }}
-            labelStyle={{ color: 'hsl(var(--foreground))' }}
-            contentStyle={{ 
-              backgroundColor: 'hsl(var(--background))', 
-              borderColor: 'hsl(var(--border))', 
-              borderRadius: 'var(--radius)' 
-            }}
-          />
-          <Line
-            isAnimationActive={false}
-            type="monotone"
-            dataKey="close"
-            stroke="hsl(var(--primary))"
-            strokeWidth={2}
-            dot={false}
-          />
-          {renderContractMarkers(activeContracts)}
-        </LineChart>
-      </ResponsiveContainer>
-    );
-  };
+     );
+  }
 
   if (isChartLoading && visibleData.length === 0) {
     return (
