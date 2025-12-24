@@ -142,7 +142,7 @@ export function useMarketData(activeSymbol: string | null) {
             setChartData(prev => {
                 if (prev.length === 0) return [newTick];
                 const last = prev[prev.length - 1] as TickData;
-                if (last.epoch === newTick.epoch) {
+                if (last && last.epoch === newTick.epoch) {
                     const newData = [...prev];
                     newData[newData.length - 1] = newTick;
                     return newData;
@@ -250,7 +250,7 @@ export function useMarketData(activeSymbol: string | null) {
             } catch (error: any) {
                 if(currentSymbolRef.current === activeSymbol) {
                     setChartError(error.message || "Erro ao subscrever dados de mercado.");
-                    setIsChartLoading(false);
+                    setIsChartLoading(false); // Make sure loading is false on error
                 }
             }
         };
