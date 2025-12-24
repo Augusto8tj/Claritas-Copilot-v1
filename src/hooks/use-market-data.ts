@@ -36,7 +36,7 @@ const MAX_DATA_POINTS = 1000;
 
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
-        case '1m': return 0; // Ticks
+        case '1m': return 60; // Alterado de 0 para 60 para sempre pedir velas de 1 minuto
         case '2m': return 120;
         case '3m': return 180;
         case '5m': return 300;
@@ -46,7 +46,7 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
         case '1h': return 3600;
         case '8h': return 28800;
         case '1d': return 86400;
-        default: return 0;
+        default: return 60; // Padrão para velas de 1 minuto
     }
 };
 
@@ -67,7 +67,7 @@ const addDataPoint = <T extends ChartData>(prevData: T[], newPoint: T): T[] => {
 
 /* =========================================================
    HOOK PRINCIPAL
-================================-======================== */
+========================================================= */
 export function useMarketData(activeSymbol: string | null) {
     const { makeRequest, isConnected, addMarketDataListener, removeMarketDataListener } = useDerivApi();
     
@@ -104,7 +104,7 @@ export function useMarketData(activeSymbol: string | null) {
 
         const msgType = response.msg_type;
 
-        if (msgType === 'history') {
+        if (msgType === 'history') { // Should not happen anymore, but kept as a safeguard
             const { prices, times } = response.history;
             const formatted: TickData[] = prices.map((p: number, i: number) => ({
                 epoch: times[i],
@@ -132,7 +132,7 @@ export function useMarketData(activeSymbol: string | null) {
             setChartData(withBands as ChartData[]);
             setIsChartLoading(false);
         }
-        else if (msgType === 'tick') {
+        else if (msgType === 'tick') { // Should not happen for chart, but kept as a safeguard
             if (activeSubscriptionIdRef.current && response.subscription?.id !== activeSubscriptionIdRef.current) return;
 
             const tick = response.tick;
@@ -224,10 +224,9 @@ export function useMarketData(activeSymbol: string | null) {
 
             try {
                 const granularity = getGranularityForTimePeriod(timePeriod);
-                const isCandleRequest = granularity > 0;
                 
-                // Força o tipo de gráfico correto baseado no pedido
-                const finalChartType = isCandleRequest ? 'Candle' : 'Area';
+                // Sempre pedimos velas agora
+                const finalChartType = 'Candle';
                 if (chartType !== finalChartType) {
                     setChartType(finalChartType);
                 }
@@ -235,22 +234,19 @@ export function useMarketData(activeSymbol: string | null) {
                 const request: any = {
                     ticks_history: activeSymbol,
                     adjust_start_time: 1,
-                    count: 1000, // Fetch a larger buffer initially
+                    count: 1000, 
                     end: 'latest',
-                    style: isCandleRequest ? 'candles' : 'ticks',
+                    style: 'candles',
+                    granularity: granularity,
                     subscribe: 1,
                 };
-
-                if (isCandleRequest) {
-                    request.granularity = granularity;
-                }
                 
                 await makeRequest(request);
 
             } catch (error: any) {
                 if(currentSymbolRef.current === activeSymbol) {
                     setChartError(error.message || "Erro ao subscrever dados de mercado.");
-                    setIsChartLoading(false); // Make sure loading is false on error
+                    setIsChartLoading(false);
                 }
             }
         };
