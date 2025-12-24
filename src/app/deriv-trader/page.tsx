@@ -110,6 +110,15 @@ export default function DerivTraderPage() {
     });
   };
 
+  const handleWheelZoom = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (e.ctrlKey) {
+        e.preventDefault();
+        const direction = e.deltaY < 0 ? 'in' : 'out';
+        handleZoom(direction);
+    }
+  };
+
+
   const chartTypes: { label: ChartType, icon: React.ReactNode, disabled: boolean }[] = [
     { label: 'Area', icon: <AreaChart className="w-8 h-8 mx-auto" />, disabled: false },
     { label: 'Candle', icon: <CandlestickChart className="w-8 h-8 mx-auto" />, disabled: ['1m', '2m', '3m'].includes(timePeriod) },
@@ -160,7 +169,7 @@ export default function DerivTraderPage() {
                             Gráfico ({activeSymbol})
                         </CardTitle>
                         <CardDescription className="text-xs">
-                            Desempenho em tempo real do ativo.
+                            Desempenho em tempo real do ativo. Ctrl + Scroll para zoom.
                         </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
@@ -227,7 +236,7 @@ export default function DerivTraderPage() {
                         </Button>
                     </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent onWheel={handleWheelZoom}>
                     <MarketChart 
                         activeSymbol={activeSymbol || ''}
                         activeContracts={activeContracts}
