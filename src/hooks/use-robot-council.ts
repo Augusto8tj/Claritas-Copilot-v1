@@ -126,12 +126,12 @@ export function useRobotCouncil(
         }
     }, [activeSymbol, dailyBalance, form, toast, getHistoricalData]);
 
-    // Main logic trigger
+    // Main logic trigger: only fetch if ON, symbol is selected, and council is empty.
     useEffect(() => {
-        if (isCouncilAutopilotOn && !isFetchingCouncil && strategyCouncil.length === 0) {
+        if (isCouncilAutopilotOn && activeSymbol && !isFetchingCouncil && strategyCouncil.length === 0) {
             fetchStrategyCouncil();
         }
-    }, [isCouncilAutopilotOn, isFetchingCouncil, strategyCouncil, fetchStrategyCouncil]);
+    }, [isCouncilAutopilotOn, activeSymbol, isFetchingCouncil, strategyCouncil.length, fetchStrategyCouncil]);
 
     // Indicator calculation
     useEffect(() => {
