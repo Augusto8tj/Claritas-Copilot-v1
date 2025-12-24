@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -53,8 +52,36 @@ export function AssetSelector({ selectedAsset, onAssetChange, assetGroups, isAss
       console.log('🔍 Mercados únicos disponíveis:', uniqueMarkets);
       console.log('📊 Total de ativos:', allAssets.length);
       
+      // Log detalhado por mercado
+      uniqueMarkets.forEach(market => {
+        const count = allAssets.filter(a => a.market === market).length;
+        console.log(`  - ${market}: ${count} ativos`);
+      });
+      
+      // Log de status de mercado
+      const openMarkets = allAssets.filter(a => a.marketIsOpen).length;
+      const closedMarkets = allAssets.filter(a => !a.marketIsOpen).length;
+      console.log('📊 Status:', { abertos: openMarkets, fechados: closedMarkets });
+      
+      // Log de durações
+      const withTicks = allAssets.filter(a => a.minDuration && a.minDuration.endsWith('t')).length;
+      const withTime = allAssets.filter(a => a.minDuration && !a.minDuration.endsWith('t')).length;
+      const noMinDuration = allAssets.filter(a => !a.minDuration).length;
+      console.log('⏱️ Durações:', { ticks: withTicks, tempo: withTime, semDuração: noMinDuration });
+      
       // Log de alguns ativos para verificar estrutura
-      console.log('📝 Exemplo de ativos:', allAssets.slice(0, 3));
+      console.log('📝 Exemplos de cada mercado:');
+      uniqueMarkets.forEach(market => {
+        const example = allAssets.find(a => a.market === market);
+        if (example) {
+          console.log(`  ${market}:`, {
+            label: example.label,
+            value: example.value,
+            marketIsOpen: example.marketIsOpen,
+            minDuration: example.minDuration
+          });
+        }
+      });
     }
   }, [assetGroups, isAssetsLoading]);
 
@@ -122,6 +149,20 @@ export function AssetSelector({ selectedAsset, onAssetChange, assetGroups, isAss
     return "Selecione um ativo";
   }, [assetGroups, selectedAsset]);
 
+  // Conta quantos ativos cada filtro tem
+  const filterCounts = useMemo(() => {
+    const allAssets = assetGroups.flatMap(g => g.options);
+    const counts: Record<string, number> = { all: allAssets.length };
+    
+    marketFilters.forEach(f => {
+      if (f.value !== 'all') {
+        counts[f.value] = allAssets.filter(a => a.market === f.value).length;
+      }
+    });
+    
+    return counts;
+  }, [assetGroups]);
+
   // Find the currently selected asset's market to set the initial filter
    useEffect(() => {
     if (isAssetsLoading) return;
@@ -142,20 +183,6 @@ export function AssetSelector({ selectedAsset, onAssetChange, assetGroups, isAss
   if (isAssetsLoading) {
     return <Skeleton className="w-full sm:w-[280px] h-10" />;
   }
-
-  // Conta quantos ativos cada filtro tem
-  const filterCounts = useMemo(() => {
-    const allAssets = assetGroups.flatMap(g => g.options);
-    const counts: Record<string, number> = { all: allAssets.length };
-    
-    marketFilters.forEach(f => {
-      if (f.value !== 'all') {
-        counts[f.value] = allAssets.filter(a => a.market === f.value).length;
-      }
-    });
-    
-    return counts;
-  }, [assetGroups]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
