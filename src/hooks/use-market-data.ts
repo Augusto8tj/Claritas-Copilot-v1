@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -67,7 +68,7 @@ const addDataPoint = <T extends ChartData>(prevData: T[], newPoint: T): T[] => {
 /* =========================================================
    HOOK PRINCIPAL
 ================================-======================== */
-export function useMarketData(activeSymbol: string | null, dataCount: number = 200) {
+export function useMarketData(activeSymbol: string | null) {
     const { makeRequest, isConnected, addMarketDataListener, removeMarketDataListener } = useDerivApi();
     
     // Estados visuais
@@ -76,7 +77,6 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 2
     const [chartError, setChartError] = useState<string | null>(null);
     const [chartType, setChartType] = useState<ChartType>('Area');
     const [timePeriod, setTimePeriod] = useState<TimePeriod>('5m');
-    const [showBollingerBands, setShowBollingerBands] = useState(true);
 
     // Refs de Controle (Critical para evitar Race Conditions)
     const activeSubscriptionIdRef = useRef<string | null>(null);
@@ -169,7 +169,7 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 2
                 const data = [...(prev as CandleData[])];
                 const last = data[data.length - 1];
 
-                if (last.epoch === newCandle.epoch) {
+                if (last && last.epoch === newCandle.epoch) {
                     data[data.length - 1] = newCandle;
                 } else {
                     data.push(newCandle);
@@ -262,7 +262,6 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 2
                 makeRequest({ forget: activeSubscriptionIdRef.current }).catch(e => console.error("Cleanup falhou ao cancelar subscrição:", e));
             }
         };
-    // O `dataCount` é removido das dependências para evitar re-subscrições ao dar zoom.
     }, [activeSymbol, timePeriod, isConnected, makeRequest]);
 
 
@@ -274,7 +273,5 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 2
         setChartType,
         timePeriod,
         setTimePeriod,
-        showBollingerBands,
-        setShowBollingerBands,
     };
 }
