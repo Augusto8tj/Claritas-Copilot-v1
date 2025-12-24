@@ -2,7 +2,7 @@
 'use client';
 
 import * as React from "react";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Label, BarChart, Bar, ComposedChart, ReferenceDot, Area } from "recharts";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Label, BarChart, Bar, ComposedChart, ReferenceDot, Area, Cell } from "recharts";
 import { Loader2 } from "lucide-react";
 import type { CandleData, TickData, ChartData, ActiveContract } from '@/hooks/use-market-data';
 import type { TimePeriod, ChartType } from '@/hooks/use-market-data';
