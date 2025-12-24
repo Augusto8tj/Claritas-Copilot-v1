@@ -40,10 +40,11 @@ const calculateStochastic = (data: CandleData[], period = 14) => {
  * @param period - The number of periods to average.
  * @returns An array of SMA values or nulls.
  */
-export const calcSMA = (data: CandleData[], period: number): (number | null)[] =>
+export const calcSMA = (data: (CandleData | null)[], period: number): (number | null)[] =>
   data.map((d, i) => {
     if (i < period - 1) return null
-    const slice = data.slice(i - period + 1, i + 1)
+    const slice = data.slice(i - period + 1, i + 1).filter((item): item is CandleData => !!item);
+    if (slice.length < period) return null; // Not enough valid data points in the slice
     return slice.reduce((sum, candle) => sum + candle.close, 0) / period
   })
 
@@ -60,6 +61,10 @@ export const calcEMA = (data: CandleData[], period: number): (number | null)[] =
   const emaValues: number[] = [ema]
 
   for (let i = 1; i < data.length; i++) {
+    if (!data[i]) {
+        emaValues.push(ema); // carry over last ema if data is null
+        continue;
+    }
     ema = data[i].close * k + ema * (1 - k)
     emaValues.push(ema)
   }
@@ -75,8 +80,7 @@ export const calcVWAP = (data: CandleData[]): (number | null)[] => {
   let cumulativePV = 0
   let cumulativeVolume = 0
   return data.map(d => {
-    if (!d) return null; // Fix: Ensure 'd' is not null.
-    if(!d.volume) return null;
+    if (!d || !d.volume) return null; // Ensure 'd' and 'd.volume' are not null.
     const typicalPrice = (d.high + d.low + d.close) / 3
     cumulativePV += typicalPrice * d.volume
     cumulativeVolume += d.volume
