@@ -1,3 +1,4 @@
+
 import {
   Accordion,
   AccordionContent,
@@ -93,27 +94,30 @@ export default function HelpPage() {
             
             <AccordionItem value="item-10">
               <AccordionTrigger className="text-lg font-semibold">
-                Deriv Trader e Copiloto de IA
+                Deriv Trader: Gráfico e Copiloto de IA
               </AccordionTrigger>
               <AccordionContent className="text-base leading-relaxed space-y-2">
-                <p>A página <strong>Deriv Trader</strong> é o nosso ambiente integrado de negociação, transformando o Claritas num verdadeiro copiloto financeiro. Veja como funciona:</p>
+                <p>A página <strong>Deriv Trader</strong> é um ambiente de negociação integrado que transforma o Claritas num copiloto financeiro avançado. As funcionalidades foram recentemente melhoradas para estabilidade e performance profissional.</p>
                  <ol className="list-decimal pl-6 space-y-3">
                     <li>
-                      <strong>Conexão Segura:</strong> Antes de tudo, na página de <strong>Configurações</strong>, você deve inserir seu token de API da corretora Deriv. Este token permite que nosso aplicativo se comunique com sua conta de negociação de forma segura.
+                      <strong>Conexão Segura:</strong> Antes de tudo, na página de <strong>Configurações</strong>, insira seu token de API da corretora Deriv. Este token permite a comunicação segura com a sua conta de negociação.
                     </li>
                     <li>
-                      <strong>Plataforma de Negociação:</strong> A página principal do Deriv Trader apresenta um gráfico em tempo real (de linha ou velas), um painel para executar ordens (Rise/Fall) e um histórico de suas operações na sessão.
-                    </li>
-                    <li>
-                      <strong>O Copiloto de Trade em Ação:</strong> Esta é a principal funcionalidade da IA nesta secção. Ao clicar em <strong>"Analisar Ativo"</strong>, o sistema:
-                      <ul className="list-disc pl-6 mt-1">
-                          <li>Busca os dados de preços mais recentes do ativo selecionado.</li>
-                          <li>Envia esses dados para um fluxo de IA treinado para atuar como um analista técnico.</li>
-                          <li>A IA analisa os dados para identificar tendências e retorna uma sugestão (RISE, FALL, ou HOLD) com uma breve justificação.</li>
+                      <strong>Plataforma de Negociação Avançada:</strong>
+                      <ul className="list-disc pl-6 mt-2 space-y-2">
+                          <li><strong>Gráfico Estável:</strong> Usando tecnologia SVG, o gráfico de velas é 100% estável e responsivo, eliminando os problemas de "quebra" ou desalinhamento durante o zoom ou redimensionamento da janela.</li>
+                          <li><strong>Indicadores Controláveis:</strong> Através do botão "Indicadores", você pode ligar ou desligar individualmente a Média Móvel Simples (SMA), Exponencial (EMA), VWAP e as Bandas de Bollinger.</li>
+                          <li><strong>Gráfico de Volume:</strong> Um gráfico de barras separado abaixo do principal mostra o volume de negociação de cada período, ajudando a confirmar a força de uma tendência.</li>
+                          <li><strong>Zoom com "Brush":</strong> Em vez de botões, use a área de "brush" na base do gráfico para selecionar uma janela de tempo e dar zoom, ou arraste-a para navegar pelo histórico do ativo de forma fluida.</li>
+                          <li><strong>Crosshair Preciso:</strong> Uma mira vertical e horizontal segue o cursor, e uma etiqueta flutuante no eixo Y mostra o preço exato em tempo real ("snap de preço").</li>
                       </ul>
                     </li>
-                     <li>
-                      <strong>Análise de Desempenho:</strong> Ao clicar em <strong>"Analisar Desempenho"</strong>, o sistema envia o seu histórico de operações da sessão atual para outra IA, que calcula métricas como lucro/prejuízo e taxa de acerto, fornecendo um resumo da sua performance.
+                    <li>
+                      <strong>Copiloto de Trade em Ação:</strong>
+                      <ul className="list-disc pl-6 mt-2">
+                          <li>Ao clicar em <strong>"Analisar Ativo"</strong>, a IA analisa os dados de mercado mais recentes e retorna uma sugestão de negociação (RISE, FALL ou HOLD) com base em análise técnica e no seu perfil de risco.</li>
+                          <li>Ao clicar em <strong>"Analisar Desempenho"</strong>, outra IA avalia o seu histórico de operações da sessão e fornece um resumo da sua performance com métricas chave.</li>
+                      </ul>
                     </li>
                  </ol>
               </AccordionContent>
