@@ -232,12 +232,12 @@ export function useMarketData(activeSymbol: string | null) {
 
             try {
                 const isCandleRequest = chartType === 'Candle';
-                const granularity = isCandleRequest ? getGranularityForTimePeriod(timePeriod) : 0;
+                const granularity = getGranularityForTimePeriod(timePeriod);
                 
                 const request: any = {
                     ticks_history: activeSymbol,
                     adjust_start_time: 1,
-                    count: 100, // Alterado para 100
+                    count: 100,
                     end: 'latest',
                     style: isCandleRequest ? 'candles' : 'ticks',
                     subscribe: 1,
