@@ -5,6 +5,7 @@ import * as React from 'react';
 import {
   ResponsiveContainer,
   ComposedChart,
+  LineChart,
   XAxis,
   YAxis,
   CartesianGrid,
