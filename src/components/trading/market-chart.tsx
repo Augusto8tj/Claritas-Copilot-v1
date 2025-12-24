@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -41,6 +42,7 @@ const THEMES = {
     BORDER: '#30363d',
     HIGHLIGHT: '#484f58',
     SHADOW: 'rgba(0, 0, 0, 0.5)',
+    BUTTON_BG: 'bg-transparent hover:bg-white/10 border-white/20 text-white/80 hover:text-white',
   },
   light: {
     BACKGROUND: '#ffffff',
@@ -52,6 +54,7 @@ const THEMES = {
     BORDER: '#dee2e6',
     HIGHLIGHT: '#f1f3f5',
     SHADOW: 'rgba(0, 0, 0, 0.1)',
+    BUTTON_BG: 'bg-white/50 hover:bg-black/5 border-black/20 text-black/80 hover:text-black',
   }
 };
 
@@ -449,7 +452,6 @@ export function MarketChart({
             <XAxis
               dataKey="epoch"
               type="number"
-              domain={['dataMin', 'dataMax']}
               tickFormatter={e => new Date(e * 1000).toLocaleTimeString('pt-BR')}
               stroke={colors.TEXT}
               fontSize={11}
@@ -490,7 +492,8 @@ export function MarketChart({
             <Area
               type="monotone"
               dataKey="price"
-              stroke="none"
+              stroke="#2962ff"
+              strokeWidth={2}
               fill="url(#blueGradient)"
               isAnimationActive={false}
             />
@@ -578,7 +581,6 @@ export function MarketChart({
           <XAxis
               dataKey="epoch"
               type="number"
-              domain={['dataMin', 'dataMax']}
               tickFormatter={e => new Date(e * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
               stroke={colors.TEXT}
               fontSize={11}
@@ -722,7 +724,7 @@ const FloatingControls: React.FC<FloatingControlsProps> = ({
     zoomLevel
 }) => {
 
-    const chartButtonClass = "h-8 w-8 p-0 bg-transparent hover:bg-white/10 border-white/20 border text-white/80 hover:text-white"
+    const chartButtonClass = cn("h-8 w-8 p-0 border", colors.BUTTON_BG);
 
     return (
         <>
@@ -741,7 +743,7 @@ const FloatingControls: React.FC<FloatingControlsProps> = ({
                 <Button 
                     variant="outline" 
                     size="icon" 
-                    className={cn(chartButtonClass, showBollingerBands && "bg-white/20")}
+                    className={cn(chartButtonClass, showBollingerBands && "bg-black/20 dark:bg-white/20")}
                     onClick={() => setShowBollingerBands(!showBollingerBands)}
                     disabled={chartType !== 'Candle'}
                     aria-label="Toggle Bollinger Bands"
@@ -805,5 +807,7 @@ const FloatingControls: React.FC<FloatingControlsProps> = ({
         </>
     );
 };
+
+    
 
     
