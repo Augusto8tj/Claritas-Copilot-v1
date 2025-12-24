@@ -16,7 +16,7 @@ export type CandleData = {
   epoch: number;
   open: number;
   high: number;
-  low: number;
+ax: number;
   close: number;
   volume?: number;
   bollingerBands?: [number, number];
@@ -26,7 +26,7 @@ export type ChartData = TickData | CandleData;
 
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
-        case '1m': return 0;
+        case '1m': return 0; // Tick data is requested with granularity 0
         case '2m': return 120;
         case '3m': return 180;
         case '5m': return 300;
@@ -40,8 +40,8 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     }
 }
 
-export function useMarketData() {
-    const { ws, makeRequest } = useDerivApi();
+export function useMarketData(activeSymbol: string | null) {
+    const { ws, makeRequest, isConnected } = useDerivApi();
     const [chartData, setChartData] = useState<ChartData[]>([]);
     const [isChartLoading, setIsChartLoading] = useState(true);
     const [chartError, setChartError] = useState<string | null>(null);
@@ -50,7 +50,6 @@ export function useMarketData() {
     const [showBollingerBands, setShowBollingerBands] = useState(true);
     
     const subscriptionIdRef = useRef<string | null>(null);
-    const isSubscribingRef = useRef(false);
 
     const messageQueueRef = useRef<any[]>([]);
     const isProcessingQueueRef = useRef(false);
@@ -58,7 +57,7 @@ export function useMarketData() {
     const THROTTLE_INTERVAL = 250;
 
     useEffect(() => {
-        if (!ws) return;
+        if (!ws || !isConnected) return;
 
         const processMessageQueue = () => {
             if (messageQueueRef.current.length === 0) {
@@ -78,7 +77,6 @@ export function useMarketData() {
                      if (response.echo_req?.ticks_history || response.echo_req?.candles) {
                         setChartError(response.error.message);
                         setIsChartLoading(false);
-                        isSubscribingRef.current = false;
                     }
                     return;
                 }
@@ -101,13 +99,12 @@ export function useMarketData() {
                         if (response.subscription?.id) {
                             subscriptionIdRef.current = response.subscription.id;
                         }
-                        const rawData = response.candles || response.history.prices.map((p: number, i: number) => ({
+                        const rawData = response.candles || (response.history ? response.history.prices.map((p: number, i: number) => ({
                             epoch: response.history.times[i], close: p, open: p, high: p, low: p,
-                        }));
+                        })) : []);
                         const formattedData = rawData.map((c: any) => ({ ...c, open: parseFloat(c.open), high: parseFloat(c.high), low: parseFloat(c.low), close: parseFloat(c.close) }));
                         setChartData(formattedData);
                         setIsChartLoading(false);
-                        isSubscribingRef.current = false;
                         break;
                     case 'forget':
                         subscriptionIdRef.current = null;
@@ -140,8 +137,8 @@ export function useMarketData() {
         const messageHandler = (event: MessageEvent) => {
             try {
                 const response = JSON.parse(event.data);
-                 if (response.req_id) {
-                    // Ignore messages with req_id as they are handled by promises
+                if (response.req_id) {
+                    // Ignore messages with req_id as they are handled by promises in useDerivApi
                     return;
                 }
                 messageQueueRef.current.push(response);
@@ -161,19 +158,14 @@ export function useMarketData() {
                 clearTimeout(throttleTimeoutRef.current);
             }
         };
-    }, [ws]);
+    }, [ws, isConnected]);
 
 
     const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod) => {
-        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        if (!ws || !isConnected) return;
         
-        if (isSubscribingRef.current) {
-            return;
-        }
-        
-        isSubscribingRef.current = true;
-        setChartData([]);
         setIsChartLoading(true);
+        setChartData([]);
         setChartError(null);
 
         try {
@@ -197,15 +189,28 @@ export function useMarketData() {
                 request.adjust_start_time = 1;
             }
             
-            // Use makeRequest for the initial data fetch and subscription
             await makeRequest(request);
 
         } catch (e: any) {
             setChartError(e.message);
             setIsChartLoading(false);
-            isSubscribingRef.current = false;
         }
-    }, [ws, makeRequest]);
+    }, [ws, isConnected, makeRequest]);
+
+    // This effect now handles subscribing and unsubscribing
+    useEffect(() => {
+        if(activeSymbol && isConnected) {
+            subscribeToSymbol(activeSymbol, timePeriod);
+        }
+
+        // Cleanup function to forget subscription when component unmounts or symbol changes
+        return () => {
+            if (ws && isConnected && subscriptionIdRef.current) {
+                makeRequest({ "forget": subscriptionIdRef.current }).catch(e => console.error("Error forgetting subscription:", e));
+            }
+        }
+    }, [activeSymbol, timePeriod, isConnected, subscribeToSymbol, ws, makeRequest]);
+
 
     return {
         chartData,
@@ -217,6 +222,5 @@ export function useMarketData() {
         setTimePeriod,
         showBollingerBands,
         setShowBollingerBands,
-        subscribeToSymbol,
     };
 }

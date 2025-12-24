@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useEffect, useState, useCallback } from "react";
@@ -68,8 +67,7 @@ export default function DerivTraderPage() {
     setTimePeriod,
     showBollingerBands,
     setShowBollingerBands,
-    subscribeToSymbol,
-  } = useMarketData();
+  } = useMarketData(activeSymbol);
   
   const autopilot = useAutopilot(
     activeSymbol,
@@ -84,19 +82,11 @@ export default function DerivTraderPage() {
     chartData,
     operationsLog,
     addActiveContract,
-    executeTrade
+    executeTrade,
+    chartData
   );
   
   const { analyzeSessionPerformance } = useTradeAnalysis(activeSymbol, operationsLog);
-
-  const memoizedSubscribeToSymbol = useCallback(subscribeToSymbol, [subscribeToSymbol]);
-
-  useEffect(() => {
-    if (isConnected && !isAssetsLoading && activeSymbol) {
-        memoizedSubscribeToSymbol(activeSymbol, timePeriod);
-    }
-  }, [isConnected, isAssetsLoading, activeSymbol, timePeriod, memoizedSubscribeToSymbol]);
-
 
   useEffect(() => {
     if (!isAssetsLoading && !activeSymbol && assetGroups.length > 0) {
@@ -265,25 +255,7 @@ export default function DerivTraderPage() {
 
           {/* Right Column: AI Copilot */}
           <div className="space-y-6">
-              <AutoTraderCouncilInterface
-                isCouncilAutopilotOn={robotCouncil.isCouncilAutopilotOn}
-                setIsCouncilAutopilotOn={robotCouncil.setIsCouncilAutopilotOn}
-                strategyCouncil={robotCouncil.strategyCouncil}
-                isFetchingCouncil={robotCouncil.isFetchingCouncil}
-                councilVotes={robotCouncil.councilVotes}
-                geminiRequestCount={robotCouncil.geminiRequestCount}
-                dailyBalance={robotCouncil.dailyBalance}
-                setDailyBalance={robotCouncil.setDailyBalance}
-                dailyTarget={robotCouncil.dailyTarget}
-                setDailyTarget={robotCouncil.setDailyTarget}
-                consensusThreshold={robotCouncil.consensusThreshold}
-                setConsensusThreshold={robotCouncil.setConsensusThreshold}
-                isDynamicConsensusOn={robotCouncil.isDynamicConsensusOn}
-                setIsDynamicConsensusOn={robotCouncil.setIsDynamicConsensusOn}
-                isMeritocracyOn={robotCouncil.isMeritocracyOn}
-                setIsMeritocracyOn={robotCouncil.setIsMeritocracyOn}
-                indicators={robotCouncil.indicators}
-              />
+              <AutoTraderCouncilInterface />
               <AutoTraderInterface
                 isAutopilotOn={autopilot.isAutopilotOn}
                 setIsAutopilotOn={autopilot.setIsAutopilotOn}
