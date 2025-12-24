@@ -531,6 +531,7 @@ export function MarketChart({
             chartTheme={chartTheme} 
             setChartTheme={setChartTheme} 
             handleZoom={handleZoom} 
+            zoomLevel={zoomLevel}
         />
       </div>
     );
@@ -673,6 +674,7 @@ export function MarketChart({
           chartTheme={chartTheme} 
           setChartTheme={setChartTheme} 
           handleZoom={handleZoom} 
+          zoomLevel={zoomLevel}
       />
 
     </div>
@@ -699,6 +701,7 @@ interface FloatingControlsProps {
     chartTheme: 'light' | 'dark';
     setChartTheme: (theme: 'light' | 'dark') => void;
     handleZoom: (direction: 'in' | 'out') => void;
+    zoomLevel: number;
 }
 
 const FloatingControls: React.FC<FloatingControlsProps> = ({
@@ -715,7 +718,8 @@ const FloatingControls: React.FC<FloatingControlsProps> = ({
     setShowBollingerBands,
     chartTheme,
     setChartTheme,
-    handleZoom
+    handleZoom,
+    zoomLevel
 }) => {
 
     const chartButtonClass = "h-8 w-8 p-0 bg-transparent hover:bg-white/10 border-white/20 border text-white/80 hover:text-white"
@@ -801,3 +805,5 @@ const FloatingControls: React.FC<FloatingControlsProps> = ({
         </>
     );
 };
+
+    
