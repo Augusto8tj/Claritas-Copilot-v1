@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState, useCallback } from "react";
@@ -228,6 +229,7 @@ export default function DerivTraderPage() {
                 </CardHeader>
                 <CardContent>
                     <MarketChart 
+                        activeSymbol={activeSymbol || ''}
                         activeContracts={activeContracts}
                         zoomLevel={zoomLevel}
                         chartData={chartData}

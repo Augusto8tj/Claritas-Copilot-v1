@@ -15,8 +15,6 @@ import {
   Line,
   Label,
   ReferenceDot,
-  Bar,
-  Cell,
 } from 'recharts';
 import { Loader2 } from "lucide-react";
 import type { CandleData, ChartData, ActiveContract, TimePeriod, ChartType, TickData } from '@/hooks/use-market-data';
@@ -27,6 +25,13 @@ import type { CandleData, ChartData, ActiveContract, TimePeriod, ChartType, Tick
 const getStableYDomain = (values: number[], padding = 0.06): [number, number] => {
   // Filtra apenas números válidos e positivos antes de calcular
   const validValues = values.filter(v => typeof v === 'number' && isFinite(v) && v > 0);
+  
+  if (validValues.length === 0) return ['auto', 'auto'] as any;
+
+  if (validValues.every(v => v === validValues[0])) {
+      const val = validValues[0];
+      return [val * 0.999, val * 1.001]; // Cria um pequeno respiro artificial
+  }
   
   if (validValues.length < 2) return ['auto', 'auto'] as any;
 
@@ -143,6 +148,7 @@ function CanvasCandles({
    COMPONENTE PRINCIPAL
 ========================================================= */
 interface MarketChartProps {
+  activeSymbol: string;
   activeContracts: ActiveContract[];
   zoomLevel: number;
   chartData: ChartData[];
@@ -154,6 +160,7 @@ interface MarketChartProps {
 }
 
 export function MarketChart({
+  activeSymbol,
   activeContracts,
   zoomLevel,
   chartData,
@@ -196,22 +203,24 @@ export function MarketChart({
         : (visibleData.at(-1) as CandleData).close
       : null;
       
-    if (isChartLoading && visibleData.length === 0) {
-      return (
-        <div className="h-[400px] w-full flex items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          <p className="text-muted-foreground ml-3">Carregando dados do gráfico...</p>
-        </div>
-      );
-    }
+  const chartKey = `${activeSymbol}-${chartType}-${timePeriod}`;
 
-    if (chartError) {
-      return (
-        <div className="h-[400px] w-full flex items-center justify-center text-center p-4">
-          <p className="text-destructive">{chartError}</p>
-        </div>
-      );
-    }
+  if (isChartLoading && visibleData.length === 0) {
+    return (
+      <div className="h-[400px] w-full flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <p className="text-muted-foreground ml-3">Carregando dados do gráfico...</p>
+      </div>
+    );
+  }
+
+  if (chartError) {
+    return (
+      <div className="h-[400px] w-full flex items-center justify-center text-center p-4">
+        <p className="text-destructive">{chartError}</p>
+      </div>
+    );
+  }
 
   /* =======================================================
      TICKS (Área)
@@ -221,7 +230,7 @@ export function MarketChart({
     const yDomain = getStableYDomain(data.map(d => d.price));
 
     return (
-      <div className="h-[400px] w-full relative group">
+      <div key={chartKey} className="h-[400px] w-full relative group">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -297,7 +306,7 @@ export function MarketChart({
   );
 
   return (
-    <div className="h-[400px] w-full relative">
+    <div key={chartKey} className="h-[400px] w-full relative">
        <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={candleData} ref={chartRef} margin={{ top: 5, right: 0, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
