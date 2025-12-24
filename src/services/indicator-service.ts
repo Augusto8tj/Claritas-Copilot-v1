@@ -54,7 +54,7 @@ export const calcSMA = (data: CandleData[], period: number): (number | null)[] =
  * @returns An array of EMA values.
  */
 export const calcEMA = (data: CandleData[], period: number): (number | null)[] => {
-  if (data.length === 0) return []
+  if (data.length === 0 || !data[0]) return [] // Added check for data[0] to prevent crash
   const k = 2 / (period + 1)
   let ema = data[0].close // Start with the first close
   const emaValues: number[] = [ema]
