@@ -167,18 +167,9 @@ function CanvasCandles({
         const bodyTop = Math.min(openY, closeY);
         const bodyHeight = Math.max(1, Math.abs(openY - closeY));
         const bodyLeft = x - barWidth / 2;
-
-        if (isBullish) {
-          // Hollow (borda)
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 2;
-          ctx.strokeRect(bodyLeft, bodyTop, barWidth, bodyHeight);
-          ctx.lineWidth = 1;
-        } else {
-          // Preenchido
-          ctx.fillStyle = color;
-          ctx.fillRect(bodyLeft, bodyTop, barWidth, bodyHeight);
-        }
+        
+        ctx.fillStyle = color;
+        ctx.fillRect(bodyLeft, bodyTop, barWidth, bodyHeight);
 
         // Efeito hover
         if (hoveredIndex === i) {
@@ -375,8 +366,6 @@ export function MarketChart({
   };
   
   const visibleData = React.useMemo(() => {
-    // A janela deslizante é garantida pelo hook `useMarketData` que limita o buffer.
-    // Aqui garantimos que não tentamos fatiar um array vazio ou menor que o zoom.
     if (chartData.length > zoomLevel) {
         return chartData.slice(chartData.length - zoomLevel);
     }
