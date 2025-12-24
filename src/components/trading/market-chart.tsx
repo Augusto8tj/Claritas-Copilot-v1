@@ -44,10 +44,10 @@ const THEMES = {
   light: {
     BACKGROUND: '#ffffff',
     GRID: '#e0e3eb',
-    BULLISH: '#26a69a',
-    BEARISH: '#ef5350',
-    WICK: '#6c757d',
-    TEXT: '#495057',
+    BULLISH: '#2e7d32',
+    BEARISH: '#c62828',
+    WICK: '#495057',
+    TEXT: '#212529',
     BORDER: '#dee2e6',
     HIGHLIGHT: '#f1f3f5',
     SHADOW: 'rgba(0, 0, 0, 0.1)',
@@ -85,134 +85,113 @@ const getStableYDomain = (values: number[], padding = 0.15): [number, number] =>
 function CanvasCandles({
   data,
   chartRef,
-  onHoverChange,
   hoveredIndex,
+  onHoverChange,
   crosshairX,
-  colors
+  colors,
 }: {
   data: CandleData[];
   chartRef: React.RefObject<any>;
-  onHoverChange: (index: number | null) => void;
   hoveredIndex: number | null;
+  onHoverChange: (i: number | null) => void;
   crosshairX: number | null;
   colors: typeof THEMES.dark;
 }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
-  const [hoveredCandle, setHoveredCandle] = React.useState<CandleData | null>(null);
 
-  const draw = React.useCallback(() => {
+  React.useEffect(() => {
     const chart = chartRef.current;
     const canvas = canvasRef.current;
-    
-    if (!canvas || !chart || !chart.state || !chart.state.offset || !data) return;
-    
-    const { offset, xAxisMap, yAxisMap } = chart.state;
-    if (!xAxisMap || !yAxisMap || !xAxisMap[0] || !yAxisMap[0]) return;
+    if (!chart || !canvas || !data.length) return;
 
-    const ctx = canvas.getContext('2d');
+    const container = chart.container;
+    const rect = container.getBoundingClientRect();
+
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const { width, height } = offset;
     const dpr = window.devicePixelRatio || 1;
-    
-    if (width <= 0 || height <= 0) return;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = `${rect.width}px`;
+    canvas.style.height = `${rect.height}px`;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, rect.width, rect.height);
 
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, width, height);
+    const xAxis = chart.state.xAxisMap?.[0];
+    const yAxis = chart.state.yAxisMap?.[0];
+    if (!xAxis || !yAxis) return;
 
-    const xScale = xAxisMap[0].scale;
-    const yScale = yAxisMap[0].scale;
+    const xScale = xAxis.scale;
+    const yScale = yAxis.scale;
 
-    const dataLength = data.length;
-    const slotWidth = width / dataLength;
-    const gap = Math.max(1, slotWidth * 0.3); 
-    const barWidth = Math.max(1, slotWidth - gap);
-    ctx.lineWidth = 1;
+    const x0 = xScale(data[0].epoch);
+    const x1 = xScale(data[1]?.epoch ?? data[0].epoch);
+    const candleWidth = Math.max(4, Math.abs(x1 - x0) * 0.65);
 
-    let closestCandleIndex = -1;
-    let minDistance = Infinity;
+    let closest = -1;
+    let minDist = Infinity;
 
     data.forEach((d, i) => {
-        if (!d.open || !d.close) return;
+      const x = xScale(d.epoch);
+      if (x == null) return;
 
-        const x = xScale(d.epoch);
-        if (x === undefined || x < -barWidth || x > width + barWidth) return;
+      const openY = yScale(d.open);
+      const closeY = yScale(d.close);
+      const highY = yScale(d.high);
+      const lowY = yScale(d.low);
 
-        const openY = yScale(d.open);
-        const closeY = yScale(d.close);
-        const highY = yScale(d.high);
-        const lowY = yScale(d.low);
+      const isBull = d.close >= d.open;
+      const color = isBull ? colors.BULLISH : colors.BEARISH;
 
-        const isBullish = d.close >= d.open;
-        const color = isBullish ? colors.BULLISH : colors.BEARISH;
-
-        // Calcular distância do cursor ao centro da vela
-        if (crosshairX !== null) {
-          const distance = Math.abs(x - crosshairX);
-          if (distance < minDistance) {
-            minDistance = distance;
-            closestCandleIndex = i;
-          }
+      if (crosshairX != null) {
+        const dist = Math.abs(x - crosshairX);
+        if (dist < minDist) {
+          minDist = dist;
+          closest = i;
         }
+      }
 
-        // Desenhar pavio
-        ctx.beginPath();
-        ctx.moveTo(x, highY);
-        ctx.lineTo(x, lowY);
-        ctx.strokeStyle = colors.WICK;
-        ctx.stroke();
+      // Wick
+      ctx.strokeStyle = colors.WICK;
+      ctx.beginPath();
+      ctx.moveTo(x, highY);
+      ctx.lineTo(x, lowY);
+      ctx.stroke();
 
-        // Desenhar corpo
-        const bodyTop = Math.min(openY, closeY);
-        const bodyHeight = Math.max(1, Math.abs(openY - closeY));
-        const bodyLeft = x - barWidth / 2;
-        
-        ctx.fillStyle = color;
-        ctx.fillRect(bodyLeft, bodyTop, barWidth, bodyHeight);
+      // Body
+      const bodyTop = Math.min(openY, closeY);
+      const bodyHeight = Math.max(1, Math.abs(openY - closeY));
+      ctx.fillStyle = color;
+      ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
 
-        // Efeito hover
-        if (hoveredIndex === i) {
-          ctx.save();
-          ctx.shadowColor = colors.SHADOW;
-          ctx.shadowBlur = 8;
-          ctx.shadowOffsetX = 0;
-          ctx.shadowOffsetY = 0;
-          ctx.strokeStyle = colors.HIGHLIGHT;
-          ctx.lineWidth = 2;
-          ctx.strokeRect(bodyLeft, bodyTop, barWidth, bodyHeight);
-          ctx.restore();
-          setHoveredCandle(d);
-        }
+      // Hover
+      if (hoveredIndex === i) {
+        ctx.strokeStyle = colors.HIGHLIGHT;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+        ctx.lineWidth = 1;
+      }
     });
 
-    // Atualiza o índice hover se houver um novo mais próximo
-    if (closestCandleIndex >= 0 && hoveredIndex !== closestCandleIndex) {
-      onHoverChange(closestCandleIndex);
+    if (closest !== hoveredIndex) {
+      onHoverChange(closest);
     }
+  }, [data, hoveredIndex, crosshairX, onHoverChange, colors, chartRef]);
 
-  }, [data, chartRef, hoveredIndex, crosshairX, onHoverChange, colors]);
-
-  React.useEffect(() => { draw(); }, [draw]);
-  
-  React.useEffect(() => {
-      let animationFrameId: number;
-      const handleResize = () => { animationFrameId = requestAnimationFrame(draw); };
-      const chart = chartRef.current;
-      
-      if (chart?.container) {
-          const resizeObserver = new ResizeObserver(handleResize);
-          resizeObserver.observe(chart.container);
-          return () => resizeObserver.disconnect();
-      }
-      return () => cancelAnimationFrame(animationFrameId);
-  }, [draw, chartRef]);
-
-  return <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 10 }} />;
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: "absolute",
+        inset: 0,
+        pointerEvents: "none",
+        zIndex: 20,
+      }}
+    />
+  );
 }
+
 
 /* =========================================================
    3. TOOLTIP PROFISSIONAL NO ESTILO TRADINGVIEW
@@ -265,23 +244,6 @@ const CustomTooltip = ({ active, payload, hoveredCandle, colors }: any) => {
   );
 };
 
-/* =========================================================
-   4. PRICE BADGE FLUTUANTE
-========================================================= */
-const PriceBadge = ({ price, isPositive, colors }: { price: number; isPositive: boolean, colors: typeof THEMES.dark }) => {
-  const badgeColor = isPositive ? colors.BULLISH : colors.BEARISH;
-  return (
-    <div
-      className="absolute right-0 top-1/2 transform -translate-y-1/2 px-2 py-1 rounded-md text-xs font-mono font-bold text-white shadow-lg"
-      style={{
-        backgroundColor: badgeColor,
-        boxShadow: `0 4px 12px ${colors.SHADOW}`,
-      }}
-    >
-      {price.toFixed(4)}
-    </div>
-  );
-};
 
 /* =========================================================
    5. HEADER INFORMATIVO DINÂMICO
@@ -413,7 +375,7 @@ export function MarketChart({
   }
 
   /* --------------------------------------------------------
-     MODO TICKS (Área com Gradiente Azul)
+     MODO TICKS (Área com Gradiente)
   -------------------------------------------------------- */
   if (chartType === 'Area') {
     const data = visibleData as TickData[];
@@ -533,9 +495,8 @@ export function MarketChart({
   // Detecta mouse move para crosshair
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!chartRef.current || !chartRef.current.state) return;
-    const { offset } = chartRef.current.state;
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left - offset.left;
+    const x = e.clientX - rect.left;
     setCrosshairX(x);
   };
 
@@ -620,8 +581,8 @@ export function MarketChart({
                       className="text-xs font-bold"
                       style={{ transform: 'translateX(5px)'}}
                       content={({ viewBox }) => {
-                        const isPositive = prevPrice ? latestPrice >= prevPrice : true;
                         if (!viewBox) return null;
+                        const isPositive = prevPrice ? latestPrice >= prevPrice : true;
                         const badgeColor = isPositive ? colors.BULLISH : colors.BEARISH;
                         return (
                           <g transform={`translate(${viewBox.x}, ${viewBox.y})`}>
@@ -722,8 +683,6 @@ const FloatingControls: React.FC<FloatingControlsProps> = ({
             {latestPrice && prevPrice && (
                 <HeaderInfo symbol={activeSymbol} latestPrice={latestPrice} prevPrice={prevPrice} colors={colors} />
             )}
-
-            {/* Price Badge - agora é parte da ReferenceLine para melhor posicionamento */}
             
             {/* Floating Controls */}
             <div className="absolute top-2 right-2 flex items-center gap-2">
