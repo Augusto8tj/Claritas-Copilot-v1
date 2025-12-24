@@ -1,9 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDerivApi } from './use-deriv-api';
 import { calculateBollingerBands } from '@/services/indicator-service';
 
+/* =========================================================
+   TYPES
+========================================================= */
 export type TimePeriod = '1m' | '2m' | '3m' | '5m' | '10m' | '15m' | '30m' | '1h' | '8h' | '1d';
 export type ChartType = 'Area' | 'Candle';
 
@@ -25,9 +28,12 @@ export type CandleData = {
 
 export type ChartData = TickData | CandleData;
 
+/* =========================================================
+   HELPERS
+========================================================= */
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
-        case '1m': return 0; 
+        case '1m': return 0; // 0 = ticks (para a API, mas vamos tratar ticks vs candles na lógica)
         case '2m': return 120;
         case '3m': return 180;
         case '5m': return 300;
@@ -39,148 +45,242 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
         case '1d': return 86400;
         default: return 0;
     }
-}
+};
 
+/* =========================================================
+   HOOK PRINCIPAL
+========================================================= */
 export function useMarketData(activeSymbol: string | null) {
     const { makeRequest, isConnected, addMarketDataListener, removeMarketDataListener } = useDerivApi();
+    
+    // Estados visuais
     const [chartData, setChartData] = useState<ChartData[]>([]);
-    const [isChartLoading, setIsChartLoading] = useState(true);
+    const [isChartLoading, setIsChartLoading] = useState(false); // Começa false, ativa ao trocar
     const [chartError, setChartError] = useState<string | null>(null);
     const [chartType, setChartType] = useState<ChartType>('Area');
     const [timePeriod, setTimePeriod] = useState<TimePeriod>('5m');
     const [showBollingerBands, setShowBollingerBands] = useState(true);
-    
-    const subscriptionIdRef = useRef<string | null>(null);
 
+    // Refs de Controle (Critical para evitar Race Conditions)
+    const activeSubscriptionIdRef = useRef<string | null>(null);
+    const currentSymbolRef = useRef<string | null>(null);
+    const isSwitchingRef = useRef(false);
+
+    // Ajuste automático do tipo de gráfico baseado no timePeriod
     useEffect(() => {
-        if (['1m', '2m', '3m'].includes(timePeriod) && chartType !== 'Area') {
+        const isLowTimeFrame = ['1m', '2m', '3m'].includes(timePeriod);
+        if (isLowTimeFrame && chartType !== 'Area') {
             setChartType('Area');
         }
     }, [timePeriod, chartType]);
 
-    const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod) => {
-        if (!isConnected) return;
-        
-        setIsChartLoading(true);
-        setChartData([]); // Limpa os dados imediatamente ao trocar de símbolo
-        setChartError(null);
+    // --------------------------------------------------------------------------
+    // 1. Lógica de Processamento de Dados (Ouvinte)
+    // --------------------------------------------------------------------------
+    const handleMarketData = useCallback((response: any) => {
+        // Se estamos no meio de uma troca de ativo, ignoramos qualquer dado chegando
+        if (isSwitchingRef.current) return;
 
-        try {
-            if (subscriptionIdRef.current) {
-                await makeRequest({ "forget": subscriptionIdRef.current });
-                subscriptionIdRef.current = null;
+        // Se houver erro na resposta
+        if (response.error) {
+            // Verifica se o erro pertence à requisição atual
+            const reqSymbol = response.echo_req?.ticks_history || response.echo_req?.candles;
+            if (reqSymbol === currentSymbolRef.current) {
+                setChartError(response.error.message);
+                setIsChartLoading(false);
             }
+            return;
+        }
 
-            const granularity = getGranularityForTimePeriod(newTimePeriod);
-            const style = granularity === 0 ? 'ticks' : 'candles';
-            const request: any = {
-                ticks_history: symbol,
-                style: style,
-                end: 'latest',
-                count: 1000, 
-                subscribe: 1,
-            };
+        const msgType = response.msg_type;
 
-            if (style === 'candles') {
-                request.granularity = granularity;
-                request.adjust_start_time = 1;
-            }
+        // A. Histórico de Ticks (Snapshot inicial para Area Chart)
+        if (msgType === 'history') {
+            const history = response.history;
+            const prices = history.prices;
+            const times = history.times;
+            const formatted: TickData[] = prices.map((p: number, i: number) => ({
+                epoch: times[i],
+                price: p
+            }));
             
-            await makeRequest(request);
-
-        } catch (e: any) {
-            setChartError(e.message);
+            setChartData(formatted);
             setIsChartLoading(false);
         }
-    }, [isConnected, makeRequest]);
 
-    useEffect(() => {
-        const processAndSetCandleData = (candles: any[]) => {
-            const candlesWithBands = calculateBollingerBands(candles);
-            setChartData(candlesWithBands);
-        };
-        
-        const marketDataCallback = (response: any) => {
-                if (response.error) {
-                    if (response.echo_req?.ticks_history || response.echo_req?.candles) {
-                        setChartError(response.error.message);
-                        setIsChartLoading(false);
-                    }
-                    return;
+        // B. Histórico de Candles (Snapshot inicial para Candle Chart)
+        else if (msgType === 'candles') {
+            // Salva o ID da subscrição se houver
+            if (response.subscription?.id) {
+                activeSubscriptionIdRef.current = response.subscription.id;
+            }
+            
+            const rawCandles = response.candles || [];
+            const formatted = rawCandles.map((c: any) => ({
+                epoch: c.epoch,
+                open: Number(c.open),
+                high: Number(c.high),
+                low: Number(c.low),
+                close: Number(c.close)
+            }));
+
+            const withBands = calculateBollingerBands(formatted);
+            setChartData(withBands);
+            setIsChartLoading(false);
+        }
+
+        // C. Update em Tempo Real (Tick)
+        else if (msgType === 'tick') {
+            // Só aceita o tick se pertencer à subscrição ativa ou ao símbolo ativo
+            // (Ticks stream nem sempre mandam echo_req claro, então confiamos no ID se existir, ou no timing)
+            if (activeSubscriptionIdRef.current && response.subscription?.id !== activeSubscriptionIdRef.current) {
+                return;
+            }
+
+            const tick = response.tick;
+            const newTick: TickData = { epoch: tick.epoch, price: tick.quote };
+
+            setChartData(prev => {
+                // Evita updates em array vazio se o histórico ainda não carregou
+                if (prev.length === 0) return [newTick];
+                
+                const last = prev[prev.length - 1] as TickData;
+                // Se for update do mesmo segundo, atualiza o último
+                if (last.epoch === newTick.epoch) {
+                    const newData = [...prev];
+                    newData[newData.length - 1] = newTick;
+                    return newData;
+                }
+                // Senão adiciona novo e mantém tamanho controlado
+                return [...prev.slice(-1000), newTick];
+            });
+        }
+
+        // D. Update em Tempo Real (OHLC / Candle)
+        else if (msgType === 'ohlc') {
+            if (activeSubscriptionIdRef.current && response.subscription?.id !== activeSubscriptionIdRef.current) {
+                return;
+            }
+
+            const ohlc = response.ohlc;
+            const newCandle: CandleData = {
+                epoch: ohlc.epoch,
+                open: Number(ohlc.open),
+                high: Number(ohlc.high),
+                low: Number(ohlc.low),
+                close: Number(ohlc.close_quote || ohlc.close), // API Deriv às vezes usa close_quote em streams
+            };
+
+            setChartData(prev => {
+                if (prev.length === 0) return calculateBollingerBands([newCandle]);
+
+                const data = [...(prev as CandleData[])];
+                const last = data[data.length - 1];
+
+                // Se estamos na mesma vela (mesmo epoch ou dentro da granularidade), atualiza a última
+                if (last.epoch === newCandle.epoch) {
+                    data[data.length - 1] = newCandle;
+                } else {
+                    // Nova vela fechou, adiciona nova
+                    if (data.length > 1000) data.shift();
+                    data.push(newCandle);
                 }
                 
-                switch (response.msg_type) {
-                    case 'tick':
-                        const latestTick = { epoch: response.tick.epoch, price: response.tick.quote };
-                        setChartData(prev => {
-                            const data = [...(prev as TickData[])];
-                            if(data.length > 0 && data[data.length-1].epoch === latestTick.epoch){
-                                data[data.length -1] = latestTick;
-                                return data;
-                            }
-                            return [...data.slice(-999), latestTick]
-                        });
-                        break;
-                    case 'ohlc':
-                         const latestOHLC = {
-                            epoch: response.ohlc.epoch,
-                            open: parseFloat(response.ohlc.open),
-                            high: parseFloat(response.ohlc.high),
-                            low: parseFloat(response.ohlc.low),
-                            close: parseFloat(response.ohlc.close),
-                        };
-                         setChartData(prev => {
-                            const data = [...(prev as CandleData[])];
-                            const newData = data.length > 0 && data[data.length - 1].epoch === latestOHLC.epoch 
-                                ? [...data.slice(0, -1), latestOHLC]
-                                : [...data.slice(-999), latestOHLC];
-                            
-                            return calculateBollingerBands(newData);
-                        });
-                        break;
-                    case 'history':
-                        setChartData(response.history.prices.map((p: number, i: number) => ({ epoch: response.history.times[i], price: p })));
-                        setIsChartLoading(false);
-                        break;
-                    case 'candles':
-                        if (response.subscription?.id) {
-                            subscriptionIdRef.current = response.subscription.id;
-                        }
-                        const rawData = response.candles || [];
-                        const formattedData = rawData.map((c: any) => ({ ...c, open: parseFloat(c.open), high: parseFloat(c.high), low: parseFloat(c.low), close: parseFloat(c.close) }));
-                        processAndSetCandleData(formattedData);
-                        setIsChartLoading(false);
-                        break;
-                }
-        };
+                // Recalcula bandas (idealmente só para as últimas, mas aqui recalculamos tudo para segurança)
+                return calculateBollingerBands(data);
+            });
+        }
 
-        addMarketDataListener(marketDataCallback);
-        return () => {
-            removeMarketDataListener(marketDataCallback);
-        };
-    }, [addMarketDataListener, removeMarketDataListener]);
+    }, []);
 
-
+    // --------------------------------------------------------------------------
+    // 2. Lifecycle do Listener
+    // --------------------------------------------------------------------------
     useEffect(() => {
-        if(activeSymbol && isConnected) {
-            subscribeToSymbol(activeSymbol, timePeriod);
-        }
+        addMarketDataListener(handleMarketData);
+        return () => removeMarketDataListener(handleMarketData);
+    }, [addMarketDataListener, removeMarketDataListener, handleMarketData]);
 
-        // Cleanup function to forget subscription when component unmounts or dependencies change
-        return () => {
-            if (isConnected && subscriptionIdRef.current) {
-                const forgetRequest = async () => {
-                    try {
-                        await makeRequest({ "forget": subscriptionIdRef.current });
-                        subscriptionIdRef.current = null;
-                    } catch(e) {
-                         // Silently fail, as component might be unmounting
-                    }
+
+    // --------------------------------------------------------------------------
+    // 3. Função Centralizada de Subscrição (Atomic Switch)
+    // --------------------------------------------------------------------------
+    useEffect(() => {
+        const subscribeToSymbol = async () => {
+            if (!isConnected || !activeSymbol) return;
+
+            // --- FASE 1: LIMPEZA IMEDIATA (Atomic) ---
+            isSwitchingRef.current = true; // Trava o listener de receber lixo antigo
+            currentSymbolRef.current = activeSymbol;
+            
+            // Limpa dados VISUAIS instantaneamente
+            setChartData([]); 
+            setIsChartLoading(true);
+            setChartError(null);
+
+            // --- FASE 2: CANCELAMENTO DO ANTERIOR ---
+            if (activeSubscriptionIdRef.current) {
+                try {
+                    await makeRequest({ forget: activeSubscriptionIdRef.current });
+                } catch (e) {
+                    console.warn("Erro ao esquecer subscrição antiga", e);
                 }
-                forgetRequest();
+                activeSubscriptionIdRef.current = null;
             }
-        }
-    }, [activeSymbol, timePeriod, isConnected, subscribeToSymbol, makeRequest]);
+
+            // --- FASE 3: NOVA REQUISIÇÃO ---
+            try {
+                const granularity = getGranularityForTimePeriod(timePeriod);
+                const isCandleRequest = granularity > 0;
+                
+                const request: any = {
+                    ticks_history: activeSymbol,
+                    adjust_start_time: 1,
+                    count: 1000,
+                    end: 'latest',
+                    style: isCandleRequest ? 'candles' : 'ticks',
+                    subscribe: 1, // Assinar updates
+                };
+
+                if (isCandleRequest) {
+                    request.granularity = granularity;
+                }
+
+                // Destrava o listener logo antes de enviar o request, 
+                // pois o próximo msg que vier já será resposta disso (ou erro)
+                isSwitchingRef.current = false;
+
+                const response = await makeRequest(request);
+
+                if (response.error) {
+                    setChartError(response.error.message);
+                    setIsChartLoading(false);
+                    return;
+                }
+
+                // Se for tick stream, o ID vem no response inicial do ticks_history às vezes não vem direto
+                // Mas geralmente vem num msg_type: 'history' ou 'candles' subsequente.
+                // Se vier direto no response inicial (algumas versões da API):
+                if (response.subscription) {
+                    activeSubscriptionIdRef.current = response.subscription.id;
+                }
+
+            } catch (error: any) {
+                setChartError(error.message || "Erro desconhecido");
+                setIsChartLoading(false);
+                isSwitchingRef.current = false;
+            }
+        };
+
+        subscribeToSymbol();
+
+        // Cleanup ao desmontar ou trocar dependências
+        return () => {
+            // Opcional: Se quiser garantir que ao sair do componente pare tudo
+            // Mas o próprio subscribeToSymbol já lida com o "forget" do anterior ao rodar novamente
+        };
+
+    }, [activeSymbol, timePeriod, isConnected, makeRequest]); // Dependências controladas
 
 
     return {
