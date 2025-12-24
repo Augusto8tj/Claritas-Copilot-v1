@@ -97,26 +97,25 @@ export default function HelpPage() {
                 Deriv Trader: Gráfico e Copiloto de IA
               </AccordionTrigger>
               <AccordionContent className="text-base leading-relaxed space-y-2">
-                <p>A página <strong>Deriv Trader</strong> é um ambiente de negociação integrado que transforma o Claritas num copiloto financeiro avançado. As funcionalidades foram recentemente melhoradas para estabilidade e performance profissional.</p>
+                 <p>A página <strong>Deriv Trader</strong> é um ambiente de negociação integrado que transforma o Claritas num copiloto financeiro avançado. As funcionalidades foram recentemente evoluídas para um nível profissional de estabilidade e performance.</p>
                  <ol className="list-decimal pl-6 space-y-3">
                     <li>
-                      <strong>Conexão Segura:</strong> Antes de tudo, na página de <strong>Configurações</strong>, insira seu token de API da corretora Deriv. Este token permite a comunicação segura com a sua conta de negociação.
+                      <strong>Motor de Indicadores Centralizado:</strong> O coração do nosso sistema de trading é um motor que calcula, em tempo real, um conjunto completo de <strong>10 categorias de indicadores técnicos</strong>. Este motor alimenta tanto o gráfico que você vê quanto a lógica de decisão do Conselho de Robôs, garantindo consistência total dos dados. Os indicadores incluem RSI, Estocástico, MACD, Médias Móveis (SMA/EMA), Bandas de Bollinger, VWAP, ADX, Nuvem Ichimoku, e mais.
                     </li>
                     <li>
-                      <strong>Plataforma de Negociação Avançada:</strong>
+                      <strong>Gráfico de Trading Avançado (SVG):</strong>
                       <ul className="list-disc pl-6 mt-2 space-y-2">
-                          <li><strong>Gráfico Estável:</strong> Usando tecnologia SVG, o gráfico de velas é 100% estável e responsivo, eliminando os problemas de "quebra" ou desalinhamento durante o zoom ou redimensionamento da janela.</li>
-                          <li><strong>Indicadores Controláveis:</strong> Através do botão "Indicadores", você pode ligar ou desligar individualmente a Média Móvel Simples (SMA), Exponencial (EMA), VWAP e as Bandas de Bollinger.</li>
+                          <li><strong>Estabilidade e Responsividade:</strong> O gráfico agora é renderizado com tecnologia SVG, eliminando completamente os problemas de "quebra" ou desalinhamento das velas. Ele é 100% estável e responsivo, adaptando-se a qualquer tamanho de ecrã.</li>
+                          <li><strong>Indicadores Controláveis:</strong> Através do botão "Indicadores", você pode ligar ou desligar individualmente a Média Móvel Simples (SMA), Exponencial (EMA), VWAP e as Bandas de Bollinger, com todos desligados por defeito para uma interface limpa.</li>
                           <li><strong>Gráfico de Volume:</strong> Um gráfico de barras separado abaixo do principal mostra o volume de negociação de cada período, ajudando a confirmar a força de uma tendência.</li>
                           <li><strong>Zoom com "Brush":</strong> Em vez de botões, use a área de "brush" na base do gráfico para selecionar uma janela de tempo e dar zoom, ou arraste-a para navegar pelo histórico do ativo de forma fluida.</li>
-                          <li><strong>Crosshair Preciso:</strong> Uma mira vertical e horizontal segue o cursor, e uma etiqueta flutuante no eixo Y mostra o preço exato em tempo real ("snap de preço").</li>
+                          <li><strong>Crosshair e Snap de Preço:</strong> Uma mira vertical e horizontal segue o cursor com precisão, e uma etiqueta flutuante no eixo Y mostra o preço exato em tempo real, permitindo uma leitura imediata.</li>
                       </ul>
                     </li>
                     <li>
                       <strong>Copiloto de Trade em Ação:</strong>
                       <ul className="list-disc pl-6 mt-2">
-                          <li>Ao clicar em <strong>"Analisar Ativo"</strong>, a IA analisa os dados de mercado mais recentes e retorna uma sugestão de negociação (RISE, FALL ou HOLD) com base em análise técnica e no seu perfil de risco.</li>
-                          <li>Ao clicar em <strong>"Analisar Desempenho"</strong>, outra IA avalia o seu histórico de operações da sessão e fornece um resumo da sua performance com métricas chave.</li>
+                          <li>Ao clicar em <strong>"Analisar Desempenho"</strong>, a IA avalia o seu histórico de operações da sessão e fornece um resumo da sua performance com métricas chave.</li>
                       </ul>
                     </li>
                  </ol>
