@@ -268,7 +268,6 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 1
                 makeRequest({ forget: activeSubscriptionIdRef.current }).catch(e => console.error("Cleanup falhou ao cancelar subscrição:", e));
             }
         };
-    // A DEPENDÊNCIA DE `chartType` FOI REMOVIDA PARA EVITAR RE-SUBSCRIÇÃO
     }, [activeSymbol, timePeriod, isConnected, makeRequest, dataCount]);
 
 

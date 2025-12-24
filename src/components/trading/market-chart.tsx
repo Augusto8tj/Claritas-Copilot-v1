@@ -375,18 +375,25 @@ export function MarketChart({
     if (v < 10) return v.toFixed(4);
     return v.toFixed(2);
   };
+  
+  const visibleData = React.useMemo(() => {
+    if (chartData.length > zoomLevel) {
+        return chartData.slice(chartData.length - zoomLevel);
+    }
+    return chartData;
+  }, [chartData, zoomLevel]);
 
   const latestPrice = React.useMemo(() => {
-    if (chartData.length === 0) return null;
-    const last = chartData[chartData.length - 1];
+    if (visibleData.length === 0) return null;
+    const last = visibleData[visibleData.length - 1];
     return 'price' in last ? (last as TickData).price : (last as CandleData).close;
-  }, [chartData]);
+  }, [visibleData]);
 
   const prevPrice = React.useMemo(() => {
-    if (chartData.length < 2) return latestPrice || 0;
-    const secondLast = chartData[chartData.length - 2];
+    if (visibleData.length < 2) return latestPrice || 0;
+    const secondLast = visibleData[visibleData.length - 2];
     return 'price' in secondLast ? (secondLast as TickData).price : (secondLast as CandleData).close;
-  }, [chartData, latestPrice]);
+  }, [visibleData, latestPrice]);
 
   const componentKey = `${activeSymbol}-${chartType}-${timePeriod}-${zoomLevel}`;
 
@@ -395,7 +402,7 @@ export function MarketChart({
     { label: 'Candle', icon: <CandlestickChart className="w-4 h-4" />, disabled: ['1m'].includes(timePeriod) },
   ];
 
-  if (isChartLoading && chartData.length === 0) {
+  if (isChartLoading && visibleData.length === 0) {
     return (
       <div className="h-[400px] w-full flex items-center justify-center" style={{backgroundColor: colors.BACKGROUND}}>
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -412,7 +419,7 @@ export function MarketChart({
     );
   }
 
-  if (chartData.length === 0) {
+  if (visibleData.length === 0) {
      return <div className="h-[400px] w-full flex items-center justify-center" style={{backgroundColor: colors.BACKGROUND, color: colors.TEXT}}>Aguardando dados...</div>;
   }
 
@@ -420,7 +427,7 @@ export function MarketChart({
      MODO TICKS (Área com Gradiente Azul)
   -------------------------------------------------------- */
   if (chartType === 'Area') {
-    const data = chartData as TickData[];
+    const data = visibleData as TickData[];
     const yDomain = getStableYDomain(data.map(d => d.price));
 
     return (
@@ -523,7 +530,7 @@ export function MarketChart({
   /* --------------------------------------------------------
      MODO CANDLES (Canvas Premium com Hover & Crosshair)
   -------------------------------------------------------- */
-  const candleData = chartData as CandleData[];
+  const candleData = visibleData as CandleData[];
   const allValues = candleData.flatMap(d => [d.high, d.low, d.bollingerUpper, d.bollingerLower]);
   const yDomain = getStableYDomain(allValues.filter(v => v !== undefined) as number[]);
 
