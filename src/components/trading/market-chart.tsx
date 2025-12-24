@@ -1,31 +1,23 @@
+
 'use client';
 
-import * as React from "react";
+import * as React from 'react';
 import {
-  Line,
-  LineChart,
   ResponsiveContainer,
-  Tooltip,
+  ComposedChart,
   XAxis,
   YAxis,
   CartesianGrid,
+  Tooltip,
   ReferenceLine,
-  ReferenceDot,
-  Label,
-  ComposedChart,
   Area,
-  Bar
-} from "recharts";
+  LineChart,
+  Line,
+  Label,
+  ReferenceDot,
+} from 'recharts';
 import { Loader2 } from "lucide-react";
-
-import type {
-  CandleData,
-  TickData,
-  ChartData,
-  ActiveContract,
-  TimePeriod,
-  ChartType
-} from '@/hooks/use-market-data';
+import type { CandleData, ChartData, ActiveContract, TimePeriod, ChartType, TickData } from '@/hooks/use-market-data';
 
 /* =========================================================
    UTIL — Domínio Y estável, robusto e profissional
@@ -49,57 +41,98 @@ const getStableYDomain = (values: number[], padding = 0.06): [number, number] =>
   ];
 };
 
-/* =========================================================
-   CANDLESTICK — 100% auto-ajustável ao eixo Y
-========================================================= */
-const Candlestick = (props: any) => {
-  const { x, width, payload, yAxisMap } = props;
 
-  if (!payload || !yAxisMap) return null;
+/* =====================================================
+   CANVAS CANDLE LAYER — RESPONSIVO REAL
+===================================================== */
+function CanvasCandles({
+  data,
+  chartRef,
+}: {
+  data: CandleData[];
+  chartRef: React.RefObject<any>;
+}) {
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  
+  const draw = React.useCallback(() => {
+    const chart = chartRef.current;
+    const canvas = canvasRef.current;
+    if (!canvas || !chart || !chart.state.offset || !chart.props.data) return;
+    
+    const { offset, xAxisMap, yAxisMap } = chart.state;
+    const ctx = canvas.getContext('2d');
+    if (!ctx || !xAxisMap || !yAxisMap) return;
 
-  const { open, close, high, low } = payload;
-  const yAxis = Object.values(yAxisMap)[0] as any;
-  if (!yAxis?.scale) return null;
+    const { width, height } = offset;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    ctx.scale(dpr, dpr);
 
-  const scale = yAxis.scale;
+    ctx.clearRect(0, 0, width, height);
 
-  const bullish = close >= open;
-  const color = bullish
-    ? 'hsl(var(--chart-2))'
-    : 'hsl(var(--destructive))';
+    const xScale = xAxisMap[0]?.scale;
+    const yScale = yAxisMap[0]?.scale;
 
-  const openY = scale(open);
-  const closeY = scale(close);
-  const highY = scale(high);
-  const lowY = scale(low);
+    if (!xScale || !yScale) return;
+    
+    const candleWidth = Math.max(3, (width / data.length) * 0.7);
 
-  const bodyTop = Math.min(openY, closeY);
-  const bodyHeight = Math.max(1, Math.abs(openY - closeY));
+    data.forEach(d => {
+      const x = xScale(d.epoch);
+      if (x === undefined || x < 0 || x > width) return;
 
-  return (
-    <g>
-      {/* Wick */}
-      <line
-        x1={x + width / 2}
-        x2={x + width / 2}
-        y1={highY}
-        y2={lowY}
-        stroke={color}
-        strokeWidth={1}
-      />
+      const openY = yScale(d.open);
+      const closeY = yScale(d.close);
+      const highY = yScale(d.high);
+      const lowY = yScale(d.low);
+      
+      const bullish = d.close >= d.open;
+      ctx.strokeStyle = bullish ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))';
+      ctx.fillStyle = ctx.strokeStyle;
 
-      {/* Body */}
-      <rect
-        x={x + width * 0.2}
-        y={bodyTop}
-        width={width * 0.6}
-        height={bodyHeight}
-        fill={color}
-        rx={1}
-      />
-    </g>
-  );
-};
+      // Wick
+      ctx.beginPath();
+      ctx.moveTo(x, highY);
+      ctx.lineTo(x, lowY);
+      ctx.stroke();
+
+      // Body
+      const bodyTop = Math.min(openY, closeY);
+      const bodyHeight = Math.max(1, Math.abs(openY - closeY));
+
+      ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+    });
+
+  }, [data, chartRef]);
+
+  React.useEffect(() => {
+    draw();
+  }, [draw]);
+  
+  // Re-draw on animation frame for smoothness during resizes
+  React.useEffect(() => {
+      let animationFrameId: number;
+      const handleResize = () => {
+          animationFrameId = requestAnimationFrame(draw);
+      };
+      
+      const chart = chartRef.current;
+      if (chart?.container) {
+          const resizeObserver = new ResizeObserver(handleResize);
+          resizeObserver.observe(chart.container);
+          return () => resizeObserver.disconnect();
+      }
+
+      return () => cancelAnimationFrame(animationFrameId);
+  }, [draw, chartRef]);
+
+
+  return <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 1 }} />;
+}
+
 
 /* =========================================================
    COMPONENTE PRINCIPAL
@@ -126,7 +159,10 @@ export function MarketChart({
   showBollingerBands,
 }: MarketChartProps) {
 
+  const chartRef = React.useRef<any>(null);
+
   const visibleData = React.useMemo(() => {
+    if (!chartData) return [];
     if (chartData.length > zoomLevel) {
       return chartData.slice(chartData.length - zoomLevel);
     }
@@ -164,9 +200,9 @@ export function MarketChart({
     }
 
   /* =======================================================
-     TICKS (1m, 2m, 3m)
+     TICKS (Área)
   ======================================================= */
-  if (['1m', '2m', '3m'].includes(timePeriod)) {
+  if (chartType === 'Area') {
     const data = visibleData as TickData[];
     const yDomain = getStableYDomain(data.map(d => d.price));
 
@@ -239,96 +275,74 @@ export function MarketChart({
   }
 
   /* =======================================================
-     CANDLES
+     CANDLES (Canvas)
   ======================================================= */
   const candleData = visibleData as CandleData[];
   const yDomain = getStableYDomain(
-    candleData.flatMap(d => [d.high, d.low])
+    candleData.flatMap(d => [d.high, d.low, d.bollingerUpper, d.bollingerLower].filter(v => v !== undefined) as number[])
   );
 
   return (
-    <div className="h-[400px] w-full relative group">
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={candleData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+    <div className="h-[400px] w-full relative">
+       <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={candleData} ref={chartRef} margin={{ top: 5, right: 0, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
 
-          <XAxis
-            dataKey="epoch"
-            type="number"
-            domain={['dataMin', 'dataMax']}
-            tickFormatter={e =>
-              new Date(e * 1000).toLocaleTimeString('pt-BR', {
-                hour: '2-digit',
-                minute: '2-digit',
-              })
-            }
-            stroke="hsl(var(--muted-foreground))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-          />
+                <XAxis
+                    dataKey="epoch"
+                    type="number"
+                    domain={['dataMin', 'dataMax']}
+                    tickFormatter={e => new Date(e * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                />
 
-          <YAxis
-            domain={yDomain}
-            tickFormatter={priceFormatter}
-            orientation="right"
-            width={80}
-            stroke="hsl(var(--muted-foreground))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-          />
+                <YAxis
+                    domain={yDomain}
+                    tickFormatter={priceFormatter}
+                    orientation="right"
+                    width={80}
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                />
 
-          <Tooltip
-            labelFormatter={l => new Date(l * 1000).toLocaleString('pt-BR')}
-            contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
-          />
+                <Tooltip
+                    labelFormatter={l => new Date(l * 1000).toLocaleString('pt-BR')}
+                    contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
+                />
 
-          {showBollingerBands && (
-            <>
-              <Area
-                dataKey="bollingerUpper"
-                stackId="bollinger"
-                stroke="transparent"
-                fill="hsl(var(--primary) / 0.12)"
-                isAnimationActive={false}
-              />
-              <Area
-                dataKey="bollingerLower"
-                stackId="bollinger"
-                stroke="transparent"
-                fill="hsl(var(--background))"
-                isAnimationActive={false}
-              />
-            </>
-          )}
+                {showBollingerBands && (
+                    <>
+                        <Area dataKey="bollingerUpper" stackId="bollinger" stroke="transparent" fill="hsl(var(--primary) / 0.1)" isAnimationActive={false} />
+                        <Area dataKey="bollingerLower" stackId="bollinger" stroke="transparent" fill="hsl(var(--background))" isAnimationActive={false} />
+                    </>
+                )}
 
-          <Bar
-            dataKey="close"
-            shape={<Candlestick />}
-            isAnimationActive={false}
-          />
-          
-          {activeContracts.map(contract => (
-            <ReferenceDot
-              key={contract.contractId}
-              x={contract.entryTime}
-              y={contract.entryTick}
-              r={5}
-              fill="hsl(var(--accent))"
-              stroke="white"
-              strokeWidth={2}
-            />
-          ))}
+                {activeContracts.map(contract => (
+                  <ReferenceDot
+                    key={contract.contractId}
+                    x={contract.entryTime}
+                    y={contract.entryTick}
+                    r={5}
+                    fill="hsl(var(--accent))"
+                    stroke="white"
+                    strokeWidth={2}
+                    ifOverflow="visible"
+                  />
+                ))}
 
-
-          {latestPrice && (
-            <ReferenceLine y={latestPrice} stroke="hsl(var(--primary))" strokeDasharray="4 4">
-              <Label value={priceFormatter(latestPrice)} position="right" fill="hsl(var(--primary))" fontSize={12}/>
-            </ReferenceLine>
-          )}
-        </ComposedChart>
-      </ResponsiveContainer>
+                {latestPrice && (
+                    <ReferenceLine y={latestPrice} stroke="hsl(var(--primary))" strokeDasharray="4 4" ifOverflow="visible">
+                        <Label value={priceFormatter(latestPrice)} position="right" fill="hsl(var(--primary))" fontSize={12} />
+                    </ReferenceLine>
+                )}
+            </ComposedChart>
+        </ResponsiveContainer>
+        <CanvasCandles data={candleData} chartRef={chartRef} />
     </div>
   );
 }
