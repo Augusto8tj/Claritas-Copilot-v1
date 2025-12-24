@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import * as React from 'react';
@@ -18,7 +16,6 @@ import {
 } from 'recharts';
 import { Loader2, ArrowUp, ArrowDown, AreaChart, CandlestickChart, Clock, Moon, Sun, Plus, Minus, Waves } from "lucide-react";
 import type { CandleData, ChartData, ActiveContract, TimePeriod, ChartType, TickData } from '@/hooks/use-market-data';
-import { useMarketData } from '@/hooks/use-market-data';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
 import { Button } from '../ui/button';
@@ -395,7 +392,7 @@ export function MarketChart({
 
   const chartTypes: { label: ChartType, icon: React.ReactNode, disabled: boolean }[] = [
     { label: 'Area', icon: <AreaChart className="w-4 h-4" />, disabled: false },
-    { label: 'Candle', icon: <CandlestickChart className="w-4 h-4" />, disabled: ['1m', '2m', '3m'].includes(timePeriod) },
+    { label: 'Candle', icon: <CandlestickChart className="w-4 h-4" />, disabled: ['1m'].includes(timePeriod) },
   ];
 
   if (isChartLoading && chartData.length === 0) {
