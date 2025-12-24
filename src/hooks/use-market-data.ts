@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -63,7 +62,7 @@ export function useMarketData(activeSymbol: string | null) {
         if (!isConnected) return;
         
         setIsChartLoading(true);
-        setChartData([]);
+        setChartData([]); // Limpa os dados imediatamente ao trocar de símbolo
         setChartError(null);
 
         try {
@@ -167,6 +166,7 @@ export function useMarketData(activeSymbol: string | null) {
             subscribeToSymbol(activeSymbol, timePeriod);
         }
 
+        // Cleanup function to forget subscription when component unmounts or dependencies change
         return () => {
             if (isConnected && subscriptionIdRef.current) {
                 const forgetRequest = async () => {
@@ -174,7 +174,7 @@ export function useMarketData(activeSymbol: string | null) {
                         await makeRequest({ "forget": subscriptionIdRef.current });
                         subscriptionIdRef.current = null;
                     } catch(e) {
-                         console.error("Error forgetting subscription on cleanup:", e)
+                         // Silently fail, as component might be unmounting
                     }
                 }
                 forgetRequest();
