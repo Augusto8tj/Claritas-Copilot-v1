@@ -11,7 +11,6 @@ import {
   Tooltip,
   ReferenceLine,
   Area,
-  LineChart,
   Line,
   Label,
   ReferenceDot,
