@@ -112,7 +112,13 @@ export function MarketChart({
           onMouseLeave={() => setCursor(null)}
         >
           <CartesianGrid stroke={colors.grid} strokeDasharray="3 3" />
-          <XAxis dataKey="epoch" tickFormatter={(time) => new Date(time * 1000).toLocaleTimeString()} stroke={colors.text} tick={{ fontSize: 10 }} domain={['dataMin', 'dataMax']} />
+          <XAxis 
+            dataKey="epoch" 
+            tickFormatter={(time) => new Date(time * 1000).toLocaleTimeString()} 
+            stroke={colors.text} 
+            tick={{ fontSize: 10 }} 
+            allowDataOverflow={true}
+          />
           <YAxis
             orientation="right"
             domain={['dataMin', 'dataMax']}
