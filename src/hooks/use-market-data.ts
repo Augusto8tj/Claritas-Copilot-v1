@@ -51,6 +51,13 @@ export function useMarketData(activeSymbol: string | null) {
     
     const subscriptionIdRef = useRef<string | null>(null);
 
+    // Automatically switch to Area chart for tick-only periods
+    useEffect(() => {
+        if (['1m', '2m', '3m'].includes(timePeriod) && chartType !== 'Area') {
+            setChartType('Area');
+        }
+    }, [timePeriod, chartType]);
+
     useEffect(() => {
         const marketDataCallback = (response: any) => {
                 if (response.error) {

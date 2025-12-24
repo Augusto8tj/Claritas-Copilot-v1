@@ -97,12 +97,6 @@ export default function DerivTraderPage() {
   }, [isAssetsLoading, activeSymbol, assetGroups]);
 
 
-  useEffect(() => {
-    if (['1m', '2m', '3m'].includes(timePeriod) && chartType !== 'Area') {
-        setChartType('Area');
-    }
-  }, [timePeriod, chartType, setChartType]);
-
  const handleZoom = (direction: 'in' | 'out') => {
     setZoomLevel(prevZoom => {
         let newZoom;
