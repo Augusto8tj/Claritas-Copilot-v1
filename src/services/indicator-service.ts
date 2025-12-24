@@ -97,14 +97,16 @@ export const calcVWAP = (data: CandleData[]): (number | null)[] => {
  * @returns An array of objects containing the upper, middle, and lower bands.
  */
 export const calcBollingerBands = (
-  data: CandleData[],
+  data: (CandleData | null)[],
   period = 20,
   stdDev = 2
 ): ({ upper: number; middle: number; lower: number } | null)[] => {
   return data.map((d, i) => {
     if (i < period - 1) return null;
 
-    const slice = data.slice(i - period + 1, i + 1);
+    const slice = data.slice(i - period + 1, i + 1).filter((item): item is CandleData => !!item);
+    if (slice.length < period) return null;
+    
     const closes = slice.map(c => c.close);
     
     // Middle Band (SMA)
