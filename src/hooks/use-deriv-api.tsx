@@ -396,12 +396,15 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                     }
                     break;
                 
-                // Distribute market data to listeners
                 case 'tick':
+                    if (response.tick) {
+                        setPriceTicks(prev => [...prev.slice(-999), { epoch: response.tick.epoch, price: response.tick.quote }]);
+                    }
+                    marketDataListenersRef.current.forEach(callback => callback(response));
+                    break;
                 case 'ohlc':
                 case 'history':
                 case 'candles':
-                    setPriceTicks(prev => [...prev.slice(-999), { epoch: response.tick.epoch, price: response.tick.quote }]);
                     marketDataListenersRef.current.forEach(callback => callback(response));
                     break;
             }
