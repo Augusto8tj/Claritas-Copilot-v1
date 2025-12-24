@@ -22,8 +22,6 @@ import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
 
 
-const timePeriods: TimePeriod[] = ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '8h', '1d'];
-
 /* =========================================================
    1. CONFIGURAÇÕES DE COR E ESTILO PREMIUM
 ========================================================= */
@@ -377,6 +375,8 @@ export function MarketChart({
   };
   
   const visibleData = React.useMemo(() => {
+    // A janela deslizante é garantida pelo hook `useMarketData` que limita o buffer.
+    // Aqui garantimos que não tentamos fatiar um array vazio ou menor que o zoom.
     if (chartData.length > zoomLevel) {
         return chartData.slice(chartData.length - zoomLevel);
     }
@@ -712,6 +712,8 @@ const FloatingControls: React.FC<FloatingControlsProps> = ({
 }) => {
 
     const chartButtonClass = cn("h-8 w-8 p-0 border", colors.BUTTON_BG);
+    const timePeriods: TimePeriod[] = ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '8h', '1d'];
+
 
     return (
         <>
@@ -784,10 +786,10 @@ const FloatingControls: React.FC<FloatingControlsProps> = ({
                         </div>
                     </PopoverContent>
                 </Popover>
-                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('in')} disabled={zoomLevel <= 1}>
+                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('in')} disabled={zoomLevel <= 20}>
                     <Plus className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('out')} disabled={zoomLevel >= 5}>
+                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('out')} disabled={zoomLevel >= 500}>
                     <Minus className="h-4 w-4" />
                 </Button>
             </div>

@@ -67,7 +67,7 @@ const addDataPoint = <T extends ChartData>(prevData: T[], newPoint: T): T[] => {
 /* =========================================================
    HOOK PRINCIPAL
 ========================================================= */
-export function useMarketData(activeSymbol: string | null, dataCount: number = 100) {
+export function useMarketData(activeSymbol: string | null, dataCount: number = 1000) {
     const { makeRequest, isConnected, addMarketDataListener, removeMarketDataListener } = useDerivApi();
     
     // Estados visuais
@@ -268,7 +268,8 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 1
                 makeRequest({ forget: activeSubscriptionIdRef.current }).catch(e => console.error("Cleanup falhou ao cancelar subscrição:", e));
             }
         };
-    }, [activeSymbol, timePeriod, isConnected, makeRequest, dataCount]);
+    // A DEPENDÊNCIA de dataCount foi removida para impedir re-subscrições no zoom
+    }, [activeSymbol, timePeriod, isConnected, makeRequest]);
 
 
     return {
