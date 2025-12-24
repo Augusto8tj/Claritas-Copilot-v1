@@ -102,7 +102,7 @@ export function useMarketData(activeSymbol: string | null) {
             const formatted: TickData[] = prices.map((p: number, i: number) => ({
                 epoch: times[i],
                 price: p
-            }));
+            })).filter((d: TickData) => d.price > 0);
             
             setChartData(formatted);
             setIsChartLoading(false);
@@ -116,13 +116,13 @@ export function useMarketData(activeSymbol: string | null) {
             }
             
             const rawCandles = response.candles || [];
-            const formatted = rawCandles.map((c: any) => ({
+            const formatted: CandleData[] = rawCandles.map((c: any) => ({
                 epoch: c.epoch,
                 open: Number(c.open),
                 high: Number(c.high),
                 low: Number(c.low),
                 close: Number(c.close)
-            }));
+            })).filter((c: CandleData) => c.close > 0);
 
             const withBands = calculateBollingerBands(formatted);
             setChartData(withBands);
@@ -132,7 +132,6 @@ export function useMarketData(activeSymbol: string | null) {
         // C. Update em Tempo Real (Tick)
         else if (msgType === 'tick') {
             // Só aceita o tick se pertencer à subscrição ativa ou ao símbolo ativo
-            // (Ticks stream nem sempre mandam echo_req claro, então confiamos no ID se existir, ou no timing)
             if (activeSubscriptionIdRef.current && response.subscription?.id !== activeSubscriptionIdRef.current) {
                 return;
             }
@@ -230,19 +229,19 @@ export function useMarketData(activeSymbol: string | null) {
 
             // --- FASE 3: NOVA REQUISIÇÃO ---
             try {
-                const granularity = getGranularityForTimePeriod(timePeriod);
-                const isCandleRequest = granularity > 0;
+                const isCandleRequest = chartType === 'Candle';
+                const granularity = isCandleRequest ? getGranularityForTimePeriod(timePeriod) : 0;
                 
                 const request: any = {
                     ticks_history: activeSymbol,
                     adjust_start_time: 1,
-                    count: 1000,
+                    count: 100,
                     end: 'latest',
                     style: isCandleRequest ? 'candles' : 'ticks',
                     subscribe: 1, // Assinar updates
                 };
 
-                if (isCandleRequest) {
+                if (isCandleRequest && granularity > 0) {
                     request.granularity = granularity;
                 }
 
@@ -252,18 +251,7 @@ export function useMarketData(activeSymbol: string | null) {
 
                 const response = await makeRequest(request);
 
-                if (response.error) {
-                    setChartError(response.error.message);
-                    setIsChartLoading(false);
-                    return;
-                }
-
-                // Se for tick stream, o ID vem no response inicial do ticks_history às vezes não vem direto
-                // Mas geralmente vem num msg_type: 'history' ou 'candles' subsequente.
-                // Se vier direto no response inicial (algumas versões da API):
-                if (response.subscription) {
-                    activeSubscriptionIdRef.current = response.subscription.id;
-                }
+                // O ID da subscrição será capturado pelo `handleMarketData` quando a resposta de 'candles' ou 'history' chegar.
 
             } catch (error: any) {
                 setChartError(error.message || "Erro desconhecido");
@@ -274,13 +262,7 @@ export function useMarketData(activeSymbol: string | null) {
 
         subscribeToSymbol();
 
-        // Cleanup ao desmontar ou trocar dependências
-        return () => {
-            // Opcional: Se quiser garantir que ao sair do componente pare tudo
-            // Mas o próprio subscribeToSymbol já lida com o "forget" do anterior ao rodar novamente
-        };
-
-    }, [activeSymbol, timePeriod, isConnected, makeRequest]); // Dependências controladas
+    }, [activeSymbol, timePeriod, chartType, isConnected, makeRequest]); // Dependências controladas
 
 
     return {
