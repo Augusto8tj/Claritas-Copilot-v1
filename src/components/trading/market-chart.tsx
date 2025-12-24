@@ -1,5 +1,3 @@
-
-
 'use client'
 
 import * as React from 'react'
@@ -17,7 +15,6 @@ import {
 
 import type {
   ChartData,
-  ActiveContract,
   TimePeriod,
   ChartType,
   TickData,
@@ -42,6 +39,8 @@ interface MarketChartProps {
   handleZoom: (direction: 'in' | 'out') => void
 }
 
+const X_AXIS_WINDOW_SECONDS = 60; // Display a 1-minute sliding window
+
 export function MarketChart({
   activeSymbol,
   chartData: rawData,
@@ -56,6 +55,7 @@ export function MarketChart({
   // --- STATE & THEME ---
   const [chartTheme, setChartTheme] = React.useState<'light' | 'dark'>('dark')
   const [cursor, setCursor] = React.useState<string | null>(null)
+  const [xDomain, setXDomain] = React.useState<{ min: number, max: number } | null>(null);
   const colors = THEMES[chartTheme]
 
   const latestPrice =
@@ -66,6 +66,16 @@ export function MarketChart({
     rawData.length > 1 && rawData[rawData.length - 2]
       ? ((rawData[rawData.length - 2]!) as TickData).price
       : latestPrice
+
+  // --- SLIDING WINDOW EFFECT ---
+  React.useEffect(() => {
+    if (rawData.length > 1) {
+      const lastTick = rawData[rawData.length - 1] as TickData;
+      const max = lastTick.epoch;
+      const min = max - X_AXIS_WINDOW_SECONDS;
+      setXDomain({ min, max });
+    }
+  }, [rawData]);
 
   // --- LOADING & ERROR STATES ---
   if (isChartLoading && rawData.length === 0) {
@@ -113,11 +123,13 @@ export function MarketChart({
         >
           <CartesianGrid stroke={colors.grid} strokeDasharray="3 3" />
           <XAxis 
-            dataKey="epoch" 
+            dataKey="epoch"
+            type="number" // Critical for explicit domain
+            domain={xDomain ? [xDomain.min, xDomain.max] : ['dataMin', 'dataMax']}
             tickFormatter={(time) => new Date(time * 1000).toLocaleTimeString()} 
             stroke={colors.text} 
-            tick={{ fontSize: 10 }} 
-            allowDataOverflow={true}
+            tick={{ fontSize: 10 }}
+            allowDataOverflow={true} // Allow data to exist outside the domain
           />
           <YAxis
             orientation="right"
@@ -130,7 +142,7 @@ export function MarketChart({
 
           {/* CROSSHAIR */}
           {cursor && (
-            <ReferenceLine x={cursor} stroke={colors.crosshair} strokeDasharray="3 3" />
+            <ReferenceLine x={cursor as any} stroke={colors.crosshair} strokeDasharray="3 3" />
           )}
 
           {/* AREA / LINE CHART */}
