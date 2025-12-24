@@ -1,3 +1,4 @@
+
 'use client'
 
 import * as React from 'react'
@@ -65,6 +66,7 @@ interface MarketChartProps {
   showBollingerBands: boolean
   setShowBollingerBands: (show: boolean) => void
   handleZoom: (direction: 'in' | 'out') => void
+  zoomLevel: number
 }
 
 export function MarketChart({
@@ -80,6 +82,7 @@ export function MarketChart({
   showBollingerBands,
   setShowBollingerBands,
   handleZoom,
+  zoomLevel,
 }: MarketChartProps) {
   // --- STATE & THEME ---
   const [chartTheme, setChartTheme] = React.useState<'light' | 'dark'>('dark')
@@ -100,55 +103,67 @@ export function MarketChart({
     const vwap = calcVWAP(candles)
     const bb = calcBollingerBands(candles, 20, 2)
 
-    return candles.map((d, i) => ({
-      ...d,
-      sma: sma[i],
-      ema: ema[i],
-      vwap: vwap[i],
-      bb: bb[i],
-      // Garante que o volume seja um número para o gráfico de barras
-      volume: d.volume || 0,
-    }))
+    return candles.map((d, i) => {
+      if (!d) return null; // FIX: Add guard clause
+      return {
+        ...d,
+        sma: sma[i],
+        ema: ema[i],
+        vwap: vwap[i],
+        bb: bb[i],
+        // Garante que o volume seja um número para o gráfico de barras
+        volume: d.volume || 0,
+      }
+    }).filter(Boolean) as CandleData[]; // Filter out nulls
   }, [rawData, chartType])
+
+  const visibleData = React.useMemo(() => {
+    if (processedData.length > zoomLevel) {
+      return processedData.slice(processedData.length - zoomLevel);
+    }
+    return processedData;
+  }, [processedData, zoomLevel]);
 
   // --- DYNAMIC Y-AXIS DOMAIN ---
   const yDomain = React.useMemo(() => {
-    if (!processedData || processedData.length === 0) return ['auto', 'auto']
-    const dataSlice = processedData as CandleData[]
-    const lows = dataSlice.map(d => d.low).filter(v => v != null)
-    const highs = dataSlice.map(d => d.high).filter(v => v != null)
+    if (!visibleData || visibleData.length === 0) return ['auto', 'auto']
+    const dataSlice = visibleData.filter(d => d) as CandleData[]
+    if (dataSlice.length === 0) return ['auto', 'auto']
+    
+    const lows = dataSlice.map(d => d.low).filter((v): v is number => v != null)
+    const highs = dataSlice.map(d => d.high).filter((v): v is number => v != null)
     if (lows.length === 0 || highs.length === 0) return ['auto', 'auto']
 
     const min = Math.min(...lows)
     const max = Math.max(...highs)
     const pad = (max - min) * 0.1
     return [min - pad, max + pad]
-  }, [processedData])
+  }, [visibleData])
 
   const latestPrice =
-    rawData.length > 0
-      ? 'price' in rawData[rawData.length - 1]
-        ? (rawData[rawData.length - 1] as TickData).price
-        : (rawData[rawData.length - 1] as CandleData).close
+    rawData.length > 0 && rawData[rawData.length - 1]
+      ? 'price' in rawData[rawData.length - 1]!
+        ? ((rawData[rawData.length - 1]!) as TickData).price
+        : ((rawData[rawData.length - 1]!) as CandleData).close
       : 0
   const prevPrice =
-    rawData.length > 1
-      ? 'price' in rawData[rawData.length - 2]
-        ? (rawData[rawData.length - 2] as TickData).price
-        : (rawData[rawData.length - 2] as CandleData).close
+    rawData.length > 1 && rawData[rawData.length - 2]
+      ? 'price' in rawData[rawData.length - 2]!
+        ? ((rawData[rawData.length - 2]!) as TickData).price
+        : ((rawData[rawData.length - 2]!) as CandleData).close
       : latestPrice
 
   // --- LOADING & ERROR STATES ---
-  if (isChartLoading && processedData.length === 0) {
+  if (isChartLoading && visibleData.length === 0) {
     return (
-      <div className="flex h-[520px] w-full items-center justify-center">
+      <div className="flex h-[520px] w-full items-center justify-center bg-zinc-900 text-white">
         Carregando...
       </div>
     )
   }
   if (chartError) {
     return (
-      <div className="flex h-[520px] w-full items-center justify-center text-red-500">
+      <div className="flex h-[520px] w-full items-center justify-center text-red-500 bg-zinc-900">
         {chartError}
       </div>
     )
@@ -185,19 +200,19 @@ export function MarketChart({
       {/* --- MAIN PRICE CHART --- */}
       <ResponsiveContainer width="100%" height="75%">
         <ComposedChart
-          data={processedData}
+          data={visibleData}
           margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
           onMouseMove={e => e?.activeLabel && setCursor(e.activeLabel)}
           onMouseLeave={() => setCursor(null)}
         >
           <CartesianGrid stroke={colors.grid} strokeDasharray="3 3" />
-          <XAxis dataKey="epoch" tickFormatter={(time) => new Date(time * 1000).toLocaleTimeString()} stroke={colors.text} tick={{ fontSize: 10 }} />
+          <XAxis dataKey="epoch" tickFormatter={(time) => new Date(time * 1000).toLocaleTimeString()} stroke={colors.text} tick={{ fontSize: 10 }} domain={['dataMin', 'dataMax']} />
           <YAxis
             orientation="right"
             domain={yDomain}
             stroke={colors.text}
             tick={{ fontSize: 10 }}
-            tickFormatter={val => val.toFixed(4)}
+            tickFormatter={val => typeof val === 'number' ? val.toFixed(4) : ''}
           />
           <Tooltip content={<CustomTooltip colors={colors} />} />
 
@@ -272,8 +287,14 @@ export function MarketChart({
           )}
           {chartType === 'Candle' && showBollingerBands && (
              <>
-                <Area dataKey="bb.upper" stackId="bb" fill={colors.bbFill} stroke="none" isAnimationActive={false} />
-                <Area dataKey="bb.lower" stackId="bb" fill={colors.bg} stroke="none" isAnimationActive={false} />
+                <defs>
+                    <linearGradient id="bb-gradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={colors.bbFill} stopOpacity={0.5} />
+                        <stop offset="100%" stopColor={colors.bbFill} stopOpacity={0} />
+                    </linearGradient>
+                 </defs>
+                <Area dataKey="bb.upper" fill="url(#bb-gradient)" stroke="none" stackId="bollinger" isAnimationActive={false} />
+                <Area dataKey="bb.lower" fill={colors.bg} stroke="none" stackId="bollinger" isAnimationActive={false} />
              </>
           )}
 
@@ -292,14 +313,14 @@ export function MarketChart({
 
       {/* --- VOLUME CHART --- */}
       <ResponsiveContainer width="100%" height="25%">
-        <ComposedChart data={processedData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
-          <XAxis dataKey="epoch" hide />
-          <YAxis
+        <ComposedChart data={visibleData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+           <XAxis dataKey="epoch" hide />
+           <YAxis
             orientation="right"
             stroke={colors.text}
             tick={{ fontSize: 10 }}
             tickFormatter={vol =>
-              vol > 1000 ? `${(vol / 1000).toFixed(1)}k` : vol
+              typeof vol === 'number' && vol > 1000 ? `${(vol / 1000).toFixed(1)}k` : vol
             }
           />
            <Tooltip content={<CustomTooltip colors={colors} />} />
@@ -307,6 +328,7 @@ export function MarketChart({
             dataKey="volume"
             isAnimationActive={false}
             shape={(props: any) => {
+               if(!props.payload) return null;
                const { payload } = props;
                const color = payload.close >= payload.open ? colors.bull : colors.bear;
                return <rect {...props} fill={`${color}80`} />;
