@@ -54,7 +54,7 @@ export const calcSMA = (data: CandleData[], period: number): (number | null)[] =
  * @returns An array of EMA values.
  */
 export const calcEMA = (data: CandleData[], period: number): (number | null)[] => {
-  if (data.length === 0 || !data[0]) return [] // Added check for data[0] to prevent crash
+  if (data.length === 0 || !data[0]) return []
   const k = 2 / (period + 1)
   let ema = data[0].close // Start with the first close
   const emaValues: number[] = [ema]
@@ -75,6 +75,7 @@ export const calcVWAP = (data: CandleData[]): (number | null)[] => {
   let cumulativePV = 0
   let cumulativeVolume = 0
   return data.map(d => {
+    if (!d) return null; // Fix: Ensure 'd' is not null.
     if(!d.volume) return null;
     const typicalPrice = (d.high + d.low + d.close) / 3
     cumulativePV += typicalPrice * d.volume
