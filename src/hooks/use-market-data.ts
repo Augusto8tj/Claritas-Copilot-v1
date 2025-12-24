@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDerivApi } from './use-deriv-api';
-import { calculateBollingerBands } from '@/services/indicator-service';
+import { calcBollingerBands } from '@/services/indicator-service';
 
 /* =========================================================
    TYPES
@@ -128,8 +128,8 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 2
                 close: validateNumber(c.close)
             })).filter((c: CandleData) => c.close > 0);
 
-            const withBands = calculateBollingerBands(formatted);
-            setChartData(withBands);
+            const withBands = calcBollingerBands(formatted);
+            setChartData(withBands as ChartData[]);
             setIsChartLoading(false);
         }
         else if (msgType === 'tick') {
@@ -164,7 +164,7 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 2
             if (newCandle.close === 0) return;
 
             setChartData(prev => {
-                if (prev.length === 0) return calculateBollingerBands([newCandle]);
+                if (prev.length === 0) return calcBollingerBands([newCandle]) as ChartData[];
 
                 const data = [...(prev as CandleData[])];
                 const last = data[data.length - 1];
@@ -176,7 +176,7 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 2
                     if (data.length > MAX_DATA_POINTS) data.shift();
                 }
                 
-                return calculateBollingerBands(data);
+                return calcBollingerBands(data) as ChartData[];
             });
         }
     }, []);
