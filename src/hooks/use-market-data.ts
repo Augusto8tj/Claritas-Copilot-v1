@@ -66,15 +66,15 @@ const addDataPoint = <T extends ChartData>(prevData: T[], newPoint: T): T[] => {
 
 /* =========================================================
    HOOK PRINCIPAL
-========================================================= */
-export function useMarketData(activeSymbol: string | null, dataCount: number = 100) {
+================================-======================== */
+export function useMarketData(activeSymbol: string | null, dataCount: number = 200) {
     const { makeRequest, isConnected, addMarketDataListener, removeMarketDataListener } = useDerivApi();
     
     // Estados visuais
     const [chartData, setChartData] = useState<ChartData[]>([]);
     const [isChartLoading, setIsChartLoading] = useState(!!activeSymbol);
     const [chartError, setChartError] = useState<string | null>(null);
-    const [chartType, setChartType] = useState<ChartType>('Candle');
+    const [chartType, setChartType] = useState<ChartType>('Area');
     const [timePeriod, setTimePeriod] = useState<TimePeriod>('5m');
     const [showBollingerBands, setShowBollingerBands] = useState(true);
 
@@ -82,16 +82,6 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 1
     const activeSubscriptionIdRef = useRef<string | null>(null);
     const currentSymbolRef = useRef<string | null>(null);
     const isSwitchingRef = useRef(false);
-
-    // Ajuste automático do tipo de gráfico baseado no timePeriod
-    useEffect(() => {
-        const isLowTimeFrame = ['1m'].includes(timePeriod);
-        if (isLowTimeFrame && chartType !== 'Area') {
-            setChartType('Area');
-        } else if (!isLowTimeFrame && chartType !== 'Candle') {
-            setChartType('Candle');
-        }
-    }, [timePeriod, chartType]);
 
     // --------------------------------------------------------------------------
     // 1. Lógica de Processamento de Dados (Ouvinte)
@@ -225,16 +215,21 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 1
                 try {
                     await makeRequest({ forget: activeSubscriptionIdRef.current });
                 } catch (e) {
-                    console.error(`Falha ao cancelar subscrição ${activeSubscriptionIdRef.current}:`, e);
+                    console.warn(`Falha ao cancelar subscrição ${activeSubscriptionIdRef.current}:`, e);
                 }
                 activeSubscriptionIdRef.current = null;
             }
             
-            isSwitchingRef.current = false; // Pode destravar agora
+            isSwitchingRef.current = false;
 
             try {
                 const granularity = getGranularityForTimePeriod(timePeriod);
                 const isCandleRequest = granularity > 0;
+                
+                const finalChartType = isCandleRequest ? 'Candle' : 'Area';
+                if (chartType !== finalChartType) {
+                    setChartType(finalChartType);
+                }
                 
                 const request: any = {
                     ticks_history: activeSymbol,
@@ -249,11 +244,10 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 1
                     request.granularity = granularity;
                 }
                 
-                // A resposta e o ID da subscrição serão tratados pelo `handleMarketData`
                 await makeRequest(request);
 
             } catch (error: any) {
-                if(currentSymbolRef.current === activeSymbol) { // Só define erro se ainda for o ativo atual
+                if(currentSymbolRef.current === activeSymbol) {
                     setChartError(error.message || "Erro ao subscrever dados de mercado.");
                     setIsChartLoading(false);
                 }
@@ -262,7 +256,6 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 1
 
         subscribeToSymbol();
         
-        // Cleanup na desmontagem do componente
         return () => {
             if (activeSubscriptionIdRef.current) {
                 makeRequest({ forget: activeSubscriptionIdRef.current }).catch(e => console.error("Cleanup falhou ao cancelar subscrição:", e));

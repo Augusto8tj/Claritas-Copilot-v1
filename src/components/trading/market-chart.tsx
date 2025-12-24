@@ -278,7 +278,7 @@ const PriceBadge = ({ price, isPositive, colors }: { price: number; isPositive: 
         boxShadow: `0 4px 12px ${colors.SHADOW}`,
       }}
     >
-      {price.toFixed(2)}
+      {price.toFixed(4)}
     </div>
   );
 };
@@ -360,6 +360,10 @@ export function MarketChart({
   const chartRef = React.useRef<any>(null);
   const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
   const [crosshairX, setCrosshairX] = React.useState<number | null>(null);
+  
+  const visibleData = React.useMemo(() => {
+    return chartData.slice(-zoomLevel);
+  }, [chartData, zoomLevel]);
 
   const priceFormatter = (v: number) => {
     if (!v || isNaN(v)) return "";
@@ -369,16 +373,16 @@ export function MarketChart({
   };
 
   const latestPrice = React.useMemo(() => {
-    if (chartData.length === 0) return null;
-    const last = chartData[chartData.length - 1];
+    if (visibleData.length === 0) return null;
+    const last = visibleData[visibleData.length - 1];
     return 'price' in last ? (last as TickData).price : (last as CandleData).close;
-  }, [chartData]);
+  }, [visibleData]);
 
   const prevPrice = React.useMemo(() => {
-    if (chartData.length < 2) return latestPrice || 0;
-    const secondLast = chartData[chartData.length - 2];
+    if (visibleData.length < 2) return latestPrice || 0;
+    const secondLast = visibleData[visibleData.length - 2];
     return 'price' in secondLast ? (secondLast as TickData).price : (secondLast as CandleData).close;
-  }, [chartData, latestPrice]);
+  }, [visibleData, latestPrice]);
 
   const componentKey = `${activeSymbol}-${chartType}-${timePeriod}-${zoomLevel}`;
 
@@ -387,7 +391,7 @@ export function MarketChart({
     { label: 'Candle', icon: <CandlestickChart className="w-4 h-4" />, disabled: ['1m'].includes(timePeriod) },
   ];
 
-  if (isChartLoading && chartData.length === 0) {
+  if (isChartLoading && visibleData.length === 0) {
     return (
       <div className="h-[400px] w-full flex items-center justify-center" style={{backgroundColor: colors.BACKGROUND}}>
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -404,7 +408,7 @@ export function MarketChart({
     );
   }
 
-  if (chartData.length === 0) {
+  if (visibleData.length === 0) {
      return <div className="h-[400px] w-full flex items-center justify-center" style={{backgroundColor: colors.BACKGROUND, color: colors.TEXT}}>Aguardando dados...</div>;
   }
 
@@ -412,7 +416,7 @@ export function MarketChart({
      MODO TICKS (Área com Gradiente Azul)
   -------------------------------------------------------- */
   if (chartType === 'Area') {
-    const data = chartData as TickData[];
+    const data = visibleData as TickData[];
     const yDomain = getStableYDomain(data.map(d => d.price));
 
     return (
@@ -461,11 +465,18 @@ export function MarketChart({
                 <stop offset="100%" stopColor={colors.LINE} stopOpacity="0.1"/>
               </linearGradient>
             </defs>
-            <Area
+            <Line
               type="monotone"
               dataKey="price"
               stroke={colors.LINE}
               strokeWidth={2}
+              dot={false}
+              isAnimationActive={false}
+            />
+             <Area
+              type="monotone"
+              dataKey="price"
+              stroke="none"
               fill="url(#blueGradient)"
               isAnimationActive={false}
             />
@@ -515,7 +526,7 @@ export function MarketChart({
   /* --------------------------------------------------------
      MODO CANDLES (Canvas Premium com Hover & Crosshair)
   -------------------------------------------------------- */
-  const candleData = chartData as CandleData[];
+  const candleData = visibleData as CandleData[];
   const allValues = candleData.flatMap(d => [d.high, d.low, d.bollingerUpper, d.bollingerLower]);
   const yDomain = getStableYDomain(allValues.filter(v => v !== undefined) as number[]);
 
@@ -608,14 +619,19 @@ export function MarketChart({
                       fill={colors.TEXT}
                       className="text-xs font-bold"
                       style={{ transform: 'translateX(5px)'}}
-                      content={({ viewBox }) => (
+                      content={({ viewBox }) => {
+                        const isPositive = prevPrice ? latestPrice >= prevPrice : true;
+                        if (!viewBox) return null;
+                        const badgeColor = isPositive ? colors.BULLISH : colors.BEARISH;
+                        return (
                           <g transform={`translate(${viewBox.x}, ${viewBox.y})`}>
-                              <rect x={5} y={-8} width={50} height={16} fill={colors.BULLISH} rx={4} />
-                              <text x={30} y={4} textAnchor="middle" fill="white" fontSize="11" fontWeight="bold">
+                              <rect x={5} y={-8} width={55} height={16} fill={badgeColor} rx={4} />
+                              <text x={32.5} y={3} textAnchor="middle" fill="white" fontSize="11" fontWeight="bold">
                                   {priceFormatter(latestPrice)}
                               </text>
                           </g>
-                      )}
+                        )
+                      }}
                    />
               </ReferenceLine>
           )}
@@ -707,11 +723,8 @@ const FloatingControls: React.FC<FloatingControlsProps> = ({
                 <HeaderInfo symbol={activeSymbol} latestPrice={latestPrice} prevPrice={prevPrice} colors={colors} />
             )}
 
-            {/* Price Badge */}
-            {latestPrice && prevPrice && (
-                <PriceBadge price={latestPrice} isPositive={latestPrice >= prevPrice} colors={colors} />
-            )}
-
+            {/* Price Badge - agora é parte da ReferenceLine para melhor posicionamento */}
+            
             {/* Floating Controls */}
             <div className="absolute top-2 right-2 flex items-center gap-2">
                 <Button 
@@ -738,10 +751,10 @@ const FloatingControls: React.FC<FloatingControlsProps> = ({
                             {chartType === 'Area' ? <AreaChart className="w-4 h-4" /> : <CandlestickChart className="w-4 h-4" />}
                         </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-2 bg-black/50 backdrop-blur-sm border-white/20">
+                    <PopoverContent className="w-auto p-2" style={{ backgroundColor: `${colors.BACKGROUND}e6`, borderColor: colors.BORDER }}>
                         <ToggleGroup type="single" value={chartType} onValueChange={(v) => v && setChartType(v as ChartType)} className="grid grid-cols-2 gap-2">
                         {chartTypes.map(type => (
-                            <ToggleGroupItem value={type.label} key={type.label} disabled={type.disabled} className="flex flex-col h-auto p-2 border-white/20 text-white/80 data-[state=on]:bg-white/20">
+                            <ToggleGroupItem value={type.label} key={type.label} disabled={type.disabled} className="flex flex-col h-auto p-2" style={{ borderColor: colors.BORDER, color: colors.TEXT }} data-state={chartType === type.label ? 'on' : 'off'}>
                                 {type.icon}
                                 <span className="text-xs mt-1">{type.label}</span>
                             </ToggleGroupItem>
@@ -756,14 +769,14 @@ const FloatingControls: React.FC<FloatingControlsProps> = ({
                             <span className="text-xs">{timePeriod.toUpperCase()}</span>
                         </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-2 bg-black/50 backdrop-blur-sm border-white/20">
+                    <PopoverContent className="w-auto p-2" style={{ backgroundColor: `${colors.BACKGROUND}e6`, borderColor: colors.BORDER }}>
                         <div className="grid grid-cols-4 gap-2">
                             {timePeriods.map(period => (
                                 <Button
                                     key={period}
-                                    variant={timePeriod === period ? "default" : "ghost"}
+                                    variant={timePeriod === period ? "secondary" : "ghost"}
                                     onClick={() => setTimePeriod(period)}
-                                    className={cn("w-full h-8 text-xs", timePeriod !== period && "text-white/80 hover:bg-white/10 hover:text-white")}
+                                    className={cn("w-full h-8 text-xs", timePeriod !== period && `text-[${colors.TEXT}]`)}
                                 >
                                     {period.toUpperCase()}
                                 </Button>
@@ -771,10 +784,10 @@ const FloatingControls: React.FC<FloatingControlsProps> = ({
                         </div>
                     </PopoverContent>
                 </Popover>
-                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('in')}>
+                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('in')} >
                     <Plus className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('out')}>
+                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('out')} >
                     <Minus className="h-4 w-4" />
                 </Button>
             </div>

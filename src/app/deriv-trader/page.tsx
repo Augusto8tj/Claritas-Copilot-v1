@@ -52,12 +52,12 @@ export default function DerivTraderPage() {
   
   const handleZoom = (direction: 'in' | 'out') => {
     setZoomLevel(prevZoom => {
-        const change = 20; // Aumenta ou diminui 20 velas por vez
+        const change = 20;
         let newZoom;
         if (direction === 'in') {
-            newZoom = Math.max(50, prevZoom - change); // Mínimo de 50 velas
+            newZoom = Math.max(50, prevZoom - change);
         } else {
-            newZoom = Math.min(500, prevZoom + change); // Máximo de 500 velas
+            newZoom = Math.min(500, prevZoom + change);
         }
         return newZoom;
     });
