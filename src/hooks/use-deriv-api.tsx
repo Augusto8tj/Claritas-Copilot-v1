@@ -251,6 +251,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
     setIsConnecting(true);
     setConnectionError(null);
+    setIsAssetsLoading(true);
   
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     wsRef.current = ws;
@@ -327,7 +328,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 ));
 
                 if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                  makeRequest({"balance": 1}).then((res: any) => handleSubscriptionMessage(res));
+                  makeRequest({"balance": 1});
                 }
                 break;
         }
@@ -351,15 +352,43 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             setConnectionError(null);
             
             // Sequentially request initial data
-            const balanceRes: any = await makeRequest({ "balance": 1, "subscribe": 1 });
-            handleSubscriptionMessage(balanceRes);
+            await Promise.all([
+                makeRequest({ "balance": 1, "subscribe": 1 }),
+                ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 })), // Send subscription without awaiting a promise
+                makeRequest({ active_symbols: 'full', product_type: 'basic' }).then((assetsRes: any) => {
+                  const groupedAssets: { [key: string]: Asset[] } = {};
+                  assetsRes.active_symbols.forEach((symbol: any) => {
+                    let marketKey = symbol.market;
+                    if (symbol.market === 'synthetic_index' && symbol.submarket === 'basket_index') {
+                      marketKey = 'basket_index';
+                    }
+                    const groupName = marketNameMapping[marketKey] || 'Outros';
+                    if (!groupedAssets[groupName]) {
+                      groupedAssets[groupName] = [];
+                    }
+                    groupedAssets[groupName].push({
+                      value: symbol.symbol,
+                      label: symbol.display_name,
+                      marketIsOpen: symbol.exchange_is_open === 1,
+                      submarket: symbol.submarket,
+                      market: marketKey,
+                      minDuration: symbol.min_contract_duration,
+                    });
+                  });
+                  const finalAssetGroups: AssetGroup[] = Object.keys(groupedAssets)
+                    .map(label => ({ label, options: groupedAssets[label].sort((a, b) => a.label.localeCompare(b.label)) }))
+                    .sort((a, b) => a.label.localeCompare(b.label));
+                  setAssetGroups(finalAssetGroups);
+                })
+            ]);
             
-            await makeRequest({ "proposal_open_contract": 1, "subscribe": 1 });
+            setIsAssetsLoading(false);
 
         } catch (error: any) {
             setConnectionError(`Falha na inicialização: ${error}`);
             setIsConnected(false);
             setIsConnecting(false);
+            setIsAssetsLoading(false);
             ws.close();
         }
     };
@@ -390,44 +419,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [activeToken, isLoading, toast, makeRequest]);
 
-  // Effect to fetch active symbols after connection
-  useEffect(() => {
-    if (isConnected && isAssetsLoading) {
-      makeRequest({ active_symbols: 'full', product_type: 'basic' })
-        .then((assetsRes: any) => {
-          const groupedAssets: { [key: string]: Asset[] } = {};
-          assetsRes.active_symbols.forEach((symbol: any) => {
-            let marketKey = symbol.market;
-            if (symbol.market === 'synthetic_index' && symbol.submarket === 'basket_index') {
-              marketKey = 'basket_index';
-            }
-            const groupName = marketNameMapping[marketKey] || 'Outros';
-            if (!groupedAssets[groupName]) {
-              groupedAssets[groupName] = [];
-            }
-            groupedAssets[groupName].push({
-              value: symbol.symbol,
-              label: symbol.display_name,
-              marketIsOpen: symbol.exchange_is_open === 1,
-              submarket: symbol.submarket,
-              market: marketKey,
-              minDuration: symbol.min_contract_duration,
-            });
-          });
-          const finalAssetGroups: AssetGroup[] = Object.keys(groupedAssets)
-            .map(label => ({ label, options: groupedAssets[label].sort((a, b) => a.label.localeCompare(b.label)) }))
-            .sort((a, b) => a.label.localeCompare(b.label));
-          setAssetGroups(finalAssetGroups);
-        })
-        .catch(error => {
-          console.error("Failed to fetch active symbols:", error);
-          setConnectionError("Failed to load asset list.");
-        })
-        .finally(() => {
-          setIsAssetsLoading(false);
-        });
-    }
-  }, [isConnected, isAssetsLoading, makeRequest]);
 
   const setAccountType = (type: AccountType) => {
     try {
