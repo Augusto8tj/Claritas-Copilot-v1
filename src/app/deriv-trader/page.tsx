@@ -74,11 +74,7 @@ export default function DerivTraderPage() {
   };
   
   const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod } = useMarketData(activeSymbol);
-  const [showBollingerBands, setShowBollingerBands] = useState(false);
-  const [showSMA, setShowSMA] = useState(false);
-  const [showEMA, setShowEMA] = useState(false);
-  const [showVWAP, setShowVWAP] = useState(false);
-
+  
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
   const { indicators, ...robotCouncil } = useRobotCouncil(activeSymbol, chartData, operationsLog, addActiveContract, executeTrade);
   
@@ -142,7 +138,6 @@ export default function DerivTraderPage() {
                 <CardContent onWheel={handleWheelZoom}>
                     <MarketChart 
                         activeSymbol={activeSymbol || ''}
-                        activeContracts={activeContracts}
                         chartData={chartData}
                         isChartLoading={isChartLoading}
                         chartError={chartError}
@@ -150,17 +145,7 @@ export default function DerivTraderPage() {
                         setChartType={setChartType}
                         timePeriod={timePeriod}
                         setTimePeriod={setTimePeriod}
-                        showBollingerBands={showBollingerBands}
-                        setShowBollingerBands={setShowBollingerBands}
-                        showSMA={showSMA}
-                        setShowSMA={setShowSMA}
-                        showEMA={showEMA}
-                        setShowEMA={setShowEMA}
-                        showVWAP={showVWAP}
-                        setShowVWAP={setShowVWAP}
                         handleZoom={handleZoom}
-                        zoomLevel={zoomLevel}
-                        indicators={indicators}
                     />
                 </CardContent>
               </Card>
