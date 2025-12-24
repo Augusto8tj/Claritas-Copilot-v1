@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from "react";
@@ -7,36 +8,16 @@ import type { CandleData, TickData, ChartData, ActiveContract } from '@/hooks/us
 import type { TimePeriod, ChartType } from '@/hooks/use-market-data';
 
 const Candlestick = (props: any) => {
-    const { x, y, width, height, payload, yAxis } = props;
-    
-    if (!payload || !yAxis || !yAxis.scale) {
-        return null;
-    }
-    
-    const { open, close, high, low } = payload;
-    if ([open, close, high, low].some(val => val === undefined || isNaN(val))) {
-        return null;
-    }
-
+    const { x, y, width, height, low, high, open, close } = props;
     const isBullish = close > open;
     const color = isBullish ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))';
-
-    const scale = yAxis.scale;
-    const yHigh = scale(high);
-    const yLow = scale(low);
-    const yOpen = scale(open);
-    const yClose = scale(close);
-
-    const bodyHeight = Math.max(1, Math.abs(yOpen - yClose));
-    const bodyY = Math.min(yOpen, yClose);
 
     return (
         <g stroke={color} fill={color} strokeWidth="1">
             {/* Wick */}
-            <line x1={x + width / 2} y1={yHigh} x2={x + width / 2} y2={yLow} />
-            
+            <line x1={x + width / 2} y1={y} x2={x + width / 2} y2={y + height} />
             {/* Body */}
-            <rect x={x} y={bodyY} width={width} height={bodyHeight} />
+            <rect x={x} y={isBullish ? y + (high - close) : y + (high - open)} width={width} height={Math.max(1, Math.abs(open-close))} />
         </g>
     );
 };
@@ -82,6 +63,8 @@ export function MarketChart({
     }
     return value.toFixed(2);
   };
+
+  const latestPrice = visibleData.length > 0 ? (visibleData[visibleData.length - 1] as any).price || (visibleData[visibleData.length - 1] as any).close : 0;
   
   const renderChart = () => {
      // For '1m', '2m', '3m', we only have tick data, so we must use a LineChart.
@@ -163,6 +146,11 @@ export function MarketChart({
                             )}
                         </React.Fragment>
                     ))}
+                    {latestPrice && (
+                       <ReferenceLine y={latestPrice} stroke="hsl(var(--primary))" strokeDasharray="3 3">
+                           <Label value={priceTickFormatter(latestPrice)} position="right" fill="hsl(var(--primary))" fontSize={12} />
+                       </ReferenceLine>
+                    )}
                 </LineChart>
             </ResponsiveContainer>
         )
@@ -188,7 +176,7 @@ export function MarketChart({
      if (chartType === 'Candle') {
         return (
             <ResponsiveContainer width="100%" height="100%">
-                 <ComposedChart data={candleData} barGap={-3} barCategoryGap="30%">
+                 <ComposedChart data={candleData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis 
                         dataKey="epoch" 
@@ -205,12 +193,12 @@ export function MarketChart({
                         stroke="hsl(var(--muted-foreground))"
                         fontSize={12}
                         width={80}
+                        scale="linear"
                     />
                     <Tooltip
                         labelFormatter={(label) => new Date(label * 1000).toLocaleString('pt-BR')}
-                        formatter={(value, name, props) => {
-                            if (name === 'bollingerBands') return null;
-                            if (props.payload) {
+                        formatter={(value: any, name: any, props: any) => {
+                            if (name === 'candle' && props.payload) {
                                 const { open, high, low, close } = props.payload;
                                 return [
                                     `Abertura: ${open?.toFixed(4)}`,
@@ -232,7 +220,9 @@ export function MarketChart({
                         type="monotone"
                      />
                     )}
-                     <Bar dataKey="close" shape={<Candlestick />} isAnimationActive={false} />
+                     <Bar dataKey="close" name="candle" shape={<Candlestick />} isAnimationActive={false}>
+                        {candleData.map(entry => <Cell key={`cell-${entry.epoch}`} />)}
+                     </Bar>
                      {activeContracts.map(contract => (
                         <React.Fragment key={contract.contractId}>
                             <ReferenceDot
@@ -255,6 +245,11 @@ export function MarketChart({
                             )}
                         </React.Fragment>
                     ))}
+                    {latestPrice && (
+                       <ReferenceLine y={latestPrice} stroke="hsl(var(--primary))" strokeDasharray="3 3">
+                           <Label value={priceTickFormatter(latestPrice)} position="right" fill="hsl(var(--primary))" fontSize={12} />
+                       </ReferenceLine>
+                    )}
                 </ComposedChart>
             </ResponsiveContainer>
         );
@@ -321,6 +316,11 @@ export function MarketChart({
                         )}
                     </React.Fragment>
                 ))}
+                 {latestPrice && (
+                    <ReferenceLine y={latestPrice} stroke="hsl(var(--primary))" strokeDasharray="3 3">
+                        <Label value={priceTickFormatter(latestPrice)} position="right" fill="hsl(var(--primary))" fontSize={12} />
+                    </ReferenceLine>
+                 )}
             </LineChart>
         </ResponsiveContainer>
      );
