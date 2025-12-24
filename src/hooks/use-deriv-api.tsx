@@ -53,6 +53,7 @@ interface DerivApiContextType {
   setAccountType: (type: AccountType) => void;
   setTokens: (tokens: { demo?: string; real?: string }) => void;
   disconnect: (type: AccountType) => void;
+  makeRequest: <T,>(request: object) => Promise<T>;
   executeTrade: (
     contractType: string,
     stake: number,
@@ -356,38 +357,40 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             setIsConnecting(false);
             setConnectionError(null);
             
-            // Sequentially request initial data
-            await Promise.all([
-                makeRequest({ "balance": 1, "subscribe": 1 }),
-                makeRequest({ "proposal_open_contract": 1, "subscribe": 1 }),
-                makeRequest({ active_symbols: 'full', product_type: 'basic' }).then((assetsRes: any) => {
-                  const groupedAssets: { [key: string]: Asset[] } = {};
-                  assetsRes.active_symbols.forEach((symbol: any) => {
+            // Subscriptions that don't need a promise resolved
+             ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 }));
+             ws.send(JSON.stringify({ "balance": 1, "subscribe": 1 }));
+
+            // Request for asset list
+            makeRequest({ active_symbols: 'full', product_type: 'basic' }).then((assetsRes: any) => {
+                const groupedAssets: { [key: string]: Asset[] } = {};
+                assetsRes.active_symbols.forEach((symbol: any) => {
                     let marketKey = symbol.market;
                     if (symbol.market === 'synthetic_index' && symbol.submarket === 'basket_index') {
-                      marketKey = 'basket_index';
+                        marketKey = 'basket_index';
                     }
                     const groupName = marketNameMapping[marketKey] || 'Outros';
                     if (!groupedAssets[groupName]) {
-                      groupedAssets[groupName] = [];
+                        groupedAssets[groupName] = [];
                     }
                     groupedAssets[groupName].push({
-                      value: symbol.symbol,
-                      label: symbol.display_name,
-                      marketIsOpen: symbol.exchange_is_open === 1,
-                      submarket: symbol.submarket,
-                      market: marketKey,
-                      minDuration: symbol.min_contract_duration,
+                        value: symbol.symbol,
+                        label: symbol.display_name,
+                        marketIsOpen: symbol.exchange_is_open === 1,
+                        submarket: symbol.submarket,
+                        market: marketKey,
+                        minDuration: symbol.min_contract_duration,
                     });
-                  });
-                  const finalAssetGroups: AssetGroup[] = Object.keys(groupedAssets)
+                });
+                const finalAssetGroups: AssetGroup[] = Object.keys(groupedAssets)
                     .map(label => ({ label, options: groupedAssets[label].sort((a, b) => a.label.localeCompare(b.label)) }))
                     .sort((a, b) => a.label.localeCompare(b.label));
-                  setAssetGroups(finalAssetGroups);
-                })
-            ]);
-            
-            setIsAssetsLoading(false);
+                setAssetGroups(finalAssetGroups);
+                setIsAssetsLoading(false);
+            }).catch(error => {
+                setConnectionError(`Falha ao carregar ativos: ${error}`);
+                setIsAssetsLoading(false);
+            });
 
         } catch (error: any) {
             setConnectionError(`Falha na inicialização: ${error}`);
@@ -471,7 +474,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     setActiveContracts(prev => [...prev, contract]);
   }
   
-  const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
+  const getGranularityForTimePeriod = (timePeriod: any): number => {
     switch(timePeriod) {
         case '1m': return 0;
         case '2m': return 120;
@@ -504,6 +507,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     operationsLog,
     assetGroups,
     isAssetsLoading,
+    makeRequest,
     executeTrade,
     getHistoricalData,
     clearActiveContracts,
@@ -524,5 +528,3 @@ export function useDerivApi() {
   }
   return context;
 }
-
-    

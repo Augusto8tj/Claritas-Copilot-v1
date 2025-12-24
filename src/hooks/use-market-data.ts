@@ -41,7 +41,7 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
 }
 
 export function useMarketData() {
-    const { ws, promisesRef } = useDerivApi();
+    const { ws, makeRequest } = useDerivApi();
     const [chartData, setChartData] = useState<ChartData[]>([]);
     const [isChartLoading, setIsChartLoading] = useState(true);
     const [chartError, setChartError] = useState<string | null>(null);
@@ -138,18 +138,19 @@ export function useMarketData() {
         };
 
         const messageHandler = (event: MessageEvent) => {
-            const response = JSON.parse(event.data);
-            const reqId = response.req_id;
-            
-            if (reqId && promisesRef.current.has(String(reqId))) {
-                // This is a response to a promise, not a subscription message for this hook
-                return;
-            }
-            
-            messageQueueRef.current.push(response);
-            if (!isProcessingQueueRef.current) {
-                isProcessingQueueRef.current = true;
-                processMessageQueue();
+            try {
+                const response = JSON.parse(event.data);
+                 if (response.req_id) {
+                    // Ignore messages with req_id as they are handled by promises
+                    return;
+                }
+                messageQueueRef.current.push(response);
+                if (!isProcessingQueueRef.current) {
+                    isProcessingQueueRef.current = true;
+                    processMessageQueue();
+                }
+            } catch (error) {
+                console.error("Error parsing WebSocket message:", error);
             }
         };
 
@@ -160,7 +161,7 @@ export function useMarketData() {
                 clearTimeout(throttleTimeoutRef.current);
             }
         };
-    }, [ws, promisesRef]);
+    }, [ws]);
 
 
     const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod) => {
@@ -177,7 +178,7 @@ export function useMarketData() {
 
         try {
             if (subscriptionIdRef.current) {
-                await ws.send(JSON.stringify({ "forget": subscriptionIdRef.current, "req_id": Date.now() + Math.random() }));
+                await makeRequest({ "forget": subscriptionIdRef.current });
             }
 
             const granularity = getGranularityForTimePeriod(newTimePeriod);
@@ -189,7 +190,6 @@ export function useMarketData() {
                 end: 'latest',
                 count: 1000, 
                 subscribe: 1,
-                req_id: Date.now() + Math.random() // Add req_id to this request
             };
 
             if (style === 'candles') {
@@ -197,14 +197,15 @@ export function useMarketData() {
                 request.adjust_start_time = 1;
             }
             
-            ws.send(JSON.stringify(request));
+            // Use makeRequest for the initial data fetch and subscription
+            await makeRequest(request);
 
         } catch (e: any) {
             setChartError(e.message);
             setIsChartLoading(false);
             isSubscribingRef.current = false;
         }
-    }, [ws]);
+    }, [ws, makeRequest]);
 
     return {
         chartData,
