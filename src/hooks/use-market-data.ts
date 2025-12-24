@@ -58,78 +58,16 @@ export function useMarketData(activeSymbol: string | null) {
         }
     }, [timePeriod, chartType]);
 
-    useEffect(() => {
-        const marketDataCallback = (response: any) => {
-                if (response.error) {
-                    if (response.echo_req?.ticks_history || response.echo_req?.candles) {
-                        console.error("[Market Data Hook] Error received for history/candles:", response.error.message);
-                        setChartError(response.error.message);
-                        setIsChartLoading(false);
-                    }
-                    return;
-                }
-                
-                switch (response.msg_type) {
-                    case 'tick':
-                        const latestTick = { epoch: response.tick.epoch, price: response.tick.quote };
-                        setChartData(prev => {
-                            const data = [...(prev as TickData[])];
-                            if(data.length > 0 && data[data.length-1].epoch === latestTick.epoch){
-                                data[data.length -1] = latestTick;
-                                return data;
-                            }
-                            return [...data.slice(-999), latestTick]
-                        });
-                        break;
-                    case 'ohlc':
-                         const latestOHLC = {
-                            epoch: response.ohlc.epoch,
-                            open: parseFloat(response.ohlc.open),
-                            high: parseFloat(response.ohlc.high),
-                            low: parseFloat(response.ohlc.low),
-                            close: parseFloat(response.ohlc.close),
-                        };
-                         setChartData(prev => {
-                            const data = [...(prev as CandleData[])];
-                            if (data.length > 0 && data[data.length - 1].epoch === latestOHLC.epoch) {
-                                data[data.length - 1] = latestOHLC;
-                                return data;
-                            } else {
-                                return [...data.slice(-999), latestOHLC];
-                            }
-                        });
-                        break;
-                    case 'history':
-                        setChartData(response.history.prices.map((p: number, i: number) => ({ epoch: response.history.times[i], price: p })));
-                        setIsChartLoading(false);
-                        break;
-                    case 'candles':
-                        if (response.subscription?.id) {
-                            subscriptionIdRef.current = response.subscription.id;
-                        }
-                        const rawData = response.candles || [];
-                        const formattedData = rawData.map((c: any) => ({ ...c, open: parseFloat(c.open), high: parseFloat(c.high), low: parseFloat(c.low), close: parseFloat(c.close) }));
-                        setChartData(formattedData);
-                        setIsChartLoading(false);
-                        break;
-                }
-        };
-
-        addMarketDataListener(marketDataCallback);
-        return () => {
-            removeMarketDataListener(marketDataCallback);
-        };
-    }, [addMarketDataListener, removeMarketDataListener]);
-
-
     const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod) => {
         if (!isConnected) return;
         
+        // Clear old data and set loading state immediately
         setIsChartLoading(true);
         setChartData([]);
         setChartError(null);
 
         try {
+            // Unsubscribe from previous symbol if there's an active subscription
             if (subscriptionIdRef.current) {
                 await makeRequest({ "forget": subscriptionIdRef.current });
                 subscriptionIdRef.current = null;
@@ -151,7 +89,7 @@ export function useMarketData(activeSymbol: string | null) {
                 request.adjust_start_time = 1;
             }
             
-            // The response will be handled by the listener
+            // The response will be handled by the listener, which will update chartData and set isChartLoading to false.
             await makeRequest(request);
 
         } catch (e: any) {
@@ -161,13 +99,93 @@ export function useMarketData(activeSymbol: string | null) {
     }, [isConnected, makeRequest]);
 
     useEffect(() => {
+        const marketDataCallback = (response: any) => {
+                if (response.error) {
+                    // Check if it's a history/candles request error to set the error state
+                    if (response.echo_req?.ticks_history || response.echo_req?.candles) {
+                        console.error("[Market Data Hook] Error received for history/candles:", response.error.message);
+                        setChartError(response.error.message);
+                        setIsChartLoading(false);
+                    }
+                    return;
+                }
+                
+                switch (response.msg_type) {
+                    case 'tick':
+                        const latestTick = { epoch: response.tick.epoch, price: response.tick.quote };
+                        setChartData(prev => {
+                            const data = [...(prev as TickData[])];
+                            // Update last tick if epoch is the same, otherwise add new tick
+                            if(data.length > 0 && data[data.length-1].epoch === latestTick.epoch){
+                                data[data.length -1] = latestTick;
+                                return data;
+                            }
+                            return [...data.slice(-999), latestTick]
+                        });
+                        break;
+                    case 'ohlc':
+                         const latestOHLC = {
+                            epoch: response.ohlc.epoch,
+                            open: parseFloat(response.ohlc.open),
+                            high: parseFloat(response.ohlc.high),
+                            low: parseFloat(response.ohlc.low),
+                            close: parseFloat(response.ohlc.close),
+                        };
+                         setChartData(prev => {
+                            const data = [...(prev as CandleData[])];
+                            if (data.length > 0 && data[data.length - 1].epoch === latestOHLC.epoch) {
+                                // Update the last candle
+                                data[data.length - 1] = latestOHLC;
+                                return data;
+                            } else {
+                                // Add a new candle
+                                return [...data.slice(-999), latestOHLC];
+                            }
+                        });
+                        break;
+                    case 'history':
+                        // This handles the initial batch of tick data
+                        setChartData(response.history.prices.map((p: number, i: number) => ({ epoch: response.history.times[i], price: p })));
+                        setIsChartLoading(false);
+                        break;
+                    case 'candles':
+                        // This handles the initial batch of candle data
+                        if (response.subscription?.id) {
+                            subscriptionIdRef.current = response.subscription.id;
+                        }
+                        const rawData = response.candles || [];
+                        const formattedData = rawData.map((c: any) => ({ ...c, open: parseFloat(c.open), high: parseFloat(c.high), low: parseFloat(c.low), close: parseFloat(c.close) }));
+                        setChartData(formattedData);
+                        setIsChartLoading(false);
+                        break;
+                }
+        };
+
+        addMarketDataListener(marketDataCallback);
+        return () => {
+            removeMarketDataListener(marketDataCallback);
+        };
+    }, [addMarketDataListener, removeMarketDataListener]);
+
+
+    useEffect(() => {
         if(activeSymbol && isConnected) {
             subscribeToSymbol(activeSymbol, timePeriod);
         }
 
+        // Cleanup function for when the component unmounts or dependencies change
         return () => {
             if (isConnected && subscriptionIdRef.current) {
-                makeRequest({ "forget": subscriptionIdRef.current }).catch(e => console.error("Error forgetting subscription:", e));
+                // We create a temporary function to call makeRequest because it's not stable
+                const forgetRequest = async () => {
+                    try {
+                        await makeRequest({ "forget": subscriptionIdRef.current });
+                        subscriptionIdRef.current = null;
+                    } catch(e) {
+                         console.error("Error forgetting subscription on cleanup:", e)
+                    }
+                }
+                forgetRequest();
             }
         }
     }, [activeSymbol, timePeriod, isConnected, subscribeToSymbol, makeRequest]);
