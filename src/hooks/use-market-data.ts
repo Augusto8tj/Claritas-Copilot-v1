@@ -226,6 +226,7 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 2
                 const granularity = getGranularityForTimePeriod(timePeriod);
                 const isCandleRequest = granularity > 0;
                 
+                // Força o tipo de gráfico correto baseado no pedido
                 const finalChartType = isCandleRequest ? 'Candle' : 'Area';
                 if (chartType !== finalChartType) {
                     setChartType(finalChartType);
@@ -234,7 +235,7 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 2
                 const request: any = {
                     ticks_history: activeSymbol,
                     adjust_start_time: 1,
-                    count: dataCount,
+                    count: 1000, // Fetch a larger buffer initially
                     end: 'latest',
                     style: isCandleRequest ? 'candles' : 'ticks',
                     subscribe: 1,
@@ -261,7 +262,8 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 2
                 makeRequest({ forget: activeSubscriptionIdRef.current }).catch(e => console.error("Cleanup falhou ao cancelar subscrição:", e));
             }
         };
-    }, [activeSymbol, timePeriod, isConnected, makeRequest, dataCount]);
+    // O `dataCount` é removido das dependências para evitar re-subscrições ao dar zoom.
+    }, [activeSymbol, timePeriod, isConnected, makeRequest]);
 
 
     return {
