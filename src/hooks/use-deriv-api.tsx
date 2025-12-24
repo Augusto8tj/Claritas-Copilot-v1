@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -119,58 +120,66 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   
   const activeToken = accountType === 'demo' ? demoToken : realToken;
 
-  const makeRequest = useCallback(<T>(request: object): Promise<T> => {
-    const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      return Promise.reject(new Error("WebSocket is not connected."));
-    }
-    const req_id = Date.now() + Math.random();
-    const payload = { ...request, req_id };
+  const makeRequest = useCallback(<T,>(request: object): Promise<T> => {
     return new Promise((resolve, reject) => {
-      promisesRef.current.set(String(req_id), { resolve, reject });
-      ws.send(JSON.stringify(payload));
+        const ws = wsRef.current;
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            return reject(new Error("WebSocket is not connected."));
+        }
+        const req_id = Date.now() + Math.random();
+        const payload = { ...request, req_id };
+        
+        promisesRef.current.set(String(req_id), { resolve, reject });
+        
+        // Timeout for the request
+        setTimeout(() => {
+            if (promisesRef.current.has(String(req_id))) {
+                promisesRef.current.delete(String(req_id));
+                reject(new Error(`Request timed out for req_id: ${req_id}`));
+            }
+        }, 15000); // 15-second timeout
+
+        ws.send(JSON.stringify(payload));
     });
   }, []);
   
   const getHistoricalData = useCallback(async (symbol: string, period?: string, count?: number): Promise<HistoricalData[]> => {
-      // For now, we keep the mock implementation to avoid excessive API calls during development.
-      // This can be replaced with a real API call using `makeRequest` in the future.
-      console.log(`[Deriv Hook] Mocking historical data for ${symbol}. Count: ${count}, Period: ${period}.`);
-      
-      await new Promise(resolve => setTimeout(resolve, count ? 500 : 1200));
-
-      const data: HistoricalData[] = [];
-      
-      if (count) { // High-frequency data
-          let price = Math.random() * 200 + 50;
-          for (let i = 0; i < count; i++) {
-              const date = new Date();
-              date.setSeconds(date.getSeconds() - (count - i));
-              const trend = Math.sin(i / 20) * 0.1;
-              const volatility = (Math.random() - 0.5) * 0.5;
-              price += trend + volatility;
-              if (price < 1) price = 1;
-              data.push({ date: date.toISOString(), price: parseFloat(price.toFixed(4)) });
-          }
-      } else { // Long-term data
-          const endDate = new Date();
-          let days = 30;
-          if (period && (period.includes("ano") || period.includes("year"))) days = 365;
-          else if (period && (period.includes("mes") || period.includes("month"))) days = 30 * (parseInt(period) || 1);
-          
-          let price = Math.random() * 200 + 50;
-          for (let i = 0; i < days; i++) {
-              const date = new Date(endDate);
-              date.setDate(date.getDate() - (days - i - 1));
-              const trend = Math.sin(i / 50) * 0.5;
-              const volatility = (Math.random() - 0.5) * 4;
-              price += trend + volatility;
-              if (price < 5) price = 5;
-              data.push({ date: date.toISOString().split('T')[0], price: parseFloat(price.toFixed(2)) });
-          }
+      if (!wsRef.current || !isConnected) {
+        throw new Error("A conexão com a API da Deriv não está ativa.");
       }
-      return data;
-  }, []);
+      const request: any = {
+        ticks_history: symbol,
+        end: "latest",
+        count: count || 1000,
+      };
+
+      if(period && getGranularityForTimePeriod(period as any)) {
+          request.style = 'candles';
+          request.granularity = getGranularityForTimePeriod(period as any);
+      } else {
+          request.style = 'ticks';
+      }
+
+      const response: any = await makeRequest(request);
+      
+      if(response.history) {
+          return response.history.times.map((time: number, index: number) => ({
+              date: new Date(time * 1000).toISOString(),
+              price: response.history.prices[index]
+          }));
+      }
+      if(response.candles) {
+           return response.candles.map((candle: any) => ({
+                date: new Date(candle.epoch * 1000).toISOString(),
+                open: candle.open,
+                high: candle.high,
+                low: candle.low,
+                close: candle.close,
+            }));
+      }
+
+      return [];
+  }, [isConnected, makeRequest]);
 
 
   const executeTrade = useCallback(async (
@@ -241,14 +250,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    if (wsRef.current && wsRef.current.readyState === WebSocket.CONNECTING) {
+    if (wsRef.current && (wsRef.current.readyState === WebSocket.CONNECTING || wsRef.current.readyState === WebSocket.OPEN)) {
         return;
     }
     
-    if (wsRef.current) {
-        wsRef.current.close();
-    }
-
     setIsConnecting(true);
     setConnectionError(null);
     setIsAssetsLoading(true);
@@ -354,7 +359,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             // Sequentially request initial data
             await Promise.all([
                 makeRequest({ "balance": 1, "subscribe": 1 }),
-                ws.send(JSON.stringify({ "proposal_open_contract": 1, "subscribe": 1 })), // Send subscription without awaiting a promise
+                makeRequest({ "proposal_open_contract": 1, "subscribe": 1 }),
                 makeRequest({ active_symbols: 'full', product_type: 'basic' }).then((assetsRes: any) => {
                   const groupedAssets: { [key: string]: Asset[] } = {};
                   assetsRes.active_symbols.forEach((symbol: any) => {
@@ -465,6 +470,22 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const addActiveContract = (contract: ActiveContract) => {
     setActiveContracts(prev => [...prev, contract]);
   }
+  
+  const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
+    switch(timePeriod) {
+        case '1m': return 0;
+        case '2m': return 120;
+        case '3m': return 180;
+        case '5m': return 300;
+        case '10m': return 600;
+        case '15m': return 900;
+        case '30m': return 1800;
+        case '1h': return 3600;
+        case '8h': return 28800;
+        case '1d': return 86400;
+        default: return 0;
+    }
+}
 
   const contextValue: DerivApiContextType = {
     ws: wsRef.current,
@@ -503,3 +524,5 @@ export function useDerivApi() {
   }
   return context;
 }
+
+    
