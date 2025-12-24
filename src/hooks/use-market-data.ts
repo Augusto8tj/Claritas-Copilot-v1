@@ -86,12 +86,12 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 1
     // Ajuste automático do tipo de gráfico baseado no timePeriod
     useEffect(() => {
         const isLowTimeFrame = ['1m'].includes(timePeriod);
-        if (isLowTimeFrame && chartType !== 'Area') {
+        if (isLowTimeFrame) {
             setChartType('Area');
-        } else if (!isLowTimeFrame && chartType !== 'Candle') {
+        } else {
             setChartType('Candle');
         }
-    }, [timePeriod, chartType]);
+    }, [timePeriod]);
 
     // --------------------------------------------------------------------------
     // 1. Lógica de Processamento de Dados (Ouvinte)
@@ -99,13 +99,13 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 1
     const handleMarketData = useCallback((response: any) => {
         if (isSwitchingRef.current) return;
         
-        const responseSymbol = response.echo_req?.ticks_history || response.echo_req?.candles || response.tick?.symbol;
+        const responseSymbol = response.echo_req?.ticks_history || response.echo_req?.candles || response.tick?.symbol || response.ohlc?.symbol;
         if (responseSymbol && responseSymbol !== currentSymbolRef.current) {
             return; // Ignora dados de uma subscrição antiga
         }
 
         if (response.error) {
-            if (responseSymbol === currentSymbolRef.current) {
+            if (responseSymbol === currentSymbolRef.current && response.error.code !== 'AlreadySubscribed') {
                 setChartError(response.error.message);
                 setIsChartLoading(false);
             }
@@ -233,8 +233,8 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 1
             isSwitchingRef.current = false; // Pode destravar agora
 
             try {
-                const isCandleRequest = chartType === 'Candle';
                 const granularity = getGranularityForTimePeriod(timePeriod);
+                const isCandleRequest = granularity > 0;
                 
                 const request: any = {
                     ticks_history: activeSymbol,
@@ -245,7 +245,7 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 1
                     subscribe: 1,
                 };
 
-                if (isCandleRequest && granularity > 0) {
+                if (isCandleRequest) {
                     request.granularity = granularity;
                 }
                 
@@ -268,8 +268,8 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 1
                 makeRequest({ forget: activeSubscriptionIdRef.current }).catch(e => console.error("Cleanup falhou ao cancelar subscrição:", e));
             }
         };
-
-    }, [activeSymbol, timePeriod, chartType, isConnected, makeRequest, dataCount]);
+    // A DEPENDÊNCIA DE `chartType` FOI REMOVIDA PARA EVITAR RE-SUBSCRIÇÃO
+    }, [activeSymbol, timePeriod, isConnected, makeRequest, dataCount]);
 
 
     return {
