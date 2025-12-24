@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDerivApi } from './use-deriv-api';
+import { calculateBollingerBands } from '@/services/indicator-service';
 
 export type TimePeriod = '1m' | '2m' | '3m' | '5m' | '10m' | '15m' | '30m' | '1h' | '8h' | '1d';
 export type ChartType = 'Area' | 'Candle';
@@ -19,14 +20,15 @@ export type CandleData = {
   low: number;
   close: number;
   volume?: number;
-  bollingerBands?: [number, number];
+  bollingerUpper?: number;
+  bollingerLower?: number;
 };
 
 export type ChartData = TickData | CandleData;
 
 const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
-        case '1m': return 0; // Tick data is requested with granularity 0
+        case '1m': return 0; 
         case '2m': return 120;
         case '3m': return 180;
         case '5m': return 300;
@@ -51,7 +53,6 @@ export function useMarketData(activeSymbol: string | null) {
     
     const subscriptionIdRef = useRef<string | null>(null);
 
-    // Automatically switch to Area chart for tick-only periods
     useEffect(() => {
         if (['1m', '2m', '3m'].includes(timePeriod) && chartType !== 'Area') {
             setChartType('Area');
@@ -61,13 +62,11 @@ export function useMarketData(activeSymbol: string | null) {
     const subscribeToSymbol = useCallback(async (symbol: string, newTimePeriod: TimePeriod) => {
         if (!isConnected) return;
         
-        // Clear old data and set loading state immediately
         setIsChartLoading(true);
         setChartData([]);
         setChartError(null);
 
         try {
-            // Unsubscribe from previous symbol if there's an active subscription
             if (subscriptionIdRef.current) {
                 await makeRequest({ "forget": subscriptionIdRef.current });
                 subscriptionIdRef.current = null;
@@ -75,7 +74,6 @@ export function useMarketData(activeSymbol: string | null) {
 
             const granularity = getGranularityForTimePeriod(newTimePeriod);
             const style = granularity === 0 ? 'ticks' : 'candles';
-
             const request: any = {
                 ticks_history: symbol,
                 style: style,
@@ -89,7 +87,6 @@ export function useMarketData(activeSymbol: string | null) {
                 request.adjust_start_time = 1;
             }
             
-            // The response will be handled by the listener, which will update chartData and set isChartLoading to false.
             await makeRequest(request);
 
         } catch (e: any) {
@@ -99,11 +96,14 @@ export function useMarketData(activeSymbol: string | null) {
     }, [isConnected, makeRequest]);
 
     useEffect(() => {
+        const processAndSetCandleData = (candles: any[]) => {
+            const candlesWithBands = calculateBollingerBands(candles);
+            setChartData(candlesWithBands);
+        };
+        
         const marketDataCallback = (response: any) => {
                 if (response.error) {
-                    // Check if it's a history/candles request error to set the error state
                     if (response.echo_req?.ticks_history || response.echo_req?.candles) {
-                        console.error("[Market Data Hook] Error received for history/candles:", response.error.message);
                         setChartError(response.error.message);
                         setIsChartLoading(false);
                     }
@@ -115,7 +115,6 @@ export function useMarketData(activeSymbol: string | null) {
                         const latestTick = { epoch: response.tick.epoch, price: response.tick.quote };
                         setChartData(prev => {
                             const data = [...(prev as TickData[])];
-                            // Update last tick if epoch is the same, otherwise add new tick
                             if(data.length > 0 && data[data.length-1].epoch === latestTick.epoch){
                                 data[data.length -1] = latestTick;
                                 return data;
@@ -133,29 +132,24 @@ export function useMarketData(activeSymbol: string | null) {
                         };
                          setChartData(prev => {
                             const data = [...(prev as CandleData[])];
-                            if (data.length > 0 && data[data.length - 1].epoch === latestOHLC.epoch) {
-                                // Update the last candle
-                                data[data.length - 1] = latestOHLC;
-                                return data;
-                            } else {
-                                // Add a new candle
-                                return [...data.slice(-999), latestOHLC];
-                            }
+                            const newData = data.length > 0 && data[data.length - 1].epoch === latestOHLC.epoch 
+                                ? [...data.slice(0, -1), latestOHLC]
+                                : [...data.slice(-999), latestOHLC];
+                            
+                            return calculateBollingerBands(newData);
                         });
                         break;
                     case 'history':
-                        // This handles the initial batch of tick data
                         setChartData(response.history.prices.map((p: number, i: number) => ({ epoch: response.history.times[i], price: p })));
                         setIsChartLoading(false);
                         break;
                     case 'candles':
-                        // This handles the initial batch of candle data
                         if (response.subscription?.id) {
                             subscriptionIdRef.current = response.subscription.id;
                         }
                         const rawData = response.candles || [];
                         const formattedData = rawData.map((c: any) => ({ ...c, open: parseFloat(c.open), high: parseFloat(c.high), low: parseFloat(c.low), close: parseFloat(c.close) }));
-                        setChartData(formattedData);
+                        processAndSetCandleData(formattedData);
                         setIsChartLoading(false);
                         break;
                 }
@@ -173,10 +167,8 @@ export function useMarketData(activeSymbol: string | null) {
             subscribeToSymbol(activeSymbol, timePeriod);
         }
 
-        // Cleanup function for when the component unmounts or dependencies change
         return () => {
             if (isConnected && subscriptionIdRef.current) {
-                // We create a temporary function to call makeRequest because it's not stable
                 const forgetRequest = async () => {
                     try {
                         await makeRequest({ "forget": subscriptionIdRef.current });

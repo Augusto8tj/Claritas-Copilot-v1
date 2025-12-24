@@ -2,24 +2,68 @@
 'use client';
 
 import * as React from "react";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Label, BarChart, Bar, ComposedChart, ReferenceDot, Area, Cell } from "recharts";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Label, ComposedChart, Area, Cell, Bar } from "recharts";
 import { Loader2 } from "lucide-react";
 import type { CandleData, TickData, ChartData, ActiveContract } from '@/hooks/use-market-data';
 import type { TimePeriod, ChartType } from '@/hooks/use-market-data';
 
-const Candlestick = (props: any) => {
-    const { x, y, width, height, low, high, open, close } = props;
-    const isBullish = close > open;
-    const color = isBullish ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))';
+// 1. UTILITY FUNCTION for stable Y-axis domain
+const getStableYDomain = (values: number[], padding = 0.05): [number, number] => {
+  if (values.length < 2) return ['auto', 'auto'] as any;
 
-    return (
-        <g stroke={color} fill={color} strokeWidth="1">
-            {/* Wick */}
-            <line x1={x + width / 2} y1={y} x2={x + width / 2} y2={y + height} />
-            {/* Body */}
-            <rect x={x} y={isBullish ? y + (high - close) : y + (high - open)} width={width} height={Math.max(1, Math.abs(open-close))} />
-        </g>
-    );
+  // Using a robust method to find a stable range, ignoring extreme outliers
+  const sorted = [...values].sort((a, b) => a - b);
+  // Using 2nd and 98th percentiles to avoid extreme outliers from skewing the chart
+  const low = sorted[Math.floor(sorted.length * 0.02)];
+  const high = sorted[Math.floor(sorted.length * 0.98)];
+  
+  if(low === undefined || high === undefined) return ['auto', 'auto'] as any;
+
+  const range = high - low;
+
+  return [
+    low - range * padding,
+    high + range * padding,
+  ];
+};
+
+
+// 2. PROFESSIONAL (CORRECTED) CANDLESTICK COMPONENT
+const Candlestick = ({ x, y, width, height, payload }: any) => {
+  if (!payload || payload.open === undefined) return null;
+    
+  const { open, close, high, low } = payload;
+  const bullish = close >= open;
+  const color = bullish
+    ? 'hsl(var(--chart-2))'
+    : 'hsl(var(--destructive))';
+
+  // The y-coordinate from recharts is the TOP of the highest point (high).
+  // We need to calculate body position based on that.
+  const bodyHeight = Math.max(1, Math.abs(open - close));
+  const bodyY = bullish ? y + (high - close) : y + (high - open);
+
+  return (
+    <g>
+      {/* Wick */}
+      <line
+        x1={x + width / 2}
+        x2={x + width / 2}
+        y1={y}
+        y2={y + (high - low)}
+        stroke={color}
+        strokeWidth={1}
+      />
+      {/* Body */}
+      <rect
+        x={x + width * 0.15}
+        y={bodyY}
+        width={width * 0.7}
+        height={bodyHeight}
+        fill={color}
+      />
+    </g>
+  );
 };
 
 
@@ -56,45 +100,48 @@ export function MarketChart({
   const priceTickFormatter = (value: any) => {
     if (typeof value !== 'number') return value;
     if (value > 1000) {
-      return `${(value / 1000).toFixed(0)}k`;
+      return `${(value / 1000).toFixed(1)}k`;
     }
     if (value < 10) {
         return value.toFixed(4);
     }
     return value.toFixed(2);
   };
+  
+  const latestPrice = visibleData.length > 0 
+    ? 'price' in visibleData[visibleData.length - 1] 
+      ? (visibleData[visibleData.length - 1] as TickData).price 
+      : (visibleData[visibleData.length - 1] as CandleData).close 
+    : 0;
 
-  const latestPrice = visibleData.length > 0 ? (visibleData[visibleData.length - 1] as any).price || (visibleData[visibleData.length - 1] as any).close : 0;
   
   const renderChart = () => {
-     // For '1m', '2m', '3m', we only have tick data, so we must use a LineChart.
      if (['1m','2m','3m'].includes(timePeriod)) {
         const tickData = visibleData as TickData[];
         if (!tickData || tickData.length === 0) return null;
         
-        const xDomain = tickData.length > 0 ? [tickData[0].epoch, tickData[tickData.length - 1].epoch] : [0, 0];
-        
         const prices = tickData.map(d => d.price);
-        const minPrice = Math.min(...prices);
-        const maxPrice = Math.max(...prices);
-        const priceRange = maxPrice - minPrice;
-        const margin = priceRange * 0.1; // 10% margin
-        const yDomain: [number, number] = [minPrice - margin, maxPrice + margin];
-
-
+        const yDomain = getStableYDomain(prices);
+        
         return (
             <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={[...tickData]}>
+                <LineChart data={tickData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis
                         dataKey="epoch"
+                        type="number"
+                        domain={['dataMin', 'dataMax']}
+                        tickFormatter={(e) =>
+                            new Date(e * 1000).toLocaleTimeString('pt-BR', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            })
+                        }
                         stroke="hsl(var(--muted-foreground))"
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
-                        tickFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleTimeString('pt-BR')}
-                        type="number"
-                        domain={xDomain}
                     />
                     <YAxis
                         dataKey="price"
@@ -108,23 +155,22 @@ export function MarketChart({
                         width={80}
                     />
                     <Tooltip
-                        formatter={(value: number, name, props: any) => [Number(value).toFixed(4), "Preço"]}
+                        formatter={(value: number) => [Number(value).toFixed(4), "Preço"]}
                         labelFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleString('pt-BR')}
                         labelStyle={{ color: 'hsl(var(--foreground))' }}
                         contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
                         animationDuration={0}
                     />
                     <Line
-                        isAnimationActive={false}
-                        type="monotone"
+                        type="stepAfter"
                         dataKey="price"
                         stroke="hsl(var(--primary))"
                         strokeWidth={2}
                         dot={false}
+                        isAnimationActive={false}
                     />
                      {activeContracts.map(contract => (
                         <React.Fragment key={contract.contractId}>
-                            {/* Entry Dot */}
                             <ReferenceDot
                                 x={contract.entryTime}
                                 y={contract.entryTick}
@@ -133,7 +179,6 @@ export function MarketChart({
                                 stroke="white"
                                 strokeWidth={2}
                             />
-                            {/* Exit Dot */}
                             {contract.status !== 'open' && contract.exitTime && contract.exitTick && (
                                 <ReferenceDot
                                     x={contract.exitTime}
@@ -147,7 +192,7 @@ export function MarketChart({
                         </React.Fragment>
                     ))}
                     {latestPrice && (
-                       <ReferenceLine y={latestPrice} stroke="hsl(var(--primary))" strokeDasharray="3 3">
+                       <ReferenceLine y={latestPrice} stroke="hsl(var(--primary))" strokeDasharray="4 4">
                            <Label value={priceTickFormatter(latestPrice)} position="right" fill="hsl(var(--primary))" fontSize={12} />
                        </ReferenceLine>
                     )}
@@ -156,23 +201,12 @@ export function MarketChart({
         )
      }
 
-     // For other time periods, we have candle data.
      const candleData = visibleData as CandleData[];
      if (!candleData || candleData.length === 0) return null;
      
-     const allLows = candleData.map(d => d.low).filter(v => v !== undefined);
-     const allHighs = candleData.map(d => d.high).filter(v => v !== undefined);
-
-     if(allLows.length === 0 || allHighs.length === 0) return null;
-
-     const minPrice = Math.min(...allLows);
-     const maxPrice = Math.max(...allHighs);
-     const priceRange = maxPrice - minPrice;
-     const margin = priceRange * 0.1; // 10% margin
-     const yDomain: [number, number] = [minPrice - margin, maxPrice + margin];
+     const prices = candleData.flatMap(d => [d.high, d.low]);
+     const yDomain = getStableYDomain(prices);
      
-
-     // Show candle chart if selected
      if (chartType === 'Candle') {
         return (
             <ResponsiveContainer width="100%" height="100%">
@@ -212,17 +246,25 @@ export function MarketChart({
                          contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
                     />
                     {showBollingerBands && (
-                     <Area 
-                        dataKey="bollingerBands" 
-                        stroke="hsl(var(--primary) / 0.5)"
-                        fill="hsl(var(--primary) / 0.1)"
-                        isAnimationActive={false} 
-                        type="monotone"
-                     />
+                    <>
+                        <Area
+                            dataKey="bollingerUpper"
+                            stackId="bollinger"
+                            stroke="transparent"
+                            fill="hsl(var(--primary) / 0.1)"
+                            isAnimationActive={false}
+                        />
+                        <Area
+                            dataKey="bollingerLower"
+                            stackId="bollinger"
+                            stroke="transparent"
+                            fill="hsl(var(--background))"
+                            isAnimationActive={false}
+                        />
+                    </>
                     )}
-                     <Bar dataKey="close" name="candle" shape={<Candlestick />} isAnimationActive={false}>
-                        {candleData.map(entry => <Cell key={`cell-${entry.epoch}`} />)}
-                     </Bar>
+                     <Bar dataKey="close" name="candle" shape={<Candlestick />} isAnimationActive={false} />
+                     
                      {activeContracts.map(contract => (
                         <React.Fragment key={contract.contractId}>
                             <ReferenceDot
@@ -246,7 +288,7 @@ export function MarketChart({
                         </React.Fragment>
                     ))}
                     {latestPrice && (
-                       <ReferenceLine y={latestPrice} stroke="hsl(var(--primary))" strokeDasharray="3 3">
+                       <ReferenceLine y={latestPrice} stroke="hsl(var(--primary))" strokeDasharray="4 4">
                            <Label value={priceTickFormatter(latestPrice)} position="right" fill="hsl(var(--primary))" fontSize={12} />
                        </ReferenceLine>
                     )}
@@ -255,7 +297,6 @@ export function MarketChart({
         );
      }
 
-     // Fallback to a line chart using the 'close' price from candle data.
      return (
         <ResponsiveContainer width="100%" height="100%">
             <LineChart data={candleData}>
@@ -281,18 +322,38 @@ export function MarketChart({
                     width={80}
                 />
                 <Tooltip
-                    formatter={(value: number, name, props: any) => [Number(value).toFixed(4), "Preço de Fechamento"]}
+                    formatter={(value: number) => [Number(value).toFixed(4), "Preço de Fechamento"]}
                     labelFormatter={(epoch: number) => new Date(epoch * 1000).toLocaleString('pt-BR')}
                     labelStyle={{ color: 'hsl(var(--foreground))' }}
                     contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: 'var(--radius)' }}
                 />
+                 {showBollingerBands && (
+                    <>
+                        <Area
+                            type="monotone"
+                            dataKey="bollingerUpper"
+                            stackId="bollinger"
+                            stroke="transparent"
+                            fill="hsl(var(--primary) / 0.1)"
+                            isAnimationActive={false}
+                        />
+                         <Area
+                            type="monotone"
+                            dataKey="bollingerLower"
+                            stackId="bollinger"
+                            stroke="transparent"
+                            fill="hsl(var(--background))"
+                            isAnimationActive={false}
+                        />
+                    </>
+                 )}
                 <Line
-                    isAnimationActive={false}
-                    type="monotone"
+                    type="linear"
                     dataKey="close"
                     stroke="hsl(var(--primary))"
                     strokeWidth={2}
                     dot={false}
+                    isAnimationActive={false}
                 />
                 {activeContracts.map(contract => (
                     <React.Fragment key={contract.contractId}>
@@ -317,7 +378,7 @@ export function MarketChart({
                     </React.Fragment>
                 ))}
                  {latestPrice && (
-                    <ReferenceLine y={latestPrice} stroke="hsl(var(--primary))" strokeDasharray="3 3">
+                    <ReferenceLine y={latestPrice} stroke="hsl(var(--primary))" strokeDasharray="4 4">
                         <Label value={priceTickFormatter(latestPrice)} position="right" fill="hsl(var(--primary))" fontSize={12} />
                     </ReferenceLine>
                  )}

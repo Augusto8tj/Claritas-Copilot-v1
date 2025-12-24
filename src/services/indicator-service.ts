@@ -1,4 +1,5 @@
 
+
 /**
  * @fileOverview A service dedicated to calculating various technical trading indicators.
  */
@@ -188,6 +189,26 @@ export const calculateVolumeProfile = (data: { close: number, volume?: number }[
     return poc;
 };
 
+export const calculateBollingerBands = (data: { close: number }[], period = 20, stdDev = 2) => {
+    if (data.length < period) return data;
+    
+    return data.map((d, i, all) => {
+        if (i < period - 1) return { ...d, bollingerUpper: undefined, bollingerLower: undefined };
+        
+        const slice = all.slice(i - period + 1, i + 1);
+        const prices = slice.map(item => item.close);
+        const mean = prices.reduce((acc, price) => acc + price, 0) / period;
+        const variance = prices.reduce((acc, price) => acc + Math.pow(price - mean, 2), 0) / period;
+        const sd = Math.sqrt(variance);
+        
+        return {
+            ...d,
+            bollingerUpper: mean + stdDev * sd,
+            bollingerLower: mean - stdDev * sd,
+        };
+    });
+};
+
 export const calculateVolatility = (data: { price: number }[], period = 20) => {
     if (data.length < period) return 0;
     const prices = data.slice(-period).map(d => d.price);
@@ -212,6 +233,10 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
 
     const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
     const volumeRobot = strategyCouncil.find(r => r.strategyType === 'VOLUME_PROFILE');
+    const bbRobot = strategyCouncil.find(r => r.strategyType === 'BOLLINGER_BANDS');
+
+    const bands = bbRobot ? calculateBollingerBands(candleData, bbRobot.period, bbRobot.stdDev).pop() : undefined;
+
 
     return {
         rsi: calculateRSI(candleData),
@@ -220,7 +245,7 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
             short: maRobot?.shortPeriod ? calculateMA(candleData, maRobot.shortPeriod) : null,
             long: maRobot?.longPeriod ? calculateMA(candleData, maRobot.longPeriod) : null,
         },
-        bollingerBands: null, // Placeholder
+        bollingerBands: bands ? { upper: bands.bollingerUpper, lower: bands.bollingerLower } : null,
         macd: calculateMACD(candleData),
         priceAction: detectPriceActionPattern(candleData),
         adx: calculateADX(candleData),
