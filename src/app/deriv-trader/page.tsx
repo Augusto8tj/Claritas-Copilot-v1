@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DerivTraderInterface } from "@/components/trading/deriv-trader-interface";
@@ -10,28 +10,18 @@ import { AssetSelector } from "@/components/trading/asset-selector";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MarketChart } from "@/components/trading/market-chart";
 import { Button } from "@/components/ui/button";
-import { AreaChart, Trash2, Plus, Minus, CandlestickChart, Waves, Clock } from "lucide-react";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { Trash2 } from "lucide-react";
 import { useDerivApi } from "@/hooks/use-deriv-api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OperationsLog } from "@/components/trading/operations-log";
 import { AIAnalysisInterface } from "@/components/trading/ai-analysis-interface";
 import { riseFallSchema, type RiseFallFormValues } from "@/components/trading/deriv-trader-interface.types";
-import { AutoTraderInterface } from "@/components/trading/auto-trader-interface";
 import { AutoTraderCouncilInterface } from "@/components/trading/auto-trader-council-interface";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useMarketData, type TimePeriod, type ChartType } from "@/hooks/use-market-data";
-import { useAutopilot } from "@/hooks/use-autopilot";
-import { useRobotCouncil } from "@/hooks/use-robot-council";
-import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
 
-
-const timePeriods: TimePeriod[] = ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '8h', '1d'];
 
 export default function DerivTraderPage() {
   const [activeSymbol, setActiveSymbol] = useState<string | null>('1HZ75V');
-  const [zoomLevel, setZoomLevel] = useState(100);
 
   const form = useForm<RiseFallFormValues>({
     resolver: zodResolver(riseFallSchema),
@@ -54,66 +44,8 @@ export default function DerivTraderPage() {
     isConnecting,
     isAssetsLoading,
     assetGroups,
-    addActiveContract,
     executeTrade,
   } = useDerivApi();
-
-  const {
-    chartData,
-    isChartLoading,
-    chartError,
-    chartType,
-    setChartType,
-    timePeriod,
-    setTimePeriod,
-    showBollingerBands,
-    setShowBollingerBands,
-  } = useMarketData(activeSymbol);
-  
-  const autopilot = useAutopilot(
-    activeSymbol,
-    chartData,
-    operationsLog,
-    addActiveContract,
-    executeTrade
-  );
-
-  const robotCouncil = useRobotCouncil(
-    activeSymbol,
-    chartData,
-    operationsLog,
-    addActiveContract,
-    executeTrade
-  );
-  
-  const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
-
-
- const handleZoom = (direction: 'in' | 'out') => {
-    setZoomLevel(prevZoom => {
-        let newZoom;
-        if (direction === 'in') {
-            newZoom = Math.max(20, prevZoom - 20);
-        } else {
-            newZoom = Math.min(500, prevZoom + 20);
-        }
-        return newZoom;
-    });
-  };
-
-  const handleWheelZoom = (e: React.WheelEvent<HTMLDivElement>) => {
-    if (e.ctrlKey) {
-        e.preventDefault();
-        const direction = e.deltaY < 0 ? 'in' : 'out';
-        handleZoom(direction);
-    }
-  };
-
-
-  const chartTypes: { label: ChartType, icon: React.ReactNode, disabled: boolean }[] = [
-    { label: 'Area', icon: <AreaChart className="w-8 h-8 mx-auto" />, disabled: false },
-    { label: 'Candle', icon: <CandlestickChart className="w-8 h-8 mx-auto" />, disabled: ['1m', '2m', '3m'].includes(timePeriod) },
-  ];
   
   return (
     <FormProvider {...form}>
@@ -170,74 +102,12 @@ export default function DerivTraderPage() {
                             <span className="sr-only">Limpar negociações</span>
                         </Button>
                         )}
-                        <Button 
-                            variant="outline" 
-                            size="icon" 
-                            className={cn("h-8 w-8", showBollingerBands && "bg-accent")}
-                            onClick={() => setShowBollingerBands(!showBollingerBands)}
-                            disabled={chartType !== 'Candle'}
-                            aria-label="Toggle Bollinger Bands"
-                        >
-                            <Waves className="h-4 w-4" />
-                        </Button>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button variant="outline" className="w-9 h-8 p-0">
-                                    {chartType === 'Area' ? <AreaChart className="w-4 h-4" /> : <CandlestickChart className="w-4 h-4" />}
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-2">
-                                <ToggleGroup type="single" value={chartType} onValueChange={(v) => v && setChartType(v as ChartType)} className="grid grid-cols-2 gap-2">
-                                {chartTypes.map(type => (
-                                    <ToggleGroupItem value={type.label} key={type.label} disabled={type.disabled} className="flex flex-col h-auto p-2">
-                                        {type.icon}
-                                        <span className="text-xs mt-1">{type.label}</span>
-                                    </ToggleGroupItem>
-                                ))}
-                                </ToggleGroup>
-                            </PopoverContent>
-                        </Popover>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button variant="outline" className="w-[70px] h-8 text-xs">
-                                    <Clock className="w-3 h-3 mr-1.5" />
-                                    <span>{timePeriod.toUpperCase()}</span>
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-2">
-                                <div className="grid grid-cols-4 gap-2">
-                                    {timePeriods.map(period => (
-                                        <Button
-                                            key={period}
-                                            variant={timePeriod === period ? "default" : "ghost"}
-                                            onClick={() => setTimePeriod(period)}
-                                            className="w-full h-8 text-xs"
-                                        >
-                                            {period.toUpperCase()}
-                                        </Button>
-                                    ))}
-                                </div>
-                            </PopoverContent>
-                        </Popover>
-                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleZoom('in')} disabled={zoomLevel <= 20}>
-                            <Plus className="h-4 w-4" />
-                        </Button>
-                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleZoom('out')} disabled={zoomLevel >= 500}>
-                            <Minus className="h-4 w-4" />
-                        </Button>
                     </div>
                 </CardHeader>
-                <CardContent onWheel={handleWheelZoom}>
+                <CardContent>
                     <MarketChart 
                         activeSymbol={activeSymbol || ''}
                         activeContracts={activeContracts}
-                        zoomLevel={zoomLevel}
-                        chartData={chartData}
-                        isChartLoading={isChartLoading}
-                        chartError={chartError}
-                        chartType={chartType}
-                        timePeriod={timePeriod}
-                        showBollingerBands={showBollingerBands}
                     />
                 </CardContent>
               </Card>
@@ -251,23 +121,7 @@ export default function DerivTraderPage() {
           {/* Right Column: AI Copilot */}
           <div className="space-y-6">
               <AutoTraderCouncilInterface />
-              <AutoTraderInterface
-                isAutopilotOn={autopilot.isAutopilotOn}
-                setIsAutopilotOn={autopilot.setIsAutopilotOn}
-                autopilotStrategy={autopilot.autopilotStrategy}
-                dailyBalance={autopilot.dailyBalance}
-                setDailyBalance={autopilot.setDailyBalance}
-                dailyTarget={autopilot.dailyTarget}
-                setDailyTarget={autopilot.setDailyTarget}
-                geminiRequestCount={autopilot.geminiRequestCount}
-                isLoading={autopilot.isLoading}
-                error={autopilot.error}
-                currentRSI={autopilot.currentRSI}
-                currentStoch={autopilot.currentStoch}
-              />
-              <AIAnalysisInterface 
-                analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} 
-              />
+              <AIAnalysisInterface />
               <OperationsLog operations={operationsLog} />
           </div>
         </div>
