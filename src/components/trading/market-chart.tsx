@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import * as React from 'react'
@@ -26,12 +27,6 @@ import {
   Waves,
 } from 'lucide-react'
 
-import {
-  calcEMA,
-  calcSMA,
-  calcVWAP,
-  calcBollingerBands,
-} from '@/services/indicator-service'
 import { Button } from '../ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
 import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group'
@@ -72,7 +67,8 @@ interface MarketChartProps {
   showVWAP: boolean;
   setShowVWAP: (show: boolean) => void;
   handleZoom: (direction: 'in' | 'out') => void
-  zoomLevel: number
+  zoomLevel: number,
+  indicators: any;
 }
 
 export function MarketChart({
@@ -95,6 +91,7 @@ export function MarketChart({
   setShowVWAP,
   handleZoom,
   zoomLevel,
+  indicators,
 }: MarketChartProps) {
   // --- STATE & THEME ---
   const [chartTheme, setChartTheme] = React.useState<'light' | 'dark'>('dark')
@@ -107,24 +104,19 @@ export function MarketChart({
       return rawData
     }
     const candles = rawData as CandleData[]
-    const sma = calcSMA(candles, 10)
-    const ema = calcEMA(candles, 10)
-    const vwap = calcVWAP(candles)
-    const bb = calcBollingerBands(candles, 20, 2)
 
     return candles.map((d, i) => {
-      if (!d) return null;
+      if (!d) return null; // Safety check
       return {
         ...d,
-        sma: sma[i],
-        ema: ema[i],
-        vwap: vwap[i],
-        bb: bb[i],
-        // Garante que o volume seja um número para o gráfico de barras
+        sma: indicators.sma?.[i],
+        ema: indicators.ema?.[i],
+        vwap: indicators.vwap?.[i],
+        bb: indicators.bollingerBands?.[i],
         volume: d.volume || 0,
       }
-    }).filter(Boolean) as CandleData[]; // Filter out nulls
-  }, [rawData, chartType])
+    }).filter(Boolean) as CandleData[];
+  }, [rawData, chartType, indicators])
 
   const visibleData = React.useMemo(() => {
     if (processedData.length > zoomLevel) {

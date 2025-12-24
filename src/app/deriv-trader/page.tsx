@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useCallback } from "react";
@@ -79,7 +80,7 @@ export default function DerivTraderPage() {
   const [showVWAP, setShowVWAP] = useState(false);
 
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
-  const robotCouncil = useRobotCouncil(activeSymbol, chartData, operationsLog, addActiveContract, executeTrade);
+  const { indicators, ...robotCouncil } = useRobotCouncil(activeSymbol, chartData, operationsLog, addActiveContract, executeTrade);
   
   return (
     <FormProvider {...form}>
@@ -159,6 +160,7 @@ export default function DerivTraderPage() {
                         setShowVWAP={setShowVWAP}
                         handleZoom={handleZoom}
                         zoomLevel={zoomLevel}
+                        indicators={indicators}
                     />
                 </CardContent>
               </Card>

@@ -75,13 +75,17 @@ export function useRobotCouncil(
         stoch: null as number | null,
         ma: { short: null as number | null, long: null as number | null },
         bollingerBands: null as { upper: number, middle: number, lower: number } | null,
-        macd: null as { macd: number, signal: number } | null,
+        macd: null as { macd: number | null, signal: number | null } | null,
         priceAction: null as string | null,
         adx: null as number | null,
         atr: null as number | null,
         ichimoku: null as { inCloud: boolean, trend: 'bullish' | 'bearish' | 'neutral' } | null,
         awesomeOscillator: null as number | null,
         volumePoc: null as number | null,
+        // Full arrays for chart
+        sma: [] as (number | null)[],
+        ema: [] as (number | null)[],
+        vwap: [] as (number | null)[],
     });
 
 
@@ -136,7 +140,7 @@ export function useRobotCouncil(
     useEffect(() => {
         if (!chartData || chartData.length < 2 || strategyCouncil.length === 0) return;
         const allIndicators = calculateAllIndicators(chartData, strategyCouncil);
-        setIndicators(allIndicators);
+        setIndicators(allIndicators as any);
     }, [chartData, strategyCouncil]);
 
     // Voting and Execution Logic

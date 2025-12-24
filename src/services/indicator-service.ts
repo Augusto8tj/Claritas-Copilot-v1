@@ -7,30 +7,82 @@ import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
 
 // ===== PRIVATE HELPERS =====
 
-const calculateRSI = (data: CandleData[], period = 14) => {
-    if (data.length < period) return null;
-    let gains = 0;
-    let losses = 0;
+const calculateRSI = (data: CandleData[], period = 14): (number | null)[] => {
+    if (data.length < period) return Array(data.length).fill(null);
 
-    for (let i = data.length - period; i < data.length; i++) {
-        const difference = data[i].close - data[i - 1].close;
-        if (difference >= 0) gains += difference;
-        else losses -= difference;
+    const rsiValues: (number | null)[] = Array(period - 1).fill(null);
+    let avgGain = 0;
+    let avgLoss = 0;
+
+    for (let i = 1; i < period; i++) {
+        const change = data[i].close - data[i - 1].close;
+        if (change > 0) {
+            avgGain += change;
+        } else {
+            avgLoss -= change;
+        }
     }
-    if (losses === 0) return 100;
-    const rs = (gains / period) / (losses / period);
-    return 100 - (100 / (1 + rs));
+    avgGain /= period;
+    avgLoss /= period;
+
+    let rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
+    rsiValues.push(100 - (100 / (1 + rs)));
+
+    for (let i = period; i < data.length; i++) {
+        const change = data[i].close - data[i - 1].close;
+        let gain = change > 0 ? change : 0;
+        let loss = change < 0 ? -change : 0;
+
+        avgGain = (avgGain * (period - 1) + gain) / period;
+        avgLoss = (avgLoss * (period - 1) + loss) / period;
+        
+        rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
+        rsiValues.push(100 - (100 / (1 + rs)));
+    }
+    return rsiValues;
 };
 
-const calculateStochastic = (data: CandleData[], period = 14) => {
-    if (data.length < period) return null;
-    const relevantData = data.slice(-period);
-    const lowestLow = Math.min(...relevantData.map(d => d.low));
-    const highestHigh = Math.max(...relevantData.map(d => d.high));
-    const currentClose = relevantData[relevantData.length - 1].close;
-    if (highestHigh === lowestLow) return 50; // Avoid division by zero
-    return 100 * ((currentClose - lowestLow) / (highestHigh - lowestLow));
+
+const calculateStochastic = (data: CandleData[], period = 14, smoothK = 3) => {
+    if (data.length < period) return Array(data.length).fill(null);
+
+    const kValues: (number | null)[] = [];
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+            kValues.push(null);
+            continue;
+        }
+        const slice = data.slice(i - period + 1, i + 1);
+        const lowestLow = Math.min(...slice.map(d => d.low));
+        const highestHigh = Math.max(...slice.map(d => d.high));
+        const currentClose = slice[slice.length - 1].close;
+        if (highestHigh === lowestLow) {
+            kValues.push(i > 0 ? kValues[i - 1] : 50);
+        } else {
+            kValues.push(100 * ((currentClose - lowestLow) / (highestHigh - lowestLow)));
+        }
+    }
+    return kValues;
 };
+
+const calculateMACD = (data: CandleData[], fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) => {
+    if (data.length < slowPeriod) return { macd: [], signal: [], histogram: [] };
+
+    const emaFast = calcEMA(data, fastPeriod);
+    const emaSlow = calcEMA(data, slowPeriod);
+    
+    const macdLine = data.map((_, i) => (emaFast[i] && emaSlow[i]) ? emaFast[i]! - emaSlow[i]! : null);
+    
+    const signalLine = calcEMA(macdLine.filter(v => v !== null).map(v => ({close: v!})) as CandleData[], signalPeriod);
+
+    const macdWithNulls = [...Array(slowPeriod - 1).fill(null), ...macdLine.slice(slowPeriod - 1)];
+    const signalWithNulls = [...Array(slowPeriod + signalPeriod - 2).fill(null), ...signalLine.map(s => s)];
+
+    const histogram = macdWithNulls.map((m, i) => (m && signalWithNulls[i]) ? m - signalWithNulls[i]! : null);
+
+    return { macd: macdWithNulls, signal: signalWithNulls, histogram };
+};
+
 
 // ===== PUBLIC INDICATOR FUNCTIONS =====
 
@@ -58,14 +110,15 @@ export const calcEMA = (data: CandleData[], period: number): (number | null)[] =
   if (data.length === 0 || !data[0]) return []
   const k = 2 / (period + 1)
   let ema = data[0].close // Start with the first close
-  const emaValues: number[] = [ema]
+  const emaValues: (number | null)[] = [ema]
 
   for (let i = 1; i < data.length; i++) {
-    if (!data[i]) {
+    const d = data[i];
+    if (!d) {
         emaValues.push(ema); // carry over last ema if data is null
         continue;
     }
-    ema = data[i].close * k + ema * (1 - k)
+    ema = d.close * k + ema * (1 - k)
     emaValues.push(ema)
   }
   return emaValues
@@ -80,7 +133,7 @@ export const calcVWAP = (data: CandleData[]): (number | null)[] => {
   let cumulativePV = 0
   let cumulativeVolume = 0
   return data.map(d => {
-    if (!d || !d.volume) return null; // Ensure 'd' and 'd.volume' are not null.
+    if (!d || !d.volume) return null;
     const typicalPrice = (d.high + d.low + d.close) / 3
     cumulativePV += typicalPrice * d.volume
     cumulativeVolume += d.volume
@@ -143,33 +196,39 @@ export const calculateAllIndicators = (chartData: ChartData[], council: RobotStr
         };
     }
 
-    const latestCandle = candles[candles.length - 1];
+    const latestRsi = calculateRSI(candles).pop() ?? null;
+    const latestStoch = calculateStochastic(candles).pop() ?? null;
+    
+    const smaValues = calcSMA(candles, 10);
+    const emaValues = calcEMA(candles, 10);
+    const vwapValues = calcVWAP(candles);
+    const bbValues = calcBollingerBands(candles);
+    const macdValues = calculateMACD(candles);
 
-    const rsi = calculateRSI(candles, 14);
-    const stoch = calculateStochastic(candles, 14);
-
-    // Placeholder for other indicators until they are fully implemented
-    const ma = { short: null, long: null };
-    const bollingerBands = null;
-    const macd = null;
-    const priceAction = null;
-    const adx = null;
-    const atr = null;
-    const ichimoku = null;
-    const awesomeOscillator = null;
-    const volumePoc = null;
 
     return {
-        rsi,
-        stoch,
-        ma,
-        bollingerBands,
-        macd,
-        priceAction,
-        adx,
-        atr,
-        ichimoku,
-        awesomeOscillator,
-        volumePoc,
+        rsi: latestRsi,
+        stoch: latestStoch,
+        ma: { 
+            short: smaValues.pop() ?? null,
+            long: emaValues.pop() ?? null, // Example: using ema as long
+        },
+        bollingerBands: bbValues.pop() ?? null,
+        macd: {
+            macd: macdValues.macd.pop() ?? null,
+            signal: macdValues.signal.pop() ?? null,
+        },
+        priceAction: null, // Placeholder
+        adx: null, // Placeholder
+        atr: null, // Placeholder
+        ichimoku: null, // Placeholder
+        awesomeOscillator: null, // Placeholder
+        volumePoc: null, // Placeholder
+
+        // Full arrays for chart
+        sma: smaValues,
+        ema: emaValues,
+        vwap: vwapValues,
+        bollingerBands: bbValues,
     };
 };
