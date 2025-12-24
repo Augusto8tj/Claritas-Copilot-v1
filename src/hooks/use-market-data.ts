@@ -51,28 +51,11 @@ export function useMarketData(activeSymbol: string | null) {
     
     const subscriptionIdRef = useRef<string | null>(null);
 
-    const messageQueueRef = useRef<any[]>([]);
-    const isProcessingQueueRef = useRef(false);
-    const throttleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const THROTTLE_INTERVAL = 250;
-
     useEffect(() => {
-        const processMessageQueue = () => {
-            if (messageQueueRef.current.length === 0) {
-                isProcessingQueueRef.current = false;
-                return;
-            }
-
-            const responsesToProcess = [...messageQueueRef.current];
-            messageQueueRef.current = [];
-
-            let latestTick: TickData | null = null;
-            let latestOHLC: CandleData | null = null;
-            
-            responsesToProcess.forEach(response => {
+        const marketDataCallback = (response: any) => {
                 if (response.error) {
-                    console.error("[Market Data Hook] Error received:", response.error.message);
-                     if (response.echo_req?.ticks_history || response.echo_req?.candles) {
+                    if (response.echo_req?.ticks_history || response.echo_req?.candles) {
+                        console.error("[Market Data Hook] Error received for history/candles:", response.error.message);
                         setChartError(response.error.message);
                         setIsChartLoading(false);
                     }
@@ -81,16 +64,33 @@ export function useMarketData(activeSymbol: string | null) {
                 
                 switch (response.msg_type) {
                     case 'tick':
-                        latestTick = { epoch: response.tick.epoch, price: response.tick.quote };
+                        const latestTick = { epoch: response.tick.epoch, price: response.tick.quote };
+                        setChartData(prev => {
+                            const data = [...(prev as TickData[])];
+                            if(data.length > 0 && data[data.length-1].epoch === latestTick.epoch){
+                                data[data.length -1] = latestTick;
+                                return data;
+                            }
+                            return [...data.slice(-999), latestTick]
+                        });
                         break;
                     case 'ohlc':
-                        latestOHLC = {
+                         const latestOHLC = {
                             epoch: response.ohlc.epoch,
                             open: parseFloat(response.ohlc.open),
                             high: parseFloat(response.ohlc.high),
                             low: parseFloat(response.ohlc.low),
                             close: parseFloat(response.ohlc.close),
                         };
+                         setChartData(prev => {
+                            const data = [...(prev as CandleData[])];
+                            if (data.length > 0 && data[data.length - 1].epoch === latestOHLC.epoch) {
+                                data[data.length - 1] = latestOHLC;
+                                return data;
+                            } else {
+                                return [...data.slice(-999), latestOHLC];
+                            }
+                        });
                         break;
                     case 'history':
                         setChartData(response.history.prices.map((p: number, i: number) => ({ epoch: response.history.times[i], price: p })));
@@ -105,55 +105,12 @@ export function useMarketData(activeSymbol: string | null) {
                         setChartData(formattedData);
                         setIsChartLoading(false);
                         break;
-                    case 'forget':
-                        subscriptionIdRef.current = null;
-                        break;
                 }
-            });
-            
-            if (latestTick) {
-                 setChartData(prev => {
-                    const data = [...(prev as TickData[])];
-                    if(data.length > 0 && data[data.length-1].epoch === latestTick!.epoch){
-                        data[data.length -1] = latestTick!;
-                        return data;
-                    }
-                    return [...data.slice(-999), latestTick!]
-                });
-            }
-
-            if (latestOHLC) {
-                setChartData(prev => {
-                    const data = [...(prev as CandleData[])];
-                    if (data.length > 0 && data[data.length - 1].epoch === latestOHLC!.epoch) {
-                        data[data.length - 1] = latestOHLC!;
-                        return data;
-                    } else {
-                        return [...data.slice(-999), latestOHLC!];
-                    }
-                });
-            }
-            
-            isProcessingQueueRef.current = false;
-            if (messageQueueRef.current.length > 0) {
-               throttleTimeoutRef.current = setTimeout(processMessageQueue, THROTTLE_INTERVAL);
-            }
-        };
-
-        const marketDataCallback = (data: any) => {
-            messageQueueRef.current.push(data);
-            if (!isProcessingQueueRef.current) {
-                isProcessingQueueRef.current = true;
-                processMessageQueue();
-            }
         };
 
         addMarketDataListener(marketDataCallback);
         return () => {
             removeMarketDataListener(marketDataCallback);
-            if (throttleTimeoutRef.current) {
-                clearTimeout(throttleTimeoutRef.current);
-            }
         };
     }, [addMarketDataListener, removeMarketDataListener]);
 
@@ -168,6 +125,7 @@ export function useMarketData(activeSymbol: string | null) {
         try {
             if (subscriptionIdRef.current) {
                 await makeRequest({ "forget": subscriptionIdRef.current });
+                subscriptionIdRef.current = null;
             }
 
             const granularity = getGranularityForTimePeriod(newTimePeriod);
@@ -186,6 +144,7 @@ export function useMarketData(activeSymbol: string | null) {
                 request.adjust_start_time = 1;
             }
             
+            // The response will be handled by the listener
             await makeRequest(request);
 
         } catch (e: any) {

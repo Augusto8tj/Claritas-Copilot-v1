@@ -59,6 +59,8 @@ export type HistoricalData = {
     close?: number;
 };
 
+type MarketDataCallback = (data: any) => void;
+
 interface DerivApiContextType {
   ws: WebSocket | null;
   isConnected: boolean;
@@ -90,6 +92,8 @@ interface DerivApiContextType {
   getHistoricalData: (symbol: string, period?: string, count?: number) => Promise<HistoricalData[]>;
   clearActiveContracts: () => void;
   addActiveContract: (contract: ActiveContract) => void;
+  addMarketDataListener: (callback: MarketDataCallback) => void;
+  removeMarketDataListener: (callback: MarketDataCallback) => void;
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
@@ -104,8 +108,8 @@ const marketNameMapping: Record<string, string> = {
 };
 
 export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
-  const [demoToken, setDemoToken] = useState<string | null>("ljUGk6wbLSrtEDo");
-  const [realToken, setRealToken] = useState<string | null>("GU5MwbX1kwvSoyw");
+  const [demoToken, setDemoToken] = useState<string | null>(null);
+  const [realToken, setRealToken] = useState<string | null>(null);
   const [accountType, setAccountTypeState] = useState<AccountType>('demo');
   const [accountBalance, setAccountBalance] = useState<AccountBalance>({ balance: null, currency: null, loading: true });
   const [isLoading, setIsLoading] = useState(true);
@@ -126,6 +130,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const isProcessingQueueRef = useRef(false);
   const throttleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const THROTTLE_INTERVAL = 250;
+  
+  const marketDataListenersRef = useRef<MarketDataCallback[]>([]);
 
   useEffect(() => {
     try {
@@ -133,11 +139,14 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       const storedRealToken = localStorage.getItem(DERIV_REAL_TOKEN_KEY);
       const storedAccountType = localStorage.getItem(DERIV_ACCOUNT_TYPE_KEY) as AccountType | null;
       
-      if (storedDemoToken) setDemoToken(storedDemoToken);
-      if (storedRealToken) setRealToken(storedRealToken);
+      setDemoToken(storedDemoToken || "ljUGk6wbLSrtEDo");
+      setRealToken(storedRealToken || "GU5MwbX1kwvSoyw");
+
       if (storedAccountType) setAccountTypeState(storedAccountType);
     } catch (error) {
       console.error("Failed to access localStorage:", error);
+       setDemoToken("ljUGk6wbLSrtEDo");
+       setRealToken("GU5MwbX1kwvSoyw");
     }
     setIsLoading(false);
   }, []);
@@ -180,6 +189,17 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         ws.send(JSON.stringify(payload));
     });
   }, []);
+  
+  const addMarketDataListener = useCallback((callback: MarketDataCallback) => {
+    marketDataListenersRef.current.push(callback);
+  }, []);
+
+  const removeMarketDataListener = useCallback((callback: MarketDataCallback) => {
+    marketDataListenersRef.current = marketDataListenersRef.current.filter(
+      (cb) => cb !== callback
+    );
+  }, []);
+
 
   const executeTrade = useCallback(async (
     contractType: string,
@@ -314,22 +334,15 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     wsRef.current = ws;
     
-    const processMessageQueue = () => {
-        if (messageQueueRef.current.length === 0) {
-            isProcessingQueueRef.current = false;
-            return;
-        }
-
-        const responsesToProcess = [...messageQueueRef.current];
-        messageQueueRef.current = [];
-        
-        responsesToProcess.forEach(response => {
+    ws.onmessage = (event) => {
+        try {
+            const response = JSON.parse(event.data);
             const reqId = response.req_id;
             
+            // Check if it's a response to a specific request
             if (reqId && promisesRef.current.has(String(reqId))) {
                 const promise = promisesRef.current.get(String(reqId));
                 promisesRef.current.delete(String(reqId));
-                
                 if (response.error) {
                     promise?.reject(new Error(response.error.message || 'Unknown error'));
                 } else {
@@ -337,7 +350,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 }
                 return;
             }
-            
+
+            // Otherwise, it's a subscription message
             if (response.error) {
                 if (response.error.code !== 'AlreadySubscribed') {
                     console.error(`[Deriv WS Provider] Error received:`, response.error);
@@ -346,11 +360,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             }
 
             switch (response.msg_type) {
-                case 'tick':
-                    if (response.tick) {
-                        setPriceTicks(prev => [...prev.slice(-999), { epoch: response.tick.epoch, price: response.tick.quote }]);
-                    }
-                    break;
                 case 'balance':
                     setAccountBalance({
                         balance: response.balance.balance,
@@ -386,22 +395,15 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                         wsRef.current.send(JSON.stringify({"balance": 1, "req_id": req_id}));
                     }
                     break;
-            }
-        });
-        
-        isProcessingQueueRef.current = false;
-        if (messageQueueRef.current.length > 0) {
-            throttleTimeoutRef.current = setTimeout(processMessageQueue, THROTTLE_INTERVAL);
-        }
-    };
-    
-    ws.onmessage = (event) => {
-        try {
-            const response = JSON.parse(event.data);
-            messageQueueRef.current.push(response);
-            if (!isProcessingQueueRef.current) {
-                isProcessingQueueRef.current = true;
-                processMessageQueue();
+                
+                // Distribute market data to listeners
+                case 'tick':
+                case 'ohlc':
+                case 'history':
+                case 'candles':
+                    setPriceTicks(prev => [...prev.slice(-999), { epoch: response.tick.epoch, price: response.tick.quote }]);
+                    marketDataListenersRef.current.forEach(callback => callback(response));
+                    break;
             }
         } catch (parseError) {
             console.error('[Deriv WS] Failed to parse message:', parseError);
@@ -554,6 +556,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     getHistoricalData,
     clearActiveContracts,
     addActiveContract,
+    addMarketDataListener,
+    removeMarketDataListener,
   };
 
   return (
