@@ -30,7 +30,7 @@ import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
 const timePeriods: TimePeriod[] = ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '8h', '1d'];
 
 export default function DerivTraderPage() {
-  const [activeSymbol, setActiveSymbol] = useState<string | null>(null);
+  const [activeSymbol, setActiveSymbol] = useState<string | null>('1HZ75V');
   const [zoomLevel, setZoomLevel] = useState(100);
 
   const form = useForm<RiseFallFormValues>({
@@ -87,15 +87,6 @@ export default function DerivTraderPage() {
   );
   
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
-
-  useEffect(() => {
-    if (!isAssetsLoading && !activeSymbol && assetGroups.length > 0) {
-        const firstAsset = assetGroups[0]?.options[0]?.value;
-        if(firstAsset) {
-            setActiveSymbol(firstAsset);
-        }
-    }
-  }, [isAssetsLoading, activeSymbol, assetGroups]);
 
 
  const handleZoom = (direction: 'in' | 'out') => {
