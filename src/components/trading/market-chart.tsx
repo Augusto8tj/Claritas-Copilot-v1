@@ -63,8 +63,14 @@ interface MarketChartProps {
   setChartType: (type: ChartType) => void
   timePeriod: TimePeriod
   setTimePeriod: (period: TimePeriod) => void
-  showBollingerBands: boolean
-  setShowBollingerBands: (show: boolean) => void
+  showBollingerBands: boolean;
+  setShowBollingerBands: (show: boolean) => void;
+  showSMA: boolean;
+  setShowSMA: (show: boolean) => void;
+  showEMA: boolean;
+  setShowEMA: (show: boolean) => void;
+  showVWAP: boolean;
+  setShowVWAP: (show: boolean) => void;
   handleZoom: (direction: 'in' | 'out') => void
   zoomLevel: number
 }
@@ -81,15 +87,18 @@ export function MarketChart({
   setTimePeriod,
   showBollingerBands,
   setShowBollingerBands,
+  showSMA,
+  setShowSMA,
+  showEMA,
+  setShowEMA,
+  showVWAP,
+  setShowVWAP,
   handleZoom,
   zoomLevel,
 }: MarketChartProps) {
   // --- STATE & THEME ---
   const [chartTheme, setChartTheme] = React.useState<'light' | 'dark'>('dark')
   const [cursor, setCursor] = React.useState<string | null>(null)
-  const [showSMA, setShowSMA] = React.useState(true)
-  const [showEMA, setShowEMA] = React.useState(true)
-  const [showVWAP, setShowVWAP] = React.useState(true)
   const colors = THEMES[chartTheme]
 
   // --- INDICATORS & DATA PROCESSING ---
@@ -104,7 +113,7 @@ export function MarketChart({
     const bb = calcBollingerBands(candles, 20, 2)
 
     return candles.map((d, i) => {
-      if (!d) return null; // FIX: Add guard clause
+      if (!d) return null;
       return {
         ...d,
         sma: sma[i],

@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -19,6 +20,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import type { THEMES } from './themes';
 import type { ChartType, TimePeriod } from '@/hooks/use-market-data';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface HeaderInfoProps {
   symbol: string;
@@ -91,20 +94,20 @@ export function HeaderInfo({
           </PopoverTrigger>
           <PopoverContent className="w-48 p-2 space-y-2">
              <div className="flex items-center justify-between">
-                <label htmlFor="sma-toggle" className="text-sm">SMA</label>
-                <input type="checkbox" id="sma-toggle" checked={showSMA} onChange={e => setShowSMA(e.target.checked)} />
+                <Label htmlFor="sma-toggle" className="text-sm font-normal">Média Móvel (SMA)</Label>
+                <Switch id="sma-toggle" checked={showSMA} onCheckedChange={setShowSMA} />
              </div>
               <div className="flex items-center justify-between">
-                <label htmlFor="ema-toggle" className="text-sm">EMA</label>
-                <input type="checkbox" id="ema-toggle" checked={showEMA} onChange={e => setShowEMA(e.target.checked)} />
+                <Label htmlFor="ema-toggle" className="text-sm font-normal">Média Móvel Exp. (EMA)</Label>
+                <Switch id="ema-toggle" checked={showEMA} onCheckedChange={setShowEMA} />
              </div>
              <div className="flex items-center justify-between">
-                <label htmlFor="vwap-toggle" className="text-sm">VWAP</label>
-                <input type="checkbox" id="vwap-toggle" checked={showVWAP} onChange={e => setShowVWAP(e.target.checked)} />
+                <Label htmlFor="vwap-toggle" className="text-sm font-normal">VWAP</Label>
+                <Switch id="vwap-toggle" checked={showVWAP} onCheckedChange={setShowVWAP} />
              </div>
               <div className="flex items-center justify-between">
-                <label htmlFor="bb-toggle" className="text-sm">Bandas B.</label>
-                <input type="checkbox" id="bb-toggle" checked={showBollingerBands} onChange={e => setShowBollingerBands(e.target.checked)} />
+                <Label htmlFor="bb-toggle" className="text-sm font-normal">Bandas de Bollinger</Label>
+                <Switch id="bb-toggle" checked={showBollingerBands} onCheckedChange={setShowBollingerBands} />
              </div>
           </PopoverContent>
         </Popover>
