@@ -345,6 +345,7 @@ interface MarketChartProps {
   showBollingerBands: boolean;
   setShowBollingerBands: (show: boolean) => void;
   handleZoom: (direction: 'in' | 'out') => void;
+  zoomLevel: number;
 }
 
 export function MarketChart({
@@ -360,6 +361,7 @@ export function MarketChart({
   showBollingerBands,
   setShowBollingerBands,
   handleZoom,
+  zoomLevel,
 }: MarketChartProps) {
 
   const [chartTheme, setChartTheme] = React.useState<'light' | 'dark'>('dark');
@@ -389,7 +391,7 @@ export function MarketChart({
     return 'price' in secondLast ? (secondLast as TickData).price : (secondLast as CandleData).close;
   }, [chartData, latestPrice]);
 
-  const componentKey = `${activeSymbol}-${chartType}-${timePeriod}`;
+  const componentKey = `${activeSymbol}-${chartType}-${timePeriod}-${zoomLevel}`;
 
   const chartTypes: { label: ChartType, icon: React.ReactNode, disabled: boolean }[] = [
     { label: 'Area', icon: <AreaChart className="w-4 h-4" />, disabled: false },
@@ -432,6 +434,7 @@ export function MarketChart({
             <XAxis
               dataKey="epoch"
               type="number"
+              domain={['dataMin', 'dataMax']}
               tickFormatter={e => new Date(e * 1000).toLocaleTimeString('pt-BR')}
               stroke={colors.TEXT}
               fontSize={11}
@@ -514,6 +517,7 @@ export function MarketChart({
             chartTheme={chartTheme} 
             setChartTheme={setChartTheme} 
             handleZoom={handleZoom}
+            zoomLevel={zoomLevel}
         />
       </div>
     );
@@ -559,6 +563,7 @@ export function MarketChart({
           <XAxis
               dataKey="epoch"
               type="number"
+              domain={['dataMin', 'dataMax']}
               tickFormatter={e => new Date(e * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
               stroke={colors.TEXT}
               fontSize={11}
@@ -654,6 +659,7 @@ export function MarketChart({
           chartTheme={chartTheme} 
           setChartTheme={setChartTheme} 
           handleZoom={handleZoom}
+          zoomLevel={zoomLevel}
       />
 
     </div>
@@ -680,6 +686,7 @@ interface FloatingControlsProps {
     chartTheme: 'light' | 'dark';
     setChartTheme: (theme: 'light' | 'dark') => void;
     handleZoom: (direction: 'in' | 'out') => void;
+    zoomLevel: number;
 }
 
 const FloatingControls: React.FC<FloatingControlsProps> = ({
@@ -697,6 +704,7 @@ const FloatingControls: React.FC<FloatingControlsProps> = ({
     chartTheme,
     setChartTheme,
     handleZoom,
+    zoomLevel
 }) => {
 
     const chartButtonClass = cn("h-8 w-8 p-0 border", colors.BUTTON_BG);
@@ -772,10 +780,10 @@ const FloatingControls: React.FC<FloatingControlsProps> = ({
                         </div>
                     </PopoverContent>
                 </Popover>
-                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('in')}>
+                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('in')} disabled={zoomLevel <= 1}>
                     <Plus className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('out')}>
+                <Button variant="outline" size="icon" className={chartButtonClass} onClick={() => handleZoom('out')} disabled={zoomLevel >= 5}>
                     <Minus className="h-4 w-4" />
                 </Button>
             </div>

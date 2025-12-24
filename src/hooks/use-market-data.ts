@@ -74,7 +74,7 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 1
     const [chartData, setChartData] = useState<ChartData[]>([]);
     const [isChartLoading, setIsChartLoading] = useState(!!activeSymbol);
     const [chartError, setChartError] = useState<string | null>(null);
-    const [chartType, setChartType] = useState<ChartType>('Area');
+    const [chartType, setChartType] = useState<ChartType>('Candle');
     const [timePeriod, setTimePeriod] = useState<TimePeriod>('5m');
     const [showBollingerBands, setShowBollingerBands] = useState(true);
 
@@ -85,9 +85,11 @@ export function useMarketData(activeSymbol: string | null, dataCount: number = 1
 
     // Ajuste automático do tipo de gráfico baseado no timePeriod
     useEffect(() => {
-        const isLowTimeFrame = ['1m', '2m', '3m'].includes(timePeriod);
+        const isLowTimeFrame = ['1m'].includes(timePeriod);
         if (isLowTimeFrame && chartType !== 'Area') {
             setChartType('Area');
+        } else if (!isLowTimeFrame && chartType !== 'Candle') {
+            setChartType('Candle');
         }
     }, [timePeriod, chartType]);
 

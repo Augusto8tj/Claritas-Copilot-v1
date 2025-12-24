@@ -25,7 +25,9 @@ import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
 
 export default function DerivTraderPage() {
   const [activeSymbol, setActiveSymbol] = useState<string | null>('1HZ75V');
-  const [zoomLevel, setZoomLevel] = useState(100);
+  // O 'zoomLevel' agora é um multiplicador para a quantidade de dados.
+  // 1 = 100 velas, 2 = 200 velas, etc.
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   const form = useForm<RiseFallFormValues>({
     resolver: zodResolver(riseFallSchema),
@@ -51,21 +53,32 @@ export default function DerivTraderPage() {
     executeTrade,
     addActiveContract,
   } = useDerivApi();
+  
+  // O número de velas a pedir é calculado com base no multiplicador de zoom
+  const dataCount = 100 * zoomLevel;
 
   const handleZoom = (direction: 'in' | 'out') => {
     setZoomLevel(prevZoom => {
         let newZoom;
         if (direction === 'in') {
-            newZoom = Math.max(20, prevZoom - 20);
+            newZoom = Math.max(1, prevZoom - 1);
         } else {
-            newZoom = Math.min(500, prevZoom + 20);
+            newZoom = Math.min(5, prevZoom + 1);
         }
         return newZoom;
     });
   };
-
-  const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod, showBollingerBands, setShowBollingerBands } = useMarketData(activeSymbol, zoomLevel);
-  const { analyzeSessionPerformance } = useTradeAnalysis(activeSymbol, operationsLog);
+  
+  const handleWheelZoom = (e: React.WheelEvent<HTMLDivElement>) => {
+      if (e.ctrlKey) {
+          e.preventDefault();
+          const direction = e.deltaY > 0 ? 'out' : 'in';
+          handleZoom(direction);
+      }
+  };
+  
+  const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod, showBollingerBands, setShowBollingerBands } = useMarketData(activeSymbol, dataCount);
+  const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
   const robotCouncil = useRobotCouncil(activeSymbol, chartData, operationsLog, addActiveContract, executeTrade);
   
   return (
@@ -125,7 +138,7 @@ export default function DerivTraderPage() {
                         )}
                     </div>
                 </CardHeader>
-                <CardContent onWheel={handleZoom}>
+                <CardContent onWheel={handleWheelZoom}>
                     <MarketChart 
                         activeSymbol={activeSymbol || ''}
                         activeContracts={activeContracts}
@@ -139,6 +152,7 @@ export default function DerivTraderPage() {
                         showBollingerBands={showBollingerBands}
                         setShowBollingerBands={setShowBollingerBands}
                         handleZoom={handleZoom}
+                        zoomLevel={zoomLevel}
                     />
                 </CardContent>
               </Card>
@@ -152,7 +166,7 @@ export default function DerivTraderPage() {
           {/* Right Column: AI Copilot */}
           <div className="space-y-6">
               <AutoTraderCouncilInterface />
-              <AIAnalysisInterface analyzeSessionPerformance={analyzeSessionPerformance} />
+              <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
               <OperationsLog operations={operationsLog} />
           </div>
         </div>
