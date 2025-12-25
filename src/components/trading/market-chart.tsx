@@ -422,6 +422,7 @@ export function MarketChart({
           {entryPoints.length > 0 && (
             <Scatter
               yAxisId="price"
+              dataKey="y"
               data={entryPoints}
               shape={<EntryMarker />}
               isAnimationActive={false}
@@ -433,6 +434,7 @@ export function MarketChart({
           {exitPoints.length > 0 && (
             <Scatter
               yAxisId="price"
+              dataKey="y"
               data={exitPoints}
               shape={<ExitMarker />}
               isAnimationActive={false}
