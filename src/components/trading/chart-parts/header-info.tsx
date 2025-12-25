@@ -28,7 +28,6 @@ interface HeaderInfoProps {
   setTimePeriod: (period: TimePeriod) => void;
   chartTheme: 'light' | 'dark';
   setChartTheme: (theme: 'light' | 'dark') => void;
-  handleZoom: (direction: 'in' | 'out') => void;
 }
 
 export function HeaderInfo({
@@ -42,7 +41,6 @@ export function HeaderInfo({
   setTimePeriod,
   chartTheme,
   setChartTheme,
-  handleZoom,
 }: HeaderInfoProps) {
   const chartButtonClass = cn('h-8 w-8 p-0 border', `bg-[${colors.bg}]`);
   const timePeriods: TimePeriod[] = ['1m', '2m', '3m', '5m', '10m', '15m', '30m', '1h', '8h', '1d'];
@@ -93,11 +91,26 @@ export function HeaderInfo({
         
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" className="h-8 w-[70px] text-xs flex items-center gap-1" disabled>
+            <Button variant="outline" className="h-8 w-[70px] text-xs flex items-center gap-1">
               <Clock size={14} />
               {timePeriod.toUpperCase()}
             </Button>
           </PopoverTrigger>
+           <PopoverContent className="w-auto p-1">
+            <div className="grid grid-cols-5 gap-1">
+              {timePeriods.map((period) => (
+                <Button
+                  key={period}
+                  variant={timePeriod === period ? 'default' : 'ghost'}
+                  size="sm"
+                  className="w-full text-xs"
+                  onClick={() => setTimePeriod(period)}
+                >
+                  {period.toUpperCase()}
+                </Button>
+              ))}
+            </div>
+          </PopoverContent>
         </Popover>
         
         <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setChartTheme(chartTheme === 'dark' ? 'light' : 'dark')}>

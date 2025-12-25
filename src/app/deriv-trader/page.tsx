@@ -25,7 +25,6 @@ import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
 
 export default function DerivTraderPage() {
   const [activeSymbol, setActiveSymbol] = useState<string | null>('1HZ75V');
-  const [zoomLevel, setZoomLevel] = useState(100);
 
   const form = useForm<RiseFallFormValues>({
     resolver: zodResolver(riseFallSchema),
@@ -51,27 +50,6 @@ export default function DerivTraderPage() {
     executeTrade,
     addActiveContract,
   } = useDerivApi();
-  
-  const handleZoom = (direction: 'in' | 'out') => {
-    setZoomLevel(prevZoom => {
-        const change = 20;
-        let newZoom;
-        if (direction === 'in') {
-            newZoom = Math.max(50, prevZoom - change);
-        } else {
-            newZoom = Math.min(500, prevZoom + change);
-        }
-        return newZoom;
-    });
-  };
-  
-  const handleWheelZoom = (e: React.WheelEvent<HTMLDivElement>) => {
-      if (e.ctrlKey) {
-          e.preventDefault();
-          const direction = e.deltaY > 0 ? 'out' : 'in';
-          handleZoom(direction);
-      }
-  };
   
   const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod } = useMarketData(activeSymbol);
   
@@ -123,7 +101,7 @@ export default function DerivTraderPage() {
                             Gráfico ({activeSymbol})
                         </CardTitle>
                         <CardDescription className="text-xs">
-                            Desempenho em tempo real do ativo. Ctrl + Scroll para zoom.
+                            Desempenho em tempo real do ativo. Use a área de zoom abaixo do gráfico.
                         </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
@@ -135,7 +113,7 @@ export default function DerivTraderPage() {
                         )}
                     </div>
                 </CardHeader>
-                <CardContent onWheel={handleWheelZoom}>
+                <CardContent>
                     <MarketChart 
                         activeSymbol={activeSymbol || ''}
                         chartData={chartData}
@@ -145,7 +123,6 @@ export default function DerivTraderPage() {
                         setChartType={setChartType}
                         timePeriod={timePeriod}
                         setTimePeriod={setTimePeriod}
-                        handleZoom={handleZoom}
                         activeContracts={activeContracts}
                     />
                 </CardContent>

@@ -87,7 +87,6 @@ export function useMarketData(activeSymbol: string | null) {
         
         const responseSymbol = response.tick?.symbol || response.ohlc?.symbol || response.echo_req?.ticks_history;
         if (responseSymbol && responseSymbol !== currentSymbolRef.current) {
-             console.log(`Ignoring data for old symbol: ${responseSymbol}`);
             return; // Ignora dados de uma subscrição antiga
         }
 
@@ -99,6 +98,11 @@ export function useMarketData(activeSymbol: string | null) {
             return;
         }
 
+        // --- Handle Subscription ID ---
+        if (response.subscription?.id) {
+             activeSubscriptionIdRef.current = response.subscription.id;
+        }
+
         if (response.msg_type === 'candles') {
             const candles: CandleData[] = (response.candles || []).map((c: any) => ({
                 epoch: c.epoch,
@@ -106,12 +110,12 @@ export function useMarketData(activeSymbol: string | null) {
                 high: validateNumber(c.high),
                 low: validateNumber(c.low),
                 close: validateNumber(c.close),
-                price: validateNumber(c.close) // Add price for line chart compatibility
+                price: validateNumber(c.close)
             }));
             setChartData(candles);
             setIsChartLoading(false);
         }
-        else if (response.msg_type === 'history') { // Fallback for ticks
+        else if (response.msg_type === 'history') {
             const { prices, times } = response.history;
             const formatted: TickData[] = prices.map((p: number, i: number) => ({
                 epoch: times[i],
@@ -147,10 +151,6 @@ export function useMarketData(activeSymbol: string | null) {
             const tick = response.tick;
             if(tick.symbol !== currentSymbolRef.current) return;
             
-            if (response.subscription?.id) {
-                 activeSubscriptionIdRef.current = response.subscription.id;
-            }
-
             const newTick: TickData = { epoch: tick.epoch, price: validateNumber(tick.quote) };
             if (newTick.price === 0) return;
 
@@ -199,7 +199,6 @@ export function useMarketData(activeSymbol: string | null) {
                 activeSubscriptionIdRef.current = null;
             }
             
-            // Allow state to clear before new subscription
             await new Promise(resolve => setTimeout(resolve, 50)); 
             isSwitchingRef.current = false;
 
@@ -217,8 +216,6 @@ export function useMarketData(activeSymbol: string | null) {
                     subscribe: 1,
                 };
                 
-                // We don't await here because we want the flow to continue.
-                // The response will be handled by the onmessage listener.
                 makeRequest(request);
 
             } catch (error: any) {
@@ -232,10 +229,8 @@ export function useMarketData(activeSymbol: string | null) {
 
         subscribeToSymbol();
         
-        // Cleanup function for when component unmounts or dependencies change
         return () => {
             if (activeSubscriptionIdRef.current) {
-                // Use a fire-and-forget approach for cleanup
                 makeRequest({ forget: activeSubscriptionIdRef.current }).catch(e => console.error("Cleanup falhou ao cancelar subscrição:", e));
                 activeSubscriptionIdRef.current = null;
             }

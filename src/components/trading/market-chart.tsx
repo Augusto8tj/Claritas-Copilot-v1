@@ -12,6 +12,9 @@ import {
   Line,
   Area,
   ReferenceDot,
+  Brush,
+  BarChart,
+  Bar,
 } from 'recharts'
 
 import type {
@@ -102,16 +105,15 @@ interface MarketChartProps {
   setChartType: (type: ChartType) => void
   timePeriod: TimePeriod
   setTimePeriod: (period: TimePeriod) => void
-  handleZoom: (direction: 'in' | 'out') => void
   activeContracts: ActiveContract[]
 }
-
-const X_AXIS_WINDOW_SECONDS = 60 * 2 // Display a 2-minute sliding window
 
 const validateNumber = (val: any, fallback = 0): number => {
     const num = Number(val);
     return isFinite(num) ? num : fallback;
 };
+
+const SYNC_ID = 'market-chart-sync';
 
 export function MarketChart({
   activeSymbol,
@@ -122,15 +124,13 @@ export function MarketChart({
   setChartType,
   timePeriod,
   setTimePeriod,
-  handleZoom,
   activeContracts,
 }: MarketChartProps) {
   // --- STATE & THEME ---
   const [chartTheme, setChartTheme] = React.useState<'light' | 'dark'>('dark')
   const [cursor, setCursor] = React.useState<string | null>(null)
-  const [xDomain, setXDomain] = React.useState<{ min: number, max: number } | null>(null);
+  const [zoomedData, setZoomedData] = React.useState<ChartData[] | null>(null);
   const colors = THEMES[chartTheme]
-
   
   const latestPrice =
     rawData.length > 0 && rawData[rawData.length - 1]
@@ -140,18 +140,18 @@ export function MarketChart({
     rawData.length > 1 && rawData[rawData.length - 2]
       ? validateNumber((rawData[rawData.length - 2]!).price, 0)
       : latestPrice
+      
+  const chartDisplayData = zoomedData || rawData;
 
-  // --- SLIDING WINDOW EFFECT ---
-  React.useEffect(() => {
-    if (rawData.length > 1) {
-      const lastTick = rawData[rawData.length - 1];
-      if (lastTick) {
-        const max = lastTick.epoch;
-        const min = max - X_AXIS_WINDOW_SECONDS;
-        setXDomain({ min, max });
-      }
+  const handleBrush = ({ startIndex, endIndex }: { startIndex?: number; endIndex?: number }) => {
+    if (startIndex !== undefined && endIndex !== undefined) {
+      const subset = rawData.slice(startIndex, endIndex + 1);
+      setZoomedData(subset);
+    } else {
+      setZoomedData(null); // Reset zoom
     }
-  }, [rawData]);
+  };
+
 
   // --- LOADING & ERROR STATES ---
   if (isChartLoading && rawData.length === 0) {
@@ -186,22 +186,22 @@ export function MarketChart({
         setTimePeriod={setTimePeriod}
         chartTheme={chartTheme}
         setChartTheme={setChartTheme}
-        handleZoom={handleZoom}
       />
 
       {/* --- MAIN PRICE CHART --- */}
-      <ResponsiveContainer width="100%" height="90%">
+      <ResponsiveContainer width="100%" height="75%">
         <ComposedChart
-          data={rawData}
+          data={chartDisplayData}
           margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
           onMouseMove={e => e?.activeLabel && setCursor(e.activeLabel)}
           onMouseLeave={() => setCursor(null)}
+          syncId={SYNC_ID}
         >
           <CartesianGrid stroke={colors.grid} strokeDasharray="3 3" />
           <XAxis 
             dataKey="epoch"
             type="number" 
-            domain={xDomain ? [xDomain.min, xDomain.max] : ['dataMin', 'dataMax']}
+            domain={['dataMin', 'dataMax']}
             tickFormatter={(time) => new Date(time * 1000).toLocaleTimeString()} 
             stroke={colors.text} 
             tick={{ fontSize: 10 }}
@@ -250,6 +250,28 @@ export function MarketChart({
            ))}
         
         </ComposedChart>
+      </ResponsiveContainer>
+
+       {/* --- BRUSH/ZOOM CHART --- */}
+      <ResponsiveContainer width="100%" height="15%">
+        <BarChart 
+            data={rawData} 
+            margin={{ top: 15, right: 0, left: 0, bottom: 0 }}
+            syncId={SYNC_ID}
+        >
+          <XAxis hide />
+          <YAxis hide domain={['dataMin', 'dataMax']} />
+          <Tooltip content={() => null} />
+          <Bar dataKey="price" fill={colors.grid} isAnimationActive={false} />
+          <Brush
+            dataKey="epoch"
+            height={30}
+            stroke={colors.line}
+            fill={`${colors.bg}80`}
+            onChange={handleBrush as any}
+            tickFormatter={(time) => new Date(time * 1000).toLocaleTimeString()}
+          />
+        </BarChart>
       </ResponsiveContainer>
     </div>
   )
