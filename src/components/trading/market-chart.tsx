@@ -148,11 +148,11 @@ const OperationLines = ({ operations, chartData, colors }: OperationLinesProps) 
         
         let durationInSeconds = 0
         switch (operation.durationUnit) {
-            case 't': durationInSeconds = operation.duration * 2; break;
-            case 's': durationInSeconds = operation.duration; break;
-            case 'm': durationInSeconds = operation.duration * 60; break;
-            case 'h': durationInSeconds = operation.duration * 3600; break;
-            case 'd': durationInSeconds = operation.duration * 86400; break;
+          case 't': durationInSeconds = operation.duration * 2; break
+          case 's': durationInSeconds = operation.duration; break
+          case 'm': durationInSeconds = operation.duration * 60; break
+          case 'h': durationInSeconds = operation.duration * 3600; break
+          case 'd': durationInSeconds = operation.duration * 86400; break
         }
         const exitEpoch = entryEpoch + durationInSeconds
         
@@ -413,13 +413,13 @@ export function MarketChart({
             dataKey="price"
             stroke={colors.line}
             strokeWidth={2}
-            dot={(props) => {
+            dot={(props: any) => {
               const { key, ...rest } = props;
               return (
-              <>
-                <EntryDot key={`entry-${key}`} {...rest} operations={visibleOperations} chartData={rawData} />
-                <ExitDot key={`exit-${key}`} {...rest} operations={visibleOperations} chartData={rawData} />
-              </>
+              <g key={key}>
+                <EntryDot {...rest} operations={visibleOperations} chartData={rawData} />
+                <ExitDot {...rest} operations={visibleOperations} chartData={rawData} />
+              </g>
             )}}
             isAnimationActive={false}
           />
