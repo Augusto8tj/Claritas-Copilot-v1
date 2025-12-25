@@ -11,20 +11,83 @@ import {
   ReferenceLine,
   Line,
   Area,
+  ReferenceDot,
 } from 'recharts'
 
 import type {
   ChartData,
   TimePeriod,
   ChartType,
+  CandleData,
   TickData,
 } from '@/hooks/use-market-data'
 import { HeaderInfo } from './chart-parts/header-info'
 import { CustomTooltip } from './chart-parts/custom-tooltip'
 import { THEMES } from './chart-parts/themes'
+import type { ActiveContract } from '@/hooks/use-deriv-api'
+import { Flag, Circle } from 'lucide-react'
 
 /* =========================================================
-   COMPONENTE PRINCIPAL — MARKET CHART (SIMPLIFICADO PARA DEBUG)
+   TRADE MARKER COMPONENT
+========================================================= */
+interface TradeMarkerProps {
+  contract: ActiveContract
+  colors: typeof THEMES.dark
+}
+
+const TradeMarker = ({ contract, colors }: TradeMarkerProps) => {
+  if (!contract.entryTime) return null
+
+  // Entry Point
+  const entryDot = (
+    <ReferenceDot
+      key={`entry-${contract.contractId}`}
+      x={contract.entryTime}
+      y={contract.entryTick}
+      yAxisId="price"
+      ifOverflow="extendDomain"
+    >
+      <circle r={5} fill={colors.line} stroke={colors.bg} strokeWidth={2} />
+    </ReferenceDot>
+  )
+
+  // Exit Point & Line
+  if (contract.status === 'won' || contract.status === 'lost') {
+    const isWin = contract.status === 'won'
+    const flagColor = isWin ? colors.bull : colors.bear
+
+    return (
+      <>
+        {entryDot}
+        <ReferenceLine
+          yAxisId="price"
+          segment={[
+            { x: contract.entryTime, y: contract.entryTick },
+            { x: contract.exitTime, y: contract.exitTick },
+          ]}
+          stroke={flagColor}
+          strokeDasharray="3 3"
+          strokeWidth={2}
+          ifOverflow="extendDomain"
+        />
+        <ReferenceDot
+          key={`exit-${contract.contractId}`}
+          x={contract.exitTime}
+          y={contract.exitTick}
+          yAxisId="price"
+          ifOverflow="extendDomain"
+          shape={<Flag fill={flagColor} stroke={colors.bg} strokeWidth={1} size={20} style={{ transform: 'translateY(-10px)' }} />}
+        />
+      </>
+    )
+  }
+
+  return entryDot
+}
+
+
+/* =========================================================
+   MAIN CHART COMPONENT
 ========================================================= */
 
 interface MarketChartProps {
@@ -37,9 +100,10 @@ interface MarketChartProps {
   timePeriod: TimePeriod
   setTimePeriod: (period: TimePeriod) => void
   handleZoom: (direction: 'in' | 'out') => void
+  activeContracts: ActiveContract[]
 }
 
-const X_AXIS_WINDOW_SECONDS = 60; // Display a 1-minute sliding window
+const X_AXIS_WINDOW_SECONDS = 60 * 2 // Display a 2-minute sliding window
 
 export function MarketChart({
   activeSymbol,
@@ -51,6 +115,7 @@ export function MarketChart({
   timePeriod,
   setTimePeriod,
   handleZoom,
+  activeContracts,
 }: MarketChartProps) {
   // --- STATE & THEME ---
   const [chartTheme, setChartTheme] = React.useState<'light' | 'dark'>('dark')
@@ -58,13 +123,18 @@ export function MarketChart({
   const [xDomain, setXDomain] = React.useState<{ min: number, max: number } | null>(null);
   const colors = THEMES[chartTheme]
 
+  const validateNumber = (val: any, fallback = 0): number => {
+    const num = Number(val);
+    return isFinite(num) ? num : fallback;
+  };
+  
   const latestPrice =
     rawData.length > 0 && rawData[rawData.length - 1]
-      ? ((rawData[rawData.length - 1]!) as TickData).price
+      ? validateNumber((rawData[rawData.length - 1]!).price, 0)
       : 0
   const prevPrice =
     rawData.length > 1 && rawData[rawData.length - 2]
-      ? ((rawData[rawData.length - 2]!) as TickData).price
+      ? validateNumber((rawData[rawData.length - 2]!).price, 0)
       : latestPrice
 
   // --- SLIDING WINDOW EFFECT ---
@@ -124,16 +194,17 @@ export function MarketChart({
           <CartesianGrid stroke={colors.grid} strokeDasharray="3 3" />
           <XAxis 
             dataKey="epoch"
-            type="number" // Critical for explicit domain
+            type="number" 
             domain={xDomain ? [xDomain.min, xDomain.max] : ['dataMin', 'dataMax']}
             tickFormatter={(time) => new Date(time * 1000).toLocaleTimeString()} 
             stroke={colors.text} 
             tick={{ fontSize: 10 }}
-            allowDataOverflow={true} // Allow data to exist outside the domain
+            allowDataOverflow={true}
           />
           <YAxis
+            yAxisId="price"
             orientation="right"
-            domain={['dataMin', 'dataMax']}
+            domain={['dataMin - 0.0001', 'dataMax + 0.0001']}
             stroke={colors.text}
             tick={{ fontSize: 10 }}
             tickFormatter={val => typeof val === 'number' ? val.toFixed(4) : ''}
@@ -142,7 +213,7 @@ export function MarketChart({
 
           {/* CROSSHAIR */}
           {cursor && (
-            <ReferenceLine x={cursor as any} stroke={colors.crosshair} strokeDasharray="3 3" />
+            <ReferenceLine x={cursor as any} stroke={colors.crosshair} strokeDasharray="3 3" yAxisId="price"/>
           )}
 
           {/* AREA / LINE CHART */}
@@ -153,18 +224,24 @@ export function MarketChart({
             </linearGradient>
           </defs>
           <Area
+            yAxisId="price"
             dataKey="price"
             fill="url(#areaGrad)"
             stroke="none"
             isAnimationActive={false}
           />
           <Line
+            yAxisId="price"
             dataKey="price"
             stroke={colors.line}
             strokeWidth={2}
             dot={false}
             isAnimationActive={false}
           />
+          
+           {activeContracts.map(contract => (
+             <TradeMarker key={contract.contractId} contract={contract} colors={colors} />
+           ))}
         
         </ComposedChart>
       </ResponsiveContainer>

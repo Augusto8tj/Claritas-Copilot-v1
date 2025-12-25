@@ -5,18 +5,25 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDerivApi } from './use-deriv-api';
 
 /* =========================================================
-   TYPES (SIMPLIFICADAS PARA DEBUG)
+   TYPES
 ========================================================= */
 export type TimePeriod = '1m' | '2m' | '3m' | '5m' | '10m' | '15m' | '30m' | '1h' | '8h' | '1d';
 export type ChartType = 'Area' | 'Candle';
 
-export type TickData = {
+export interface BaseData {
   epoch: number;
-  price: number;
-};
+  price: number; // For line/area charts, this is the main value
+}
+export interface TickData extends BaseData {}
+export interface CandleData extends BaseData {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+export type ChartData = TickData | CandleData;
 
-// Por agora, o ChartData será apenas TickData
-export type ChartData = TickData;
 
 /* =========================================================
    HELPERS
@@ -28,7 +35,7 @@ const validateNumber = (val: any, fallback = 0): number => {
     return isFinite(num) ? num : fallback;
 };
 
-const addDataPoint = (prevData: TickData[], newPoint: TickData): TickData[] => {
+const addDataPoint = (prevData: ChartData[], newPoint: ChartData): ChartData[] => {
     const data = [...prevData];
     if (data.length >= MAX_DATA_POINTS) {
         data.shift();
@@ -37,9 +44,25 @@ const addDataPoint = (prevData: TickData[], newPoint: TickData): TickData[] => {
     return data;
 };
 
+const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
+    switch(timePeriod) {
+        case '1m': return 60;
+        case '2m': return 120;
+        case '3m': return 180;
+        case '5m': return 300;
+        case '10m': return 600;
+        case '15m': return 900;
+        case '30m': return 1800;
+        case '1h': return 3600;
+        case '8h': return 28800;
+        case '1d': return 86400;
+        default: return 60; // Default to 1 minute
+    }
+}
+
 
 /* =========================================================
-   HOOK PRINCIPAL (SIMPLIFICADO PARA DEBUG)
+   HOOK PRINCIPAL
 ========================================================= */
 export function useMarketData(activeSymbol: string | null) {
     const { makeRequest, isConnected, addMarketDataListener, removeMarketDataListener } = useDerivApi();
@@ -49,7 +72,7 @@ export function useMarketData(activeSymbol: string | null) {
     const [isChartLoading, setIsChartLoading] = useState(true);
     const [chartError, setChartError] = useState<string | null>(null);
     const [chartType, setChartType] = useState<ChartType>('Area');
-    const [timePeriod, setTimePeriod] = useState<TimePeriod>('1m'); // Fixo para ticks
+    const [timePeriod, setTimePeriod] = useState<TimePeriod>('1m');
 
     // Refs de Controle
     const activeSubscriptionIdRef = useRef<string | null>(null);
@@ -57,13 +80,14 @@ export function useMarketData(activeSymbol: string | null) {
     const isSwitchingRef = useRef(false);
 
     // --------------------------------------------------------------------------
-    // 1. Lógica de Processamento de Dados (Ouvinte Simplificado)
+    // 1. Lógica de Processamento de Dados
     // --------------------------------------------------------------------------
     const handleMarketData = useCallback((response: any) => {
         if (isSwitchingRef.current) return;
         
-        const responseSymbol = response.tick?.symbol || response.echo_req?.ticks_history;
+        const responseSymbol = response.tick?.symbol || response.ohlc?.symbol || response.echo_req?.ticks_history;
         if (responseSymbol && responseSymbol !== currentSymbolRef.current) {
+             console.log(`Ignoring data for old symbol: ${responseSymbol}`);
             return; // Ignora dados de uma subscrição antiga
         }
 
@@ -75,7 +99,19 @@ export function useMarketData(activeSymbol: string | null) {
             return;
         }
 
-        if (response.msg_type === 'history') {
+        if (response.msg_type === 'candles') {
+            const candles: CandleData[] = (response.candles || []).map((c: any) => ({
+                epoch: c.epoch,
+                open: validateNumber(c.open),
+                high: validateNumber(c.high),
+                low: validateNumber(c.low),
+                close: validateNumber(c.close),
+                price: validateNumber(c.close) // Add price for line chart compatibility
+            }));
+            setChartData(candles);
+            setIsChartLoading(false);
+        }
+        else if (response.msg_type === 'history') { // Fallback for ticks
             const { prices, times } = response.history;
             const formatted: TickData[] = prices.map((p: number, i: number) => ({
                 epoch: times[i],
@@ -85,27 +121,42 @@ export function useMarketData(activeSymbol: string | null) {
             setChartData(formatted);
             setIsChartLoading(false);
         }
+        else if (response.msg_type === 'ohlc') {
+            const candle = response.ohlc;
+            if(candle.symbol !== currentSymbolRef.current) return;
+
+            const newCandle: CandleData = {
+                epoch: candle.open_time,
+                open: validateNumber(candle.open),
+                high: validateNumber(candle.high),
+                low: validateNumber(candle.low),
+                close: validateNumber(candle.close),
+                price: validateNumber(candle.close)
+            };
+            setChartData(prev => {
+                const data = prev as CandleData[];
+                if (data.length > 0 && data[data.length - 1].epoch === newCandle.epoch) {
+                    const newData = [...data];
+                    newData[newData.length - 1] = newCandle;
+                    return newData;
+                }
+                return addDataPoint(data, newCandle);
+            });
+        }
         else if (response.msg_type === 'tick') {
+            const tick = response.tick;
+            if(tick.symbol !== currentSymbolRef.current) return;
+            
             if (response.subscription?.id) {
                  activeSubscriptionIdRef.current = response.subscription.id;
             }
 
-            const tick = response.tick;
             const newTick: TickData = { epoch: tick.epoch, price: validateNumber(tick.quote) };
             if (newTick.price === 0) return;
 
-            setChartData(prev => {
-                const data = prev as TickData[];
-                if (data.length === 0) return [newTick];
-                const last = data[data.length - 1];
-                if (last && last.epoch === newTick.epoch) {
-                    const newData = [...data];
-                    newData[newData.length - 1] = newTick;
-                    return newData;
-                }
-                return addDataPoint(data, newTick);
-            });
+            setChartData(prev => addDataPoint(prev as TickData[], newTick));
         }
+
     }, []);
 
     // --------------------------------------------------------------------------
@@ -122,7 +173,7 @@ export function useMarketData(activeSymbol: string | null) {
 
 
     // --------------------------------------------------------------------------
-    // 3. Função Centralizada de Subscrição (Simplificada)
+    // 3. Função Centralizada de Subscrição
     // --------------------------------------------------------------------------
     useEffect(() => {
         const subscribeToSymbol = async () => {
@@ -131,7 +182,7 @@ export function useMarketData(activeSymbol: string | null) {
                 setIsChartLoading(!activeSymbol);
                 return;
             }
-
+            
             isSwitchingRef.current = true;
             currentSymbolRef.current = activeSymbol;
             
@@ -148,20 +199,27 @@ export function useMarketData(activeSymbol: string | null) {
                 activeSubscriptionIdRef.current = null;
             }
             
+            // Allow state to clear before new subscription
+            await new Promise(resolve => setTimeout(resolve, 50)); 
             isSwitchingRef.current = false;
 
             try {
-                // Pedido simplificado para apenas ticks
+                const style = timePeriod === '1m' ? 'ticks' : 'candles';
+                const granularity = style === 'candles' ? getGranularityForTimePeriod(timePeriod) : undefined;
+
                 const request = {
                     ticks_history: activeSymbol,
                     adjust_start_time: 1,
                     count: 1000, 
                     end: 'latest',
-                    style: 'ticks',
+                    style: style,
+                    granularity: granularity,
                     subscribe: 1,
                 };
                 
-                await makeRequest(request);
+                // We don't await here because we want the flow to continue.
+                // The response will be handled by the onmessage listener.
+                makeRequest(request);
 
             } catch (error: any) {
                 if(currentSymbolRef.current === activeSymbol) {
@@ -174,12 +232,15 @@ export function useMarketData(activeSymbol: string | null) {
 
         subscribeToSymbol();
         
+        // Cleanup function for when component unmounts or dependencies change
         return () => {
             if (activeSubscriptionIdRef.current) {
+                // Use a fire-and-forget approach for cleanup
                 makeRequest({ forget: activeSubscriptionIdRef.current }).catch(e => console.error("Cleanup falhou ao cancelar subscrição:", e));
+                activeSubscriptionIdRef.current = null;
             }
         };
-    }, [activeSymbol, isConnected, makeRequest]);
+    }, [activeSymbol, isConnected, timePeriod, makeRequest]);
 
 
     return {

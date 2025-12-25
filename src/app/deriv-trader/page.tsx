@@ -146,6 +146,7 @@ export default function DerivTraderPage() {
                         timePeriod={timePeriod}
                         setTimePeriod={setTimePeriod}
                         handleZoom={handleZoom}
+                        activeContracts={activeContracts}
                     />
                 </CardContent>
               </Card>
