@@ -205,20 +205,24 @@ export function useMarketData(activeSymbol: string | null) {
             isSwitchingRef.current = false;
 
             try {
-                // Request historical data AND subscribe to real-time updates in one go.
-                // The API will first send a `history` message, then `tick` messages.
                 const style = timePeriod === '1m' ? 'ticks' : 'candles';
                 const granularity = style === 'candles' ? getGranularityForTimePeriod(timePeriod) : undefined;
 
-                const request = {
+                const request: any = {
                     ticks_history: activeSymbol,
-                    adjust_start_time: 1,
-                    count: 1000, 
                     end: 'latest',
                     style: style,
-                    granularity: granularity,
                     subscribe: 1,
                 };
+                
+                if (granularity) {
+                    request.granularity = granularity;
+                    // For candles, we don't specify count to let the API decide based on granularity
+                    // or it fetches a default amount for the given period.
+                } else {
+                    // For ticks, we request a specific amount to fill the screen initially.
+                    request.count = 1000;
+                }
                 
                 makeRequest(request);
 
