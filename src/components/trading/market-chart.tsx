@@ -1,3 +1,4 @@
+
 'use client'
 
 import * as React from 'react'
@@ -23,7 +24,7 @@ import { HeaderInfo } from './chart-parts/header-info'
 import { CustomTooltip } from './chart-parts/custom-tooltip'
 import { THEMES } from './chart-parts/themes'
 import { Flag, TrendingUp, TrendingDown } from 'lucide-react'
-import type { Operation } from './operations-log.types' 
+import type { Operation } from '@/components/trading/operations-log.types'
 
 /* =========================================================
    TRADE MARKER COMPONENT (MARCADORES DE OPERAÇÃO)
@@ -56,6 +57,9 @@ const OperationMarker = ({ operation, chartData, colors }: OperationMarkerProps)
     case 'h':
       durationInSeconds = operation.duration * 3600
       break
+    case 'd':
+        durationInSeconds = operation.duration * 86400
+        break;
   }
   
   const exitEpoch = entryEpoch + durationInSeconds
@@ -234,41 +238,58 @@ export function MarketChart({
       return;
     }
     console.log('Total operations:', operations.length)
-    console.log('Operations:', operations)
+    if (operations.length > 0) {
+      console.log('First operation details:', {
+        id: operations[0].id,
+        timestamp: operations[0].timestamp,
+        entryPrice: operations[0].entryPrice,
+        exitPrice: operations[0].exitPrice,
+        status: operations[0].status,
+        asset: operations[0].asset
+      })
+    }
     console.log('Chart data points:', rawData.length)
     if (rawData.length > 0) {
       console.log('Chart time range:', {
         start: new Date(rawData[0].epoch * 1000).toISOString(),
-        end: new Date(rawData[rawData.length - 1].epoch * 1000).toISOString()
+        end: new Date(rawData[rawData.length - 1].epoch * 1000).toISOString(),
+        startEpoch: rawData[0].epoch,
+        endEpoch: rawData[rawData.length - 1].epoch
       })
     }
   }, [operations, rawData])
       
-  // Gerenciar janela de scroll - DESABILITADO TEMPORARIAMENTE PARA DEBUG
+  // Gerenciar janela de scroll
   React.useEffect(() => {
     if (rawData.length > 1) {
       const lastEpoch = (rawData[rawData.length - 1]!).epoch
       // Aumentar a janela para mostrar mais histórico
       const firstEpoch = lastEpoch - (SCROLLING_WINDOW_SECONDS * 10) // 10 minutos
       setXDomain([firstEpoch, lastEpoch])
-      console.log('X Domain set to:', [firstEpoch, lastEpoch])
     }
   }, [rawData])
 
   // Filtrar operações - MOSTRAR TODAS PARA DEBUG
   const visibleOperations = React.useMemo(() => {
-    console.log('Filtering operations...')
-
+    console.log('🔍 Filtering operations...', 'Total:', Array.isArray(operations) ? operations.length : 'not an array')
+    
     if (!Array.isArray(operations)) {
         return [];
     }
     
     // Temporariamente mostrar todas as operações
     if (operations.length > 0) {
-      console.log('Showing all operations:', operations.length)
+      console.log('✅ Showing all operations:', operations.length)
+      console.log('📍 Operations data:', operations.map(op => ({
+        id: op.id,
+        timestamp: op.timestamp,
+        entryPrice: op.entryPrice,
+        status: op.status
+      })))
       return operations
     }
     
+    console.log('❌ No operations to show')
     return []
   }, [operations])
 
@@ -383,3 +404,5 @@ export function MarketChart({
     </div>
   )
 }
+
+    
