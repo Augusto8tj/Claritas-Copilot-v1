@@ -1,4 +1,3 @@
-
 'use client'
 
 import * as React from 'react'
@@ -32,12 +31,12 @@ const INITIAL_WINDOW_SECONDS = 120 // Começar com 2 minutos visíveis
 ========================================================= */
 const EntryMarker = (props: any) => {
   const { cx, cy, payload } = props
-  // payload.direction vem do objeto passado no Scatter
+  // payload.direction vem do objeto passado no ReferenceDot
   const direction = payload?.direction
+  const ENTRY_COLOR = '#3b82f6'
+
   // Se o Recharts não calcular cx/cy (ex: fora da tela), não renderiza
   if (!cx || !cy) return null
-
-  const ENTRY_COLOR = '#3b82f6'
 
   return (
     <g transform={`translate(${cx}, ${cy})`} style={{ pointerEvents: 'none' }}>
@@ -182,13 +181,16 @@ export function MarketChart({
     const entries: any[] = []
     const exits: any[] = []
 
+    // Pegar o último preço válido do gráfico para usar de fallback seguro
     const lastChartPrice =
       rawData.length > 0 ? rawData[rawData.length - 1].price : 0
 
     visibleOperations.forEach(op => {
+      // Validar Timestamp
       if (!op.timestamp) return
       const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000)
 
+      // Calcular Saída
       let durationInSeconds = 0
       switch (op.durationUnit) {
         case 't':
@@ -209,15 +211,21 @@ export function MarketChart({
       }
       const exitEpoch = entryEpoch + durationInSeconds
 
+      // Se op.entryPrice for nulo ou 0, usamos lastChartPrice.
+      // Se lastChartPrice TAMBÉM for 0, ignoramos a operação para não quebrar o eixo Y.
       const entryPrice = op.entryPrice || lastChartPrice
+
+      // Se o preço for inválido ou zero, PULA esta iteração.
       if (!entryPrice || entryPrice <= 0) return
 
+      // Adiciona Ponto de Entrada
       entries.push({
         x: entryEpoch,
         y: entryPrice,
         payload: { direction: op.direction, id: op.id },
       })
 
+      // Adiciona Ponto de Saída (apenas se tiver preço de saída válido)
       if (op.status !== 'pending' && op.exitPrice && op.exitPrice > 0) {
         exits.push({
           x: exitEpoch,
@@ -227,7 +235,7 @@ export function MarketChart({
       }
     })
 
-    return { entryPoints, exitPoints }
+    return { entryPoints: entries, exitPoints: exits }
   }, [visibleOperations, rawData])
 
   // --- LOADING STATES ---
@@ -345,7 +353,7 @@ export function MarketChart({
             tickFormatter={val =>
               typeof val === 'number' ? val.toFixed(4) : ''
             }
-            allowDataOverflow={false} 
+            allowDataOverflow={false}
           />
 
           <Tooltip
@@ -405,8 +413,8 @@ export function MarketChart({
             }
             const exitEpoch = entryEpoch + durationInSeconds
 
-            const lastData =
-              rawData.length > 0 ? rawData[rawData.length - 1] : null
+            // Proteção na linha também
+            const lastData = rawData.length > 0 ? rawData[rawData.length - 1] : null
             const fallbackPrice = lastData ? lastData.price : 0
             const entryPrice = op.entryPrice || fallbackPrice
 
@@ -414,15 +422,8 @@ export function MarketChart({
 
             const isPending = op.status === 'pending'
             
-            const targetEpoch =
-              isPending && lastData
-                ? Math.min(exitEpoch, lastData.epoch)
-                : exitEpoch
-
-            // CORREÇÃO: Para operações pendentes, a linha deve ser horizontal
-            const targetPrice = isPending
-              ? entryPrice 
-              : op.exitPrice || entryPrice
+            const targetEpoch = isPending && lastData ? Math.min(exitEpoch, lastData.epoch) : exitEpoch
+            const targetPrice = isPending ? entryPrice : (op.exitPrice || entryPrice);
 
             return (
               <ReferenceLine
@@ -446,7 +447,7 @@ export function MarketChart({
               />
             )
           })}
-
+          
           <Scatter
             yAxisId="price"
             data={entryPoints}
