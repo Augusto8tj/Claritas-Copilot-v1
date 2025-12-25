@@ -122,6 +122,7 @@ export function useMarketData(activeSymbol: string | null) {
                 price: validateNumber(p)
             })).filter((d: TickData) => d.price > 0);
             
+            // This is the pre-population step.
             setChartData(formatted);
             setIsChartLoading(false);
         }
@@ -153,8 +154,9 @@ export function useMarketData(activeSymbol: string | null) {
             
             const newTick: TickData = { epoch: tick.epoch, price: validateNumber(tick.quote) };
             if (newTick.price === 0) return;
-
-            setChartData(prev => addDataPoint(prev as TickData[], newTick));
+            
+            // This is the real-time update step.
+            setChartData(prev => addDataPoint(prev, newTick));
         }
 
     }, []);
@@ -203,6 +205,8 @@ export function useMarketData(activeSymbol: string | null) {
             isSwitchingRef.current = false;
 
             try {
+                // Request historical data AND subscribe to real-time updates in one go.
+                // The API will first send a `history` message, then `tick` messages.
                 const style = timePeriod === '1m' ? 'ticks' : 'candles';
                 const granularity = style === 'candles' ? getGranularityForTimePeriod(timePeriod) : undefined;
 
