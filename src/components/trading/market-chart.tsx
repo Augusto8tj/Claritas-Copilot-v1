@@ -1,3 +1,4 @@
+
 'use client'
 
 import * as React from 'react'
@@ -24,14 +25,18 @@ import { CustomTooltip } from './chart-parts/custom-tooltip'
 import { THEMES } from './chart-parts/themes'
 import type { Operation } from '@/components/trading/operations-log.types'
 
+const INITIAL_WINDOW_SECONDS = 120 // Começar com 2 minutos visíveis
+
 /* =========================================================
    MARKER COMPONENTS (Shapes Visuais)
 ========================================================= */
 const EntryMarker = (props: any) => {
   const { cx, cy, payload } = props
+  // payload.direction vem do objeto passado no Scatter
+  const direction = payload?.direction
+  // Se o Recharts não calcular cx/cy (ex: fora da tela), não renderiza
   if (!cx || !cy) return null
 
-  const direction = payload.direction
   const ENTRY_COLOR = '#3b82f6'
 
   return (
@@ -59,9 +64,10 @@ const EntryMarker = (props: any) => {
 
 const ExitMarker = (props: any) => {
   const { cx, cy, payload } = props
+  const status = payload?.status
+
   if (!cx || !cy) return null
 
-  const status = payload.status
   const isWin = status === 'won'
   const flagColor = isWin ? '#22c55e' : '#ef4444'
 
@@ -70,14 +76,16 @@ const ExitMarker = (props: any) => {
       transform={`translate(${cx - 5}, ${cy - 22})`}
       style={{ pointerEvents: 'none' }}
     >
-      <Flag fill={flagColor} stroke="#ffffff" strokeWidth={2.5} size={24} />
+      <Flag
+        fill={flagColor}
+        stroke="#ffffff"
+        strokeWidth={2.5}
+        size={24}
+      />
     </g>
   )
 }
 
-/* =========================================================
-   MAIN CHART COMPONENT
-========================================================= */
 interface MarketChartProps {
   activeSymbol: string
   chartData: ChartData[]
@@ -89,8 +97,6 @@ interface MarketChartProps {
   setTimePeriod: (period: TimePeriod) => void
   operations: Operation[]
 }
-
-const INITIAL_WINDOW_SECONDS = 120 // Começar com 2 minutos visíveis
 
 export function MarketChart({
   activeSymbol,
@@ -137,60 +143,57 @@ export function MarketChart({
   // 2. Calcular Domínio Y (Preço) Manualmente
   const yDomain = React.useMemo(() => {
     if (!xDomain) return ['auto', 'auto']
+
     const [minX, maxX] = xDomain
+
+    // Filtra apenas os dados visíveis na janela atual
     const visibleData = rawData.filter(d => d.epoch >= minX && d.epoch <= maxX)
+
     if (visibleData.length === 0) {
+      // Fallback seguro para não quebrar o gráfico se não tiver dados
       return ['auto', 'auto']
     }
+
     let minPrice = Infinity
     let maxPrice = -Infinity
+
     visibleData.forEach(d => {
       if (d.price < minPrice) minPrice = d.price
       if (d.price > maxPrice) maxPrice = d.price
     })
-    if (minPrice === Infinity || maxPrice === -Infinity)
-      return ['auto', 'auto']
+
+    // Proteção extra contra Infinity
+    if (minPrice === Infinity || maxPrice === -Infinity) return ['auto', 'auto']
+
     const padding = (maxPrice - minPrice) * 0.1 // 10% de margem
+
+    // Arredondar para evitar números quebrados demais no eixo
     return [minPrice - padding, maxPrice + padding]
   }, [rawData, xDomain])
 
   // 3. Filtrar Operações
   const visibleOperations = React.useMemo(() => {
-    if (!Array.isArray(operations)) {
-      console.warn(
-        "MarketChart received 'operations' prop that is not an array:",
-        operations
-      )
-      return []
-    }
+    if (!Array.isArray(operations)) return []
     return operations
   }, [operations])
 
   // 4. Preparar Dados do Scatter (COM PROTEÇÃO)
-  const { entryPoints, exitPoints, operationLines } = React.useMemo(() => {
+  const { entryPoints, exitPoints } = React.useMemo(() => {
     const entries: any[] = []
     const exits: any[] = []
-    const lines: any[] = []
-    
-    const lastChartPrice = rawData.length > 0 ? rawData[rawData.length-1].price : null;
+
+    const lastChartPrice =
+      rawData.length > 0 ? rawData[rawData.length - 1].price : 0
 
     visibleOperations.forEach(op => {
-      if (!op.timestamp) return;
+      if (!op.timestamp) return
+      const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000)
 
-      const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000);
-      
-      const entryPrice = op.entryPrice || lastChartPrice;
-      
-      // PROTEÇÃO: Se o preço de entrada for inválido, pula a renderização desta operação
-      if (!entryPrice || entryPrice <= 0) {
-        return;
-      }
-      
       let durationInSeconds = 0
       switch (op.durationUnit) {
         case 't':
           durationInSeconds = op.duration * 2
-          break // Estimativa para ticks
+          break
         case 's':
           durationInSeconds = op.duration
           break
@@ -206,51 +209,35 @@ export function MarketChart({
       }
       const exitEpoch = entryEpoch + durationInSeconds
 
-      // Adiciona Ponto de Entrada
+      const entryPrice = op.entryPrice || lastChartPrice
+      if (!entryPrice || entryPrice <= 0) return
+
       entries.push({
         x: entryEpoch,
         y: entryPrice,
-        payload: { direction: op.direction, id: `entry-${op.id}` },
+        payload: { direction: op.direction, id: op.id },
       })
-      
-      const isPending = op.status === 'pending'
-      
-      // Adiciona Ponto de Saída (apenas se finalizado e com preço)
-      if (!isPending && op.exitPrice && op.exitPrice > 0) {
+
+      if (op.status !== 'pending' && op.exitPrice && op.exitPrice > 0) {
         exits.push({
           x: exitEpoch,
           y: op.exitPrice,
-          payload: { status: op.status, id: `exit-${op.id}` },
+          payload: { status: op.status, id: op.id },
         })
       }
-
-      // Prepara dados para a Linha de Conexão
-      const lastChartPoint = rawData.length > 0 ? rawData[rawData.length - 1] : null;
-      const targetEpoch = isPending && lastChartPoint ? Math.min(exitEpoch, lastChartPoint.epoch) : exitEpoch;
-      const targetPrice = isPending && lastChartPoint ? lastChartPoint.price : (op.exitPrice || entryPrice);
-
-      lines.push({
-          id: op.id,
-          isPending,
-          status: op.status,
-          segment: [
-            { x: entryEpoch, y: entryPrice },
-            { x: targetEpoch, y: targetPrice },
-          ],
-      });
     })
-    return { entryPoints: entries, exitPoints: exits, operationLines: lines }
+
+    return { entryPoints, exitPoints }
   }, [visibleOperations, rawData])
 
-  // --- LOADING & ERROR STATES ---
+  // --- LOADING STATES ---
   if (isChartLoading && rawData.length === 0) {
     return (
       <div className="flex h-[520px] w-full items-center justify-center bg-zinc-900 text-white">
-        Carregando dados do mercado...
+        Carregando...
       </div>
     )
   }
-
   if (chartError) {
     return (
       <div className="flex h-[520px] w-full items-center justify-center text-red-500 bg-zinc-900">
@@ -277,9 +264,7 @@ export function MarketChart({
         setChartTheme={setChartTheme}
       />
 
-      {/* Controles de Zoom e Status */}
       <div className="mb-2 flex items-center justify-between">
-        {/* Status das operações */}
         {visibleOperations.length > 0 && (
           <div className="text-xs text-gray-400">
             📊 {visibleOperations.length} operação(ões) •
@@ -299,8 +284,6 @@ export function MarketChart({
               } perda`}
           </div>
         )}
-
-        {/* Controles de Zoom */}
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400">{windowSize}s</span>
           <button
@@ -327,7 +310,6 @@ export function MarketChart({
         </div>
       </div>
 
-      {/* --- MAIN PRICE CHART --- */}
       <ResponsiveContainer width="100%" height="85%">
         <ComposedChart
           data={rawData}
@@ -354,7 +336,6 @@ export function MarketChart({
             tick={{ fontSize: 10 }}
           />
 
-          {/* O DOMÍNIO É CONTROLADO AQUI E APENAS AQUI */}
           <YAxis
             yAxisId="price"
             orientation="right"
@@ -364,6 +345,7 @@ export function MarketChart({
             tickFormatter={val =>
               typeof val === 'number' ? val.toFixed(4) : ''
             }
+            allowDataOverflow={false} 
           />
 
           <Tooltip
@@ -398,26 +380,77 @@ export function MarketChart({
               yAxisId="price"
             />
           )}
-          
-          {/* CAMADA DE LINHAS DE OPERAÇÃO */}
-          {operationLines.map(line => (
-             <ReferenceLine
-                key={`line-${line.id}`}
+
+          {/* Reference Lines (Conectores) */}
+          {visibleOperations.map(op => {
+            const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000)
+
+            let durationInSeconds = 0
+            switch (op.durationUnit) {
+              case 't':
+                durationInSeconds = op.duration * 2
+                break
+              case 's':
+                durationInSeconds = op.duration
+                break
+              case 'm':
+                durationInSeconds = op.duration * 60
+                break
+              case 'h':
+                durationInSeconds = op.duration * 3600
+                break
+              case 'd':
+                durationInSeconds = op.duration * 86400
+                break
+            }
+            const exitEpoch = entryEpoch + durationInSeconds
+
+            const lastData =
+              rawData.length > 0 ? rawData[rawData.length - 1] : null
+            const fallbackPrice = lastData ? lastData.price : 0
+            const entryPrice = op.entryPrice || fallbackPrice
+
+            if (!entryPrice || entryPrice <= 0) return null
+
+            const isPending = op.status === 'pending'
+            
+            const targetEpoch =
+              isPending && lastData
+                ? Math.min(exitEpoch, lastData.epoch)
+                : exitEpoch
+
+            // CORREÇÃO: Para operações pendentes, a linha deve ser horizontal
+            const targetPrice = isPending
+              ? entryPrice 
+              : op.exitPrice || entryPrice
+
+            return (
+              <ReferenceLine
+                key={`line-${op.id}`}
                 yAxisId="price"
-                segment={line.segment}
-                stroke={line.isPending ? '#f59e0b' : (line.status === 'won' ? '#22c55e' : '#ef4444')}
-                strokeDasharray={line.isPending ? "5 5" : "4 4"}
+                segment={[
+                  { x: entryEpoch, y: entryPrice },
+                  { x: targetEpoch, y: targetPrice },
+                ]}
+                stroke={
+                  isPending
+                    ? '#f59e0b'
+                    : op.status === 'won'
+                    ? '#22c55e'
+                    : '#ef4444'
+                }
+                strokeDasharray={isPending ? '5 5' : '4 4'}
                 strokeWidth={2}
                 ifOverflow="visible"
                 isFront={true}
               />
-          ))}
+            )
+          })}
 
-          {/* CAMADAS DE SCATTER PARA MARCADORES */}
           <Scatter
             yAxisId="price"
             data={entryPoints}
-            shape={<EntryMarker />}
+            shape={EntryMarker}
             isAnimationActive={false}
             legendType="none"
             tooltipType="none"
@@ -426,7 +459,7 @@ export function MarketChart({
           <Scatter
             yAxisId="price"
             data={exitPoints}
-            shape={<ExitMarker />}
+            shape={ExitMarker}
             isAnimationActive={false}
             legendType="none"
             tooltipType="none"
