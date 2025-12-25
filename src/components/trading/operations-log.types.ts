@@ -17,6 +17,8 @@ export interface Operation {
   duration: number;
   durationUnit: DurationUnit;
   initiator: OperationInitiator;
+  entryPrice?: number;
+  exitPrice?: number;
 }
 
 export interface RobotPerformance {

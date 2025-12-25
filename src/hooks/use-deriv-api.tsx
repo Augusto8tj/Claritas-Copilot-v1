@@ -244,6 +244,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             duration: duration,
             durationUnit: durationUnit,
             initiator,
+            entryPrice: buyResult.entry_tick,
         };
         setOperationsLog(prevLog => [newOperation, ...prevLog]);
 
@@ -309,6 +310,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 high: candle.high,
                 low: candle.low,
                 close: candle.close,
+                price: candle.close,
             }));
       }
 
@@ -339,13 +341,11 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             const response = JSON.parse(event.data);
             const reqId = response.req_id;
             
-            // Check if it's a response to a specific request
             if (reqId && promisesRef.current.has(String(reqId))) {
                 const promise = promisesRef.current.get(String(reqId));
                 promisesRef.current.delete(String(reqId));
                 if (response.error) {
                     if (response.error.code === 'AlreadySubscribed') {
-                        // If already subscribed, it's not a failure. We can resolve silently.
                         promise?.resolve(response);
                     } else {
                         promise?.reject(new Error(response.error.message || 'Unknown error'));
@@ -356,7 +356,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 return;
             }
 
-            // Otherwise, it's a subscription message
             if (response.error) {
                 if (response.error.code !== 'AlreadySubscribed') {
                     console.error(`[Deriv WS Provider] Error received:`, response.error);
@@ -386,7 +385,14 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                     });
 
                     setOperationsLog(prevLog => prevLog.map(op =>
-                        op.id === contract.contract_id ? { ...op, status: profit >= 0 ? 'won' : 'lost', result: profit } : op
+                        op.id === contract.contract_id 
+                        ? { 
+                            ...op, 
+                            status: profit >= 0 ? 'won' : 'lost', 
+                            result: profit,
+                            exitPrice: parseFloat(contract.exit_tick_display_value)
+                          } 
+                        : op
                     ));
                     
                     setActiveContracts(prev => prev.map(c => 

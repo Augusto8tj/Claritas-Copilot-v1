@@ -11,7 +11,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { Operation, OperationInitiator } from "./operations-log.types";
-import { ArrowDown, ArrowUp, Bot, User, Users } from "lucide-react";
+import { ArrowDown, ArrowUp, Bot, User, Users, MoveRight } from "lucide-react";
 import { useMemo } from "react";
 import { PendingOperationCounter } from "./pending-operation-counter";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
@@ -96,8 +96,15 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                         <span>{op.asset} - {op.direction === "rise" ? "Rise" : "Fall"}</span>
                         </p>
                         <p className="text-xs text-muted-foreground pl-9">
-                        Entrada: ${op.stake.toFixed(2)} | Duração: {op.duration} {durationUnitLabels[op.durationUnit] || op.durationUnit}
+                          Entrada: ${op.stake.toFixed(2)} | Duração: {op.duration} {durationUnitLabels[op.durationUnit] || op.durationUnit}
                         </p>
+                        {op.entryPrice && op.exitPrice && (
+                            <p className="text-xs text-muted-foreground pl-9 flex items-center gap-1.5">
+                                {op.entryPrice.toFixed(4)}
+                                <MoveRight className="h-3 w-3" />
+                                {op.exitPrice.toFixed(4)}
+                            </p>
+                        )}
                     </div>
                     <div
                         className={cn(
