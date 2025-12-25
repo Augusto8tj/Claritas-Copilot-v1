@@ -183,7 +183,7 @@ export function MarketChart({
 
     // Pegar o último preço válido do gráfico para usar de fallback seguro
     const lastChartPrice =
-      rawData.length > 0 ? rawData[rawData.length - 1].price : 0
+      rawData.length > 0 ? rawData[rawData.length - 1]?.price : undefined
 
     visibleOperations.forEach(op => {
       // Validar Timestamp
@@ -212,7 +212,6 @@ export function MarketChart({
       const exitEpoch = entryEpoch + durationInSeconds
 
       // Se op.entryPrice for nulo ou 0, usamos lastChartPrice.
-      // Se lastChartPrice TAMBÉM for 0, ignoramos a operação para não quebrar o eixo Y.
       const entryPrice = op.entryPrice || lastChartPrice
 
       // Se o preço for inválido ou zero, PULA esta iteração.
@@ -415,14 +414,17 @@ export function MarketChart({
 
             // Proteção na linha também
             const lastData = rawData.length > 0 ? rawData[rawData.length - 1] : null
-            const fallbackPrice = lastData ? lastData.price : 0
+            const fallbackPrice = lastData ? lastData.price : undefined
             const entryPrice = op.entryPrice || fallbackPrice
 
             if (!entryPrice || entryPrice <= 0) return null
 
             const isPending = op.status === 'pending'
             
-            const targetEpoch = isPending && lastData ? Math.min(exitEpoch, lastData.epoch) : exitEpoch
+            const targetEpoch = isPending && lastData ? Math.min(exitEpoch, lastData.epoch) : exitEpoch;
+            
+            // CORREÇÃO: Para operações finalizadas, o targetPrice é o exitPrice.
+            // Para pendentes, ele fica fixo no entryPrice.
             const targetPrice = isPending ? entryPrice : (op.exitPrice || entryPrice);
 
             return (
@@ -447,11 +449,11 @@ export function MarketChart({
               />
             )
           })}
-          
+
           <Scatter
             yAxisId="price"
             data={entryPoints}
-            shape={EntryMarker}
+            shape={<EntryMarker />}
             isAnimationActive={false}
             legendType="none"
             tooltipType="none"
@@ -460,7 +462,7 @@ export function MarketChart({
           <Scatter
             yAxisId="price"
             data={exitPoints}
-            shape={ExitMarker}
+            shape={<ExitMarker />}
             isAnimationActive={false}
             legendType="none"
             tooltipType="none"
