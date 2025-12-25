@@ -205,7 +205,7 @@ export function useMarketData(activeSymbol: string | null) {
             isSwitchingRef.current = false;
 
             try {
-                const style = timePeriod === '1m' ? 'ticks' : 'candles';
+                const style = timePeriod === '1m' && chartType === 'Area' ? 'ticks' : 'candles';
                 const granularity = style === 'candles' ? getGranularityForTimePeriod(timePeriod) : undefined;
 
                 const request: any = {
@@ -213,15 +213,11 @@ export function useMarketData(activeSymbol: string | null) {
                     end: 'latest',
                     style: style,
                     subscribe: 1,
+                    count: 1000, // Always fetch enough data to populate the chart
                 };
                 
                 if (granularity) {
                     request.granularity = granularity;
-                    // For candles, we don't specify count to let the API decide based on granularity
-                    // or it fetches a default amount for the given period.
-                } else {
-                    // For ticks, we request a specific amount to fill the screen initially.
-                    request.count = 1000;
                 }
                 
                 makeRequest(request);
@@ -243,7 +239,7 @@ export function useMarketData(activeSymbol: string | null) {
                 activeSubscriptionIdRef.current = null;
             }
         };
-    }, [activeSymbol, isConnected, timePeriod, makeRequest]);
+    }, [activeSymbol, isConnected, timePeriod, chartType, makeRequest]);
 
 
     return {

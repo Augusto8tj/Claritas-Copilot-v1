@@ -228,6 +228,11 @@ export function MarketChart({
   // Debug: Log das operações recebidas
   React.useEffect(() => {
     console.log('=== MarketChart Debug ===')
+    // Correct way to check for array
+    if (!Array.isArray(operations)) {
+      console.error('CRITICAL: `operations` prop is not an array!', operations);
+      return;
+    }
     console.log('Total operations:', operations.length)
     console.log('Operations:', operations)
     console.log('Chart data points:', rawData.length)
@@ -253,6 +258,10 @@ export function MarketChart({
   // Filtrar operações - MOSTRAR TODAS PARA DEBUG
   const visibleOperations = React.useMemo(() => {
     console.log('Filtering operations...')
+
+    if (!Array.isArray(operations)) {
+        return [];
+    }
     
     // Temporariamente mostrar todas as operações
     if (operations.length > 0) {

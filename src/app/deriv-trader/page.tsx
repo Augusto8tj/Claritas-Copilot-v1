@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useCallback } from "react";
@@ -18,7 +19,6 @@ import { riseFallSchema, type RiseFallFormValues } from "@/components/trading/de
 import { AutoTraderCouncilInterface } from "@/components/trading/auto-trader-council-interface";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useMarketData } from "@/hooks/use-market-data";
-import { useRobotCouncil } from "@/hooks/use-robot-council";
 import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
 
 
@@ -46,13 +46,11 @@ export default function DerivTraderPage() {
     isAssetsLoading,
     assetGroups,
     executeTrade,
-    addActiveContract,
   } = useDerivApi();
   
   const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod } = useMarketData(activeSymbol);
   
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
-  const { indicators, ...robotCouncil } = useRobotCouncil(activeSymbol, chartData, operationsLog, addActiveContract, executeTrade);
   
   return (
     <FormProvider {...form}>
