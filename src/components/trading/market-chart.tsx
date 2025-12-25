@@ -23,74 +23,122 @@ import type {
 import { HeaderInfo } from './chart-parts/header-info'
 import { CustomTooltip } from './chart-parts/custom-tooltip'
 import { THEMES } from './chart-parts/themes'
-import type { ActiveContract } from '@/hooks/use-deriv-api'
 import { Flag } from 'lucide-react'
+import type { Operation } from './operations-log.types' 
 
 /* =========================================================
-   TRADE MARKER COMPONENT (A CAMADA DE SOBREPOSIÇÃO)
+   TRADE MARKER COMPONENT (MARCADORES DE OPERAÇÃO)
 ========================================================= */
-interface TradeMarkerProps {
-  contract: ActiveContract
+interface OperationMarkerProps {
+  operation: Operation
+  chartData: ChartData[]
   colors: typeof THEMES.dark
 }
 
-const TradeMarker = ({ contract, colors }: TradeMarkerProps) => {
-  if (!contract.entryTime || !contract.entryTick) return null
+const OperationMarker = ({ operation, chartData, colors }: OperationMarkerProps) => {
+  // Converter timestamp ISO para epoch
+  const entryEpoch = Math.floor(new Date(operation.timestamp).getTime() / 1000)
+  
+  // Calcular o epoch de saída baseado na duração
+  const durationInSeconds = operation.durationUnit === 't' 
+    ? operation.duration * 2 // Aproximação: 1 tick ≈ 2 segundos
+    : operation.durationUnit === 's'
+    ? operation.duration
+    : operation.durationUnit === 'm'
+    ? operation.duration * 60
+    : operation.duration * 3600 // hours
+  
+  const exitEpoch = entryEpoch + durationInSeconds
 
-  // Ponto de Entrada (A "bolinha" que marca o início)
+  // Encontrar o preço de entrada no gráfico (ponto mais próximo)
+  const entryPoint = chartData.find(d => Math.abs(d.epoch - entryEpoch) < 5) || 
+                     chartData.reduce((prev, curr) => 
+                       Math.abs(curr.epoch - entryEpoch) < Math.abs(prev.epoch - entryEpoch) ? curr : prev
+                     )
+  
+  const entryPrice = operation.entryPrice || entryPoint?.price
+  
+  if (!entryPrice) return null
+
+  // Cor baseada na direção da operação
+  const directionColor = operation.direction === 'rise' ? colors.bull : colors.bear
+
+  // Ponto de Entrada (bolinha marcando o início)
   const entryDot = (
     <ReferenceDot
-      key={`entry-${contract.contractId}`}
-      x={contract.entryTime}
-      y={contract.entryTick}
+      key={`entry-${operation.id}`}
+      x={entryEpoch}
+      y={entryPrice}
       yAxisId="price"
       ifOverflow="extendDomain"
     >
-      <circle r={5} fill={colors.line} stroke={colors.bg} strokeWidth={2} />
+      <circle r={6} fill={directionColor} stroke={colors.bg} strokeWidth={2} />
     </ReferenceDot>
   )
 
-  // Se o contrato está fechado (lucro ou prejuízo), desenha a linha e a bandeira final
-  if (
-    (contract.status === 'won' || contract.status === 'lost') &&
-    contract.exitTime &&
-    contract.exitTick
-  ) {
-    const isWin = contract.status === 'won'
-    const flagColor = isWin ? colors.bull : colors.bear
+  // Se a operação está finalizada (won ou lost)
+  if (operation.status !== 'pending' && operation.exitPrice) {
+    const isWin = operation.status === 'won'
+    const flagColor = isWin ? '#22c55e' : '#ef4444' // green-500 : red-500
 
     return (
       <>
         {entryDot}
-        {/* A linha que liga o início ao fim */}
+        {/* Linha conectando entrada e saída */}
         <ReferenceLine
           yAxisId="price"
           segment={[
-            { x: contract.entryTime, y: contract.entryTick },
-            { x: contract.exitTime, y: contract.exitTick },
+            { x: entryEpoch, y: entryPrice },
+            { x: exitEpoch, y: operation.exitPrice },
           ]}
           stroke={flagColor}
           strokeDasharray="3 3"
           strokeWidth={2}
           ifOverflow="extendDomain"
         />
-        {/* A bandeira de resultado final */}
+        {/* Bandeira de resultado */}
         <ReferenceDot
-          key={`exit-${contract.contractId}`}
-          x={contract.exitTime}
-          y={contract.exitTick}
+          key={`exit-${operation.id}`}
+          x={exitEpoch}
+          y={operation.exitPrice}
           yAxisId="price"
           ifOverflow="extendDomain"
-          shape={<Flag fill={flagColor} stroke={colors.bg} strokeWidth={1} size={20} style={{ transform: 'translateY(-10px)' }} />}
-        />
+        >
+          <Flag 
+            fill={flagColor} 
+            stroke={colors.bg} 
+            strokeWidth={1.5} 
+            size={18}
+            style={{ transform: 'translate(-9px, -18px)' }}
+          />
+        </ReferenceDot>
       </>
     )
   }
 
-  // Se o contrato ainda está aberto, mostra apenas a "bolinha" de entrada
-  return entryDot
-}
+  // Se está pendente, mostra apenas o ponto de entrada e uma linha tracejada até o vencimento esperado
+  const currentPoint = chartData[chartData.length - 1]
+  const currentPrice = currentPoint?.price || entryPrice
 
+  return (
+    <>
+      {entryDot}
+      {/* Linha tracejada indicando operação em andamento */}
+      <ReferenceLine
+        yAxisId="price"
+        segment={[
+          { x: entryEpoch, y: entryPrice },
+          { x: Math.min(exitEpoch, currentPoint?.epoch || exitEpoch), y: currentPrice },
+        ]}
+        stroke={directionColor}
+        strokeDasharray="5 5"
+        strokeWidth={1.5}
+        strokeOpacity={0.6}
+        ifOverflow="extendDomain"
+      />
+    </>
+  )
+}
 
 /* =========================================================
    MAIN CHART COMPONENT
@@ -105,10 +153,10 @@ interface MarketChartProps {
   setChartType: (type: ChartType) => void
   timePeriod: TimePeriod
   setTimePeriod: (period: TimePeriod) => void
-  activeContracts: ActiveContract[]
+  operations: Operation[] // Mudança aqui: operations ao invés de activeContracts
 }
 
-const SCROLLING_WINDOW_SECONDS = 60; // Show last 1 minute
+const SCROLLING_WINDOW_SECONDS = 60
 
 export function MarketChart({
   activeSymbol,
@@ -119,26 +167,35 @@ export function MarketChart({
   setChartType,
   timePeriod,
   setTimePeriod,
-  activeContracts,
+  operations,
 }: MarketChartProps) {
   // --- STATE & THEME ---
   const [chartTheme, setChartTheme] = React.useState<'light' | 'dark'>('dark')
   const [cursor, setCursor] = React.useState<string | null>(null)
-  const [xDomain, setXDomain] = React.useState<[number, number] | null>(null);
+  const [xDomain, setXDomain] = React.useState<[number, number] | null>(null)
   const colors = THEMES[chartTheme]
   
-  const latestPrice = rawData.length > 0 ? (rawData[rawData.length - 1]!).price : 0;
-  const prevPrice = rawData.length > 1 ? (rawData[rawData.length - 2]!).price : latestPrice;
+  const latestPrice = rawData.length > 0 ? (rawData[rawData.length - 1]!).price : 0
+  const prevPrice = rawData.length > 1 ? (rawData[rawData.length - 2]!).price : latestPrice
       
-  // Effect to manage the scrolling window domain
+  // Gerenciar janela de scroll
   React.useEffect(() => {
     if (rawData.length > 1) {
-      const lastEpoch = rawData[rawData.length - 1].epoch;
-      const firstEpoch = lastEpoch - SCROLLING_WINDOW_SECONDS;
-      setXDomain([firstEpoch, lastEpoch]);
+      const lastEpoch = rawData[rawData.length - 1].epoch
+      const firstEpoch = lastEpoch - SCROLLING_WINDOW_SECONDS
+      setXDomain([firstEpoch, lastEpoch])
     }
-  }, [rawData]);
+  }, [rawData])
 
+  // Filtrar operações visíveis na janela atual
+  const visibleOperations = React.useMemo(() => {
+    if (!xDomain || operations.length === 0) return operations
+    
+    return operations.filter(op => {
+      const opEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000)
+      return opEpoch >= xDomain[0] - 60 && opEpoch <= xDomain[1] + 60
+    })
+  }, [operations, xDomain])
 
   // --- LOADING & ERROR STATES ---
   if (isChartLoading && rawData.length === 0) {
@@ -208,7 +265,7 @@ export function MarketChart({
             <ReferenceLine x={cursor as any} stroke={colors.crosshair} strokeDasharray="3 3" yAxisId="price"/>
           )}
 
-          {/* ÁREA E LINHA DO PREÇO (O GRÁFICO PRINCIPAL) */}
+          {/* ÁREA E LINHA DO PREÇO (GRÁFICO PRINCIPAL) */}
           <defs>
             <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={colors.areaTop} />
@@ -231,10 +288,15 @@ export function MarketChart({
             isAnimationActive={false}
           />
           
-          {/* A CAMADA DE SOBREPOSIÇÃO: Renderiza os marcadores de negociação */}
-           {activeContracts.map(contract => (
-             <TradeMarker key={contract.contractId} contract={contract} colors={colors} />
-           ))}
+          {/* MARCADORES DE OPERAÇÕES */}
+          {visibleOperations.map(operation => (
+            <OperationMarker 
+              key={operation.id} 
+              operation={operation} 
+              chartData={rawData}
+              colors={colors} 
+            />
+          ))}
         
         </ComposedChart>
       </ResponsiveContainer>

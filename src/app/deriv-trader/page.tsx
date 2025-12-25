@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useCallback } from "react";
@@ -40,7 +39,6 @@ export default function DerivTraderPage() {
     accountType, 
     setAccountType, 
     accountBalance, 
-    activeContracts, 
     clearActiveContracts, 
     operationsLog,
     isConnected,
@@ -101,11 +99,11 @@ export default function DerivTraderPage() {
                             Gráfico ({activeSymbol})
                         </CardTitle>
                         <CardDescription className="text-xs">
-                            Desempenho em tempo real do ativo. Use a área de zoom abaixo do gráfico.
+                            Desempenho em tempo real do ativo.
                         </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
-                        {activeContracts.length > 0 && (
+                        {operationsLog.length > 0 && (
                         <Button variant="outline" size="icon" className="h-8 w-8" onClick={clearActiveContracts}>
                             <Trash2 className="h-4 w-4" />
                             <span className="sr-only">Limpar negociações</span>
@@ -123,7 +121,7 @@ export default function DerivTraderPage() {
                         setChartType={setChartType}
                         timePeriod={timePeriod}
                         setTimePeriod={setTimePeriod}
-                        activeContracts={activeContracts}
+                        operations={operationsLog}
                     />
                 </CardContent>
               </Card>

@@ -540,7 +540,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const clearActiveContracts = () => {
-    setActiveContracts([]);
+    setOperationsLog([]);
   };
 
   const addActiveContract = (contract: ActiveContract) => {
