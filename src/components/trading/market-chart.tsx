@@ -1,4 +1,3 @@
-
 'use client'
 
 import * as React from 'react'
@@ -23,7 +22,7 @@ import type {
 import { HeaderInfo } from './chart-parts/header-info'
 import { CustomTooltip } from './chart-parts/custom-tooltip'
 import { THEMES } from './chart-parts/themes'
-import { Flag } from 'lucide-react'
+import { Flag, TrendingUp, TrendingDown } from 'lucide-react'
 import type { Operation } from './operations-log.types' 
 
 /* =========================================================
@@ -36,29 +35,52 @@ interface OperationMarkerProps {
 }
 
 const OperationMarker = ({ operation, chartData, colors }: OperationMarkerProps) => {
+  // Debug: Log para verificar se está recebendo a operação
+  console.log('Rendering operation marker:', operation)
+
   // Converter timestamp ISO para epoch
   const entryEpoch = Math.floor(new Date(operation.timestamp).getTime() / 1000)
   
   // Calcular o epoch de saída baseado na duração
-  const durationInSeconds = operation.durationUnit === 't' 
-    ? operation.duration * 2 // Aproximação: 1 tick ≈ 2 segundos
-    : operation.durationUnit === 's'
-    ? operation.duration
-    : operation.durationUnit === 'm'
-    ? operation.duration * 60
-    : operation.duration * 3600 // hours
+  let durationInSeconds = 0
+  switch (operation.durationUnit) {
+    case 't':
+      durationInSeconds = operation.duration * 2 // Aproximação: 1 tick ≈ 2 segundos
+      break
+    case 's':
+      durationInSeconds = operation.duration
+      break
+    case 'm':
+      durationInSeconds = operation.duration * 60
+      break
+    case 'h':
+      durationInSeconds = operation.duration * 3600
+      break
+  }
   
   const exitEpoch = entryEpoch + durationInSeconds
 
-  // Encontrar o preço de entrada no gráfico (ponto mais próximo)
-  const entryPoint = chartData.find(d => Math.abs(d.epoch - entryEpoch) < 5) || 
-                     chartData.reduce((prev, curr) => 
-                       Math.abs(curr.epoch - entryEpoch) < Math.abs(prev.epoch - entryEpoch) ? curr : prev
-                     )
+  console.log('Entry epoch:', entryEpoch, 'Exit epoch:', exitEpoch)
+  console.log('Chart data range:', chartData.length > 0 ? [chartData[0].epoch, chartData[chartData.length - 1].epoch] : 'no data')
+
+  // Usar o entryPrice da operação ou encontrar no gráfico
+  let entryPrice = operation.entryPrice
   
-  const entryPrice = operation.entryPrice || entryPoint?.price
+  if (!entryPrice && chartData.length > 0) {
+    // Encontrar o ponto mais próximo no gráfico
+    const closestPoint = chartData.reduce((prev, curr) => {
+      const prevDiff = Math.abs(prev.epoch - entryEpoch)
+      const currDiff = Math.abs(curr.epoch - entryEpoch)
+      return currDiff < prevDiff ? curr : prev
+    })
+    entryPrice = closestPoint.price
+    console.log('Using closest point price:', entryPrice, 'at epoch:', closestPoint.epoch)
+  }
   
-  if (!entryPrice) return null
+  if (!entryPrice) {
+    console.warn('No entry price found for operation:', operation.id)
+    return null
+  }
 
   // Cor baseada na direção da operação
   const directionColor = operation.direction === 'rise' ? colors.bull : colors.bear
@@ -70,9 +92,10 @@ const OperationMarker = ({ operation, chartData, colors }: OperationMarkerProps)
       x={entryEpoch}
       y={entryPrice}
       yAxisId="price"
-      ifOverflow="extendDomain"
+      ifOverflow="visible"
     >
-      <circle r={6} fill={directionColor} stroke={colors.bg} strokeWidth={2} />
+      <circle r={7} fill={directionColor} stroke={colors.bg} strokeWidth={2.5} />
+      <circle r={3} fill={colors.bg} />
     </ReferenceDot>
   )
 
@@ -80,6 +103,8 @@ const OperationMarker = ({ operation, chartData, colors }: OperationMarkerProps)
   if (operation.status !== 'pending' && operation.exitPrice) {
     const isWin = operation.status === 'won'
     const flagColor = isWin ? '#22c55e' : '#ef4444' // green-500 : red-500
+
+    console.log('Rendering completed operation:', operation.id, 'Status:', operation.status)
 
     return (
       <>
@@ -93,8 +118,8 @@ const OperationMarker = ({ operation, chartData, colors }: OperationMarkerProps)
           ]}
           stroke={flagColor}
           strokeDasharray="3 3"
-          strokeWidth={2}
-          ifOverflow="extendDomain"
+          strokeWidth={2.5}
+          ifOverflow="visible"
         />
         {/* Bandeira de resultado */}
         <ReferenceDot
@@ -102,42 +127,64 @@ const OperationMarker = ({ operation, chartData, colors }: OperationMarkerProps)
           x={exitEpoch}
           y={operation.exitPrice}
           yAxisId="price"
-          ifOverflow="extendDomain"
+          ifOverflow="visible"
         >
-          <Flag 
-            fill={flagColor} 
-            stroke={colors.bg} 
-            strokeWidth={1.5} 
-            size={18}
-            style={{ transform: 'translate(-9px, -18px)' }}
-          />
+          <g transform="translate(-10, -20)">
+            <Flag 
+              fill={flagColor} 
+              stroke={colors.bg} 
+              strokeWidth={2} 
+              size={20}
+            />
+          </g>
         </ReferenceDot>
       </>
     )
   }
 
-  // Se está pendente, mostra apenas o ponto de entrada e uma linha tracejada até o vencimento esperado
-  const currentPoint = chartData[chartData.length - 1]
-  const currentPrice = currentPoint?.price || entryPrice
+  // Se está pendente, mostra apenas o ponto de entrada e uma linha tracejada
+  if (chartData.length > 0) {
+    const currentPoint = chartData[chartData.length - 1]
+    const currentPrice = currentPoint?.price || entryPrice
+    const currentEpoch = currentPoint?.epoch || exitEpoch
 
-  return (
-    <>
-      {entryDot}
-      {/* Linha tracejada indicando operação em andamento */}
-      <ReferenceLine
-        yAxisId="price"
-        segment={[
-          { x: entryEpoch, y: entryPrice },
-          { x: Math.min(exitEpoch, currentPoint?.epoch || exitEpoch), y: currentPrice },
-        ]}
-        stroke={directionColor}
-        strokeDasharray="5 5"
-        strokeWidth={1.5}
-        strokeOpacity={0.6}
-        ifOverflow="extendDomain"
-      />
-    </>
-  )
+    console.log('Rendering pending operation:', operation.id)
+
+    return (
+      <>
+        {entryDot}
+        {/* Linha tracejada indicando operação em andamento */}
+        <ReferenceLine
+          yAxisId="price"
+          segment={[
+            { x: entryEpoch, y: entryPrice },
+            { x: Math.min(exitEpoch, currentEpoch), y: currentPrice },
+          ]}
+          stroke={directionColor}
+          strokeDasharray="5 5"
+          strokeWidth={2}
+          strokeOpacity={0.7}
+          ifOverflow="visible"
+        />
+        {/* Ícone indicando direção */}
+        <ReferenceDot
+          key={`pending-${operation.id}`}
+          x={Math.min(exitEpoch, currentEpoch)}
+          y={currentPrice}
+          yAxisId="price"
+          ifOverflow="visible"
+        >
+          {operation.direction === 'rise' ? (
+            <TrendingUp size={16} stroke={directionColor} strokeWidth={2} />
+          ) : (
+            <TrendingDown size={16} stroke={directionColor} strokeWidth={2} />
+          )}
+        </ReferenceDot>
+      </>
+    )
+  }
+
+  return entryDot
 }
 
 /* =========================================================
@@ -153,7 +200,7 @@ interface MarketChartProps {
   setChartType: (type: ChartType) => void
   timePeriod: TimePeriod
   setTimePeriod: (period: TimePeriod) => void
-  operations: Operation[] // Mudança aqui: operations ao invés de activeContracts
+  operations: Operation[]
 }
 
 const SCROLLING_WINDOW_SECONDS = 60
@@ -177,25 +224,44 @@ export function MarketChart({
   
   const latestPrice = rawData.length > 0 ? (rawData[rawData.length - 1]!).price : 0
   const prevPrice = rawData.length > 1 ? (rawData[rawData.length - 2]!).price : latestPrice
+
+  // Debug: Log das operações recebidas
+  React.useEffect(() => {
+    console.log('=== MarketChart Debug ===')
+    console.log('Total operations:', operations.length)
+    console.log('Operations:', operations)
+    console.log('Chart data points:', rawData.length)
+    if (rawData.length > 0) {
+      console.log('Chart time range:', {
+        start: new Date(rawData[0].epoch * 1000).toISOString(),
+        end: new Date(rawData[rawData.length - 1].epoch * 1000).toISOString()
+      })
+    }
+  }, [operations, rawData])
       
-  // Gerenciar janela de scroll
+  // Gerenciar janela de scroll - DESABILITADO TEMPORARIAMENTE PARA DEBUG
   React.useEffect(() => {
     if (rawData.length > 1) {
-      const lastEpoch = rawData[rawData.length - 1].epoch
-      const firstEpoch = lastEpoch - SCROLLING_WINDOW_SECONDS
+      const lastEpoch = (rawData[rawData.length - 1]!).epoch
+      // Aumentar a janela para mostrar mais histórico
+      const firstEpoch = lastEpoch - (SCROLLING_WINDOW_SECONDS * 10) // 10 minutos
       setXDomain([firstEpoch, lastEpoch])
+      console.log('X Domain set to:', [firstEpoch, lastEpoch])
     }
   }, [rawData])
 
-  // Filtrar operações visíveis na janela atual
+  // Filtrar operações - MOSTRAR TODAS PARA DEBUG
   const visibleOperations = React.useMemo(() => {
-    if (!xDomain || operations.length === 0) return operations
+    console.log('Filtering operations...')
     
-    return operations.filter(op => {
-      const opEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000)
-      return opEpoch >= xDomain[0] - 60 && opEpoch <= xDomain[1] + 60
-    })
-  }, [operations, xDomain])
+    // Temporariamente mostrar todas as operações
+    if (operations.length > 0) {
+      console.log('Showing all operations:', operations.length)
+      return operations
+    }
+    
+    return []
+  }, [operations])
 
   // --- LOADING & ERROR STATES ---
   if (isChartLoading && rawData.length === 0) {
@@ -232,8 +298,13 @@ export function MarketChart({
         setChartTheme={setChartTheme}
       />
 
+      {/* Debug info */}
+      <div className="text-xs text-gray-400 mb-2">
+        Operações: {visibleOperations.length} | Pontos no gráfico: {rawData.length}
+      </div>
+
       {/* --- MAIN PRICE CHART --- */}
-      <ResponsiveContainer width="100%" height="90%">
+      <ResponsiveContainer width="100%" height="85%">
         <ComposedChart
           data={rawData}
           margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
@@ -253,7 +324,7 @@ export function MarketChart({
           <YAxis
             yAxisId="price"
             orientation="right"
-            domain={['dataMin - 0.0001', 'dataMax + 0.0001']}
+            domain={['auto', 'auto']}
             stroke={colors.text}
             tick={{ fontSize: 10 }}
             tickFormatter={val => typeof val === 'number' ? val.toFixed(4) : ''}
@@ -291,7 +362,7 @@ export function MarketChart({
           {/* MARCADORES DE OPERAÇÕES */}
           {visibleOperations.map(operation => (
             <OperationMarker 
-              key={operation.id} 
+              key={`op-${operation.id}`}
               operation={operation} 
               chartData={rawData}
               colors={colors} 
