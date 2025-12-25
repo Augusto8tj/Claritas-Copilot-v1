@@ -11,10 +11,10 @@ import {
   ReferenceLine,
   Line,
   Area,
+  Dot,
   Scatter,
 } from 'recharts'
-import { Flag } from 'lucide-react'
-
+import { Flag, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
 import type {
   ChartData,
   TimePeriod,
@@ -23,61 +23,178 @@ import type {
 import { HeaderInfo } from './chart-parts/header-info'
 import { CustomTooltip } from './chart-parts/custom-tooltip'
 import { THEMES } from './chart-parts/themes'
-import type { Operation } from '@/components/trading/operations-log.types';
+import type { Operation } from '@/components/trading/operations-log.types'
 
 /* =========================================================
-   MARKER COMPONENTS (Shapes Visuais para o Scatter)
+   MARKER COMPONENTS (Shapes Visuais)
 ========================================================= */
 const EntryMarker = (props: any) => {
-  const { cx, cy, payload } = props;
-  // Proteção: se o Recharts ainda não calculou a posição, não renderiza
-  if (!cx || !cy) return null;
-  
-  const direction = payload.direction; // Vem do dado do Scatter
-  const ENTRY_COLOR = '#3b82f6';
-  
+  const { cx, cy, payload } = props
+  if (!cx || !cy) return null
+
+  const direction = payload.direction
+  const ENTRY_COLOR = '#3b82f6'
+
   return (
     <g transform={`translate(${cx}, ${cy})`} style={{ pointerEvents: 'none' }}>
       <circle r={8} fill={ENTRY_COLOR} stroke="#ffffff" strokeWidth={2.5} />
       <circle r={3.5} fill="#ffffff" />
       {direction === 'rise' ? (
-        <path d="M -3,-6 L 0,-9 L 3,-6" stroke="#ffffff" strokeWidth={1.5} fill="none" />
+        <path
+          d="M -3,-6 L 0,-9 L 3,-6"
+          stroke="#ffffff"
+          strokeWidth={1.5}
+          fill="none"
+        />
       ) : (
-        <path d="M -3,6 L 0,9 L 3,6" stroke="#ffffff" strokeWidth={1.5} fill="none" />
+        <path
+          d="M -3,6 L 0,9 L 3,6"
+          stroke="#ffffff"
+          strokeWidth={1.5}
+          fill="none"
+        />
       )}
     </g>
-  );
-};
+  )
+}
 
 const ExitMarker = (props: any) => {
-  const { cx, cy, payload } = props;
-  if (!cx || !cy) return null;
+  const { cx, cy, payload } = props
+  if (!cx || !cy) return null
 
-  const status = payload.status;
-  const isWin = status === 'won';
-  const flagColor = isWin ? '#22c55e' : '#ef4444';
+  const status = payload.status
+  const isWin = status === 'won'
+  const flagColor = isWin ? '#22c55e' : '#ef4444'
 
   return (
-    <g transform={`translate(${cx - 5}, ${cy - 22})`} style={{ pointerEvents: 'none' }}>
+    <g
+      transform={`translate(${cx - 5}, ${cy - 22})`}
+      style={{ pointerEvents: 'none' }}
+    >
       <Flag fill={flagColor} stroke="#ffffff" strokeWidth={2.5} size={24} />
     </g>
-  );
-};
+  )
+}
 
+/* =========================================================
+   OPERATION LINES (Linhas conectando entrada/saída)
+========================================================= */
+interface OperationLinesProps {
+  operations: Operation[]
+  chartData: ChartData[]
+  colors: (typeof THEMES.dark)
+}
+
+const OperationLines = ({
+  operations,
+  chartData,
+  colors,
+}: OperationLinesProps) => {
+  return (
+    <>
+      {operations.map(operation => {
+        const entryEpoch = Math.floor(new Date(operation.timestamp).getTime() / 1000)
+
+        let entryPrice = operation.entryPrice
+        if (!entryPrice && chartData.length > 0) {
+          const closestPoint = chartData.reduce((prev, curr) => {
+            const prevDiff = Math.abs(prev.epoch - entryEpoch)
+            const currDiff = Math.abs(curr.epoch - entryEpoch)
+            return currDiff < prevDiff ? curr : prev
+          })
+          if (Math.abs(closestPoint.epoch - entryEpoch) <= 10) {
+            entryPrice = closestPoint.price
+          }
+        }
+
+        if (!entryPrice) return null
+
+        let durationInSeconds = 0
+        switch (operation.durationUnit) {
+          case 't':
+            durationInSeconds = operation.duration * 2
+            break
+          case 's':
+            durationInSeconds = operation.duration
+            break
+          case 'm':
+            durationInSeconds = operation.duration * 60
+            break
+          case 'h':
+            durationInSeconds = operation.duration * 3600
+            break
+          case 'd':
+            durationInSeconds = operation.duration * 86400
+            break
+        }
+        const exitEpoch = entryEpoch + durationInSeconds
+
+        // Operação finalizada
+        if (operation.status !== 'pending' && operation.exitPrice) {
+          const isWin = operation.status === 'won'
+          const resultColor = isWin ? '#22c55e' : '#ef4444'
+
+          return (
+            <ReferenceLine
+              key={`line-${operation.id}`}
+              yAxisId="price"
+              segment={[
+                { x: entryEpoch, y: entryPrice },
+                { x: exitEpoch, y: operation.exitPrice },
+              ]}
+              stroke={resultColor}
+              strokeDasharray="4 4"
+              strokeWidth={3}
+              ifOverflow="visible"
+            />
+          )
+        }
+
+        // Operação pendente
+        if (chartData.length > 0) {
+          const currentPoint = chartData[chartData.length - 1]
+          const currentPrice = currentPoint?.price || entryPrice
+          const currentEpoch = currentPoint?.epoch || exitEpoch
+          const PENDING_COLOR = '#f59e0b'
+
+          return (
+            <ReferenceLine
+              key={`line-${operation.id}`}
+              yAxisId="price"
+              segment={[
+                { x: entryEpoch, y: entryPrice },
+                { x: Math.min(exitEpoch, currentEpoch), y: currentPrice },
+              ]}
+              stroke={PENDING_COLOR}
+              strokeDasharray="5 5"
+              strokeWidth={2.5}
+              strokeOpacity={0.8}
+              ifOverflow="visible"
+            />
+          )
+        }
+
+        return null
+      })}
+    </>
+  )
+}
+/* =========================================================
+   MAIN CHART COMPONENT
+========================================================= */
+interface MarketChartProps {
+  activeSymbol: string
+  chartData: ChartData[]
+  isChartLoading: boolean
+  chartError: string | null
+  chartType: ChartType
+  setChartType: (type: ChartType) => void
+  timePeriod: TimePeriod
+  setTimePeriod: (period: TimePeriod) => void
+  operations: Operation[]
+}
 
 const INITIAL_WINDOW_SECONDS = 120 // Começar com 2 minutos visíveis
-
-interface MarketChartProps {
-  activeSymbol: string;
-  chartData: ChartData[];
-  isChartLoading: boolean;
-  chartError: string | null;
-  chartType: ChartType;
-  setChartType: (type: ChartType) => void;
-  timePeriod: TimePeriod;
-  setTimePeriod: (period: TimePeriod) => void;
-  operations: Operation[];
-}
 
 export function MarketChart({
   activeSymbol,
@@ -90,16 +207,19 @@ export function MarketChart({
   setTimePeriod,
   operations,
 }: MarketChartProps) {
+  // --- STATE & THEME ---
   const [chartTheme, setChartTheme] = React.useState<'light' | 'dark'>('dark')
   const [cursor, setCursor] = React.useState<string | null>(null)
   const [windowSize, setWindowSize] = React.useState(INITIAL_WINDOW_SECONDS)
   const [xDomain, setXDomain] = React.useState<[number, number] | null>(null)
   const colors = THEMES[chartTheme]
-  
-  const latestPrice = rawData.length > 0 ? rawData[rawData.length - 1]!.price : 0
-  const prevPrice = rawData.length > 1 ? rawData[rawData.length - 2]!.price : latestPrice
-  
-  // 1. Gerenciar Domínio X (Tempo)
+
+  const latestPrice =
+    rawData.length > 0 ? rawData[rawData.length - 1]!.price : 0
+  const prevPrice =
+    rawData.length > 1 ? rawData[rawData.length - 2]!.price : latestPrice
+
+  // Gerenciar domínio do gráfico para criar efeito de tela deslizante
   React.useEffect(() => {
     if (rawData.length > 0) {
       const lastEpoch = rawData[rawData.length - 1].epoch
@@ -107,92 +227,91 @@ export function MarketChart({
       setXDomain([firstEpoch, lastEpoch])
     }
   }, [rawData, windowSize])
-  
-  // 2. Calcular Domínio Y (Preço) Manualmente
-  const yDomain = React.useMemo(() => {
-      if (!xDomain) return ['auto', 'auto'];
-      
-      const [minX, maxX] = xDomain;
-      
-      const visibleData = rawData.filter(d => d.epoch >= minX && d.epoch <= maxX);
-      
-      if (visibleData.length === 0) {
-        return ['auto', 'auto']; 
-      }
 
-      let minPrice = Infinity;
-      let maxPrice = -Infinity;
-      
-      visibleData.forEach(d => {
-          if (d.price < minPrice) minPrice = d.price;
-          if (d.price > maxPrice) maxPrice = d.price;
-      });
+  // Controles de Zoom
+  const handleZoomIn = () => {
+    setWindowSize(prev => Math.max(30, prev - 30)) // Mínimo 30 segundos
+  }
+  const handleZoomOut = () => {
+    setWindowSize(prev => Math.min(600, prev + 30)) // Máximo 10 minutos
+  }
+  const handleResetZoom = () => {
+    setWindowSize(INITIAL_WINDOW_SECONDS)
+  }
 
-      if (minPrice === Infinity || maxPrice === -Infinity) return ['auto', 'auto'];
-
-      const padding = (maxPrice - minPrice) * 0.1;
-      
-      return [minPrice - padding, maxPrice + padding];
-
-  }, [rawData, xDomain]);
-
-  // 3. Filtrar Operações
+  // Filtrar operações visíveis
   const visibleOperations = React.useMemo(() => {
-    if (!Array.isArray(operations)) return [];
-    return operations;
+    if (!Array.isArray(operations)) {
+      console.warn(
+        "MarketChart received 'operations' prop that is not an array:",
+        operations
+      )
+      return []
+    }
+    return operations
   }, [operations])
 
-  // 4. Preparar Dados do Scatter (COM PROTEÇÃO CONTRA ZERO)
+  // === PREPARAÇÃO DOS DADOS PARA O SCATTER ===
+  // Separa os pontos de entrada e saída em arrays dedicados
   const { entryPoints, exitPoints } = React.useMemo(() => {
-    const entries: any[] = [];
-    const exits: any[] = [];
-
-    const lastChartPrice = rawData.length > 0 ? rawData[rawData.length-1].price : 0;
+    const entries: any[] = []
+    const exits: any[] = []
 
     visibleOperations.forEach(op => {
-      if (!op.timestamp) return;
-      const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000);
-      
-      let durationInSeconds = 0;
+      const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000)
+
+      let durationInSeconds = 0
       switch (op.durationUnit) {
-        case 't': durationInSeconds = op.duration * 2; break;
-        case 's': durationInSeconds = op.duration; break;
-        case 'm': durationInSeconds = op.duration * 60; break;
-        case 'h': durationInSeconds = op.duration * 3600; break;
-        case 'd': durationInSeconds = op.duration * 86400; break;
+        case 't':
+          durationInSeconds = op.duration * 2
+          break
+        case 's':
+          durationInSeconds = op.duration
+          break
+        case 'm':
+          durationInSeconds = op.duration * 60
+          break
+        case 'h':
+          durationInSeconds = op.duration * 3600
+          break
+        case 'd':
+          durationInSeconds = op.duration * 86400
+          break
       }
-      const exitEpoch = entryEpoch + durationInSeconds;
+      const exitEpoch = entryEpoch + durationInSeconds
 
-      const entryPrice = op.entryPrice || lastChartPrice;
+      const entryPrice =
+        op.entryPrice || (rawData.length > 0 ? rawData[rawData.length - 1].price : 0)
 
-      if (!entryPrice || entryPrice <= 0) return;
+      if (entryPrice) {
+        entries.push({
+          x: entryEpoch,
+          y: entryPrice,
+          payload: { direction: op.direction, id: op.id },
+        })
 
-      entries.push({
-        x: entryEpoch,
-        y: entryPrice,
-        payload: { direction: op.direction, id: op.id }
-      });
-
-      if (op.status !== 'pending' && op.exitPrice && op.exitPrice > 0) {
-        exits.push({
-          x: exitEpoch,
-          y: op.exitPrice,
-          payload: { status: op.status, id: op.id }
-        });
+        if (op.status !== 'pending' && op.exitPrice) {
+          exits.push({
+            x: exitEpoch,
+            y: op.exitPrice,
+            payload: { status: op.status, id: op.id },
+          })
+        }
       }
-    });
+    })
 
-    return { entryPoints, exitPoints };
-  }, [visibleOperations, rawData]);
+    return { entryPoints: entries, exitPoints: exits }
+  }, [visibleOperations, rawData])
 
-  // --- LOADING STATES ---
+  // --- LOADING & ERROR STATES ---
   if (isChartLoading && rawData.length === 0) {
     return (
       <div className="flex h-[520px] w-full items-center justify-center bg-zinc-900 text-white">
-        Carregando...
+        Carregando dados do mercado...
       </div>
     )
   }
+
   if (chartError) {
     return (
       <div className="flex h-[520px] w-full items-center justify-center text-red-500 bg-zinc-900">
@@ -201,8 +320,12 @@ export function MarketChart({
     )
   }
 
+  // === RENDER =============================================
   return (
-    <div className="h-[520px] w-full rounded-xl p-4" style={{ backgroundColor: colors.bg }}>
+    <div
+      className="h-[520px] w-full rounded-xl p-4"
+      style={{ backgroundColor: colors.bg }}
+    >
       <HeaderInfo
         symbol={activeSymbol}
         latestPrice={latestPrice}
@@ -215,7 +338,58 @@ export function MarketChart({
         chartTheme={chartTheme}
         setChartTheme={setChartTheme}
       />
-      
+
+      {/* Controles de Zoom e Status */}
+      <div className="mb-2 flex items-center justify-between">
+        {/* Status das operações */}
+        {visibleOperations.length > 0 && (
+          <div className="text-xs text-gray-400">
+            📊 {visibleOperations.length} operação(ões) •
+            {visibleOperations.filter(op => op.status === 'pending').length >
+              0 &&
+              ` ⏳ ${
+                visibleOperations.filter(op => op.status === 'pending').length
+              } pendente`}
+            {visibleOperations.filter(op => op.status === 'won').length > 0 &&
+              ` 🟢 ${
+                visibleOperations.filter(op => op.status === 'won').length
+              } vitória`}
+            {visibleOperations.filter(op => op.status === 'lost').length >
+              0 &&
+              ` 🔴 ${
+                visibleOperations.filter(op => op.status === 'lost').length
+              } perda`}
+          </div>
+        )}
+
+        {/* Controles de Zoom */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">{windowSize}s</span>
+          <button
+            onClick={handleZoomIn}
+            className="p-1 rounded hover:bg-gray-700 transition-colors"
+            title="Diminuir zoom (ver menos tempo)"
+          >
+            <ZoomIn size={16} stroke={colors.text} />
+          </button>
+          <button
+            onClick={handleZoomOut}
+            className="p-1 rounded hover:bg-gray-700 transition-colors"
+            title="Aumentar zoom (ver mais tempo)"
+          >
+            <ZoomOut size={16} stroke={colors.text} />
+          </button>
+          <button
+            onClick={handleResetZoom}
+            className="p-1 rounded hover:bg-gray-700 transition-colors"
+            title="Resetar zoom"
+          >
+            <Maximize2 size={16} stroke={colors.text} />
+          </button>
+        </div>
+      </div>
+
+      {/* --- MAIN PRICE CHART --- */}
       <ResponsiveContainer width="100%" height="85%">
         <ComposedChart
           data={rawData}
@@ -223,40 +397,52 @@ export function MarketChart({
           onMouseMove={e => e?.activeLabel && setCursor(e.activeLabel)}
           onMouseLeave={() => setCursor(null)}
         >
+          <CartesianGrid stroke={colors.grid} strokeDasharray="3 3" />
+          <XAxis
+            dataKey="epoch"
+            type="number"
+            domain={xDomain || ['dataMin', 'dataMax']}
+            tickFormatter={time => new Date(time * 1000).toLocaleTimeString()}
+            stroke={colors.text}
+            tick={{ fontSize: 10 }}
+            allowDataOverflow={true}
+          />
+          <YAxis
+            yAxisId="price"
+            orientation="right"
+            domain={['auto', 'auto']}
+            stroke={colors.text}
+            tick={{ fontSize: 10 }}
+            tickFormatter={val =>
+              typeof val === 'number' ? val.toFixed(4) : ''
+            }
+          />
+          <Tooltip content={<CustomTooltip colors={colors} />} />
+
+          {/* CROSSHAIR */}
+          {cursor && (
+            <ReferenceLine
+              x={cursor as any}
+              stroke={colors.crosshair}
+              strokeDasharray="3 3"
+              yAxisId="price"
+            />
+          )}
+
+          {/* LINHAS DAS OPERAÇÕES (Atrás do gráfico de preço) */}
+          <OperationLines
+            operations={visibleOperations}
+            chartData={rawData}
+            colors={colors}
+          />
+
+          {/* ÁREA E LINHA DO PREÇO */}
           <defs>
             <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={colors.areaTop} />
               <stop offset="100%" stopColor={colors.areaBottom} />
             </linearGradient>
           </defs>
-
-          <CartesianGrid stroke={colors.grid} strokeDasharray="3 3" />
-          
-          <XAxis 
-            dataKey="epoch"
-            type="number"
-            domain={xDomain || ['dataMin', 'dataMax']}
-            tickFormatter={(time) => new Date(time * 1000).toLocaleTimeString()} 
-            stroke={colors.text} 
-            allowDataOverflow={true}
-            tick={{ fontSize: 10 }}
-          />
-          
-          <YAxis
-            yAxisId="price"
-            orientation="right"
-            domain={yDomain}
-            stroke={colors.text}
-            tick={{ fontSize: 10 }}
-            tickFormatter={val => typeof val === 'number' ? val.toFixed(4) : ''}
-            allowDataOverflow={false}
-          />
-          
-          <Tooltip 
-            content={<CustomTooltip colors={colors} />} 
-            cursor={{ stroke: colors.crosshair, strokeDasharray: '3 3' }} 
-          />
-
           <Area
             yAxisId="price"
             dataKey="price"
@@ -264,60 +450,17 @@ export function MarketChart({
             stroke="none"
             isAnimationActive={false}
           />
-          
           <Line
             yAxisId="price"
             dataKey="price"
             stroke={colors.line}
             strokeWidth={2}
             dot={false}
-            activeDot={{ r: 4, fill: colors.line }}
             isAnimationActive={false}
           />
 
-          {/* Reference Lines (Conectores) */}
-          {visibleOperations.map(op => {
-            const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000);
-            
-            let durationInSeconds = 0;
-            switch (op.durationUnit) {
-              case 't': durationInSeconds = op.duration * 2; break;
-              case 's': durationInSeconds = op.duration; break;
-              case 'm': durationInSeconds = op.duration * 60; break;
-              case 'h': durationInSeconds = op.duration * 3600; break;
-              case 'd': durationInSeconds = op.duration * 86400; break;
-            }
-            const exitEpoch = entryEpoch + durationInSeconds;
-            
-            const lastData = rawData.length > 0 ? rawData[rawData.length-1] : null;
-            const fallbackPrice = lastData ? lastData.price : 0;
-            const entryPrice = op.entryPrice || fallbackPrice;
-
-            if (!entryPrice || entryPrice <= 0) return null;
-
-            const isPending = op.status === 'pending';
-            const targetEpoch = isPending && lastData ? Math.min(exitEpoch, lastData.epoch) : exitEpoch;
-            const targetPrice = isPending && lastData ? lastData.price : (op.exitPrice || entryPrice);
-
-            return (
-              <ReferenceLine
-                key={`line-${op.id}`}
-                yAxisId="price"
-                segment={[
-                  { x: entryEpoch, y: entryPrice },
-                  { x: targetEpoch, y: targetPrice }
-                ]}
-                stroke={isPending ? '#f59e0b' : (op.status === 'won' ? '#22c55e' : '#ef4444')}
-                strokeDasharray={isPending ? "5 5" : "4 4"}
-                strokeWidth={2}
-                ifOverflow="visible"
-                isFront={true}
-              />
-            )
-          })}
-
-          {/* SCATTER PARA MARCADORES DE ENTRADA */}
-          <Scatter 
+          {/* PONTOS DE ENTRADA (SCATTER - Layer Superior) */}
+          <Scatter
             yAxisId="price"
             data={entryPoints}
             shape={<EntryMarker />}
@@ -326,8 +469,8 @@ export function MarketChart({
             tooltipType="none"
           />
 
-          {/* SCATTER PARA MARCADORES DE SAÍDA */}
-          <Scatter 
+          {/* PONTOS DE SAÍDA (SCATTER - Layer Superior) */}
+          <Scatter
             yAxisId="price"
             data={exitPoints}
             shape={<ExitMarker />}
@@ -335,7 +478,6 @@ export function MarketChart({
             legendType="none"
             tooltipType="none"
           />
-
         </ComposedChart>
       </ResponsiveContainer>
     </div>
