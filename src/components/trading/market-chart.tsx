@@ -1,5 +1,3 @@
-
-
 'use client'
 
 import * as React from 'react'
@@ -28,7 +26,7 @@ import { THEMES } from './chart-parts/themes'
 import type { Operation } from '@/components/trading/operations-log.types';
 
 /* =========================================================
-   MARKER COMPONENTS (Shapes Visuais)
+   MARKER COMPONENTS (Shapes Visuais para o Scatter)
 ========================================================= */
 const EntryMarker = (props: any) => {
   const { cx, cy, payload } = props;
@@ -116,11 +114,9 @@ export function MarketChart({
       
       const [minX, maxX] = xDomain;
       
-      // Filtra apenas os dados visíveis na janela atual
       const visibleData = rawData.filter(d => d.epoch >= minX && d.epoch <= maxX);
       
       if (visibleData.length === 0) {
-        // Fallback seguro para não quebrar o gráfico se não tiver dados
         return ['auto', 'auto']; 
       }
 
@@ -132,12 +128,10 @@ export function MarketChart({
           if (d.price > maxPrice) maxPrice = d.price;
       });
 
-      // Proteção extra contra Infinity
       if (minPrice === Infinity || maxPrice === -Infinity) return ['auto', 'auto'];
 
-      const padding = (maxPrice - minPrice) * 0.1; // 10% de margem
+      const padding = (maxPrice - minPrice) * 0.1;
       
-      // Arredondar para evitar números quebrados demais no eixo
       return [minPrice - padding, maxPrice + padding];
 
   }, [rawData, xDomain]);
@@ -153,15 +147,12 @@ export function MarketChart({
     const entries: any[] = [];
     const exits: any[] = [];
 
-    // Pegar o último preço válido do gráfico para usar de fallback seguro
     const lastChartPrice = rawData.length > 0 ? rawData[rawData.length-1].price : 0;
 
     visibleOperations.forEach(op => {
-      // Validar Timestamp
       if (!op.timestamp) return;
       const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000);
       
-      // Calcular Saída
       let durationInSeconds = 0;
       switch (op.durationUnit) {
         case 't': durationInSeconds = op.duration * 2; break;
@@ -172,22 +163,16 @@ export function MarketChart({
       }
       const exitEpoch = entryEpoch + durationInSeconds;
 
-      // === CORREÇÃO CRÍTICA AQUI ===
-      // Se op.entryPrice for nulo ou 0, usamos lastChartPrice.
-      // Se lastChartPrice TAMBÉM for 0, ignoramos a operação para não quebrar o eixo Y.
       const entryPrice = op.entryPrice || lastChartPrice;
 
-      // Se o preço for inválido ou zero, PULA esta iteração.
       if (!entryPrice || entryPrice <= 0) return;
 
-      // Adiciona Ponto de Entrada
       entries.push({
         x: entryEpoch,
         y: entryPrice,
         payload: { direction: op.direction, id: op.id }
       });
 
-      // Adiciona Ponto de Saída (apenas se tiver preço de saída válido)
       if (op.status !== 'pending' && op.exitPrice && op.exitPrice > 0) {
         exits.push({
           x: exitEpoch,
@@ -197,7 +182,7 @@ export function MarketChart({
       }
     });
 
-    return { entryPoints: entries, exitPoints: exits };
+    return { entryPoints, exitPoints };
   }, [visibleOperations, rawData]);
 
   // --- LOADING STATES ---
@@ -257,15 +242,14 @@ export function MarketChart({
             tick={{ fontSize: 10 }}
           />
           
-          {/* O DOMÍNIO É CONTROLADO AQUI E APENAS AQUI */}
           <YAxis
             yAxisId="price"
             orientation="right"
-            domain={yDomain} // Usa o cálculo protegido
+            domain={yDomain}
             stroke={colors.text}
             tick={{ fontSize: 10 }}
             tickFormatter={val => typeof val === 'number' ? val.toFixed(4) : ''}
-            allowDataOverflow={false} // Deixa o eixo se ajustar levemente se necessário
+            allowDataOverflow={false}
           />
           
           <Tooltip 
@@ -305,7 +289,6 @@ export function MarketChart({
             }
             const exitEpoch = entryEpoch + durationInSeconds;
             
-            // Proteção na linha também
             const lastData = rawData.length > 0 ? rawData[rawData.length-1] : null;
             const fallbackPrice = lastData ? lastData.price : 0;
             const entryPrice = op.entryPrice || fallbackPrice;
@@ -333,7 +316,7 @@ export function MarketChart({
             )
           })}
 
-          {/* SCATTERS LIMPOS */}
+          {/* SCATTER PARA MARCADORES DE ENTRADA */}
           <Scatter 
             yAxisId="price"
             data={entryPoints}
@@ -343,6 +326,7 @@ export function MarketChart({
             tooltipType="none"
           />
 
+          {/* SCATTER PARA MARCADORES DE SAÍDA */}
           <Scatter 
             yAxisId="price"
             data={exitPoints}
