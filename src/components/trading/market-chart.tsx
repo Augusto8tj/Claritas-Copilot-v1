@@ -383,7 +383,7 @@ export function MarketChart({
                   : '#ef4444'
               }
               strokeDasharray={line.isPending ? '5 5' : '4 4'}
-              strokeWidth={4} // ✅ Linha mais grossa (era 3)
+              strokeWidth={5}
               ifOverflow="visible"
             />
           ))}
