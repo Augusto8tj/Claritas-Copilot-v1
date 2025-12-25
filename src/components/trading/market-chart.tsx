@@ -12,9 +12,6 @@ import {
   Line,
   Area,
   ReferenceDot,
-  Brush,
-  BarChart,
-  Bar,
 } from 'recharts'
 
 import type {
@@ -108,12 +105,8 @@ interface MarketChartProps {
   activeContracts: ActiveContract[]
 }
 
-const validateNumber = (val: any, fallback = 0): number => {
-    const num = Number(val);
-    return isFinite(num) ? num : fallback;
-};
-
 const SYNC_ID = 'market-chart-sync';
+const SCROLLING_WINDOW_SECONDS = 60; // Show last 1 minute
 
 export function MarketChart({
   activeSymbol,
@@ -129,28 +122,20 @@ export function MarketChart({
   // --- STATE & THEME ---
   const [chartTheme, setChartTheme] = React.useState<'light' | 'dark'>('dark')
   const [cursor, setCursor] = React.useState<string | null>(null)
-  const [zoomedData, setZoomedData] = React.useState<ChartData[] | null>(null);
+  const [xDomain, setXDomain] = React.useState<[number, number] | null>(null);
   const colors = THEMES[chartTheme]
   
-  const latestPrice =
-    rawData.length > 0 && rawData[rawData.length - 1]
-      ? validateNumber((rawData[rawData.length - 1]!).price, 0)
-      : 0
-  const prevPrice =
-    rawData.length > 1 && rawData[rawData.length - 2]
-      ? validateNumber((rawData[rawData.length - 2]!).price, 0)
-      : latestPrice
+  const latestPrice = rawData.length > 0 ? (rawData[rawData.length - 1]!).price : 0;
+  const prevPrice = rawData.length > 1 ? (rawData[rawData.length - 2]!).price : latestPrice;
       
-  const chartDisplayData = zoomedData || rawData;
-
-  const handleBrush = ({ startIndex, endIndex }: { startIndex?: number; endIndex?: number }) => {
-    if (startIndex !== undefined && endIndex !== undefined) {
-      const subset = rawData.slice(startIndex, endIndex + 1);
-      setZoomedData(subset);
-    } else {
-      setZoomedData(null); // Reset zoom
+  // Effect to manage the scrolling window domain
+  React.useEffect(() => {
+    if (rawData.length > 1) {
+      const lastEpoch = rawData[rawData.length - 1].epoch;
+      const firstEpoch = lastEpoch - SCROLLING_WINDOW_SECONDS;
+      setXDomain([firstEpoch, lastEpoch]);
     }
-  };
+  }, [rawData]);
 
 
   // --- LOADING & ERROR STATES ---
@@ -189,9 +174,9 @@ export function MarketChart({
       />
 
       {/* --- MAIN PRICE CHART --- */}
-      <ResponsiveContainer width="100%" height="75%">
+      <ResponsiveContainer width="100%" height="90%">
         <ComposedChart
-          data={chartDisplayData}
+          data={rawData}
           margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
           onMouseMove={e => e?.activeLabel && setCursor(e.activeLabel)}
           onMouseLeave={() => setCursor(null)}
@@ -200,8 +185,8 @@ export function MarketChart({
           <CartesianGrid stroke={colors.grid} strokeDasharray="3 3" />
           <XAxis 
             dataKey="epoch"
-            type="number" 
-            domain={['dataMin', 'dataMax']}
+            type="number"
+            domain={xDomain || ['dataMin', 'dataMax']}
             tickFormatter={(time) => new Date(time * 1000).toLocaleTimeString()} 
             stroke={colors.text} 
             tick={{ fontSize: 10 }}
@@ -250,28 +235,6 @@ export function MarketChart({
            ))}
         
         </ComposedChart>
-      </ResponsiveContainer>
-
-       {/* --- BRUSH/ZOOM CHART --- */}
-      <ResponsiveContainer width="100%" height="15%">
-        <BarChart 
-            data={rawData} 
-            margin={{ top: 15, right: 0, left: 0, bottom: 0 }}
-            syncId={SYNC_ID}
-        >
-          <XAxis hide />
-          <YAxis hide domain={['dataMin', 'dataMax']} />
-          <Tooltip content={() => null} />
-          <Bar dataKey="price" fill={colors.grid} isAnimationActive={false} />
-          <Brush
-            dataKey="epoch"
-            height={30}
-            stroke={colors.line}
-            fill={`${colors.bg}80`}
-            onChange={handleBrush as any}
-            tickFormatter={(time) => new Date(time * 1000).toLocaleTimeString()}
-          />
-        </BarChart>
       </ResponsiveContainer>
     </div>
   )
