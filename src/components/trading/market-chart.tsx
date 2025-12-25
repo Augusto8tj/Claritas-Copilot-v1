@@ -11,7 +11,7 @@ import {
   ReferenceLine,
   Line,
   Area,
-  ReferenceDot, 
+  Scatter,
 } from 'recharts'
 
 import type {
@@ -27,19 +27,18 @@ import type { Operation } from '@/components/trading/operations-log.types';
 
 
 /* =========================================================
-   MARKER COMPONENTS (Shapes Visuais)
+   MARCADORES CUSTOMIZADOS (SHAPES)
 ========================================================= */
 const EntryMarker = (props: any) => {
   const { cx, cy, payload } = props;
-  // payload.direction vem do objeto passado no ReferenceDot
-  const direction = payload?.direction; 
+  // Proteção: se o Recharts ainda não calculou a posição, não renderiza
+  if (!cx || !cy) return null;
+  
+  const direction = payload.direction; // Vem do dado do Scatter
   const ENTRY_COLOR = '#3b82f6';
   
-  // Se o Recharts não calcular cx/cy (ex: fora da tela), não renderiza
-  if (!cx || !cy) return null;
-
   return (
-    <g transform={`translate(${cx}, ${cy})`}>
+    <g transform={`translate(${cx}, ${cy})`} style={{ pointerEvents: 'none' }}>
       <circle r={8} fill={ENTRY_COLOR} stroke="#ffffff" strokeWidth={2.5} />
       <circle r={3.5} fill="#ffffff" />
       {direction === 'rise' ? (
@@ -53,15 +52,14 @@ const EntryMarker = (props: any) => {
 
 const ExitMarker = (props: any) => {
   const { cx, cy, payload } = props;
-  const status = payload?.status;
-  
   if (!cx || !cy) return null;
 
+  const status = payload.status;
   const isWin = status === 'won';
   const flagColor = isWin ? '#22c55e' : '#ef4444';
 
   return (
-    <g transform={`translate(${cx - 5}, ${cy - 22})`}> 
+    <g transform={`translate(${cx - 5}, ${cy - 22})`} style={{ pointerEvents: 'none' }}>
       <Flag fill={flagColor} stroke="#ffffff" strokeWidth={2.5} size={24} />
     </g>
   );
@@ -137,6 +135,54 @@ export function MarketChart({
     }
     return operations
   }, [operations])
+
+  // === PREPARAÇÃO DOS DADOS PARA O SCATTER ===
+  // Separa os pontos de entrada e saída em arrays dedicados
+  const { entryPoints, exitPoints } = React.useMemo(() => {
+    const entries: any[] = [];
+    const exits: any[] = [];
+
+    visibleOperations.forEach(op => {
+      // Calcular Timestamp (X)
+      const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000);
+      
+      let durationInSeconds = 0;
+      switch (op.durationUnit) {
+        case 't': durationInSeconds = op.duration * 2; break;
+        case 's': durationInSeconds = op.duration; break;
+        case 'm': durationInSeconds = op.duration * 60; break;
+        case 'h': durationInSeconds = op.duration * 3600; break;
+        case 'd': durationInSeconds = op.duration * 86400; break;
+      }
+      const exitEpoch = entryEpoch + durationInSeconds;
+
+      // Calcular Preço (Y)
+      // Se não tiver entryPrice, usa o último conhecido do rawData (fallback)
+      const entryPrice = op.entryPrice || (rawData.length > 0 ? rawData[rawData.length-1].price : 0);
+
+      if (entryPrice) {
+        // Adiciona Ponto de Entrada
+        entries.push({
+          x: entryEpoch,
+          y: entryPrice,
+          direction: op.direction,
+          id: op.id
+        });
+
+        // Adiciona Ponto de Saída (apenas se finalizado e com preço)
+        if (op.status !== 'pending' && op.exitPrice) {
+          exits.push({
+            x: exitEpoch,
+            y: op.exitPrice,
+            status: op.status,
+            id: op.id
+          });
+        }
+      }
+    });
+
+    return { entryPoints: entries, exitPoints: exits };
+  }, [visibleOperations, rawData]);
 
   // --- LOADING & ERROR STATES ---
   if (isChartLoading && rawData.length === 0) {
@@ -223,6 +269,13 @@ export function MarketChart({
           onMouseMove={e => e?.activeLabel && setCursor(e.activeLabel)}
           onMouseLeave={() => setCursor(null)}
         >
+          <defs>
+            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={colors.areaTop} />
+              <stop offset="100%" stopColor={colors.areaBottom} />
+            </linearGradient>
+          </defs>
+
           <CartesianGrid stroke={colors.grid} strokeDasharray="3 3" />
           
           <XAxis 
@@ -231,8 +284,8 @@ export function MarketChart({
             domain={xDomain || ['dataMin', 'dataMax']}
             tickFormatter={(time) => new Date(time * 1000).toLocaleTimeString()} 
             stroke={colors.text} 
+            allowDataOverflow
             tick={{ fontSize: 10 }}
-            allowDataOverflow={true}
           />
           
           <YAxis
@@ -244,16 +297,9 @@ export function MarketChart({
             tickFormatter={val => typeof val === 'number' ? val.toFixed(4) : ''}
           />
           
-          <Tooltip content={<CustomTooltip colors={colors} />} />
+          <Tooltip content={<CustomTooltip colors={colors} />} cursor={{ stroke: colors.crosshair, strokeDasharray: '3 3' }} />
 
-          {/* ÁREA E LINHA DO PREÇO (Renderizados ANTES para ficar no fundo) */}
-          <defs>
-            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={colors.areaTop} />
-              <stop offset="100%" stopColor={colors.areaBottom} />
-            </linearGradient>
-          </defs>
-          
+          {/* 1. GRÁFICO DE ÁREA/LINHA (BACKGROUND) */}
           <Area
             yAxisId="price"
             dataKey="price"
@@ -261,91 +307,80 @@ export function MarketChart({
             stroke="none"
             isAnimationActive={false}
           />
-          
           <Line
             yAxisId="price"
             dataKey="price"
             stroke={colors.line}
             strokeWidth={2}
-            dot={false} // IMPORTANTE: Desativado para não poluir
+            dot={false} // IMPORTANTE: Desativado
             activeDot={{ r: 4, fill: colors.line }}
             isAnimationActive={false}
           />
 
-          {/* CROSSHAIR */}
-          {cursor && (
-            <ReferenceLine x={cursor as any} stroke={colors.crosshair} strokeDasharray="3 3" yAxisId="price"/>
-          )}
-
-          {/* === OPERAÇÕES RENDERIZADAS AQUI (CAMADA SUPERIOR) === */}
-          {visibleOperations.map((op) => {
-            // 1. Cálculos de Tempo (X)
+          {/* 2. LINHAS DE OPERAÇÃO (CONECTORES) */}
+          {visibleOperations.map(op => {
             const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000);
             
+            // Recálculo da duração apenas para a linha
             let durationInSeconds = 0;
             switch (op.durationUnit) {
-              case 't': durationInSeconds = op.duration * 2; break; 
+              case 't': durationInSeconds = op.duration * 2; break;
               case 's': durationInSeconds = op.duration; break;
               case 'm': durationInSeconds = op.duration * 60; break;
               case 'h': durationInSeconds = op.duration * 3600; break;
               case 'd': durationInSeconds = op.duration * 86400; break;
             }
             const exitEpoch = entryEpoch + durationInSeconds;
+            const entryPrice = op.entryPrice || (rawData.length > 0 ? rawData[rawData.length-1].price : 0);
 
-            // 2. Cálculos de Preço (Y)
-            const entryPrice = op.entryPrice || (rawData.length > 0 ? rawData[rawData.length - 1].price : 0);
-            
-            // Lógica para linha pendente: vai até o último ponto conhecido se ainda não acabou
+            // Determinar o ponto final da linha (alvo ou atual se pendente)
             const isPending = op.status === 'pending';
             const lastChartPoint = rawData.length > 0 ? rawData[rawData.length - 1] : null;
             
-            const targetEpoch = isPending && lastChartPoint 
-              ? Math.min(exitEpoch, lastChartPoint.epoch) 
-              : exitEpoch;
-              
-            const targetPrice = isPending && lastChartPoint
-              ? lastChartPoint.price 
-              : (op.exitPrice || entryPrice);
+            const targetEpoch = isPending && lastChartPoint ? Math.min(exitEpoch, lastChartPoint.epoch) : exitEpoch;
+            const targetPrice = isPending && lastChartPoint ? lastChartPoint.price : (op.exitPrice || entryPrice);
 
             if (!entryPrice) return null;
 
             return (
-              <React.Fragment key={op.id}>
-                {/* LINHA CONECTANDO INICIO E FIM */}
-                <ReferenceLine
-                  yAxisId="price"
-                  segment={[
-                    { x: entryEpoch, y: entryPrice },
-                    { x: targetEpoch, y: targetPrice }
-                  ]}
-                  stroke={isPending ? '#f59e0b' : (op.status === 'won' ? '#22c55e' : '#ef4444')}
-                  strokeDasharray={isPending ? "5 5" : "4 4"}
-                  strokeWidth={2}
-                  ifOverflow="visible"
-                />
-
-                {/* MARCADOR DE ENTRADA (Círculo com Seta) */}
-                <ReferenceDot
-                  yAxisId="price"
-                  x={entryEpoch}
-                  y={entryPrice}
-                  shape={(props: any) => <EntryMarker {...props} payload={{ direction: op.direction }} />}
-                  ifOverflow="visible" // Garante que apareça mesmo nas bordas
-                />
-
-                {/* MARCADOR DE SAÍDA (Bandeira) - Só se tiver exitPrice ou acabou */}
-                {!isPending && op.exitPrice && (
-                  <ReferenceDot
-                    yAxisId="price"
-                    x={exitEpoch}
-                    y={op.exitPrice}
-                    shape={(props: any) => <ExitMarker {...props} payload={{ status: op.status }} />}
-                    ifOverflow="visible"
-                  />
-                )}
-              </React.Fragment>
-            );
+              <ReferenceLine
+                key={`line-${op.id}`}
+                yAxisId="price"
+                segment={[
+                  { x: entryEpoch, y: entryPrice },
+                  { x: targetEpoch, y: targetPrice }
+                ]}
+                stroke={isPending ? '#f59e0b' : (op.status === 'won' ? '#22c55e' : '#ef4444')}
+                strokeDasharray={isPending ? "5 5" : "4 4"}
+                strokeWidth={2}
+                ifOverflow="visible" // Garante que a linha apareça mesmo se sair um pouco
+                isFront={true} // Força renderizar na frente da área
+              />
+            )
           })}
+
+          {/* 3. PONTOS DE ENTRADA (SCATTER - Layer Superior) */}
+          <Scatter 
+            yAxisId="price"
+            data={entryPoints}
+            shape={<EntryMarker />}
+            isAnimationActive={false}
+            legendType="none"
+            tooltipType="none"
+            dataKey="x"
+          />
+
+          {/* 4. PONTOS DE SAÍDA (SCATTER - Layer Superior) */}
+          <Scatter 
+            yAxisId="price"
+            data={exitPoints}
+            shape={<ExitMarker />}
+            isAnimationActive={false}
+            legendType="none"
+            tooltipType="none"
+            dataKey="x"
+          />
+
         </ComposedChart>
       </ResponsiveContainer>
     </div>
