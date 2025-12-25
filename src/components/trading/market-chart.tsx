@@ -34,8 +34,16 @@ const EntryMarker = (props: any) => {
   
   if (!cx || !cy || !payload) return null
 
-  const direction = payload.direction 
-  const ENTRY_COLOR = '#3b82f6'
+  const direction = payload.direction
+  const status = payload.status
+  
+  // Cor baseada no status da operação
+  let ENTRY_COLOR = '#3b82f6' // Azul para pendente
+  if (status === 'won') {
+    ENTRY_COLOR = '#22c55e' // Verde para vitória
+  } else if (status === 'lost') {
+    ENTRY_COLOR = '#ef4444' // Vermelho para perda
+  }
 
   return (
     <g transform={`translate(${cx}, ${cy})`}>
@@ -195,7 +203,8 @@ export function MarketChart({
       entries.push({
         x: entryEpoch,
         y: entryPrice,
-        direction: op.direction, 
+        direction: op.direction,
+        status: op.status, // ✅ Adiciona status para colorir o ponto
         id: op.id,
       })
 
@@ -246,6 +255,17 @@ export function MarketChart({
       operationLines: lines,
     }
   }, [visibleOperations, rawData])
+
+  // Debug
+  React.useEffect(() => {
+    if (entryPoints.length > 0 || exitPoints.length > 0) {
+      console.log('📍 Markers:', {
+        entries: entryPoints.length,
+        exits: exitPoints.length,
+        lines: operationLines.length,
+      })
+    }
+  }, [entryPoints, exitPoints, operationLines])
 
   if (isChartLoading && rawData.length === 0) {
     return (
@@ -397,6 +417,7 @@ export function MarketChart({
           {entryPoints.length > 0 && (
             <Scatter
               yAxisId="price"
+              dataKey="x"
               data={entryPoints}
               shape={<EntryMarker />}
               isAnimationActive={false}
@@ -407,6 +428,7 @@ export function MarketChart({
           {exitPoints.length > 0 && (
             <Scatter
               yAxisId="price"
+              dataKey="x"
               data={exitPoints}
               shape={<ExitMarker />}
               isAnimationActive={false}
