@@ -31,12 +31,11 @@ const INITIAL_WINDOW_SECONDS = 120 // Começar com 2 minutos visíveis
 ========================================================= */
 const EntryMarker = (props: any) => {
   const { cx, cy, payload } = props
-  // payload.direction vem do objeto passado no ReferenceDot
-  const direction = payload?.direction
-  const ENTRY_COLOR = '#3b82f6'
+  // Proteção: se o Recharts ainda não calculou a posição, não renderiza
+  if (!cx || !cy || !payload) return null
 
-  // Se o Recharts não calcular cx/cy (ex: fora da tela), não renderiza
-  if (!cx || !cy) return null
+  const direction = payload.direction // Vem do dado do Scatter
+  const ENTRY_COLOR = '#3b82f6'
 
   return (
     <g transform={`translate(${cx}, ${cy})`} style={{ pointerEvents: 'none' }}>
@@ -63,10 +62,9 @@ const EntryMarker = (props: any) => {
 
 const ExitMarker = (props: any) => {
   const { cx, cy, payload } = props
-  const status = payload?.status
+  if (!cx || !cy || !payload) return null
 
-  if (!cx || !cy) return null
-
+  const status = payload.status
   const isWin = status === 'won'
   const flagColor = isWin ? '#22c55e' : '#ef4444'
 
@@ -128,7 +126,6 @@ export function MarketChart({
     }
   }, [rawData, windowSize])
 
-  // Controles de Zoom
   const handleZoomIn = () => {
     setWindowSize(prev => Math.max(30, prev - 30)) // Mínimo 30 segundos
   }
@@ -176,14 +173,14 @@ export function MarketChart({
     return operations
   }, [operations])
 
-  // 4. Preparar Dados do Scatter (COM PROTEÇÃO)
+  // 4. Preparar Dados do Scatter (COM PROTEÇÃO CONTRA ZERO)
   const { entryPoints, exitPoints } = React.useMemo(() => {
     const entries: any[] = []
     const exits: any[] = []
 
     // Pegar o último preço válido do gráfico para usar de fallback seguro
     const lastChartPrice =
-      rawData.length > 0 ? rawData[rawData.length - 1]?.price : undefined
+      rawData.length > 0 ? rawData[rawData.length - 1].price : 0
 
     visibleOperations.forEach(op => {
       // Validar Timestamp
@@ -212,6 +209,7 @@ export function MarketChart({
       const exitEpoch = entryEpoch + durationInSeconds
 
       // Se op.entryPrice for nulo ou 0, usamos lastChartPrice.
+      // Se lastChartPrice TAMBÉM for 0, ignoramos a operação para não quebrar o eixo Y.
       const entryPrice = op.entryPrice || lastChartPrice
 
       // Se o preço for inválido ou zero, PULA esta iteração.
@@ -352,7 +350,7 @@ export function MarketChart({
             tickFormatter={val =>
               typeof val === 'number' ? val.toFixed(4) : ''
             }
-            allowDataOverflow={false}
+            allowDataOverflow={false} 
           />
 
           <Tooltip
@@ -414,17 +412,15 @@ export function MarketChart({
 
             // Proteção na linha também
             const lastData = rawData.length > 0 ? rawData[rawData.length - 1] : null
-            const fallbackPrice = lastData ? lastData.price : undefined
-            const entryPrice = op.entryPrice || fallbackPrice
+            const fallbackPrice = lastData ? lastData.price : 0;
+            const entryPrice = op.entryPrice || fallbackPrice;
 
             if (!entryPrice || entryPrice <= 0) return null
 
             const isPending = op.status === 'pending'
             
+            // Lógica final e correta
             const targetEpoch = isPending && lastData ? Math.min(exitEpoch, lastData.epoch) : exitEpoch;
-            
-            // CORREÇÃO: Para operações finalizadas, o targetPrice é o exitPrice.
-            // Para pendentes, ele fica fixo no entryPrice.
             const targetPrice = isPending ? entryPrice : (op.exitPrice || entryPrice);
 
             return (
@@ -450,6 +446,7 @@ export function MarketChart({
             )
           })}
 
+          {/* SCATTERS LIMPOS */}
           <Scatter
             yAxisId="price"
             data={entryPoints}
