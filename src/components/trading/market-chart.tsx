@@ -1,3 +1,4 @@
+
 'use client'
 
 import * as React from 'react'
@@ -336,6 +337,7 @@ export function MarketChart({
             legendType="none"
             tooltipType="none"
             dataKey="x"
+            domain={{ y: yDomain }}
           />
 
           {/* 4. PONTOS DE SAÍDA (SCATTER - Layer Superior) */}
@@ -347,6 +349,7 @@ export function MarketChart({
             legendType="none"
             tooltipType="none"
             dataKey="x"
+            domain={{ y: yDomain }}
           />
 
         </ComposedChart>
