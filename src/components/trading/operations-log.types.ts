@@ -1,7 +1,6 @@
 
 
 import type { RobotStrategy } from "@/ai/flows/strategy-council-flow.types";
-import type { DurationUnit } from "./deriv-trader-interface.types";
 
 export type OperationStatus = 'pending' | 'won' | 'lost';
 export type OperationInitiator = 'Manual' | 'Piloto' | 'Conselho';
@@ -15,7 +14,7 @@ export interface Operation {
   result?: number; // Profit or loss amount
   timestamp: string; // Changed to string (ISO format)
   duration: number;
-  durationUnit: DurationUnit;
+  durationUnit: 't' | 's' | 'm' | 'h' | 'd';
   initiator: OperationInitiator;
   entryPrice?: number;
   exitPrice?: number;

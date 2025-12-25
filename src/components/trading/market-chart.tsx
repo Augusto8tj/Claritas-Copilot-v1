@@ -11,7 +11,7 @@ import {
   ReferenceLine,
   Line,
   Area,
-  Dot,
+  ReferenceDot, // <--- IMPORTANTE
 } from 'recharts'
 
 import type {
@@ -25,187 +25,128 @@ import { THEMES } from './chart-parts/themes'
 import { Flag, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
 import type { Operation } from '@/components/trading/operations-log.types';
 
-/* =========================================================
-   CUSTOM DOT COMPONENTS (Para renderizar marcadores)
-========================================================= */
-interface CustomDotProps {
-  cx?: number
-  cy?: number
-  payload?: any
-  operations: Operation[]
-  chartData: ChartData[]
-}
-
-const EntryDot = ({ cx, cy, payload, operations, chartData }: CustomDotProps) => {
-  if (!cx || !cy || !payload) return null
-  
-  const currentEpoch = payload.epoch
-  
-  // Encontrar operações que começam neste ponto (±2 segundos de tolerância)
-  const entriesAtPoint = operations.filter(op => {
-    const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000)
-    return Math.abs(entryEpoch - currentEpoch) <= 2
-  })
-  
-  if (entriesAtPoint.length === 0) return null
-  
-  const ENTRY_COLOR = '#3b82f6'
-  
-  return (
-    <g>
-      {entriesAtPoint.map((op, idx) => (
-        <g key={`entry-${op.id}`} transform={`translate(${cx}, ${cy + idx * 16})`}>
-          {/* Círculo externo */}
-          <circle r={8} fill={ENTRY_COLOR} stroke="#ffffff" strokeWidth={2.5} />
-          {/* Círculo interno */}
-          <circle r={3.5} fill="#ffffff" />
-          {/* Seta de direção */}
-          {op.direction === 'rise' ? (
-            <path d="M -3,-6 L 0,-9 L 3,-6" stroke="#ffffff" strokeWidth={1.5} fill="none" />
-          ) : (
-            <path d="M -3,6 L 0,9 L 3,6" stroke="#ffffff" strokeWidth={1.5} fill="none" />
-          )}
-        </g>
-      ))}
-    </g>
-  )
-}
-
-const ExitDot = ({ cx, cy, payload, operations }: CustomDotProps) => {
-  if (!cx || !cy || !payload) return null
-  
-  const currentEpoch = payload.epoch
-  
-  // Encontrar operações finalizadas que terminam neste ponto
-  const exitsAtPoint = operations.filter(op => {
-    if (op.status === 'pending' || !op.exitPrice) return false
-    
-    const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000)
-    let durationInSeconds = 0
-    switch (op.durationUnit) {
-      case 't': durationInSeconds = op.duration * 2; break
-      case 's': durationInSeconds = op.duration; break
-      case 'm': durationInSeconds = op.duration * 60; break
-      case 'h': durationInSeconds = op.duration * 3600; break;
-      case 'd': durationInSeconds = op.duration * 86400; break;
-    }
-    const exitEpoch = entryEpoch + durationInSeconds
-    
-    return Math.abs(exitEpoch - currentEpoch) <= 2
-  })
-  
-  if (exitsAtPoint.length === 0) return null
-  
-  return (
-    <g>
-      {exitsAtPoint.map((op, idx) => {
-        const isWin = op.status === 'won'
-        const flagColor = isWin ? '#22c55e' : '#ef4444'
-        
-        return (
-          <g key={`exit-${op.id}`} transform={`translate(${cx - 10}, ${cy - 22 + idx * 26})`}>
-            <Flag 
-              fill={flagColor} 
-              stroke="#ffffff" 
-              strokeWidth={2.5} 
-              size={24}
-            />
-          </g>
-        )
-      })}
-    </g>
-  )
-}
 
 /* =========================================================
-   OPERATION LINES (Linhas conectando entrada/saída)
+   SHAPES PARA REFERENCE DOTS
 ========================================================= */
-interface OperationLinesProps {
-  operations: Operation[]
-  chartData: ChartData[]
-  colors: typeof THEMES.dark
-}
+const EntryMarker = (props: any) => {
+  const { cx, cy, payload } = props; // `payload` is passed by ReferenceDot
+  if (!payload) return null;
+  const { direction } = payload;
+  const ENTRY_COLOR = '#3b82f6';
+  
+  return (
+    <g transform={`translate(${cx}, ${cy})`}>
+      {/* Círculo externo */}
+      <circle r={8} fill={ENTRY_COLOR} stroke="#ffffff" strokeWidth={2.5} />
+      {/* Círculo interno */}
+      <circle r={3.5} fill="#ffffff" />
+      {/* Seta */}
+      {direction === 'rise' ? (
+        <path d="M -3,-6 L 0,-9 L 3,-6" stroke="#ffffff" strokeWidth={1.5} fill="none" />
+      ) : (
+        <path d="M -3,6 L 0,9 L 3,6" stroke="#ffffff" strokeWidth={1.5} fill="none" />
+      )}
+    </g>
+  );
+};
 
-const OperationLines = ({ operations, chartData, colors }: OperationLinesProps) => {
+const ExitMarker = (props: any) => {
+  const { cx, cy, payload } = props; // `payload` is passed by ReferenceDot
+  if (!payload) return null;
+  const { status } = payload;
+  const isWin = status === 'won';
+  const flagColor = isWin ? '#22c55e' : '#ef4444';
+
+  return (
+    <g transform={`translate(${cx - 5}, ${cy - 22})`}> 
+      <Flag 
+        fill={flagColor} 
+        stroke="#ffffff" 
+        strokeWidth={2.5} 
+        size={24}
+      />
+    </g>
+  );
+};
+
+
+/* =========================================================
+   OPERATIONS LAYER (Renderiza Linhas e Pontos)
+========================================================= */
+const OperationsLayer = ({ operations, chartData }: { operations: Operation[], chartData: ChartData[] }) => {
   return (
     <>
-      {operations.map(operation => {
-        const entryEpoch = Math.floor(new Date(operation.timestamp).getTime() / 1000)
+      {operations.map((op) => {
+        // Converter timestamp da operação para Epoch (segundos) para bater com o XAxis
+        const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000);
         
-        let entryPrice = operation.entryPrice
-        if (!entryPrice && chartData.length > 0) {
-          const closestPoint = chartData.reduce((prev, curr) => {
-            const prevDiff = Math.abs(prev.epoch - entryEpoch)
-            const currDiff = Math.abs(curr.epoch - entryEpoch)
-            return currDiff < prevDiff ? curr : prev
-          })
-          if (Math.abs(closestPoint.epoch - entryEpoch) <= 10) {
-            entryPrice = closestPoint.price
-          }
+        // Calcular Epoch de saída
+        let durationInSeconds = 0;
+        switch (op.durationUnit) {
+          case 't': durationInSeconds = op.duration * 2; break; // Estimativa para ticks
+          case 's': durationInSeconds = op.duration; break;
+          case 'm': durationInSeconds = op.duration * 60; break;
+          case 'h': durationInSeconds = op.duration * 3600; break;
+          case 'd': durationInSeconds = op.duration * 86400; break;
         }
+        const exitEpoch = entryEpoch + durationInSeconds;
+
+        // Definir Preço de Entrada (use o da operação ou o ultimo conhecido se for null)
+        const entryPrice = op.entryPrice || (chartData.length > 0 ? chartData[chartData.length-1].price : 0);
         
-        if (!entryPrice) return null
+        // Definir Preço de Saída ou Alvo (para linha pendente)
+        // Se estiver pendente, a linha vai até o ultimo ponto do gráfico
+        const currentChartEpoch = chartData.length > 0 ? chartData[chartData.length - 1].epoch : entryEpoch;
+        const currentChartPrice = chartData.length > 0 ? chartData[chartData.length - 1].price : entryPrice;
         
-        let durationInSeconds = 0
-        switch (operation.durationUnit) {
-          case 't': durationInSeconds = op.duration * 2; break
-          case 's': durationInSeconds = op.duration; break
-          case 'm': durationInSeconds = op.duration * 60; break
-          case 'h': durationInSeconds = op.duration * 3600; break
-          case 'd': durationInSeconds = op.duration * 86400; break
-        }
-        const exitEpoch = entryEpoch + durationInSeconds
-        
-        // Operação finalizada
-        if (operation.status !== 'pending' && operation.exitPrice) {
-          const isWin = operation.status === 'won'
-          const resultColor = isWin ? '#22c55e' : '#ef4444'
-          
-          return (
+        const isPending = op.status === 'pending';
+        const targetEpoch = isPending ? Math.min(exitEpoch, currentChartEpoch) : exitEpoch;
+        const targetPrice = isPending ? currentChartPrice : op.exitPrice;
+
+        if (!entryPrice) return null;
+
+        return (
+          <React.Fragment key={op.id}>
+            {/* 1. LINHA DE CONEXÃO (Renderizada primeiro para ficar atrás dos pontos) */}
             <ReferenceLine
-              key={`line-${operation.id}`}
               yAxisId="price"
               segment={[
                 { x: entryEpoch, y: entryPrice },
-                { x: exitEpoch, y: operation.exitPrice },
+                { x: targetEpoch, y: targetPrice || entryPrice } // Fallback para y
               ]}
-              stroke={resultColor}
-              strokeDasharray="4 4"
-              strokeWidth={3}
-              ifOverflow="visible"
+              stroke={isPending ? '#f59e0b' : (op.status === 'won' ? '#22c55e' : '#ef4444')}
+              strokeDasharray={isPending ? "5 5" : "4 4"}
+              strokeWidth={2}
+              ifOverflow="extendDomain"
             />
-          )
-        }
-        
-        // Operação pendente
-        if (chartData.length > 0) {
-          const currentPoint = chartData[chartData.length - 1]
-          const currentPrice = currentPoint?.price || entryPrice
-          const currentEpoch = currentPoint?.epoch || exitEpoch
-          const PENDING_COLOR = '#f59e0b'
-          
-          return (
-            <ReferenceLine
-              key={`line-${operation.id}`}
+
+            {/* 2. PONTO DE ENTRADA (Renderiza apenas 1 vez por operação) */}
+            <ReferenceDot
               yAxisId="price"
-              segment={[
-                { x: entryEpoch, y: entryPrice },
-                { x: Math.min(exitEpoch, currentEpoch), y: currentPrice },
-              ]}
-              stroke={PENDING_COLOR}
-              strokeDasharray="5 5"
-              strokeWidth={2.5}
-              strokeOpacity={0.8}
-              ifOverflow="visible"
+              x={entryEpoch}
+              y={entryPrice}
+              shape={(props) => <EntryMarker {...props} payload={{direction: op.direction}} />}
+              ifOverflow="extendDomain"
             />
-          )
-        }
-        
-        return null
+
+            {/* 3. PONTO DE SAÍDA (Apenas se finalizado e tiver preço de saída) */}
+            {!isPending && op.exitPrice && (
+              <ReferenceDot
+                yAxisId="price"
+                x={exitEpoch}
+                y={op.exitPrice}
+                shape={(props) => <ExitMarker {...props} payload={{status: op.status}} />}
+                ifOverflow="extendDomain"
+              />
+            )}
+          </React.Fragment>
+        );
       })}
     </>
-  )
-}
+  );
+};
+
 
 /* =========================================================
    MAIN CHART COMPONENT
@@ -387,11 +328,10 @@ export function MarketChart({
             <ReferenceLine x={cursor as any} stroke={colors.crosshair} strokeDasharray="3 3" yAxisId="price"/>
           )}
 
-          {/* LINHAS DAS OPERAÇÕES (Atrás do gráfico de preço) */}
-          <OperationLines 
+          {/* === NOVA CAMADA DE OPERAÇÕES === */}
+          <OperationsLayer 
             operations={visibleOperations} 
             chartData={rawData} 
-            colors={colors} 
           />
 
           {/* ÁREA E LINHA DO PREÇO */}
@@ -408,19 +348,13 @@ export function MarketChart({
             stroke="none"
             isAnimationActive={false}
           />
+          
           <Line
             yAxisId="price"
             dataKey="price"
             stroke={colors.line}
             strokeWidth={2}
-            dot={(props: any) => {
-              const { key, ...rest } = props;
-              return (
-              <g key={key}>
-                <EntryDot {...rest} operations={visibleOperations} chartData={rawData} />
-                <ExitDot {...rest} operations={visibleOperations} chartData={rawData} />
-              </g>
-            )}}
+            dot={false}
             isAnimationActive={false}
           />
         
