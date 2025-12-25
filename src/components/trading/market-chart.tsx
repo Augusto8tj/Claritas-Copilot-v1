@@ -70,19 +70,24 @@ const OperationMarker = ({ operation, chartData, colors }: OperationMarkerProps)
   // Usar o entryPrice da operação ou encontrar no gráfico
   let entryPrice = operation.entryPrice
   
+  // Se não tem entryPrice, SEMPRE buscar no gráfico
   if (!entryPrice && chartData.length > 0) {
-    // Encontrar o ponto mais próximo no gráfico
+    // Encontrar o ponto mais próximo no gráfico (dentro de 10 segundos de tolerância)
     const closestPoint = chartData.reduce((prev, curr) => {
       const prevDiff = Math.abs(prev.epoch - entryEpoch)
       const currDiff = Math.abs(curr.epoch - entryEpoch)
       return currDiff < prevDiff ? curr : prev
     })
-    entryPrice = closestPoint.price
-    console.log('Using closest point price:', entryPrice, 'at epoch:', closestPoint.epoch)
+    
+    // Só usar se estiver dentro de 10 segundos
+    if (Math.abs(closestPoint.epoch - entryEpoch) <= 10) {
+      entryPrice = closestPoint.price
+      console.log('✅ Found entry price from chart:', entryPrice, 'at epoch:', closestPoint.epoch)
+    }
   }
   
   if (!entryPrice) {
-    console.warn('No entry price found for operation:', operation.id)
+    console.warn('⚠️ No entry price found for operation:', operation.id, 'Entry epoch:', entryEpoch)
     return null
   }
 
@@ -404,5 +409,3 @@ export function MarketChart({
     </div>
   )
 }
-
-    
