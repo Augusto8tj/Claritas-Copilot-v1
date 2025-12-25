@@ -134,10 +134,12 @@ export function MarketChart({
   const handleZoomOut = () => setWindowSize(prev => Math.min(600, prev + 30))
   const handleResetZoom = () => setWindowSize(INITIAL_WINDOW_SECONDS)
 
-  // Calcular Domínio Y (Preço)
+  // Calcular Domínio Y (Preço) - IGNORAR pontos de operações
   const yDomain = React.useMemo(() => {
     if (!xDomain) return ['auto', 'auto']
     const [minX, maxX] = xDomain
+    
+    // Filtrar apenas os dados do gráfico de preço, ignorando operações
     const visibleData = rawData.filter(d => d.epoch >= minX && d.epoch <= maxX)
 
     if (visibleData.length === 0) return ['auto', 'auto']
@@ -145,6 +147,7 @@ export function MarketChart({
     let minPrice = Infinity
     let maxPrice = -Infinity
 
+    // Calcular min/max APENAS dos preços do gráfico
     visibleData.forEach(d => {
       if (d.price < minPrice) minPrice = d.price
       if (d.price > maxPrice) maxPrice = d.price
@@ -152,7 +155,7 @@ export function MarketChart({
 
     if (minPrice === Infinity || maxPrice === -Infinity) return ['auto', 'auto']
 
-    const padding = (maxPrice - minPrice) * 0.1
+    const padding = (maxPrice - minPrice) * 0.15 // Mais padding para os marcadores
     return [minPrice - padding, maxPrice + padding]
   }, [rawData, xDomain])
 
@@ -259,10 +262,12 @@ export function MarketChart({
   // Debug
   React.useEffect(() => {
     if (entryPoints.length > 0 || exitPoints.length > 0) {
-      console.log('📍 Markers:', {
+      console.log('📍 Markers Debug:', {
         entries: entryPoints.length,
         exits: exitPoints.length,
         lines: operationLines.length,
+        entryExample: entryPoints[0],
+        exitExample: exitPoints[0],
       })
     }
   }, [entryPoints, exitPoints, operationLines])
@@ -378,7 +383,7 @@ export function MarketChart({
                   : '#ef4444'
               }
               strokeDasharray={line.isPending ? '5 5' : '4 4'}
-              strokeWidth={3}
+              strokeWidth={4} // ✅ Linha mais grossa (era 3)
               ifOverflow="visible"
             />
           ))}
@@ -417,10 +422,10 @@ export function MarketChart({
           {entryPoints.length > 0 && (
             <Scatter
               yAxisId="price"
-              dataKey="x"
               data={entryPoints}
               shape={<EntryMarker />}
               isAnimationActive={false}
+              fill="transparent" // Não afetar o domínio
             />
           )}
 
@@ -428,10 +433,10 @@ export function MarketChart({
           {exitPoints.length > 0 && (
             <Scatter
               yAxisId="price"
-              dataKey="x"
               data={exitPoints}
               shape={<ExitMarker />}
               isAnimationActive={false}
+              fill="transparent" // Não afetar o domínio
             />
           )}
         </ComposedChart>
