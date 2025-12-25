@@ -344,7 +344,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 const promise = promisesRef.current.get(String(reqId));
                 promisesRef.current.delete(String(reqId));
                 if (response.error) {
-                    promise?.reject(new Error(response.error.message || 'Unknown error'));
+                    if (response.error.code === 'AlreadySubscribed') {
+                        // If already subscribed, it's not a failure. We can resolve silently.
+                        promise?.resolve(response);
+                    } else {
+                        promise?.reject(new Error(response.error.message || 'Unknown error'));
+                    }
                 } else {
                     promise?.resolve(response);
                 }
