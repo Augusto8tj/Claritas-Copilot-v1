@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import * as React from 'react'
@@ -26,9 +27,8 @@ import { CustomTooltip } from './chart-parts/custom-tooltip'
 import { THEMES } from './chart-parts/themes'
 import type { Operation } from '@/components/trading/operations-log.types';
 
-
 /* =========================================================
-   MARCADORES CUSTOMIZADOS (SHAPES)
+   MARKER COMPONENTS (Shapes Visuais)
 ========================================================= */
 const EntryMarker = (props: any) => {
   const { cx, cy, payload } = props;
@@ -66,7 +66,20 @@ const ExitMarker = (props: any) => {
   );
 };
 
+
 const INITIAL_WINDOW_SECONDS = 120 // Começar com 2 minutos visíveis
+
+interface MarketChartProps {
+  activeSymbol: string;
+  chartData: ChartData[];
+  isChartLoading: boolean;
+  chartError: string | null;
+  chartType: ChartType;
+  setChartType: (type: ChartType) => void;
+  timePeriod: TimePeriod;
+  setTimePeriod: (period: TimePeriod) => void;
+  operations: Operation[];
+}
 
 export function MarketChart({
   activeSymbol,
@@ -171,8 +184,7 @@ export function MarketChart({
       entries.push({
         x: entryEpoch,
         y: entryPrice,
-        direction: op.direction,
-        id: op.id
+        payload: { direction: op.direction, id: op.id }
       });
 
       // Adiciona Ponto de Saída (apenas se tiver preço de saída válido)
@@ -180,8 +192,7 @@ export function MarketChart({
         exits.push({
           x: exitEpoch,
           y: op.exitPrice,
-          status: op.status,
-          id: op.id
+          payload: { status: op.status, id: op.id }
         });
       }
     });
@@ -346,5 +357,3 @@ export function MarketChart({
     </div>
   )
 }
-
-    
