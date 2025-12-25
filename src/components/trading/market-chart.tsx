@@ -32,9 +32,9 @@ const INITIAL_WINDOW_SECONDS = 120 // Começar com 2 minutos visíveis
 const EntryMarker = (props: any) => {
   const { cx, cy, payload } = props
   // Proteção: se o Recharts ainda não calculou a posição, não renderiza
-  if (!cx || !cy || !payload) return null
+  if (!cx || !cy) return null
 
-  const direction = payload.direction // Vem do dado do Scatter
+  const direction = payload?.direction
   const ENTRY_COLOR = '#3b82f6'
 
   return (
@@ -62,9 +62,9 @@ const EntryMarker = (props: any) => {
 
 const ExitMarker = (props: any) => {
   const { cx, cy, payload } = props
-  if (!cx || !cy || !payload) return null
+  if (!cx || !cy) return null
 
-  const status = payload.status
+  const status = payload?.status
   const isWin = status === 'won'
   const flagColor = isWin ? '#22c55e' : '#ef4444'
 
@@ -173,21 +173,21 @@ export function MarketChart({
     return operations
   }, [operations])
 
-  // 4. Preparar Dados do Scatter (COM PROTEÇÃO CONTRA ZERO)
-  const { entryPoints, exitPoints } = React.useMemo(() => {
+  // 4. Preparar Dados do Scatter e das Linhas de Referência (COM PROTEÇÃO)
+  const { entryPoints, exitPoints, operationLines } = React.useMemo(() => {
     const entries: any[] = []
     const exits: any[] = []
-
-    // Pegar o último preço válido do gráfico para usar de fallback seguro
+    const lines: any[] = []
     const lastChartPrice =
       rawData.length > 0 ? rawData[rawData.length - 1].price : 0
 
     visibleOperations.forEach(op => {
-      // Validar Timestamp
       if (!op.timestamp) return
-      const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000)
 
-      // Calcular Saída
+      const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000)
+      const entryPrice = op.entryPrice || lastChartPrice
+      if (!entryPrice || entryPrice <= 0) return
+
       let durationInSeconds = 0
       switch (op.durationUnit) {
         case 't':
@@ -208,22 +208,40 @@ export function MarketChart({
       }
       const exitEpoch = entryEpoch + durationInSeconds
 
-      // Se op.entryPrice for nulo ou 0, usamos lastChartPrice.
-      // Se lastChartPrice TAMBÉM for 0, ignoramos a operação para não quebrar o eixo Y.
-      const entryPrice = op.entryPrice || lastChartPrice
-
-      // Se o preço for inválido ou zero, PULA esta iteração.
-      if (!entryPrice || entryPrice <= 0) return
-
-      // Adiciona Ponto de Entrada
+      // Adicionar ponto de entrada
       entries.push({
         x: entryEpoch,
         y: entryPrice,
         payload: { direction: op.direction, id: op.id },
       })
 
-      // Adiciona Ponto de Saída (apenas se tiver preço de saída válido)
-      if (op.status !== 'pending' && op.exitPrice && op.exitPrice > 0) {
+      const isPending = op.status === 'pending'
+      const lastData = rawData.length > 0 ? rawData[rawData.length - 1] : null
+      
+      const targetEpoch = isPending && lastData ? Math.min(exitEpoch, lastData.epoch) : exitEpoch;
+
+      // *** CORREÇÃO CRÍTICA AQUI ***
+      // Se a operação acabou, o preço final É o preço de saída. Sem fallback.
+      // Se está pendente, a linha fica horizontal no preço de entrada.
+      const targetPrice = isPending ? entryPrice : op.exitPrice;
+
+
+      // Adicionar linha de conexão
+      if (targetPrice) {
+         lines.push({
+          id: op.id,
+          isPending,
+          status: op.status,
+          segment: [
+            { x: entryEpoch, y: entryPrice },
+            { x: targetEpoch, y: targetPrice },
+          ],
+        });
+      }
+
+
+      // Adicionar ponto de saída, se aplicável
+      if (!isPending && op.exitPrice && op.exitPrice > 0) {
         exits.push({
           x: exitEpoch,
           y: op.exitPrice,
@@ -232,7 +250,11 @@ export function MarketChart({
       }
     })
 
-    return { entryPoints: entries, exitPoints: exits }
+    return {
+      entryPoints: entries,
+      exitPoints: exits,
+      operationLines: lines,
+    }
   }, [visibleOperations, rawData])
 
   // --- LOADING STATES ---
@@ -350,7 +372,7 @@ export function MarketChart({
             tickFormatter={val =>
               typeof val === 'number' ? val.toFixed(4) : ''
             }
-            allowDataOverflow={false} 
+            allowDataOverflow={false}
           />
 
           <Tooltip
@@ -387,64 +409,24 @@ export function MarketChart({
           )}
 
           {/* Reference Lines (Conectores) */}
-          {visibleOperations.map(op => {
-            const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000)
-
-            let durationInSeconds = 0
-            switch (op.durationUnit) {
-              case 't':
-                durationInSeconds = op.duration * 2
-                break
-              case 's':
-                durationInSeconds = op.duration
-                break
-              case 'm':
-                durationInSeconds = op.duration * 60
-                break
-              case 'h':
-                durationInSeconds = op.duration * 3600
-                break
-              case 'd':
-                durationInSeconds = op.duration * 86400
-                break
-            }
-            const exitEpoch = entryEpoch + durationInSeconds
-
-            // Proteção na linha também
-            const lastData = rawData.length > 0 ? rawData[rawData.length - 1] : null
-            const fallbackPrice = lastData ? lastData.price : 0;
-            const entryPrice = op.entryPrice || fallbackPrice;
-
-            if (!entryPrice || entryPrice <= 0) return null
-
-            const isPending = op.status === 'pending'
-            
-            // Lógica final e correta
-            const targetEpoch = isPending && lastData ? Math.min(exitEpoch, lastData.epoch) : exitEpoch;
-            const targetPrice = isPending ? entryPrice : (op.exitPrice || entryPrice);
-
-            return (
-              <ReferenceLine
-                key={`line-${op.id}`}
-                yAxisId="price"
-                segment={[
-                  { x: entryEpoch, y: entryPrice },
-                  { x: targetEpoch, y: targetPrice },
-                ]}
-                stroke={
-                  isPending
-                    ? '#f59e0b'
-                    : op.status === 'won'
-                    ? '#22c55e'
-                    : '#ef4444'
-                }
-                strokeDasharray={isPending ? '5 5' : '4 4'}
-                strokeWidth={2}
-                ifOverflow="visible"
-                isFront={true}
-              />
-            )
-          })}
+          {operationLines.map(line => (
+            <ReferenceLine
+              key={`line-${line.id}`}
+              yAxisId="price"
+              segment={line.segment}
+              stroke={
+                line.isPending
+                  ? '#f59e0b'
+                  : line.status === 'won'
+                  ? '#22c55e'
+                  : '#ef4444'
+              }
+              strokeDasharray={line.isPending ? '5 5' : '4 4'}
+              strokeWidth={2}
+              ifOverflow="visible"
+              isFront={true}
+            />
+          ))}
 
           {/* SCATTERS LIMPOS */}
           <Scatter
