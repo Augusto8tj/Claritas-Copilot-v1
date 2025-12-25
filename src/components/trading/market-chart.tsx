@@ -23,7 +23,7 @@ import { HeaderInfo } from './chart-parts/header-info'
 import { CustomTooltip } from './chart-parts/custom-tooltip'
 import { THEMES } from './chart-parts/themes'
 import { Flag, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
-import type { Operation } from '@/components/trading/operations-log.types'
+import type { Operation } from '@/components/trading/operations-log.types';
 
 /* =========================================================
    CUSTOM DOT COMPONENTS (Para renderizar marcadores)
@@ -148,11 +148,11 @@ const OperationLines = ({ operations, chartData, colors }: OperationLinesProps) 
         
         let durationInSeconds = 0
         switch (operation.durationUnit) {
-          case 't': durationInSeconds = operation.duration * 2; break
-          case 's': durationInSeconds = operation.duration; break
-          case 'm': durationInSeconds = operation.duration * 60; break
-          case 'h': durationInSeconds = operation.duration * 3600; break
-          case 'd': durationInSeconds = operation.duration * 86400; break
+          case 't': durationInSeconds = op.duration * 2; break
+          case 's': durationInSeconds = op.duration; break
+          case 'm': durationInSeconds = op.duration * 60; break
+          case 'h': durationInSeconds = op.duration * 3600; break
+          case 'd': durationInSeconds = op.duration * 86400; break
         }
         const exitEpoch = entryEpoch + durationInSeconds
         
@@ -246,11 +246,11 @@ export function MarketChart({
   const latestPrice = rawData.length > 0 ? rawData[rawData.length - 1]!.price : 0
   const prevPrice = rawData.length > 1 ? rawData[rawData.length - 2]!.price : latestPrice
   
-  // Gerenciar domínio do gráfico com dados completos desde o início
+  // Gerenciar domínio do gráfico para criar efeito de tela deslizante
   React.useEffect(() => {
     if (rawData.length > 0) {
       const lastEpoch = rawData[rawData.length - 1].epoch
-      const firstEpoch = Math.max(rawData[0].epoch, lastEpoch - windowSize)
+      const firstEpoch = lastEpoch - windowSize
       setXDomain([firstEpoch, lastEpoch])
     }
   }, [rawData, windowSize])
