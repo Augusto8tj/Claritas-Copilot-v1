@@ -53,6 +53,9 @@ const OperationMarker = ({ operation, chartData, colors }: OperationMarkerProps)
     case 'h':
       durationInSeconds = operation.duration * 3600
       break
+    case 'd':
+       durationInSeconds = operation.duration * 86400
+       break;
   }
   
   const exitEpoch = entryEpoch + durationInSeconds
@@ -225,13 +228,6 @@ export function MarketChart({
   
   const latestPrice = rawData.length > 0 ? (rawData[rawData.length - 1]!).price : 0
   const prevPrice = rawData.length > 1 ? (rawData[rawData.length - 2]!).price : latestPrice
-
-  // Debug: Log das operações recebidas
-  React.useEffect(() => {
-    if (operations.length > 0) {
-      console.log('📊 Operations on chart:', operations.length)
-    }
-  }, [operations, rawData])
       
   // Gerenciar janela de scroll
   React.useEffect(() => {
@@ -246,7 +242,7 @@ export function MarketChart({
   // Filtrar operações visíveis
   const visibleOperations = React.useMemo(() => {
     // Mostrar todas as operações (podemos otimizar depois se necessário)
-    return operations
+    return Array.isArray(operations) ? operations : [];
   }, [operations])
 
   // --- LOADING & ERROR STATES ---
@@ -368,5 +364,3 @@ export function MarketChart({
     </div>
   )
 }
-
-    
