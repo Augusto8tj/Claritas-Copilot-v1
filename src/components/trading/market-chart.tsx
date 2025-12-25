@@ -86,7 +86,8 @@ const ExitDot = ({ cx, cy, payload, operations }: CustomDotProps) => {
       case 't': durationInSeconds = op.duration * 2; break
       case 's': durationInSeconds = op.duration; break
       case 'm': durationInSeconds = op.duration * 60; break
-      case 'h': durationInSeconds = op.duration * 3600; break
+      case 'h': durationInSeconds = op.duration * 3600; break;
+      case 'd': durationInSeconds = op.duration * 86400; break;
     }
     const exitEpoch = entryEpoch + durationInSeconds
     
@@ -147,10 +148,11 @@ const OperationLines = ({ operations, chartData, colors }: OperationLinesProps) 
         
         let durationInSeconds = 0
         switch (operation.durationUnit) {
-          case 't': durationInSeconds = operation.duration * 2; break
-          case 's': durationInSeconds = operation.duration; break
-          case 'm': durationInSeconds = operation.duration * 60; break
-          case 'h': durationInSeconds = operation.duration * 3600; break
+            case 't': durationInSeconds = operation.duration * 2; break;
+            case 's': durationInSeconds = operation.duration; break;
+            case 'm': durationInSeconds = operation.duration * 60; break;
+            case 'h': durationInSeconds = operation.duration * 3600; break;
+            case 'd': durationInSeconds = operation.duration * 86400; break;
         }
         const exitEpoch = entryEpoch + durationInSeconds
         
@@ -268,6 +270,10 @@ export function MarketChart({
 
   // Filtrar operações visíveis
   const visibleOperations = React.useMemo(() => {
+    if (!Array.isArray(operations)) {
+        console.warn("MarketChart received 'operations' prop that is not an array:", operations);
+        return [];
+    }
     return operations
   }, [operations])
 
@@ -407,12 +413,14 @@ export function MarketChart({
             dataKey="price"
             stroke={colors.line}
             strokeWidth={2}
-            dot={(props: any) => (
+            dot={(props) => {
+              const { key, ...rest } = props;
+              return (
               <>
-                <EntryDot {...props} operations={visibleOperations} chartData={rawData} />
-                <ExitDot {...props} operations={visibleOperations} chartData={rawData} />
+                <EntryDot key={`entry-${key}`} {...rest} operations={visibleOperations} chartData={rawData} />
+                <ExitDot key={`exit-${key}`} {...rest} operations={visibleOperations} chartData={rawData} />
               </>
-            )}
+            )}}
             isAnimationActive={false}
           />
         
