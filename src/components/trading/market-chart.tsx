@@ -18,14 +18,12 @@ import type {
   ChartData,
   TimePeriod,
   ChartType,
-  CandleData,
-  TickData,
 } from '@/hooks/use-market-data'
 import { HeaderInfo } from './chart-parts/header-info'
 import { CustomTooltip } from './chart-parts/custom-tooltip'
 import { THEMES } from './chart-parts/themes'
 import type { ActiveContract } from '@/hooks/use-deriv-api'
-import { Flag, Circle } from 'lucide-react'
+import { Flag } from 'lucide-react'
 
 /* =========================================================
    TRADE MARKER COMPONENT
@@ -36,7 +34,7 @@ interface TradeMarkerProps {
 }
 
 const TradeMarker = ({ contract, colors }: TradeMarkerProps) => {
-  if (!contract.entryTime) return null
+  if (!contract.entryTime || !contract.entryTick) return null
 
   // Entry Point
   const entryDot = (
@@ -52,7 +50,11 @@ const TradeMarker = ({ contract, colors }: TradeMarkerProps) => {
   )
 
   // Exit Point & Line
-  if (contract.status === 'won' || contract.status === 'lost') {
+  if (
+    (contract.status === 'won' || contract.status === 'lost') &&
+    contract.exitTime &&
+    contract.exitTick
+  ) {
     const isWin = contract.status === 'won'
     const flagColor = isWin ? colors.bull : colors.bear
 
@@ -82,6 +84,7 @@ const TradeMarker = ({ contract, colors }: TradeMarkerProps) => {
     )
   }
 
+  // If the contract is still open, just show the entry dot
   return entryDot
 }
 
@@ -105,6 +108,11 @@ interface MarketChartProps {
 
 const X_AXIS_WINDOW_SECONDS = 60 * 2 // Display a 2-minute sliding window
 
+const validateNumber = (val: any, fallback = 0): number => {
+    const num = Number(val);
+    return isFinite(num) ? num : fallback;
+};
+
 export function MarketChart({
   activeSymbol,
   chartData: rawData,
@@ -123,10 +131,6 @@ export function MarketChart({
   const [xDomain, setXDomain] = React.useState<{ min: number, max: number } | null>(null);
   const colors = THEMES[chartTheme]
 
-  const validateNumber = (val: any, fallback = 0): number => {
-    const num = Number(val);
-    return isFinite(num) ? num : fallback;
-  };
   
   const latestPrice =
     rawData.length > 0 && rawData[rawData.length - 1]
@@ -140,10 +144,12 @@ export function MarketChart({
   // --- SLIDING WINDOW EFFECT ---
   React.useEffect(() => {
     if (rawData.length > 1) {
-      const lastTick = rawData[rawData.length - 1] as TickData;
-      const max = lastTick.epoch;
-      const min = max - X_AXIS_WINDOW_SECONDS;
-      setXDomain({ min, max });
+      const lastTick = rawData[rawData.length - 1];
+      if (lastTick) {
+        const max = lastTick.epoch;
+        const min = max - X_AXIS_WINDOW_SECONDS;
+        setXDomain({ min, max });
+      }
     }
   }, [rawData]);
 
@@ -186,7 +192,7 @@ export function MarketChart({
       {/* --- MAIN PRICE CHART --- */}
       <ResponsiveContainer width="100%" height="90%">
         <ComposedChart
-          data={rawData as TickData[]}
+          data={rawData}
           margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
           onMouseMove={e => e?.activeLabel && setCursor(e.activeLabel)}
           onMouseLeave={() => setCursor(null)}
