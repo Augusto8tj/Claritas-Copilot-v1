@@ -23,12 +23,12 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Mock user data to bypass Firebase Auth for testing if needed
-const useMockUser = false; // process.env.NEXT_PUBLIC_USE_MOCK_AUTH === 'true';
+const useMockUser = true; // process.env.NEXT_PUBLIC_USE_MOCK_AUTH === 'true';
 
 const mockUser: User = {
-  uid: "mock-user-123",
-  displayName: "Usuário de Teste",
-  email: "teste@exemplo.com",
+  uid: "master-key-user-001",
+  displayName: "Superusuário",
+  email: "master@claritas.dev",
   photoURL: "https://placehold.co/100x100.png",
   emailVerified: true,
   isAnonymous: false,
