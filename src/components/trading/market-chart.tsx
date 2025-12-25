@@ -13,6 +13,7 @@ import {
   Area,
   Scatter,
 } from 'recharts'
+import { Flag } from 'lucide-react'
 
 import type {
   ChartData,
@@ -22,7 +23,6 @@ import type {
 import { HeaderInfo } from './chart-parts/header-info'
 import { CustomTooltip } from './chart-parts/custom-tooltip'
 import { THEMES } from './chart-parts/themes'
-import { Flag, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
 import type { Operation } from '@/components/trading/operations-log.types';
 
 
@@ -113,19 +113,30 @@ export function MarketChart({
       setXDomain([firstEpoch, lastEpoch])
     }
   }, [rawData, windowSize])
+  
+  // Calcular o domínio do eixo Y manualmente para evitar desalinhamento
+  const yDomain = React.useMemo(() => {
+      if (!xDomain) return ['auto', 'auto'];
+      
+      const [minX, maxX] = xDomain;
+      
+      const visibleData = rawData.filter(d => d.epoch >= minX && d.epoch <= maxX);
+      if (visibleData.length === 0) return ['auto', 'auto'];
 
-  // Controles de Zoom
-  const handleZoomIn = () => {
-    setWindowSize(prev => Math.max(30, prev - 30)) // Mínimo 30 segundos
-  }
-  
-  const handleZoomOut = () => {
-    setWindowSize(prev => Math.min(600, prev + 30)) // Máximo 10 minutos
-  }
-  
-  const handleResetZoom = () => {
-    setWindowSize(INITIAL_WINDOW_SECONDS)
-  }
+      let minPrice = Infinity;
+      let maxPrice = -Infinity;
+      
+      visibleData.forEach(d => {
+          if (d.price < minPrice) minPrice = d.price;
+          if (d.price > maxPrice) maxPrice = d.price;
+      });
+
+      if (minPrice === Infinity) return ['auto', 'auto'];
+
+      const padding = (maxPrice - minPrice) * 0.1; // 10% de folga
+      return [minPrice - padding, maxPrice + padding];
+
+  }, [rawData, xDomain]);
 
   // Filtrar operações visíveis
   const visibleOperations = React.useMemo(() => {
@@ -218,50 +229,7 @@ export function MarketChart({
         chartTheme={chartTheme}
         setChartTheme={setChartTheme}
       />
-
-      {/* Controles de Zoom e Status */}
-      <div className="flex items-center justify-between mb-2">
-        {/* Status das operações */}
-        {visibleOperations.length > 0 && (
-          <div className="text-xs text-gray-400">
-            📊 {visibleOperations.length} operação(ões) • 
-            {visibleOperations.filter(op => op.status === 'pending').length > 0 && 
-              ` ⏳ ${visibleOperations.filter(op => op.status === 'pending').length} pendente`}
-            {visibleOperations.filter(op => op.status === 'won').length > 0 && 
-              ` 🟢 ${visibleOperations.filter(op => op.status === 'won').length} vitória`}
-            {visibleOperations.filter(op => op.status === 'lost').length > 0 && 
-              ` 🔴 ${visibleOperations.filter(op => op.status === 'lost').length} perda`}
-          </div>
-        )}
-        
-        {/* Controles de Zoom */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">{windowSize}s</span>
-          <button
-            onClick={handleZoomIn}
-            className="p-1 rounded hover:bg-gray-700 transition-colors"
-            title="Diminuir zoom (ver menos tempo)"
-          >
-            <ZoomIn size={16} stroke={colors.text} />
-          </button>
-          <button
-            onClick={handleZoomOut}
-            className="p-1 rounded hover:bg-gray-700 transition-colors"
-            title="Aumentar zoom (ver mais tempo)"
-          >
-            <ZoomOut size={16} stroke={colors.text} />
-          </button>
-          <button
-            onClick={handleResetZoom}
-            className="p-1 rounded hover:bg-gray-700 transition-colors"
-            title="Resetar zoom"
-          >
-            <Maximize2 size={16} stroke={colors.text} />
-          </button>
-        </div>
-      </div>
-
-      {/* --- MAIN PRICE CHART --- */}
+      
       <ResponsiveContainer width="100%" height="85%">
         <ComposedChart
           data={rawData}
@@ -291,7 +259,7 @@ export function MarketChart({
           <YAxis
             yAxisId="price"
             orientation="right"
-            domain={['auto', 'auto']}
+            domain={yDomain}
             stroke={colors.text}
             tick={{ fontSize: 10 }}
             tickFormatter={val => typeof val === 'number' ? val.toFixed(4) : ''}
