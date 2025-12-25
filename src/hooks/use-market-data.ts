@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -122,7 +121,6 @@ export function useMarketData(activeSymbol: string | null) {
                 price: validateNumber(p)
             })).filter((d: TickData) => d.price > 0);
             
-            // This is the pre-population step.
             setChartData(formatted);
             setIsChartLoading(false);
         }
@@ -155,7 +153,6 @@ export function useMarketData(activeSymbol: string | null) {
             const newTick: TickData = { epoch: tick.epoch, price: validateNumber(tick.quote) };
             if (newTick.price === 0) return;
             
-            // This is the real-time update step.
             setChartData(prev => addDataPoint(prev, newTick));
         }
 
@@ -205,22 +202,26 @@ export function useMarketData(activeSymbol: string | null) {
             isSwitchingRef.current = false;
 
             try {
-                const style = timePeriod === '1m' && chartType === 'Area' ? 'ticks' : 'candles';
-                const granularity = style === 'candles' ? getGranularityForTimePeriod(timePeriod) : undefined;
-
-                const request: any = {
+                // Etapa 1: Preencher com dados históricos
+                const historyResponse: any = await makeRequest({
                     ticks_history: activeSymbol,
                     end: 'latest',
-                    style: style,
+                    count: 500, // Busca um bloco inicial de dados
+                    style: 'ticks'
+                });
+                
+                if (historyResponse.history) {
+                    handleMarketData(historyResponse);
+                }
+                setIsChartLoading(false); // Para de carregar após a carga inicial
+
+                // Etapa 2: Subscrever para atualizações em tempo real
+                const subscribeRequest: any = {
+                    ticks: activeSymbol,
                     subscribe: 1,
-                    count: 1000, // Always fetch enough data to populate the chart
                 };
                 
-                if (granularity) {
-                    request.granularity = granularity;
-                }
-                
-                makeRequest(request);
+                await makeRequest(subscribeRequest);
 
             } catch (error: any) {
                 if(currentSymbolRef.current === activeSymbol) {
