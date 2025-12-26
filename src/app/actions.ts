@@ -5,43 +5,10 @@ import {
   financialChatbotInsights,
 } from "@/ai/flows/financial-chatbot-insights";
 import { type FinancialChatbotInsightsInput } from "@/ai/flows/financial-chatbot-insights.types";
-import {
-  goalProjection,
-} from "@/ai/flows/goal-projection";
 import { z } from "zod";
 import { getFinancialSummary, getInsights } from "@/services/financial-data-service";
 import { auth } from "@/lib/firebase";
-import { type GoalProjectionInput } from "@/ai/flows/goal-projection.types";
 import WebSocket from 'ws';
-
-
-const goalProjectionSchema = z.object({
-  currentSavings: z.coerce.number().positive("Must be a positive number"),
-  goalAmount: z.coerce.number().positive("Must be a positive number"),
-  monthlyContribution: z.coerce.number().positive("Must be a positive number"),
-  monthlyReturnRate: z.coerce
-    .number()
-    .min(0, "Cannot be negative")
-    .max(100, "Cannot be over 100"),
-});
-
-export async function getGoalProjection(data: GoalProjectionInput) {
-  const validatedData = goalProjectionSchema.safeParse(data);
-  if (!validatedData.success) {
-    return { error: validatedData.error.flatten().fieldErrors };
-  }
-
-  try {
-    const result = await goalProjection({
-      ...validatedData.data,
-      monthlyReturnRate: validatedData.data.monthlyReturnRate / 100,
-    });
-    return { success: result.projectionSummary };
-  } catch (e) {
-    console.error(e);
-    return { error: "An unexpected error occurred." };
-  }
-}
 
 
 export async function getChatbotInsightsResponse(data: FinancialChatbotInsightsInput) {

@@ -23,7 +23,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { getGoalProjection } from "@/app/actions";
+// import { getGoalProjection } from "@/app/actions";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { useToast } from "@/hooks/use-toast";
 
@@ -67,8 +67,10 @@ export function GoalProjectionDialog({ goal }: { goal: Goal }) {
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     setLoading(true);
     setResult(null);
-    const response = await getGoalProjection(data);
-    
+    // const response = await getGoalProjection(data);
+    const response: { success?: string, error?: any } = { error: "A funcionalidade de projeção de metas foi temporariamente desativada." };
+
+
     if (response.error) {
       if(typeof response.error === 'object') {
         Object.entries(response.error).forEach(([key, value]) => {
