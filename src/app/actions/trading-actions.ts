@@ -11,7 +11,6 @@ import {
   analyzeMqlCode,
 } from '@/ai/flows/mql-analyzer-flow';
 import { MqlAnalyzerInputSchema, type MqlAnalyzerInput } from '@/ai/flows/mql-analyzer-flow.types';
-import { executeTrade as executeTradeService } from '@/services/deriv-api-service';
 import type { TradeResult } from '@/services/deriv-api-service';
 import { analyzeOperations } from '@/ai/flows/operation-analysis-flow';
 import { OperationAnalysisInputSchema, type OperationAnalysisInput } from '@/ai/flows/operation-analysis-flow.types';
@@ -51,6 +50,8 @@ export async function analyzeMqlCodeAction(data: MqlAnalyzerInput): Promise<{ su
   }
 }
 
+// This function is no longer needed here as it's part of the useDerivApi hook logic
+// It's kept for compatibility with the AI tool `executeTradeTool` which is not yet refactored
 export async function executeTradeAction(
     apiToken: string,
     contractType: string,
@@ -58,8 +59,11 @@ export async function executeTradeAction(
     symbol: string
 ): Promise<TradeResult> {
     try {
-        const result = await executeTradeService(apiToken, contractType, quantity, symbol);
-        return result;
+        // This is a placeholder call, in a real scenario you would connect to the service
+        // const result = await executeTradeService(apiToken, contractType, quantity, symbol);
+        // return result;
+        console.warn("executeTradeAction is a placeholder and does not execute real trades.");
+        return { success: false, message: "A execução de trades por esta ação foi desativada. Use o hook useDerivApi." };
     } catch(e: any) {
         console.error("[Action] Erro ao executar a negociação:", e);
         return { success: false, message: e.message || "Um erro inesperado ocorreu na ação de negociação." };
