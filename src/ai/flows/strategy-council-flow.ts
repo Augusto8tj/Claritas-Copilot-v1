@@ -80,12 +80,8 @@ const getStrategyCouncilFlow = ai.defineFlow(
         
         const batchInput = { ...input, strategiesToBuild: batch };
 
-        const { output } = await ai.generate({
-            model: pro, // Use the powerful model for each focused task
-            prompt: robotAnalystGeneratorPrompt,
-            input: batchInput,
-            output: { schema: RobotAnalystGeneratorOutputSchema },
-        });
+        // Correctly invoke the prompt as a function
+        const { output } = await robotAnalystGeneratorPrompt(batchInput);
 
         if (!output || !output.robots || output.robots.length === 0) {
             throw new Error(`A IA falhou em gerar o lote de robôs: ${batch.join(', ')}.`);
