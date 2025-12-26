@@ -21,10 +21,11 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useMarketData } from "@/hooks/use-market-data";
 import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
 import { useAutopilot } from "@/hooks/use-autopilot";
+import { useRobotCouncil } from "@/hooks/use-robot-council";
 
 
 export default function DerivTraderPage() {
-  const [activeSymbol, setActiveSymbol] = useState<string | null>('1HZ75V');
+  const [activeSymbol, setActiveSymbol] = useState<string | null>('1HZ10V');
 
   const form = useForm<RiseFallFormValues>({
     resolver: zodResolver(riseFallSchema),
@@ -36,6 +37,7 @@ export default function DerivTraderPage() {
     },
   });
 
+  const derivApi = useDerivApi();
   const { 
     accountType, 
     setAccountType, 
@@ -48,16 +50,17 @@ export default function DerivTraderPage() {
     assetGroups,
     executeTrade,
     addActiveContract,
-  } = useDerivApi();
+  } = derivApi;
   
-  const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod } = useMarketData(activeSymbol, '5m');
+  const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod } = useMarketData(activeSymbol);
   
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
   const autopilot = useAutopilot(activeSymbol, chartData, operationsLog, addActiveContract, executeTrade);
+  const robotCouncil = useRobotCouncil(activeSymbol, chartData, operationsLog, addActiveContract, executeTrade);
   
   const indicators = React.useMemo(() => {
-    return { sma: [], ema: [], vwap: [], bollingerBands: [] };
-  }, []);
+    return robotCouncil.indicators;
+  }, [robotCouncil.indicators]);
   
   return (
     <FormProvider {...form}>
@@ -147,7 +150,7 @@ export default function DerivTraderPage() {
           {/* Right Column: AI Copilots */}
           <div className="space-y-6">
               <AutoTraderInterface {...autopilot} />
-              <AutoTraderCouncilInterface />
+              <AutoTraderCouncilInterface {...robotCouncil} />
           </div>
         </div>
       </div>
