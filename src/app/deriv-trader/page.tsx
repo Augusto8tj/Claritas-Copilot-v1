@@ -26,33 +26,16 @@ import { useRobotCouncil } from "@/hooks/use-robot-council";
 import { calculateAllIndicators } from "@/services/indicator-service";
 import { SystemStatusSummary } from "@/components/trading/system-status-summary";
 
-export default function DerivTraderPage() {
-  const [activeSymbol, setActiveSymbol] = useState<string | null>('1HZ10V');
-
-  const form = useForm<RiseFallFormValues>({
-    resolver: zodResolver(riseFallSchema),
-    defaultValues: {
-      stake: 10,
-      duration: 5,
-      duration_unit: "t",
-      allowEquals: false,
-    },
-  });
-
-  const derivApi = useDerivApi();
+/**
+ * This core component is now separate to ensure that all hooks using
+ * `useFormContext` are called within the <FormProvider> of the parent page.
+ */
+function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   const { 
-    accountType, 
-    setAccountType, 
-    accountBalance, 
-    clearActiveContracts, 
     operationsLog,
-    isConnected,
-    isConnecting,
-    isAssetsLoading,
-    assetGroups,
-    executeTrade,
     addActiveContract,
-  } = derivApi;
+    executeTrade,
+  } = useDerivApi();
   
   const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod } = useMarketData(activeSymbol);
   
@@ -86,6 +69,85 @@ export default function DerivTraderPage() {
   }, [chartData, robotCouncil.strategyCouncil]);
 
   return (
+    <>
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Center Column: Trading Terminal & Chart */}
+        <div className="lg:col-span-2 space-y-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <div>
+                      <CardTitle className="font-headline text-lg">
+                          Gráfico ({activeSymbol})
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                          Desempenho em tempo real do ativo.
+                      </CardDescription>
+                  </div>
+              </CardHeader>
+              <CardContent>
+                  <MarketChart 
+                      activeSymbol={activeSymbol || ''}
+                      chartData={chartData}
+                      isChartLoading={isChartLoading}
+                      chartError={chartError}
+                      chartType={chartType}
+                      setChartType={setChartType}
+                      timePeriod={timePeriod}
+                      setTimePeriod={setTimePeriod}
+                      operations={operationsLog}
+                      indicators={indicators}
+                  />
+              </CardContent>
+            </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <DerivTraderInterface 
+                  symbol={activeSymbol || ""}
+              />
+              <div className="space-y-6">
+                  <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
+                  <OperationsLog operations={operationsLog} />
+              </div>
+            </div>
+        </div>
+
+        {/* Right Column: AI Copilots */}
+        <div className="space-y-6">
+            <AutoTraderCouncilInterface {...robotCouncil} />
+            <AutoTraderInterface {...autopilot} />
+        </div>
+      </div>
+    </>
+  );
+}
+
+
+export default function DerivTraderPage() {
+  const [activeSymbol, setActiveSymbol] = useState<string | null>('1HZ10V');
+
+  const form = useForm<RiseFallFormValues>({
+    resolver: zodResolver(riseFallSchema),
+    defaultValues: {
+      stake: 10,
+      duration: 5,
+      duration_unit: "t",
+      allowEquals: false,
+    },
+  });
+
+  const { 
+    accountType, 
+    setAccountType, 
+    accountBalance, 
+    clearActiveContracts, 
+    operationsLog,
+    isConnecting,
+    isAssetsLoading,
+    assetGroups,
+  } = useDerivApi();
+
+  return (
     <FormProvider {...form}>
       <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
         {/* Header */}
@@ -115,69 +177,18 @@ export default function DerivTraderPage() {
                       </p>
                   ) : null}
               </div>
+              {operationsLog.length > 0 && (
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={clearActiveContracts}>
+                    <Trash2 className="h-4 w-4" />
+                    <span className="sr-only">Limpar negociações</span>
+                </Button>
+              )}
           </div>
         </div>
 
         <SystemStatusSummary />
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* Center Column: Trading Terminal & Chart */}
-          <div className="lg:col-span-2 space-y-6">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <div>
-                        <CardTitle className="font-headline text-lg">
-                            Gráfico ({activeSymbol})
-                        </CardTitle>
-                        <CardDescription className="text-xs">
-                            Desempenho em tempo real do ativo.
-                        </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {operationsLog.length > 0 && (
-                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={clearActiveContracts}>
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Limpar negociações</span>
-                        </Button>
-                        )}
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <MarketChart 
-                        activeSymbol={activeSymbol || ''}
-                        chartData={chartData}
-                        isChartLoading={isChartLoading}
-                        chartError={chartError}
-                        chartType={chartType}
-                        setChartType={setChartType}
-                        timePeriod={timePeriod}
-                        setTimePeriod={setTimePeriod}
-                        operations={operationsLog}
-                        indicators={indicators}
-                    />
-                </CardContent>
-              </Card>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <DerivTraderInterface 
-                    symbol={activeSymbol || ""}
-                    isConnected={isConnected}
-                    executeTrade={executeTrade}
-                />
-                <div className="space-y-6">
-                    <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
-                    <OperationsLog operations={operationsLog} />
-                </div>
-              </div>
-          </div>
-
-          {/* Right Column: AI Copilots */}
-          <div className="space-y-6">
-              <AutoTraderCouncilInterface {...robotCouncil} />
-              <AutoTraderInterface {...autopilot} />
-          </div>
-        </div>
+        <DerivTraderCore activeSymbol={activeSymbol} />
       </div>
     </FormProvider>
   );

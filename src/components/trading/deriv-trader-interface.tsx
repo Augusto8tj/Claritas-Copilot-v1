@@ -28,23 +28,12 @@ import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import { AITradeSuggestion } from "./ai-trade-suggestion";
 
 import type { DurationUnit, RiseFallFormValues } from "./deriv-trader-interface.types";
-import type { TradeResult } from "@/services/deriv-api-service";
-import type { OperationInitiator } from "./operations-log.types";
+import { useDerivApi } from "@/hooks/use-deriv-api";
 
 type TradeType = 'rise_fall' | 'higher_lower' | 'touch_no_touch';
 
 interface DerivTraderInterfaceProps {
   symbol: string;
-  isConnected: boolean;
-  executeTrade: (
-    contractType: string,
-    stake: number,
-    symbol: string,
-    tradeDirection: 'rise' | 'fall',
-    duration: number,
-    durationUnit: DurationUnit,
-    initiator: OperationInitiator,
-  ) => Promise<TradeResult>;
 }
 
 const durationUnitLabels: Record<DurationUnit, string> = {
@@ -69,10 +58,11 @@ const tradeTypeLabels: Record<TradeType, string> = {
   touch_no_touch: "Touch/No Touch",
 };
 
-export function DerivTraderInterface({ symbol, isConnected, executeTrade }: DerivTraderInterfaceProps) {
+export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<"rise" | "fall" | null>(null);
   const [tradeType, setTradeType] = useState<TradeType>('rise_fall');
+  const { isConnected, executeTrade } = useDerivApi();
 
   const form = useFormContext<RiseFallFormValues>();
 
