@@ -210,14 +210,13 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
                 if (chartType === 'Candle') {
                     const granularity = getGranularityForTimePeriod(timePeriod);
                     
-                    // FIX 5: Requisição correta para histórico de candles
+                    // FIX 5: Requisição correta para histórico de candles (sem 'end')
                     const historyRequest = {
                         ticks_history: activeSymbol,
                         style: 'candles',
                         granularity: granularity,
                         count: 1000,
-                        adjust_start_time: 1,
-                        end: 'latest'
+                        adjust_start_time: 1
                     };
 
                     console.log('[useMarketData] Requisitando histórico de candles:', historyRequest);
@@ -232,7 +231,7 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
                         ticks_history: activeSymbol,
                         style: 'candles',
                         granularity: granularity,
-                        subscribe: 1,
+                        subscribe: 1
                     };
 
                     console.log('[useMarketData] Subscrevendo candles:', subscribeRequest);
