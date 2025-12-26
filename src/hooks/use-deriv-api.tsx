@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -50,7 +51,7 @@ export interface AssetGroup {
 }
 
 export type HistoricalData = {
-    date: string;
+    epoch: number;
     price: number;
     open?: number;
     high?: number;
@@ -297,14 +298,14 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   
     if (response.history) {
       return response.history.times.map((time: number, index: number) => ({
-        date: new Date(time * 1000).toISOString(),
+        epoch: time,
         price: response.history.prices[index],
       }));
     }
   
     if (response.candles) {
       return response.candles.map((candle: any) => ({
-        date: new Date(candle.epoch * 1000).toISOString(),
+        epoch: candle.epoch,
         open: candle.open,
         high: candle.high,
         low: candle.low,

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDerivApi } from './use-deriv-api';
+import type { HistoricalData } from './use-deriv-api';
+
 
 /* =========================================================
    TYPES
@@ -9,18 +11,14 @@ import { useDerivApi } from './use-deriv-api';
 export type TimePeriod = '1m' | '2m' | '3m' | '5m' | '10m' | '15m' | '30m' | '1h' | '8h' | '1d';
 export type ChartType = 'Area' | 'Candle';
 
-export interface BaseData {
-  epoch: number;
-  price: number;
-}
-export interface TickData extends BaseData {}
-export interface CandleData extends BaseData {
+export type TickData = HistoricalData;
+export type CandleData = HistoricalData & {
   open: number;
   high: number;
   low: number;
   close: number;
   volume?: number;
-}
+};
 export type ChartData = TickData | CandleData;
 
 
