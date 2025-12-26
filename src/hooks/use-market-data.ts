@@ -11,7 +11,7 @@ export type ChartType = 'Area' | 'Candle';
 
 export interface BaseData {
   epoch: number;
-  price: number; // For line/area charts, this is the main value
+  price: number;
 }
 export interface TickData extends BaseData {}
 export interface CandleData extends BaseData {
@@ -55,7 +55,7 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
         case '1h': return 3600;
         case '8h': return 28800;
         case '1d': return 86400;
-        default: return 60; // Default to 1 minute
+        default: return 60;
     }
 }
 
@@ -66,14 +66,12 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
 export function useMarketData(activeSymbol: string | null) {
     const { makeRequest, isConnected, addMarketDataListener, removeMarketDataListener } = useDerivApi();
     
-    // Estados visuais
     const [chartData, setChartData] = useState<ChartData[]>([]);
     const [isChartLoading, setIsChartLoading] = useState(true);
     const [chartError, setChartError] = useState<string | null>(null);
     const [chartType, setChartType] = useState<ChartType>('Area');
     const [timePeriod, setTimePeriod] = useState<TimePeriod>('1m');
 
-    // Refs de Controle
     const activeSubscriptionIdRef = useRef<string | null>(null);
     const currentSymbolRef = useRef<string | null>(null);
     const isSwitchingRef = useRef(false);
@@ -86,7 +84,7 @@ export function useMarketData(activeSymbol: string | null) {
         
         const responseSymbol = response.tick?.symbol || response.ohlc?.symbol || response.echo_req?.ticks_history;
         if (responseSymbol && responseSymbol !== currentSymbolRef.current) {
-            return; // Ignora dados de uma subscrição antiga
+            return;
         }
 
         if (response.error) {
@@ -97,7 +95,6 @@ export function useMarketData(activeSymbol: string | null) {
             return;
         }
 
-        // --- Handle Subscription ID ---
         if (response.subscription?.id) {
              activeSubscriptionIdRef.current = response.subscription.id;
         }
@@ -172,7 +169,7 @@ export function useMarketData(activeSymbol: string | null) {
 
 
     // --------------------------------------------------------------------------
-    // 3. Função Centralizada de Subscrição
+    // 3. Função Centralizada de Subscrição (CORRIGIDA)
     // --------------------------------------------------------------------------
     useEffect(() => {
         const subscribeToSymbol = async () => {
@@ -189,6 +186,7 @@ export function useMarketData(activeSymbol: string | null) {
             setIsChartLoading(true);
             setChartError(null);
 
+            // Cancela subscrição anterior
             if (activeSubscriptionIdRef.current) {
                 try {
                     await makeRequest({ forget: activeSubscriptionIdRef.current });
@@ -202,26 +200,54 @@ export function useMarketData(activeSymbol: string | null) {
             isSwitchingRef.current = false;
 
             try {
-                // Etapa 1: Preencher com dados históricos
-                const historyResponse: any = await makeRequest({
-                    ticks_history: activeSymbol,
-                    end: 'latest',
-                    count: 500, // Busca um bloco inicial de dados
-                    style: 'ticks'
-                });
+                // CORREÇÃO: Adaptar requests baseado no tipo de gráfico
+                const isAreaChart = chartType === 'Area';
                 
-                if (historyResponse.history) {
-                    handleMarketData(historyResponse);
-                }
-                setIsChartLoading(false); // Para de carregar após a carga inicial
+                if (isAreaChart) {
+                    // Para gráfico de área: usar ticks
+                    const historyResponse: any = await makeRequest({
+                        ticks_history: activeSymbol,
+                        end: 'latest',
+                        count: 500,
+                        style: 'ticks'
+                    });
+                    
+                    if (historyResponse.history) {
+                        handleMarketData(historyResponse);
+                    }
+                    setIsChartLoading(false);
 
-                // Etapa 2: Subscrever para atualizações em tempo real
-                const subscribeRequest: any = {
-                    ticks: activeSymbol,
-                    subscribe: 1,
-                };
-                
-                await makeRequest(subscribeRequest);
+                    // Subscrever a ticks em tempo real
+                    await makeRequest({
+                        ticks: activeSymbol,
+                        subscribe: 1,
+                    });
+                    
+                } else {
+                    // Para gráfico de velas: usar candles com granularidade
+                    const granularity = getGranularityForTimePeriod(timePeriod);
+                    
+                    const historyResponse: any = await makeRequest({
+                        ticks_history: activeSymbol,
+                        end: 'latest',
+                        count: 500,
+                        style: 'candles',
+                        granularity: granularity
+                    });
+                    
+                    if (historyResponse.candles) {
+                        handleMarketData(historyResponse);
+                    }
+                    setIsChartLoading(false);
+
+                    // Subscrever a candles em tempo real
+                    await makeRequest({
+                        ticks_history: activeSymbol,
+                        subscribe: 1,
+                        style: 'candles',
+                        granularity: granularity
+                    });
+                }
 
             } catch (error: any) {
                 if(currentSymbolRef.current === activeSymbol) {
@@ -236,11 +262,11 @@ export function useMarketData(activeSymbol: string | null) {
         
         return () => {
             if (activeSubscriptionIdRef.current) {
-                makeRequest({ forget: activeSubscriptionIdRef.current }).catch(e => console.error("Cleanup falhou ao cancelar subscrição:", e));
+                makeRequest({ forget: activeSubscriptionIdRef.current }).catch(e => console.error("Cleanup falhou:", e));
                 activeSubscriptionIdRef.current = null;
             }
         };
-    }, [activeSymbol, isConnected, timePeriod, chartType, makeRequest]);
+    }, [activeSymbol, isConnected, timePeriod, chartType, makeRequest, handleMarketData]);
 
 
     return {
