@@ -41,7 +41,7 @@ export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
   const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(null);
   const [timeSinceAnalysis, setTimeSinceAnalysis] = useState<string>("");
-  const { accountBalance, operationsLog, executeTrade, getHistoricalData } = useDerivApi();
+  const { accountBalance, operationsLog, executeTrade } = useDerivApi();
   const { chartData } = useMarketData(symbol);
   const { toast } = useToast();
   const [autoExecute, setAutoExecute] = useState(false);
@@ -79,14 +79,14 @@ export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
           dataCount = 200;
       }
 
-      const historicalData = await getHistoricalData(symbol, undefined, dataCount);
-      if (!historicalData || historicalData.length === 0) {
-        throw new Error(`Não foi possível obter dados históricos para ${symbol}.`);
+      // Use the chartData from the hook as the primary source
+      if (!chartData || chartData.length < 50) {
+        throw new Error(`Dados históricos insuficientes no gráfico para ${symbol}.`);
       }
 
-      const historicalDataForAI = historicalData.map(item => ({
+      const historicalDataForAI = chartData.map(item => ({
         date: new Date(item.epoch * 1000).toISOString(),
-        price: item.price
+        price: 'price' in item ? item.price : item.close
       }));
 
 
@@ -124,7 +124,7 @@ export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
     }
 
     setIsAnalyzing(false);
-  }, [symbol, form, accountBalance, dailyBalance, operationsLog, autoExecute, priceTicks, toast, getHistoricalData]);
+  }, [symbol, form, accountBalance, dailyBalance, operationsLog, autoExecute, priceTicks, toast, chartData]);
   
   const handleExecute = useCallback(async (direction: 'rise' | 'fall') => {
     setIsExecuting(true);
@@ -142,11 +142,12 @@ export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
     
     await executeTrade(contractType, suggestedStake, symbol, direction, suggestedDuration, formValues.duration_unit, 'Manual');
     
+    // Cooldown de 10 segundos antes de limpar a sugestão e permitir nova análise.
     setTimeout(() => {
         setAnalysisResult(null); 
         setIsExecuting(false);
         setIsAwaitingEntry(null);
-    }, 1000);
+    }, 10000);
   }, [executeTrade, form, symbol, analysisResult]);
 
 
@@ -228,7 +229,7 @@ export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
           variant="outline"
           className="w-full"
           onClick={handleAnalyze}
-          disabled={isAnalyzing || !accountBalance.balance}
+          disabled={isAnalyzing || !accountBalance.balance || isExecuting}
         >
           {isAnalyzing ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}
           {isAnalyzing ? 'Analisando...' : 'Analisar Agora'}
