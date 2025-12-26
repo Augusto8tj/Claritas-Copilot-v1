@@ -273,7 +273,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         case '1h': return 3600;
         case '8h': return 28800;
         case '1d': return 86400;
-        default: return 60; // Default to 1 minute for safety
+        default: return 60; 
     }
   }
 
@@ -287,10 +287,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         adjust_start_time: 1
       };
 
-      if(period && getGranularityForTimePeriod(period as any)) {
+      // Se um período for fornecido, é um pedido de velas (candles)
+      if(period) {
           request.style = 'candles';
           request.granularity = getGranularityForTimePeriod(period as any);
       } else {
+          // Se não houver período, é um pedido de ticks
           request.style = 'ticks';
           request.end = "latest";
       }
@@ -589,5 +591,3 @@ export function useDerivApi() {
   }
   return context;
 }
-
-    
