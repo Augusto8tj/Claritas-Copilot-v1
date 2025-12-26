@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useCallback } from 'react'
 import {
   Flag,
   Settings,
@@ -694,9 +694,14 @@ export function MarketChart({
     ctx.fillRect(brushMaxX - handleWidth / 2, height / 2 - 15, handleWidth, 30)
   }, [rawData, colors, brushWindow, isCandle])
 
+  const panOffsetRef = React.useRef(0);
+  const zoomLevelRef = React.useRef(1);
+
   React.useEffect(() => {
-    setBrushWindow({ min: 0, max: 1 })
-  }, [activeSymbol, timePeriod, chartType])
+    panOffsetRef.current = 0;
+    zoomLevelRef.current = 1;
+  }, [activeSymbol, timePeriod, chartType]);
+
 
   React.useEffect(() => {
     const handleResize = () => {
