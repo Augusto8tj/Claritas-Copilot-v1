@@ -171,8 +171,8 @@ export default function DerivTraderPage() {
 
           {/* Right Column: AI Copilots */}
           <div className="space-y-6">
-              <AutoTraderInterface {...autopilot} />
               <AutoTraderCouncilInterface {...robotCouncil} />
+              <AutoTraderInterface {...autopilot} />
           </div>
         </div>
       </div>
