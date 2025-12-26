@@ -68,12 +68,10 @@ const getAutotraderStrategyFlow = ai.defineFlow(
   async (input) => {
     
     const historicalDataJson = JSON.stringify(input.historicalData);
-    const recentTradesJson = JSON.stringify(input.recentTrades);
-
+    
     const promptInput = {
       ...input,
       historicalDataJson,
-      recentTrades: recentTradesJson,
     };
 
     const { output } = await strategyPrompt(promptInput);

@@ -45,22 +45,9 @@ const calculateStochastic = (data: { high: number, low: number, close: number }[
     return 100 * ((currentClose - lowestLow) / (highestHigh - lowestLow));
 };
 
-export function useAutopilot(
-    activeSymbol: string | null,
-    chartData: ChartData[],
-    operationsLog: Operation[],
-    addActiveContract: (contract: ActiveContract) => void,
-    executeTrade: (
-        contractType: string,
-        stake: number,
-        symbol: string,
-        tradeDirection: 'rise' | 'fall',
-        duration: number,
-        durationUnit: DurationUnit,
-        initiator: OperationInitiator
-    ) => Promise<TradeResult>,
-) {
-    const { getHistoricalData } = useDerivApi();
+export function useAutopilot() {
+    const { getHistoricalData, operationsLog, addActiveContract, executeTrade, priceTicks, chartData } = useDerivApi();
+    const [activeSymbol] = useState<string | null>('1HZ10V'); // This should probably come from context or props
     const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
