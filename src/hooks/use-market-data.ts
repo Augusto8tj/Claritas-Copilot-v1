@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -61,7 +62,7 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
 
 
 /* =========================================================
-   HOOK PRINCIPAL
+   HOOK PRINCIPAL - NOVA ABORDAGEM
 ========================================================= */
 export function useMarketData(activeSymbol: string | null, defaultTimePeriod: TimePeriod = '5m') {
     const { makeRequest, isConnected, addMarketDataListener, removeMarketDataListener, wsRef } = useDerivApi();
@@ -74,217 +75,260 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
 
     const activeSubscriptionIdRef = useRef<string | null>(null);
     const currentSymbolRef = useRef<string | null>(null);
-    const isSwitchingRef = useRef(false);
+    const currentChartTypeRef = useRef<ChartType>(chartType);
+    const isLoadingRef = useRef(false);
+
+    // Atualiza ref sempre que chartType muda
+    useEffect(() => {
+        currentChartTypeRef.current = chartType;
+    }, [chartType]);
 
     // --------------------------------------------------------------------------
-    // 1. Lógica de Processamento de Dados (CORRIGIDA)
+    // PROCESSAMENTO DE RESPOSTAS - SIMPLIFICADO
     // --------------------------------------------------------------------------
-    const handleMarketData = useCallback((response: any) => {
-        if (isSwitchingRef.current) return;
-        
-        const responseSymbol = response.tick?.symbol || response.ohlc?.symbol || response.echo_req?.ticks_history || response.echo_req?.candles;
-        if (responseSymbol && responseSymbol !== currentSymbolRef.current) {
+    const handleMessage = useCallback((response: any) => {
+        // Ignora mensagens durante carregamento inicial
+        if (isLoadingRef.current) {
+            console.log('[useMarketData] Ignorando mensagem durante carregamento:', response.msg_type);
             return;
         }
 
+        // Valida símbolo
+        const msgSymbol = response.tick?.symbol || response.ohlc?.symbol;
+        if (msgSymbol && msgSymbol !== currentSymbolRef.current) {
+            console.log('[useMarketData] Símbolo diferente, ignorando:', msgSymbol);
+            return;
+        }
+
+        // Erros
         if (response.error) {
-            if (responseSymbol === currentSymbolRef.current && response.error.code !== 'AlreadySubscribed') {
-                setChartError(response.error.message);
-                setIsChartLoading(false);
-            }
+            console.error('[useMarketData] Erro recebido:', response.error);
             return;
         }
 
+        // Armazena subscription ID
         if (response.subscription?.id) {
-             activeSubscriptionIdRef.current = response.subscription.id;
+            activeSubscriptionIdRef.current = response.subscription.id;
+            console.log('[useMarketData] Subscription ID:', response.subscription.id);
         }
 
-        // FIX 1: Processar candles do histórico inicial
-        if (response.msg_type === 'candles' || (response.candles && Array.isArray(response.candles))) {
-            const candles: CandleData[] = (response.candles || []).map((c: any) => ({
-                epoch: c.epoch,
-                open: validateNumber(c.open),
-                high: validateNumber(c.high),
-                low: validateNumber(c.low),
-                close: validateNumber(c.close),
-                price: validateNumber(c.close)
-            }));
-            setChartData(candles);
-            setIsChartLoading(false);
-        }
-        // FIX 2: Processar ticks do histórico inicial
-        else if (response.msg_type === 'history' || (response.history && response.history.prices)) {
-            const { prices, times } = response.history;
-            const formatted: TickData[] = prices.map((p: number, i: number) => ({
-                epoch: times[i],
-                price: validateNumber(p)
-            })).filter((d: TickData) => d.price > 0);
+        console.log('[useMarketData] Processando mensagem:', response.msg_type, response);
+
+        // CANDLES - Atualização em tempo real
+        if (response.msg_type === 'ohlc' && currentChartTypeRef.current === 'Candle') {
+            const ohlc = response.ohlc;
+            console.log('[useMarketData] Nova OHLC recebida:', ohlc);
             
-            setChartData(formatted);
-            setIsChartLoading(false);
-        }
-        // FIX 3: Atualizar candles em tempo real
-        else if (response.msg_type === 'ohlc' && response.ohlc) {
-            const candle = response.ohlc;
-            if(candle.symbol !== currentSymbolRef.current) return;
-
             const newCandle: CandleData = {
-                epoch: candle.open_time,
-                open: validateNumber(candle.open),
-                high: validateNumber(candle.high),
-                low: validateNumber(candle.low),
-                close: validateNumber(candle.close),
-                price: validateNumber(candle.close)
+                epoch: ohlc.open_time,
+                open: validateNumber(ohlc.open),
+                high: validateNumber(ohlc.high),
+                low: validateNumber(ohlc.low),
+                close: validateNumber(ohlc.close),
+                price: validateNumber(ohlc.close)
             };
-            
+
             setChartData(prev => {
-                const data = prev as CandleData[];
-                // Atualiza a última candle se for o mesmo período
-                if (data.length > 0 && data[data.length - 1].epoch === newCandle.epoch) {
-                    const newData = [...data];
-                    newData[newData.length - 1] = newCandle;
-                    return newData;
+                const lastCandle = prev[prev.length - 1] as CandleData;
+                
+                // Atualiza candle existente
+                if (lastCandle && lastCandle.epoch === newCandle.epoch) {
+                    console.log('[useMarketData] Atualizando candle existente');
+                    return [...prev.slice(0, -1), newCandle];
                 }
+                
                 // Adiciona nova candle
-                return addDataPoint(data, newCandle);
+                console.log('[useMarketData] Adicionando nova candle');
+                return addDataPoint(prev, newCandle);
             });
         }
-        // FIX 4: Processar ticks em tempo real
-        else if (response.msg_type === 'tick' && response.tick) {
+        
+        // TICKS - Atualização em tempo real
+        else if (response.msg_type === 'tick' && currentChartTypeRef.current === 'Area') {
             const tick = response.tick;
-            if(tick.symbol !== currentSymbolRef.current) return;
+            console.log('[useMarketData] Novo tick recebido:', tick);
             
-            const newTick: TickData = { epoch: tick.epoch, price: validateNumber(tick.quote) };
-            if (newTick.price === 0) return;
-            
-            setChartData(prev => addDataPoint(prev, newTick));
-        }
+            const newTick: TickData = {
+                epoch: tick.epoch,
+                price: validateNumber(tick.quote)
+            };
 
+            if (newTick.price > 0) {
+                setChartData(prev => addDataPoint(prev, newTick));
+            }
+        }
     }, []);
 
     // --------------------------------------------------------------------------
-    // 2. Lifecycle do Listener
-    // --------------------------------------------------------------------------
-    const handleMarketDataRef = useRef(handleMarketData);
-    handleMarketDataRef.current = handleMarketData;
-
-    useEffect(() => {
-        const handler = (data: any) => handleMarketDataRef.current(data);
-        addMarketDataListener(handler);
-        return () => removeMarketDataListener(handler);
-    }, [addMarketDataListener, removeMarketDataListener]);
-
-
-    // --------------------------------------------------------------------------
-    // 3. Função Centralizada de Subscrição (CORRIGIDA)
+    // LISTENER SETUP
     // --------------------------------------------------------------------------
     useEffect(() => {
-        const subscribeToSymbol = async () => {
+        console.log('[useMarketData] Registrando listener');
+        addMarketDataListener(handleMessage);
+        return () => {
+            console.log('[useMarketData] Removendo listener');
+            removeMarketDataListener(handleMessage);
+        };
+    }, [addMarketDataListener, removeMarketDataListener, handleMessage]);
+
+    // --------------------------------------------------------------------------
+    // SUBSCRIÇÃO - ABORDAGEM DIRETA
+    // --------------------------------------------------------------------------
+    useEffect(() => {
+        let isCancelled = false;
+
+        const subscribe = async () => {
             if (!isConnected || !activeSymbol) {
                 setChartData([]);
                 setIsChartLoading(!activeSymbol);
                 return;
             }
-            
-            isSwitchingRef.current = true;
+
+            console.log('\n=== INICIANDO NOVA SUBSCRIÇÃO ===');
+            console.log('Símbolo:', activeSymbol);
+            console.log('Tipo:', chartType);
+            console.log('Período:', timePeriod);
+
+            isLoadingRef.current = true;
             currentSymbolRef.current = activeSymbol;
             
-            setChartData([]); 
+            setChartData([]);
             setIsChartLoading(true);
             setChartError(null);
 
             // Cancela subscrição anterior
             if (activeSubscriptionIdRef.current) {
                 try {
+                    console.log('[useMarketData] Cancelando subscrição anterior:', activeSubscriptionIdRef.current);
                     await makeRequest({ forget: activeSubscriptionIdRef.current });
                 } catch (e) {
-                    console.warn(`Falha ao cancelar subscrição ${activeSubscriptionIdRef.current}:`, e);
+                    console.warn('[useMarketData] Erro ao cancelar:', e);
                 }
                 activeSubscriptionIdRef.current = null;
             }
-            
-            await new Promise(resolve => setTimeout(resolve, 100)); 
-            isSwitchingRef.current = false;
+
+            // Aguarda um pouco para garantir cancelamento
+            await new Promise(resolve => setTimeout(resolve, 150));
+
+            if (isCancelled) return;
 
             try {
+                // ============ CANDLES ============
                 if (chartType === 'Candle') {
                     const granularity = getGranularityForTimePeriod(timePeriod);
                     
-                    // FIX 5: Requisição correta para histórico de candles (sem 'end')
-                    const historyRequest = {
+                    console.log('[useMarketData] 1. Buscando histórico de CANDLES...');
+                    const historyReq = {
                         ticks_history: activeSymbol,
-                        style: 'candles',
                         granularity: granularity,
-                        count: 1000,
-                        adjust_start_time: 1
+                        style: 'candles',
+                        count: 1000
                     };
+                    console.log('[useMarketData] Request:', historyReq);
+                    
+                    const historyRes = await makeRequest(historyReq);
+                    console.log('[useMarketData] Response:', historyRes);
 
-                    console.log('[useMarketData] Requisitando histórico de candles:', historyRequest);
-                    const historyResponse = await makeRequest(historyRequest);
-                    console.log('[useMarketData] Resposta histórico candles:', historyResponse);
-                    
-                    // Processa o histórico
-                    handleMarketData(historyResponse);
-                    
-                    // FIX 6: Subscrição em tempo real para candles
-                    const subscribeRequest = {
+                    if (isCancelled) return;
+
+                    // Processa histórico
+                    if (historyRes.candles && Array.isArray(historyRes.candles)) {
+                        const candles: CandleData[] = historyRes.candles.map((c: any) => ({
+                            epoch: c.epoch,
+                            open: validateNumber(c.open),
+                            high: validateNumber(c.high),
+                            low: validateNumber(c.low),
+                            close: validateNumber(c.close),
+                            price: validateNumber(c.close)
+                        }));
+                        
+                        console.log('[useMarketData] Candles processadas:', candles.length);
+                        setChartData(candles);
+                    }
+
+                    setIsChartLoading(false);
+                    isLoadingRef.current = false;
+
+                    // Agora subscreve para atualizações
+                    console.log('[useMarketData] 2. Subscrevendo CANDLES...');
+                    const subReq = {
                         ticks_history: activeSymbol,
-                        style: 'candles',
                         granularity: granularity,
+                        style: 'candles',
                         subscribe: 1
                     };
-
-                    console.log('[useMarketData] Subscrevendo candles:', subscribeRequest);
-                    const subscribeResponse = await makeRequest(subscribeRequest);
-                    console.log('[useMarketData] Resposta subscrição candles:', subscribeResponse);
-
-                } else { // Area chart
-                    // FIX 7: Requisição correta para histórico de ticks
-                    const historyRequest = {
+                    console.log('[useMarketData] Subscribe request:', subReq);
+                    
+                    await makeRequest(subReq);
+                }
+                // ============ TICKS ============
+                else {
+                    console.log('[useMarketData] 1. Buscando histórico de TICKS...');
+                    const historyReq = {
                         ticks_history: activeSymbol,
                         style: 'ticks',
-                        end: 'latest',
-                        count: 1000,
-                        adjust_start_time: 1,
+                        count: 1000
                     };
-
-                    console.log('[useMarketData] Requisitando histórico de ticks:', historyRequest);
-                    const historyResponse = await makeRequest(historyRequest);
-                    console.log('[useMarketData] Resposta histórico ticks:', historyResponse);
+                    console.log('[useMarketData] Request:', historyReq);
                     
-                    // Processa o histórico
-                    handleMarketData(historyResponse);
+                    const historyRes = await makeRequest(historyReq);
+                    console.log('[useMarketData] Response:', historyRes);
 
-                    // FIX 8: Subscrição em tempo real para ticks
-                    const subscribeRequest = {
+                    if (isCancelled) return;
+
+                    // Processa histórico
+                    if (historyRes.history) {
+                        const { prices, times } = historyRes.history;
+                        const ticks: TickData[] = prices
+                            .map((p: number, i: number) => ({
+                                epoch: times[i],
+                                price: validateNumber(p)
+                            }))
+                            .filter((t: TickData) => t.price > 0);
+                        
+                        console.log('[useMarketData] Ticks processados:', ticks.length);
+                        setChartData(ticks);
+                    }
+
+                    setIsChartLoading(false);
+                    isLoadingRef.current = false;
+
+                    // Agora subscreve para atualizações
+                    console.log('[useMarketData] 2. Subscrevendo TICKS...');
+                    const subReq = {
                         ticks: activeSymbol,
-                        subscribe: 1,
+                        subscribe: 1
                     };
-
-                    console.log('[useMarketData] Subscrevendo ticks:', subscribeRequest);
-                    const subscribeResponse = await makeRequest(subscribeRequest);
-                    console.log('[useMarketData] Resposta subscrição ticks:', subscribeResponse);
+                    console.log('[useMarketData] Subscribe request:', subReq);
+                    
+                    await makeRequest(subReq);
                 }
+
+                console.log('=== SUBSCRIÇÃO COMPLETA ===\n');
 
             } catch (error: any) {
-                if(currentSymbolRef.current === activeSymbol) {
-                    console.error("[useMarketData] Erro na subscrição:", error);
-                    setChartError(error.message || "Erro ao subscrever dados de mercado.");
+                if (!isCancelled && currentSymbolRef.current === activeSymbol) {
+                    console.error('[useMarketData] ERRO:', error);
+                    setChartError(error.message || 'Erro ao carregar dados');
                     setIsChartLoading(false);
+                    isLoadingRef.current = false;
                 }
             }
         };
 
-        subscribeToSymbol();
-        
+        subscribe();
+
         return () => {
+            console.log('[useMarketData] Cleanup');
+            isCancelled = true;
+            isLoadingRef.current = false;
+            
             if (activeSubscriptionIdRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
-                makeRequest({ forget: activeSubscriptionIdRef.current }).catch(e => console.error("Cleanup falhou:", e));
-                activeSubscriptionIdRef.current = null;
+                makeRequest({ forget: activeSubscriptionIdRef.current })
+                    .catch(e => console.error('[useMarketData] Erro no cleanup:', e));
             }
         };
-    }, [activeSymbol, isConnected, timePeriod, chartType, makeRequest, handleMarketData, wsRef]);
-
+    }, [activeSymbol, isConnected, timePeriod, chartType, makeRequest, wsRef]);
 
     return {
         chartData,
