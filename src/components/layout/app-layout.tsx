@@ -22,6 +22,8 @@ import {
   Smartphone,
   Activity,
   Trophy,
+  PanelLeftClose,
+  PanelRightClose,
 } from "lucide-react";
 import {
   Sidebar,
@@ -34,7 +36,8 @@ import {
   SidebarInset,
   SidebarMenuSub,
   SidebarMenuSubButton,
-  SidebarMenuSubItem
+  SidebarMenuSubItem,
+  SidebarFooter
 } from "@/components/ui/sidebar";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Logo } from "@/components/icons";
@@ -46,6 +49,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { cn } from "@/lib/utils";
 import React from "react";
 import Link from "next/link";
+import { Button } from "../ui/button";
 
 
 const navItems = [
@@ -219,6 +223,7 @@ function MobileSidebar() {
 }
 
 function DesktopSidebar() {
+    const { state, toggleSidebar } = useSidebar();
     return (
         <Sidebar>
             <SidebarHeader className="p-4">
@@ -230,6 +235,12 @@ function DesktopSidebar() {
               </div>
             </SidebarHeader>
             <MainNav />
+             <SidebarFooter>
+                <Button variant="ghost" onClick={toggleSidebar} className="w-full justify-start">
+                    {state === 'expanded' ? <PanelLeftClose /> : <PanelRightClose />}
+                    <span className="group-data-[collapsible=icon]:hidden">{state === 'expanded' ? 'Recolher' : 'Expandir'}</span>
+                </Button>
+            </SidebarFooter>
         </Sidebar>
     )
 }
