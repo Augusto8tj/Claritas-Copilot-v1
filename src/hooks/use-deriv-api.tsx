@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -279,6 +278,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
+  // FIX: Removido parâmetro 'end' que causava erro de validação
   const getHistoricalData = useCallback(async (symbol: string, period?: string, count?: number): Promise<HistoricalData[]> => {
       if (!wsRef.current || !isConnected) {
         throw new Error("A conexão com a API da Deriv não está ativa.");
@@ -293,7 +293,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           request.granularity = getGranularityForTimePeriod(period as any);
       } else {
           request.style = 'ticks';
-          request.end = "latest";
       }
 
       const response: any = await makeRequest(request);
@@ -500,7 +499,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           clearTimeout(throttleTimeoutRef.current);
       }
     };
-  }, [activeToken, isLoading, makeRequest]);
+  }, [activeToken, isLoading, makeRequest, toast]);
 
   const setAccountType = (type: AccountType) => {
     try {
