@@ -1,3 +1,4 @@
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -49,7 +50,7 @@ export interface AssetGroup {
 }
 
 export type HistoricalData = {
-    epoch: number;
+    date: string;
     price: number;
     open?: number;
     high?: number;
@@ -295,39 +296,38 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     if (!wsRef.current || !isConnected) {
       throw new Error("A conexão com a API da Deriv não está ativa.");
     }
-  
+
     const request: any = {
       ticks_history: symbol,
       count: count ?? 1000,
       adjust_start_time: 1,
     };
-  
+
     if (period) {
       request.style = 'candles';
       request.granularity = getGranularityForTimePeriod(period);
-      // 🚫 NÃO usar `end` para candles históricos, a API infere o mais recente
     } else {
       request.style = 'ticks';
-      request.end = 'latest'; // ✅ só para ticks
+      request.end = 'latest';
     }
   
     const response: any = await makeRequest(request);
   
     if (response.history) {
       return response.history.times.map((time: number, index: number) => ({
-        epoch: time,
+        date: new Date(time * 1000).toISOString(),
         price: response.history.prices[index],
       }));
     }
   
     if (response.candles) {
       return response.candles.map((candle: any) => ({
-        epoch: candle.epoch,
+        date: new Date(candle.epoch * 1000).toISOString(),
         open: candle.open,
         high: candle.high,
         low: candle.low,
         close: candle.close,
-        price: candle.close, // compatibilidade com gráfico
+        price: candle.close,
       }));
     }
   
@@ -673,3 +673,5 @@ export function useDerivApi() {
   }
   return context;
 }
+
+    
