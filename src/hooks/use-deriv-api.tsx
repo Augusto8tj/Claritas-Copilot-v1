@@ -1,3 +1,4 @@
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -57,6 +58,15 @@ export type HistoricalData = {
     close?: number;
 };
 
+export interface RealtimeCandle {
+  epoch: number; // início do candle (em segundos)
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  isClosed: boolean;
+}
+
 type MarketDataCallback = (data: any) => void;
 
 interface DerivApiContextType {
@@ -93,6 +103,11 @@ interface DerivApiContextType {
   addMarketDataListener: (callback: MarketDataCallback) => void;
   removeMarketDataListener: (callback: MarketDataCallback) => void;
   wsRef: React.RefObject<WebSocket | null>;
+  subscribeCandles: (granularity: number) => void;
+  unsubscribeCandles: () => void;
+  addCandleListener: (cb: (candle: RealtimeCandle) => void) => void;
+  removeCandleListener: (cb: (candle: RealtimeCandle) => void) => void;
+  realtimeCandles: RealtimeCandle[];
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
@@ -125,12 +140,13 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const promisesRef = useRef<Map<string, PromiseCallbacks>>(new Map());
 
-  const messageQueueRef = useRef<any[]>([]);
-  const isProcessingQueueRef = useRef(false);
-  const throttleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const THROTTLE_INTERVAL = 250;
-  
   const marketDataListenersRef = useRef<MarketDataCallback[]>([]);
+
+  // Candle streaming states and refs
+  const [realtimeCandles, setRealtimeCandles] = useState<RealtimeCandle[]>([]);
+  const candleGranularityRef = useRef<number>(60);
+  const currentCandleRef = useRef<RealtimeCandle | null>(null);
+  const candleListenersRef = useRef<((candle: RealtimeCandle) => void)[]>([]);
 
   useEffect(() => {
     try {
@@ -198,7 +214,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       (cb) => cb !== callback
     );
   }, []);
-
 
   const executeTrade = useCallback(async (
     contractType: string,
@@ -282,23 +297,23 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       if (!wsRef.current || !isConnected) {
         throw new Error("A conexão com a API da Deriv não está ativa.");
       }
-
+  
       const request: any = {
         ticks_history: symbol,
         count: count ?? 1000,
         adjust_start_time: 1,
         end: 'latest', // ✅ OBRIGATÓRIO
       };
-
+  
       if (period) {
         request.style = 'candles';
         request.granularity = getGranularityForTimePeriod(period);
       } else {
         request.style = 'ticks';
       }
-
+  
       const response: any = await makeRequest(request);
-
+  
       // ---- TICKS ----
       if (response.history) {
         return response.history.times.map((time: number, index: number) => ({
@@ -306,7 +321,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           price: response.history.prices[index],
         }));
       }
-
+  
       // ---- CANDLES ----
       if (response.candles) {
         return response.candles.map((candle: any) => ({
@@ -318,11 +333,32 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           price: candle.close, // compatibilidade com gráfico
         }));
       }
-
+  
       return [];
     },
     [isConnected, makeRequest]
   );
+  
+  // Candle streaming functions
+  const subscribeCandles = useCallback((granularity: number) => {
+    candleGranularityRef.current = granularity;
+    currentCandleRef.current = null;
+    setRealtimeCandles([]);
+  }, []);
+
+  const unsubscribeCandles = useCallback(() => {
+    currentCandleRef.current = null;
+    setRealtimeCandles([]);
+  }, []);
+
+  const addCandleListener = useCallback((cb: (candle: RealtimeCandle) => void) => {
+    candleListenersRef.current.push(cb);
+  }, []);
+
+  const removeCandleListener = useCallback((cb: (candle: RealtimeCandle) => void) => {
+    candleListenersRef.current = candleListenersRef.current.filter(c => c !== cb);
+  }, []);
+
 
   useEffect(() => {
     if (!activeToken || isLoading) {
@@ -417,6 +453,49 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 case 'tick':
                     if (response.tick) {
                         setPriceTicks(prev => [...prev.slice(-999), { epoch: response.tick.epoch, price: response.tick.quote }]);
+                        
+                        // Candle Aggregation Logic
+                        const tick = response.tick;
+                        if (!tick) return;
+
+                        const granularity = candleGranularityRef.current;
+                        const candleEpoch = Math.floor(tick.epoch / granularity) * granularity;
+
+                        let candle = currentCandleRef.current;
+
+                        // Novo candle
+                        if (!candle || candle.epoch !== candleEpoch) {
+                          if (candle) {
+                            candle.isClosed = true;
+                            candleListenersRef.current.forEach(cb => cb(candle!));
+                          }
+
+                          candle = {
+                            epoch: candleEpoch,
+                            open: tick.quote,
+                            high: tick.quote,
+                            low: tick.quote,
+                            close: tick.quote,
+                            isClosed: false,
+                          };
+
+                          currentCandleRef.current = candle;
+
+                          setRealtimeCandles(prev => [...prev.slice(-499), candle]);
+                        } else {
+                          // Atualiza candle atual
+                          candle.high = Math.max(candle.high, tick.quote);
+                          candle.low = Math.min(candle.low, tick.quote);
+                          candle.close = tick.quote;
+
+                          setRealtimeCandles(prev =>
+                            prev.map(c => c.epoch === candle!.epoch ? { ...candle! } : c)
+                          );
+                        }
+                        
+                        // Emite candle (aberto ou fechado)
+                        candleListenersRef.current.forEach(cb => cb({ ...candle! }));
+
                     }
                     marketDataListenersRef.current.forEach(callback => callback(response));
                     break;
@@ -502,9 +581,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       if (wsRef.current) {
         wsRef.current.close();
       }
-       if (throttleTimeoutRef.current) {
-          clearTimeout(throttleTimeoutRef.current);
-      }
     };
   }, [activeToken, isLoading, makeRequest, toast]);
 
@@ -579,7 +655,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     addActiveContract,
     addMarketDataListener,
     removeMarketDataListener,
-    wsRef
+    wsRef,
+    realtimeCandles,
+    subscribeCandles,
+    unsubscribeCandles,
+    addCandleListener,
+    removeCandleListener,
   };
 
   return (
