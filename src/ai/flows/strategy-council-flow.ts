@@ -44,7 +44,7 @@ Para CADA robô, você deve:
     prompt: `
 Crie um grupo de robôs-analistas para o ativo {{{symbol}}}, otimizados para operar em '{{{durationUnit}}}'.
 
-Estratégias para construir nesta etapa: {{json anystyle=true strategiesToBuild}}
+Estratégias para construir nesta etapa: {{json strategiesToBuild}}
 
 Dados de Mercado (para análise de condição):
 \'\'\'json
