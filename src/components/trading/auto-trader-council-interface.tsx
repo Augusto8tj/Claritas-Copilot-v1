@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
-import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award, Laptop } from "lucide-react";
+import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award, Laptop, Wand } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "../ui/label";
@@ -78,11 +78,15 @@ export function AutoTraderCouncilInterface({
   const { toast } = useToast();
   
   const handleToggleAutopilot = (isOn: boolean) => {
-    if (isOn) {
-        setIsCouncilAutopilotOn(true);
-    } else {
-        setIsCouncilAutopilotOn(false);
+    if (isOn && strategyCouncil.length < 10) {
+        toast({
+            variant: "destructive",
+            title: "Conselho Incompleto",
+            description: "Você deve primeiro construir o conselho de 10 analistas antes de ativar o piloto automático.",
+        });
+        return;
     }
+    setIsCouncilAutopilotOn(isOn);
   };
 
   const renderStrategyParams = (robot: RobotStrategy) => {
@@ -246,7 +250,24 @@ export function AutoTraderCouncilInterface({
             <p className="text-xs text-muted-foreground">Soma de confiança necessária para executar uma ordem.</p>
         </div>
 
-         <div className="flex justify-between items-center text-xs text-muted-foreground border-t pt-4">
+        <Separator />
+
+        {strategyCouncil.length < 10 ? (
+            <Button className="w-full" onClick={fetchStrategyCouncil} disabled={isFetchingCouncil}>
+                {isFetchingCouncil ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                    <Wand className="mr-2 h-4 w-4" />
+                )}
+                {isFetchingCouncil ? 'Construindo...' : 'Construir Conselho de Analistas'}
+            </Button>
+        ) : null}
+
+         <div className="flex justify-between items-center text-xs text-muted-foreground pt-2">
+            <span>Analistas Montados</span>
+            <Badge variant="outline">{strategyCouncil.length} / 10</Badge>
+        </div>
+         <div className="flex justify-between items-center text-xs text-muted-foreground">
             <span>Requisições à IA (sessão)</span>
             <Badge variant="outline">{geminiRequestCount}</Badge>
         </div>
@@ -308,15 +329,21 @@ export function AutoTraderCouncilInterface({
             ) : (
                  <div className="text-center text-muted-foreground p-4 border rounded-md bg-muted/50">
                     <Info className="h-5 w-5 mx-auto mb-2" />
-                    <p className="text-sm">Aguardando geração do conselho pela IA.</p>
+                    <p className="text-sm">Clique em "Construir Conselho" para começar.</p>
                 </div>
             )
         )}
-        {!isCouncilAutopilotOn && (
+        {!isCouncilAutopilotOn && strategyCouncil.length < 10 && (
+            <div className="text-center text-muted-foreground p-4 border rounded-md bg-muted/50">
+                <Info className="h-5 w-5 mx-auto mb-2" />
+                <p className="text-sm">O Conselho de IA está aguardando a construção.</p>
+                <p className="text-xs">Use o botão acima para iniciar.</p>
+            </div>
+        )}
+        {!isCouncilAutopilotOn && strategyCouncil.length === 10 && (
              <div className="text-center text-muted-foreground p-4 border rounded-md bg-muted/50">
                 <Info className="h-5 w-5 mx-auto mb-2" />
-                <p className="text-sm">A Mesa Operacional de IA está desativada.</p>
-                <p className="text-xs">Ative para começar a negociar por consenso.</p>
+                <p className="text-sm">O Conselho está pronto. Ative o piloto automático para começar.</p>
             </div>
         )}
       </CardContent>

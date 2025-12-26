@@ -208,12 +208,12 @@ Contexto do Trader:
         }
     };
 
-
-    useEffect(() => {
-        if (isCouncilAutopilotOn && activeSymbol && !isFetchingCouncil && strategyCouncil.length === 0) {
-            fetchStrategyCouncil();
-        }
-    }, [isCouncilAutopilotOn, activeSymbol, isFetchingCouncil, strategyCouncil.length, fetchStrategyCouncil]);
+    // This effect is no longer needed as the fetch is now manual
+    // useEffect(() => {
+    //     if (isCouncilAutopilotOn && activeSymbol && !isFetchingCouncil && strategyCouncil.length === 0) {
+    //         fetchStrategyCouncil();
+    //     }
+    // }, [isCouncilAutopilotOn, activeSymbol, isFetchingCouncil, strategyCouncil.length, fetchStrategyCouncil]);
     
     const supervisionCommitteeCheck = useCallback((stake: number, direction: 'RISE' | 'FALL') => {
         let finalStake = stake;
