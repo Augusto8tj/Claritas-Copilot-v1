@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DerivTraderInterface } from "@/components/trading/deriv-trader-interface";
@@ -47,9 +47,13 @@ export default function DerivTraderPage() {
     executeTrade,
   } = useDerivApi();
   
-  const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod } = useMarketData(activeSymbol);
+  const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod } = useMarketData(activeSymbol, '5m');
   
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
+  
+  const indicators = React.useMemo(() => {
+    return { sma: [], ema: [], vwap: [], bollingerBands: [] };
+  }, [chartData]);
   
   return (
     <FormProvider {...form}>
@@ -119,6 +123,7 @@ export default function DerivTraderPage() {
                         timePeriod={timePeriod}
                         setTimePeriod={setTimePeriod}
                         operations={operationsLog}
+                        indicators={indicators}
                     />
                 </CardContent>
               </Card>

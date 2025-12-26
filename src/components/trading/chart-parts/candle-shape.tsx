@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { THEMES } from './themes';
@@ -8,12 +9,12 @@ interface CandleShapeProps {
   width?: number;
   height?: number;
   payload?: any;
-  yAxis?: any; // Recharts yAxis object
+  yAxis?: any;
   colors: typeof THEMES.dark;
 }
 
 export const CandleShape = ({ x = 0, width = 0, payload, yAxis, colors }: CandleShapeProps) => {
-  if (!payload || !yAxis) return null;
+  if (!payload || !yAxis || !payload.open) return null;
 
   const { open, close, high, low } = payload;
   const bullish = close >= open;
@@ -34,12 +35,11 @@ export const CandleShape = ({ x = 0, width = 0, payload, yAxis, colors }: Candle
       <line x1={cx} x2={cx} y1={yHigh} y2={yLow} stroke={color} strokeWidth={1} />
       {/* Body */}
       <rect
-        x={x + width * 0.2}
+        x={x}
         y={bodyTop}
-        width={width * 0.6}
+        width={width}
         height={bodyHeight}
         fill={color}
-        rx={1}
       />
     </g>
   );

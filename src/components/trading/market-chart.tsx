@@ -1,6 +1,7 @@
+
 'use client'
 
-import * as React from 'react'
+import React from 'react'
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -12,23 +13,32 @@ import {
   Line,
   Area,
   Scatter,
+  Bar,
 } from 'recharts'
-import { Flag, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
+import { Flag, Settings } from 'lucide-react'
+import { useTheme } from '@/hooks/use-theme';
 import type {
   ChartData,
+  CandleData,
   TimePeriod,
   ChartType,
 } from '@/hooks/use-market-data'
 import { HeaderInfo } from './chart-parts/header-info'
 import { CustomTooltip } from './chart-parts/custom-tooltip'
+import { CandleShape } from './chart-parts/candle-shape'
 import { THEMES } from './chart-parts/themes'
 import type { Operation } from '@/components/trading/operations-log.types'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Button } from '../ui/button'
 
-const INITIAL_WINDOW_SECONDS = 120
 
-/* =========================================================
-   MARKER COMPONENTS (Shapes Visuais)
-========================================================= */
 const EntryMarker = (props: any) => {
   const { cx, cy, payload } = props
   
@@ -37,12 +47,11 @@ const EntryMarker = (props: any) => {
   const direction = payload.direction
   const status = payload.status
   
-  // Cor baseada no status da operação
-  let ENTRY_COLOR = '#3b82f6' // Azul para pendente
+  let ENTRY_COLOR = '#3b82f6' // Blue for pending
   if (status === 'won') {
-    ENTRY_COLOR = '#22c55e' // Verde para vitória
+    ENTRY_COLOR = '#22c55e' // Green for win
   } else if (status === 'lost') {
-    ENTRY_COLOR = '#ef4444' // Vermelho para perda
+    ENTRY_COLOR = '#ef4444' // Red for loss
   }
 
   return (
@@ -99,6 +108,12 @@ interface MarketChartProps {
   timePeriod: TimePeriod
   setTimePeriod: (period: TimePeriod) => void
   operations: Operation[]
+  indicators: {
+    sma: (number | null)[];
+    ema: (number | null)[];
+    vwap: (number | null)[];
+    bollingerBands: ({ upper: number; middle: number; lower: number } | null)[];
+  }
 }
 
 export function MarketChart({
@@ -111,61 +126,37 @@ export function MarketChart({
   timePeriod,
   setTimePeriod,
   operations,
+  indicators,
 }: MarketChartProps) {
-  const [chartTheme, setChartTheme] = React.useState<'light' | 'dark'>('dark')
-  const [cursor, setCursor] = React.useState<string | null>(null)
-  const [windowSize, setWindowSize] = React.useState(INITIAL_WINDOW_SECONDS)
-  const [xDomain, setXDomain] = React.useState<[number, number] | null>(null)
-  const colors = THEMES[chartTheme]
+  const { theme: appTheme } = useTheme();
+  const [chartTheme, setChartTheme] = React.useState<'light' | 'dark'>(appTheme.includes('dark') ? 'dark' : 'light');
+  const [cursor, setCursor] = React.useState<string | null>(null);
+  const [showIndicators, setShowIndicators] = React.useState({
+    sma: false,
+    ema: false,
+    vwap: false,
+    bollingerBands: false,
+  });
 
+  const colors = THEMES[chartTheme];
   const latestPrice = rawData.length > 0 ? rawData[rawData.length - 1]!.price : 0
   const prevPrice = rawData.length > 1 ? rawData[rawData.length - 2]!.price : latestPrice
-
-  // Gerenciar Domínio X (Tempo)
-  React.useEffect(() => {
-    if (rawData.length > 0) {
-      const lastEpoch = rawData[rawData.length - 1].epoch
-      const firstEpoch = lastEpoch - windowSize
-      setXDomain([firstEpoch, lastEpoch])
-    }
-  }, [rawData, windowSize])
-
-  const handleZoomIn = () => setWindowSize(prev => Math.max(30, prev - 30))
-  const handleZoomOut = () => setWindowSize(prev => Math.min(600, prev + 30))
-  const handleResetZoom = () => setWindowSize(INITIAL_WINDOW_SECONDS)
-
-  // Calcular Domínio Y (Preço) - IGNORAR pontos de operações
+  
   const yDomain = React.useMemo(() => {
-    if (!xDomain) return ['auto', 'auto']
-    const [minX, maxX] = xDomain
-    
-    // Filtrar apenas os dados do gráfico de preço, ignorando operações
-    const visibleData = rawData.filter(d => d.epoch >= minX && d.epoch <= maxX)
+    if (rawData.length === 0) return ['auto', 'auto'];
 
-    if (visibleData.length === 0) return ['auto', 'auto']
+    const prices = rawData.map(d => 'high' in d ? [d.high, d.low] : d.price).flat();
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    const padding = (maxPrice - minPrice) * 0.15;
+    return [minPrice - padding, maxPrice + padding];
+  }, [rawData]);
 
-    let minPrice = Infinity
-    let maxPrice = -Infinity
-
-    // Calcular min/max APENAS dos preços do gráfico
-    visibleData.forEach(d => {
-      if (d.price < minPrice) minPrice = d.price
-      if (d.price > maxPrice) maxPrice = d.price
-    })
-
-    if (minPrice === Infinity || maxPrice === -Infinity) return ['auto', 'auto']
-
-    const padding = (maxPrice - minPrice) * 0.15 // Mais padding para os marcadores
-    return [minPrice - padding, maxPrice + padding]
-  }, [rawData, xDomain])
-
-  // Filtrar Operações
   const visibleOperations = React.useMemo(() => {
     if (!Array.isArray(operations)) return []
     return operations
   }, [operations])
 
-  // Preparar Dados das Operações
   const { entryPoints, exitPoints, operationLines } = React.useMemo(() => {
     const entries: any[] = []
     const exits: any[] = []
@@ -176,7 +167,6 @@ export function MarketChart({
 
       const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000)
       
-      // Buscar entryPrice do gráfico se não estiver na operação
       let entryPrice = op.entryPrice
       if (!entryPrice && rawData.length > 0) {
         const closestPoint = rawData.reduce((prev, curr) => {
@@ -191,7 +181,6 @@ export function MarketChart({
       
       if (!entryPrice || entryPrice <= 0) return
 
-      // Calcular duração
       let durationInSeconds = 0
       switch (op.durationUnit) {
         case 't': durationInSeconds = op.duration * 2; break
@@ -202,20 +191,17 @@ export function MarketChart({
       }
       const exitEpoch = entryEpoch + durationInSeconds
 
-      // === PONTO DE ENTRADA ===
       entries.push({
         x: entryEpoch,
         y: entryPrice,
         direction: op.direction,
-        status: op.status, // ✅ Adiciona status para colorir o ponto
+        status: op.status,
         id: op.id,
       })
 
-      // === LINHA E PONTO DE SAÍDA ===
       const isPending = op.status === 'pending'
       
       if (isPending) {
-        // OPERAÇÃO PENDENTE: linha dinâmica até o preço atual
         const currentPoint = rawData.length > 0 ? rawData[rawData.length - 1] : null
         if (currentPoint) {
           const currentEpoch = Math.min(exitEpoch, currentPoint.epoch)
@@ -231,21 +217,19 @@ export function MarketChart({
           })
         }
       } else if (op.exitPrice && op.exitPrice > 0) {
-        // OPERAÇÃO CONCLUÍDA: linha ESTÁTICA com o exitPrice FIXO
         lines.push({
           id: op.id,
           isPending: false,
           status: op.status,
           segment: [
             { x: entryEpoch, y: entryPrice },
-            { x: exitEpoch, y: op.exitPrice }, // ✅ USA O exitPrice FIXO, NÃO O PREÇO ATUAL
+            { x: exitEpoch, y: op.exitPrice },
           ],
         })
 
-        // BANDEIRA DE SAÍDA
         exits.push({
           x: exitEpoch,
-          y: op.exitPrice, // ✅ USA O exitPrice FIXO
+          y: op.exitPrice,
           status: op.status,
           id: op.id,
         })
@@ -257,20 +241,17 @@ export function MarketChart({
       exitPoints: exits,
       operationLines: lines,
     }
-  }, [visibleOperations, rawData])
+  }, [visibleOperations, rawData]);
 
-  // Debug
-  React.useEffect(() => {
-    if (entryPoints.length > 0 || exitPoints.length > 0) {
-      console.log('📍 Markers Debug:', {
-        entries: entryPoints.length,
-        exits: exitPoints.length,
-        lines: operationLines.length,
-        entryExample: entryPoints[0],
-        exitExample: exitPoints[0],
-      })
-    }
-  }, [entryPoints, exitPoints, operationLines])
+  const augmentedData = React.useMemo(() => {
+    return rawData.map((d, i) => ({
+      ...d,
+      sma: indicators.sma[i],
+      ema: indicators.ema[i],
+      vwap: indicators.vwap[i],
+      bb: indicators.bollingerBands[i],
+    }));
+  }, [rawData, indicators]);
 
   if (isChartLoading && rawData.length === 0) {
     return (
@@ -304,54 +285,60 @@ export function MarketChart({
         chartTheme={chartTheme}
         setChartTheme={setChartTheme}
       />
-
-      <div className="mb-2 flex items-center justify-between">
-        {visibleOperations.length > 0 && (
-          <div className="text-xs text-gray-400">
-             📊 {visibleOperations.length} ops • 
-             ⏳ {visibleOperations.filter(op => op.status === 'pending').length} • 
-             🟢 {visibleOperations.filter(op => op.status === 'won').length} • 
-             🔴 {visibleOperations.filter(op => op.status === 'lost').length}
-          </div>
-        )}
-        
-        <div className="flex items-center gap-2 ml-auto">
-          <span className="text-xs text-gray-400">{windowSize}s</span>
-          <button onClick={handleZoomIn} className="p-1 rounded hover:bg-gray-700">
-            <ZoomIn size={16} stroke={colors.text} />
-          </button>
-          <button onClick={handleZoomOut} className="p-1 rounded hover:bg-gray-700">
-            <ZoomOut size={16} stroke={colors.text} />
-          </button>
-          <button onClick={handleResetZoom} className="p-1 rounded hover:bg-gray-700">
-            <Maximize2 size={16} stroke={colors.text} />
-          </button>
-        </div>
+      
+      <div className="mb-2 flex items-center justify-end">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-9 gap-1.5">
+              <Settings size={14} /> Indicadores
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56">
+            <DropdownMenuLabel>Indicadores Técnicos</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem
+              checked={showIndicators.sma}
+              onCheckedChange={(checked) => setShowIndicators(s => ({ ...s, sma: checked }))}
+            >
+              Média Móvel Simples (SMA)
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={showIndicators.ema}
+              onCheckedChange={(checked) => setShowIndicators(s => ({ ...s, ema: checked }))}
+            >
+              Média Móvel Exponencial (EMA)
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={showIndicators.vwap}
+              onCheckedChange={(checked) => setShowIndicators(s => ({ ...s, vwap: checked }))}
+            >
+              Preço Médio Ponderado por Volume (VWAP)
+            </DropdownMenuCheckboxItem>
+             <DropdownMenuCheckboxItem
+              checked={showIndicators.bollingerBands}
+              onCheckedChange={(checked) => setShowIndicators(s => ({ ...s, bollingerBands: checked }))}
+            >
+              Bandas de Bollinger
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      <ResponsiveContainer width="100%" height="85%">
+      <ResponsiveContainer width="100%" height="80%">
         <ComposedChart
-          data={rawData}
-          margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
+          data={augmentedData}
+          margin={{ top: 5, right: 50, left: 0, bottom: 20 }}
           onMouseMove={e => e?.activeLabel && setCursor(e.activeLabel)}
           onMouseLeave={() => setCursor(null)}
         >
-          <defs>
-            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={colors.areaTop} />
-              <stop offset="100%" stopColor={colors.areaBottom} />
-            </linearGradient>
-          </defs>
-
           <CartesianGrid stroke={colors.grid} strokeDasharray="3 3" />
 
           <XAxis
             dataKey="epoch"
             type="number"
-            domain={xDomain || ['dataMin', 'dataMax']}
+            domain={['dataMin', 'dataMax']}
             tickFormatter={time => new Date(time * 1000).toLocaleTimeString()}
             stroke={colors.text}
-            allowDataOverflow={true}
             tick={{ fontSize: 10 }}
           />
 
@@ -363,13 +350,12 @@ export function MarketChart({
             tick={{ fontSize: 10 }}
             tickFormatter={val => typeof val === 'number' ? val.toFixed(4) : ''}
           />
-
+          
           <Tooltip
             content={<CustomTooltip colors={colors} />}
             cursor={{ stroke: colors.crosshair, strokeDasharray: '3 3' }}
           />
 
-          {/* LINHAS CONECTORAS (Devem vir ANTES do Scatter para ficarem atrás) */}
           {operationLines.map(line => (
             <ReferenceLine
               key={`line-${line.id}`}
@@ -383,32 +369,47 @@ export function MarketChart({
                   : '#ef4444'
               }
               strokeDasharray={line.isPending ? '5 5' : '4 4'}
-              strokeWidth={5}
+              strokeWidth={2}
               ifOverflow="visible"
             />
           ))}
 
-          {/* ÁREA DO PREÇO */}
-          <Area
-            yAxisId="price"
-            dataKey="price"
-            fill="url(#areaGrad)"
-            stroke="none"
-            isAnimationActive={false}
-          />
+          {chartType === 'Area' && (
+            <>
+              <defs>
+                <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={colors.areaTop} />
+                  <stop offset="100%" stopColor={colors.areaBottom} />
+                </linearGradient>
+              </defs>
+              <Area
+                yAxisId="price"
+                dataKey="price"
+                fill="url(#areaGrad)"
+                stroke="none"
+                isAnimationActive={false}
+              />
+              <Line
+                yAxisId="price"
+                dataKey="price"
+                stroke={colors.line}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4, fill: colors.line }}
+                isAnimationActive={false}
+              />
+            </>
+          )}
 
-          {/* LINHA DO PREÇO */}
-          <Line
-            yAxisId="price"
-            dataKey="price"
-            stroke={colors.line}
-            strokeWidth={2}
-            dot={false}
-            activeDot={{ r: 4, fill: colors.line }}
-            isAnimationActive={false}
-          />
+          {chartType === 'Candle' && (
+            <Bar
+              yAxisId="price"
+              dataKey="price"
+              isAnimationActive={false}
+              shape={<CandleShape colors={colors} />}
+            />
+          )}
 
-          {/* CROSSHAIR */}
           {cursor && (
             <ReferenceLine
               x={cursor as any}
@@ -418,7 +419,6 @@ export function MarketChart({
             />
           )}
 
-          {/* PONTOS DE ENTRADA */}
           {entryPoints.length > 0 && (
             <Scatter
               yAxisId="price"
@@ -426,11 +426,10 @@ export function MarketChart({
               data={entryPoints}
               shape={<EntryMarker />}
               isAnimationActive={false}
-              fill="transparent" // Não afetar o domínio
+              fill="transparent"
             />
           )}
 
-          {/* PONTOS DE SAÍDA (BANDEIRAS) */}
           {exitPoints.length > 0 && (
             <Scatter
               yAxisId="price"
@@ -438,7 +437,7 @@ export function MarketChart({
               data={exitPoints}
               shape={<ExitMarker />}
               isAnimationActive={false}
-              fill="transparent" // Não afetar o domínio
+              fill="transparent"
             />
           )}
         </ComposedChart>

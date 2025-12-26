@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -63,14 +64,14 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
 /* =========================================================
    HOOK PRINCIPAL
 ========================================================= */
-export function useMarketData(activeSymbol: string | null) {
+export function useMarketData(activeSymbol: string | null, defaultTimePeriod: TimePeriod = '5m') {
     const { makeRequest, isConnected, addMarketDataListener, removeMarketDataListener } = useDerivApi();
     
     const [chartData, setChartData] = useState<ChartData[]>([]);
     const [isChartLoading, setIsChartLoading] = useState(true);
     const [chartError, setChartError] = useState<string | null>(null);
     const [chartType, setChartType] = useState<ChartType>('Area');
-    const [timePeriod, setTimePeriod] = useState<TimePeriod>('1m');
+    const [timePeriod, setTimePeriod] = useState<TimePeriod>(defaultTimePeriod);
 
     const activeSubscriptionIdRef = useRef<string | null>(null);
     const currentSymbolRef = useRef<string | null>(null);
@@ -82,7 +83,7 @@ export function useMarketData(activeSymbol: string | null) {
     const handleMarketData = useCallback((response: any) => {
         if (isSwitchingRef.current) return;
         
-        const responseSymbol = response.tick?.symbol || response.ohlc?.symbol || response.echo_req?.ticks_history;
+        const responseSymbol = response.tick?.symbol || response.ohlc?.symbol || response.echo_req?.ticks_history || response.echo_req?.candles;
         if (responseSymbol && responseSymbol !== currentSymbolRef.current) {
             return;
         }
@@ -169,7 +170,7 @@ export function useMarketData(activeSymbol: string | null) {
 
 
     // --------------------------------------------------------------------------
-    // 3. Função Centralizada de Subscrição (CORRIGIDA)
+    // 3. Função Centralizada de Subscrição
     // --------------------------------------------------------------------------
     useEffect(() => {
         const subscribeToSymbol = async () => {
@@ -186,7 +187,6 @@ export function useMarketData(activeSymbol: string | null) {
             setIsChartLoading(true);
             setChartError(null);
 
-            // Cancela subscrição anterior
             if (activeSubscriptionIdRef.current) {
                 try {
                     await makeRequest({ forget: activeSubscriptionIdRef.current });
@@ -200,11 +200,9 @@ export function useMarketData(activeSymbol: string | null) {
             isSwitchingRef.current = false;
 
             try {
-                // CORREÇÃO: Adaptar requests baseado no tipo de gráfico
                 const isAreaChart = chartType === 'Area';
                 
                 if (isAreaChart) {
-                    // Para gráfico de área: usar ticks
                     const historyResponse: any = await makeRequest({
                         ticks_history: activeSymbol,
                         end: 'latest',
@@ -217,19 +215,16 @@ export function useMarketData(activeSymbol: string | null) {
                     }
                     setIsChartLoading(false);
 
-                    // Subscrever a ticks em tempo real
                     await makeRequest({
                         ticks: activeSymbol,
                         subscribe: 1,
                     });
                     
-                } else {
-                    // Para gráfico de velas: usar candles com granularidade
+                } else { // Candle chart
                     const granularity = getGranularityForTimePeriod(timePeriod);
                     
                     const historyResponse: any = await makeRequest({
                         ticks_history: activeSymbol,
-                        end: 'latest',
                         count: 500,
                         style: 'candles',
                         granularity: granularity
@@ -240,7 +235,6 @@ export function useMarketData(activeSymbol: string | null) {
                     }
                     setIsChartLoading(false);
 
-                    // Subscrever a candles em tempo real
                     await makeRequest({
                         ticks_history: activeSymbol,
                         subscribe: 1,
