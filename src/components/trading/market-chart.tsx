@@ -1,4 +1,3 @@
-
 'use client'
 
 import React from 'react'
@@ -98,10 +97,10 @@ export function MarketChart({
     isBrushing: false,
     isDragging: false,
     startX: 0,
-    startMin: 0,
-    startMax: 0,
     target: '' as 'min' | 'max' | 'body' | '',
   })
+  
+  const throttleTimeoutRef = React.useRef<NodeJS.Timeout>();
 
   const isCandle = (d: ChartData): d is CandleData =>
     'open' in d && d.open !== undefined
@@ -638,8 +637,6 @@ export function MarketChart({
     const handleMargin = 10 / rect.width
 
     brushRef.current.startX = pos
-    brushRef.current.startMin = brushWindow.min
-    brushRef.current.startMax = brushWindow.max
 
     if (Math.abs(pos - brushWindow.min) < handleMargin) {
       brushRef.current.target = 'min'
@@ -654,29 +651,40 @@ export function MarketChart({
 
   const handleBrushMouseMove = React.useCallback((e: React.MouseEvent) => {
     if (!brushRef.current.target) return
-
+    if (throttleTimeoutRef.current) return;
+    
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const pos = Math.max(0, Math.min(1, x / rect.width))
     const delta = pos - brushRef.current.startX
 
-    let newMin = brushRef.current.startMin
-    let newMax = brushRef.current.startMax
+    throttleTimeoutRef.current = setTimeout(() => {
+      setBrushWindow(prev => {
+        let newMin = prev.min
+        let newMax = prev.max
 
-    if (brushRef.current.target === 'body') {
-      const width = newMax - newMin
-      newMin = Math.max(0, brushRef.current.startMin + delta)
-      newMax = Math.min(1, newMin + width)
-      if (newMax === 1) {
-        newMin = 1 - width
-      }
-    } else if (brushRef.current.target === 'min') {
-      newMin = Math.min(Math.max(0, newMin + delta), newMax - 0.01)
-    } else if (brushRef.current.target === 'max') {
-      newMax = Math.max(Math.min(1, newMax + delta), newMin + 0.01)
-    }
+        if (brushRef.current.target === 'body') {
+          const width = newMax - newMin
+          newMin = Math.max(0, prev.min + delta)
+          newMax = Math.min(1, newMin + width)
+          if (newMax === 1) {
+            newMin = 1 - width
+          }
+        } else if (brushRef.current.target === 'min') {
+          newMin = Math.min(Math.max(0, prev.min + delta), newMax - 0.01)
+        } else if (brushRef.current.target === 'max') {
+          newMax = Math.max(Math.min(1, prev.max + delta), newMin + 0.01)
+        }
+        
+        if (newMin !== prev.min || newMax !== prev.max) {
+          return { min: newMin, max: newMax }
+        }
+        return prev;
+      });
+      brushRef.current.startX = pos;
+      throttleTimeoutRef.current = undefined;
+    }, 16);
 
-    setBrushWindow({ min: newMin, max: newMax })
   }, []);
 
   const handleBrushMouseUp = React.useCallback(() => {
