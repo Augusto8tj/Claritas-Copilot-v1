@@ -121,6 +121,46 @@ export default function HelpPage() {
                  </ol>
               </AccordionContent>
             </AccordionItem>
+
+             <AccordionItem value="item-11">
+                <AccordionTrigger className="text-lg font-semibold">
+                    Mesa Operacional de IA (Conselho de Robôs)
+                </AccordionTrigger>
+                <AccordionContent className="text-base leading-relaxed space-y-4">
+                    <p>Esta é a funcionalidade mais avançada do Claritas. Em vez de depender de um único robô, o sistema simula uma "mesa de operações" com 13 entidades de IA que colaboram para tomar decisões de trading mais seguras e inteligentes. A estrutura funciona em duas camadas:</p>
+                    
+                    <div>
+                        <h4 className="font-semibold text-md mb-2">Camada 1: O Conselho de Votação (10 Analistas Especialistas)</h4>
+                        <p>Quando você ativa o piloto automático do conselho, a IA forma uma equipa de 10 "analistas" de software, cada um especialista numa única filosofia de trading. Eles analisam o mercado em tempo real e votam numa direção (RISE ou FALL) com base nos seus próprios critérios. Os especialistas são:</p>
+                        <ul className="list-disc pl-6 mt-2 space-y-1 text-sm">
+                            <li>Analistas de Momentum: <strong>RSI, Estocástico, MACD, Awesome Oscillator</strong></li>
+                            <li>Analistas de Tendência: <strong>Cruzamento de Médias Móveis, ADX, Nuvem Ichimoku</strong></li>
+                            <li>Analista de Volatilidade: <strong>Bandas de Bollinger</strong></li>
+                            <li>Analista de Padrões: <strong>Price Action (Padrões de Velas)</strong></li>
+                            <li>Analista de Volume: <strong>Volume Profile</strong></li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <h4 className="font-semibold text-md mb-2">Camada 2: O Comité de Supervisão (3 Analistas de Risco)</h4>
+                        <p>Após o conselho votar, a decisão não é final. Ela passa por 3 supervisores que não votam, mas têm poder de veto e ajuste, funcionando como uma camada final de prudência:</p>
+                        <ul className="list-disc pl-6 mt-2 space-y-2 text-sm">
+                            <li><strong>Analista de Risco:</strong> O mais importante. Ele verifica a sua banca do dia, o alvo de lucro e o limite de perdas. Se algum limite for atingido, ele <strong>veta a operação</strong> para proteger o seu capital.</li>
+                            <li><strong>Analista de Volatilidade (ATR):</strong> Mede a "turbulência" do mercado. Se o mercado estiver demasiado caótico ou parado, ele <strong>reduz o valor da aposta (stake)</strong> para diminuir o risco.</li>
+                            <li><strong>Analista de Tendência (ADX):</strong> Mede a "clareza" da tendência. Se o mercado estiver lateral, ele também reduz o risco. Se houver uma tendência muito forte a favor do voto do conselho, ele pode manter ou até aumentar ligeiramente a aposta.</li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <h4 className="font-semibold text-md mb-2">Inteligência e Aprendizagem Contínua</h4>
+                        <ul className="list-disc pl-6 mt-2 space-y-2 text-sm">
+                            <li><strong>Meritocracia:</strong> Se ativada, os analistas com melhor histórico de vitórias ganham mais "peso" no voto, tornando as suas opiniões mais influentes. Os melhores são promovidos e os piores, rebaixados, automaticamente.</li>
+                            <li><strong>Analista de Perdas:</strong> Sempre que uma operação do conselho resulta em prejuízo, uma IA "médico legista" é acionada para analisar o que correu mal e fornecer uma sugestão para ajustar a estratégia. Essa sugestão é usada na próxima vez que o conselho for formado, criando um ciclo de aprendizagem.</li>
+                             <li><strong>Hall da Fama:</strong> A página "Hall da Fama" regista permanentemente os analistas que provaram ser os mais lucrativos e consistentes, permitindo-lhe ver quais estratégias funcionaram melhor ao longo do tempo.</li>
+                        </ul>
+                    </div>
+                </AccordionContent>
+            </AccordionItem>
             
             <AccordionItem value="item-9">
               <AccordionTrigger className="text-lg font-semibold">
