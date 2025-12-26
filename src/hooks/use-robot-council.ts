@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -74,7 +73,7 @@ export function useRobotCouncil(
         rsi: null as number | null,
         stoch: null as number | null,
         ma: { short: null as number | null, long: null as number | null },
-        bollingerBands: null as { upper: number, middle: number, lower: number }[] | null,
+        bollingerBands: [] as ({ upper: number; middle: number; lower: number } | null)[],
         macd: null as { macd: number | null, signal: number | null } | null,
         priceAction: null as string | null,
         adx: null as number | null,
@@ -82,7 +81,6 @@ export function useRobotCouncil(
         ichimoku: null as { inCloud: boolean, trend: 'bullish' | 'bearish' | 'neutral' } | null,
         awesomeOscillator: null as number | null,
         volumePoc: null as number | null,
-        // Full arrays for chart
         sma: [] as (number | null)[],
         ema: [] as (number | null)[],
         vwap: [] as (number | null)[],
