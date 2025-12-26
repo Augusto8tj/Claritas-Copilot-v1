@@ -1,4 +1,3 @@
-
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -293,51 +292,52 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const getHistoricalData = useCallback(
-    async (symbol: string, period?: string, count?: number): Promise<HistoricalData[]> => {
-      if (!wsRef.current || !isConnected) {
-        throw new Error("A conexão com a API da Deriv não está ativa.");
-      }
-  
-      const request: any = {
-        ticks_history: symbol,
-        count: count ?? 1000,
-        adjust_start_time: 1,
-        end: 'latest', // ✅ OBRIGATÓRIO
-      };
-  
-      if (period) {
-        request.style = 'candles';
-        request.granularity = getGranularityForTimePeriod(period);
-      } else {
-        request.style = 'ticks';
-      }
-  
-      const response: any = await makeRequest(request);
-  
-      // ---- TICKS ----
-      if (response.history) {
-        return response.history.times.map((time: number, index: number) => ({
-          epoch: time,
-          price: response.history.prices[index],
-        }));
-      }
-  
-      // ---- CANDLES ----
-      if (response.candles) {
-        return response.candles.map((candle: any) => ({
-          epoch: candle.epoch,
-          open: candle.open,
-          high: candle.high,
-          low: candle.low,
-          close: candle.close,
-          price: candle.close, // compatibilidade com gráfico
-        }));
-      }
-  
-      return [];
-    },
-    [isConnected, makeRequest]
-  );
+  async (symbol: string, period?: string, count?: number): Promise<HistoricalData[]> => {
+    if (!wsRef.current || !isConnected) {
+      throw new Error("A conexão com a API da Deriv não está ativa.");
+    }
+
+    const request: any = {
+      ticks_history: symbol,
+      count: count ?? 1000,
+      adjust_start_time: 1,
+    };
+
+    if (period) {
+      request.style = 'candles';
+      request.granularity = getGranularityForTimePeriod(period);
+      // 🚫 NÃO usar `end` para candles
+    } else {
+      request.style = 'ticks';
+      request.end = 'latest'; // ✅ só para ticks
+    }
+
+    const response: any = await makeRequest(request);
+
+    // ---- TICKS ----
+    if (response.history) {
+      return response.history.times.map((time: number, index: number) => ({
+        epoch: time,
+        price: response.history.prices[index],
+      }));
+    }
+
+    // ---- CANDLES ----
+    if (response.candles) {
+      return response.candles.map((candle: any) => ({
+        epoch: candle.epoch,
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+        price: candle.close, // compatibilidade com gráfico
+      }));
+    }
+
+    return [];
+  },
+  [isConnected, makeRequest]
+);
   
   // Candle streaming functions
   const subscribeCandles = useCallback((granularity: number) => {
@@ -538,7 +538,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                     marketIsOpen: symbol.exchange_is_open === 1,
                     submarket: symbol.submarket,
                     market: marketKey,
-                    minDuration: symbol.min_contract_duration,
+                    minDuration: symbol.min_contract_duration ?? '0t',
                 });
             });
             
