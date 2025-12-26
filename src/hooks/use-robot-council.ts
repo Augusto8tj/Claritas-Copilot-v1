@@ -74,7 +74,7 @@ export function useRobotCouncil(
         rsi: null as number | null,
         stoch: null as number | null,
         ma: { short: null as number | null, long: null as number | null },
-        bollingerBands: null as { upper: number, middle: number, lower: number } | null,
+        bollingerBands: null as { upper: number, middle: number, lower: number }[] | null,
         macd: null as { macd: number | null, signal: number | null } | null,
         priceAction: null as string | null,
         adx: null as number | null,
