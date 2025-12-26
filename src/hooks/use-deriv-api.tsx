@@ -49,7 +49,7 @@ export interface AssetGroup {
 }
 
 export type HistoricalData = {
-    date: string;
+    epoch: number;
     price: number;
     open?: number;
     high?: number;
@@ -277,47 +277,52 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  const getHistoricalData = useCallback(async (symbol: string, period?: string, count?: number): Promise<HistoricalData[]> => {
+  const getHistoricalData = useCallback(
+    async (symbol: string, period?: string, count?: number): Promise<HistoricalData[]> => {
       if (!wsRef.current || !isConnected) {
         throw new Error("A conexão com a API da Deriv não está ativa.");
       }
-      
+
       const request: any = {
         ticks_history: symbol,
-        count: count || 1000,
-        adjust_start_time: 1
+        count: count ?? 1000,
+        adjust_start_time: 1,
+        end: 'latest', // ✅ OBRIGATÓRIO
       };
 
-      // Se um 'period' é fornecido, significa que queremos candles
       if (period) {
-          request.style = 'candles';
-          request.granularity = getGranularityForTimePeriod(period as any);
-      } else { // Caso contrário, queremos ticks
-          request.style = 'ticks';
-          request.end = "latest";
+        request.style = 'candles';
+        request.granularity = getGranularityForTimePeriod(period);
+      } else {
+        request.style = 'ticks';
       }
 
       const response: any = await makeRequest(request);
-      
-      if(response.history) {
-          return response.history.times.map((time: number, index: number) => ({
-              date: new Date(time * 1000).toISOString(),
-              price: response.history.prices[index]
-          }));
+
+      // ---- TICKS ----
+      if (response.history) {
+        return response.history.times.map((time: number, index: number) => ({
+          epoch: time,
+          price: response.history.prices[index],
+        }));
       }
-      if(response.candles) {
-           return response.candles.map((candle: any) => ({
-                date: new Date(candle.epoch * 1000).toISOString(),
-                open: candle.open,
-                high: candle.high,
-                low: candle.low,
-                close: candle.close,
-                price: candle.close,
-            }));
+
+      // ---- CANDLES ----
+      if (response.candles) {
+        return response.candles.map((candle: any) => ({
+          epoch: candle.epoch,
+          open: candle.open,
+          high: candle.high,
+          low: candle.low,
+          close: candle.close,
+          price: candle.close, // compatibilidade com gráfico
+        }));
       }
 
       return [];
-  }, [isConnected, makeRequest]);
+    },
+    [isConnected, makeRequest]
+  );
 
   useEffect(() => {
     if (!activeToken || isLoading) {
