@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -256,7 +257,7 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
                 activeSubscriptionIdRef.current = null;
             }
         };
-    }, [activeSymbol, isConnected, timePeriod, chartType, makeRequest, handleMarketData]);
+    }, [activeSymbol, isConnected, timePeriod, chartType, makeRequest, handleMarketData, wsRef]);
 
 
     return {
