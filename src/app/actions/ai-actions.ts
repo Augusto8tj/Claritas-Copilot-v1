@@ -8,6 +8,8 @@ import { analyzeTradeLoss } from '@/ai/flows/trade-loss-analyzer-flow';
 import { TradeLossAnalyzerInputSchema, type TradeLossAnalyzerOutput } from '@/ai/flows/trade-loss-analyzer-flow.types';
 import { getAssetAnalysis } from '@/ai/flows/asset-analysis-flow';
 import { AssetAnalysisInputSchema, type AssetAnalysisInput, type AssetAnalysisOutput } from '@/ai/flows/asset-analysis-flow.types';
+import { getAutotraderStrategy } from '@/ai/flows/auto-trader-strategy-flow';
+import { AutoTraderStrategyInputSchema, type AutoTraderStrategyInput, type AutoTraderStrategyOutput } from '@/ai/flows/auto-trader-strategy-flow.types';
 
 
 export async function getStrategyCouncilAction(input: StrategyCouncilInput): Promise<{ success?: StrategyCouncilOutput; error?: string }> {
@@ -58,5 +60,22 @@ export async function getAssetAnalysisAction(input: AssetAnalysisInput): Promise
     } catch (e: any) {
         console.error("[Action] Erro ao obter análise de ativo:", e);
         return { error: e.message || "Ocorreu um erro inesperado ao analisar o ativo." };
+    }
+}
+
+
+export async function getAutotraderStrategyAction(input: AutoTraderStrategyInput): Promise<{ success?: AutoTraderStrategyOutput; error?: string }> {
+    const validatedInput = AutoTraderStrategyInputSchema.safeParse(input);
+    if (!validatedInput.success) {
+        console.error("[Action Validation Error] Invalid input for getAutotraderStrategyAction:", validatedInput.error.format());
+        return { error: `Dados de entrada inválidos para a estratégia: ${validatedInput.error.message}` };
+    }
+
+    try {
+        const result = await getAutotraderStrategy(validatedInput.data);
+        return { success: result };
+    } catch (e: any) {
+        console.error("[Action] Erro ao obter estratégia do piloto automático:", e);
+        return { error: e.message || "Ocorreu um erro inesperado ao definir a estratégia." };
     }
 }
