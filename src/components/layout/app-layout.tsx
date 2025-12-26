@@ -119,7 +119,7 @@ function MainNav() {
   
   return (
     <SidebarMenu>
-      {navItems.filter(item => !item.hidden && item.href !== '/trader').map((item) => (
+      {navItems.filter(item => !item.hidden && item.href !== '/trader' && item.href !== '/help').map((item) => (
         <SidebarMenuItem key={item.href}>
           <SidebarMenuButton
             asChild
@@ -191,6 +191,7 @@ function MainNav() {
             </SidebarMenuSub>
         </CollapsibleContent>
       </Collapsible>
+      
        {navItems.filter(item => item.href === '/help').map((item) => (
         <SidebarMenuItem key={item.href}>
           <SidebarMenuButton
