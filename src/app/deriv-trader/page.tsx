@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState } from "react";
@@ -55,8 +56,8 @@ export default function DerivTraderPage() {
   const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod } = useMarketData(activeSymbol);
   
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
-  const autopilot = useAutopilot(activeSymbol, chartData, operationsLog, addActiveContract, executeTrade);
   const robotCouncil = useRobotCouncil(activeSymbol, chartData, operationsLog, addActiveContract, executeTrade);
+  const autopilot = useAutopilot(robotCouncil.indicators);
   
   const indicators = React.useMemo(() => {
     return robotCouncil.indicators;
@@ -150,7 +151,7 @@ export default function DerivTraderPage() {
           {/* Right Column: AI Copilots */}
           <div className="space-y-6">
               <AutoTraderInterface {...autopilot} />
-              <AutoTraderCouncilInterface {...robotCouncil} />
+              <AutoTraderCouncilInterface />
           </div>
         </div>
       </div>

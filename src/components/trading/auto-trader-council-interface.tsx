@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, Fragment } from "react";
@@ -55,6 +56,8 @@ const robotCategories: Record<string, RobotStrategy['strategyType'][]> = {
 export function AutoTraderCouncilInterface() {
   const { toast } = useToast();
   const form = useFormContext<RiseFallFormValues>();
+  const robotCouncil = useRobotCouncil();
+  
   const {
       isCouncilAutopilotOn,
       setIsCouncilAutopilotOn,
@@ -73,7 +76,7 @@ export function AutoTraderCouncilInterface() {
       isMeritocracyOn,
       setIsMeritocracyOn,
       indicators,
-  } = useRobotCouncil();
+  } = robotCouncil;
   
   const handleToggleAutopilot = (isOn: boolean) => {
     if (isOn) {
@@ -121,13 +124,14 @@ export function AutoTraderCouncilInterface() {
             const longMA = indicators.ma.long?.toFixed(4) ?? "-";
             return <p>Médias Atuais: <strong>{shortMA} / {longMA}</strong></p>;
         case 'BOLLINGER_BANDS':
-            if (!indicators.bollingerBands) return <p>Bandas: <strong>...</strong></p>;
-            const { upper, lower } = indicators.bollingerBands;
-            return <p>Bandas: <strong>{lower.toFixed(4)} / {upper.toFixed(4)}</strong></p>;
+            if (!indicators.bollingerBands || indicators.bollingerBands.length === 0) return <p>Bandas: <strong>...</strong></p>;
+            const lastBand = indicators.bollingerBands[indicators.bollingerBands.length - 1];
+            if (!lastBand) return <p>Bandas: <strong>...</strong></p>;
+            return <p>Bandas: <strong>{lastBand.lower.toFixed(4)} / {lastBand.upper.toFixed(4)}</strong></p>;
         case 'MACD_CROSS':
             if (!indicators.macd) return <p>MACD: <strong>...</strong></p>;
             const { macd, signal } = indicators.macd;
-            return <p>MACD/Sinal: <strong>{macd.toFixed(4)} / {signal.toFixed(4)}</strong></p>;
+            return <p>MACD/Sinal: <strong>{macd?.toFixed(4) ?? '...'} / {signal?.toFixed(4) ?? '...'}</strong></p>;
         case 'PRICE_ACTION_PATTERN':
              return <p>Último Padrão: <strong>{indicators.priceAction || "Nenhum"}</strong></p>;
         case 'ADX_TREND':

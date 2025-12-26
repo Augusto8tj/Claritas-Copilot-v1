@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState } from "react";
@@ -20,10 +21,8 @@ import { Badge } from "../ui/badge";
 import { Input } from "../ui/input";
 import { useAutopilot } from "@/hooks/use-autopilot";
 
-export function AutoTraderInterface() {
-  const { toast } = useToast();
-  const {
-    isAutopilotOn,
+export function AutoTraderInterface({ 
+    isAutopilotOn, 
     setIsAutopilotOn,
     autopilotStrategy,
     dailyBalance,
@@ -35,8 +34,9 @@ export function AutoTraderInterface() {
     error,
     currentRSI,
     currentStoch
-  } = useAutopilot();
-
+}: ReturnType<typeof useAutopilot>) {
+  const { toast } = useToast();
+  
   const handleToggleAutopilot = (isOn: boolean) => {
     if (isOn) {
         setIsAutopilotOn(true);

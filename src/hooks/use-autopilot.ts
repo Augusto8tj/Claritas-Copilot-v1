@@ -18,35 +18,8 @@ import type { ActiveContract } from "./use-deriv-api";
 import { useDerivApi } from "./use-deriv-api";
 
 
-// Indicator Calculation Helpers
-const calculateRSI = (data: { price: number }[], period = 14) => {
-    if (data.length < period + 1) return null;
-    const prices = data.map(d => d.price);
-    let gains = 0;
-    let losses = 0;
-    
-    for (let i = prices.length - period; i < prices.length; i++) {
-        const difference = prices[i] - prices[i - 1];
-        if (difference >= 0) gains += difference;
-        else losses -= difference;
-    }
-    if (losses === 0) return 100;
-    const rs = (gains / period) / (losses / period);
-    return 100 - (100 / (1 + rs));
-};
-
-const calculateStochastic = (data: { high: number, low: number, close: number }[], period = 14) => {
-    if (data.length < period) return null;
-    const relevantData = data.slice(-period);
-    const lowestLow = Math.min(...relevantData.map(d => d.low));
-    const highestHigh = Math.max(...relevantData.map(d => d.high));
-    const currentClose = relevantData[relevantData.length - 1].close;
-    if (highestHigh === lowestLow) return 50;
-    return 100 * ((currentClose - lowestLow) / (highestHigh - lowestLow));
-};
-
-export function useAutopilot() {
-    const { getHistoricalData, operationsLog, addActiveContract, executeTrade, priceTicks, chartData } = useDerivApi();
+export function useAutopilot(indicators: { rsi: number | null, stoch: number | null }) {
+    const { getHistoricalData, operationsLog, addActiveContract, executeTrade } = useDerivApi();
     const [activeSymbol] = useState<string | null>('1HZ10V'); // This should probably come from context or props
     const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
     const { toast } = useToast();
@@ -61,9 +34,6 @@ export function useAutopilot() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isExecuting, setIsExecuting] = useState(false);
-
-    const [currentRSI, setCurrentRSI] = useState<number | null>(null);
-    const [currentStoch, setCurrentStoch] = useState<number | null>(null);
     
     const strategyIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const STRATEGY_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
@@ -109,47 +79,6 @@ export function useAutopilot() {
         }
       }, [isAutopilotOn, activeSymbol, dailyBalance, operationsLog, lastAutopilotLossSuggestion, toast, getHistoricalData]);
     
-    // Effect for indicator calculation
-    useEffect(() => {
-        if (!priceTicks || priceTicks.length < 2) return;
-
-        // Aggregate ticks into 1-minute candles
-        const candles: { high: number, low: number, close: number, price: number, epoch: number }[] = [];
-        let currentCandle: { high: number, low: number, close: number, price: number, epoch: number, open: number } | null = null;
-        const granularity = 60; // 1 minute
-
-        priceTicks.forEach(tick => {
-            const candleEpoch = Math.floor(tick.epoch / granularity) * granularity;
-            
-            if (!currentCandle || currentCandle.epoch !== candleEpoch) {
-                if (currentCandle) {
-                    candles.push(currentCandle);
-                }
-                currentCandle = { 
-                    epoch: candleEpoch,
-                    open: tick.price,
-                    high: tick.price,
-                    low: tick.price,
-                    close: tick.price,
-                    price: tick.price,
-                };
-            } else {
-                currentCandle.high = Math.max(currentCandle.high, tick.price);
-                currentCandle.low = Math.min(currentCandle.low, tick.price);
-                currentCandle.close = tick.price;
-                currentCandle.price = tick.price;
-            }
-        });
-        if (currentCandle) {
-             candles.push(currentCandle);
-        }
-
-        if (candles.length > 14) {
-            setCurrentRSI(calculateRSI(candles));
-            setCurrentStoch(calculateStochastic(candles as any));
-        }
-    }, [priceTicks]);
-    
     // Effect to manage the strategy refresh interval
     useEffect(() => {
         if (isAutopilotOn) {
@@ -170,15 +99,15 @@ export function useAutopilot() {
     // Effect to check and execute trades based on strategy
     useEffect(() => {
         const checkAndExecute = async () => {
-            if (isExecuting || !isAutopilotOn || !autopilotStrategy || (currentRSI === null && currentStoch === null) || !activeSymbol) return;
+            if (isExecuting || !isAutopilotOn || !autopilotStrategy || (indicators.rsi === null && indicators.stoch === null) || !activeSymbol) return;
 
             let conditionMet = false;
-            if (autopilotStrategy.strategyName === 'RSI_BASIC' && autopilotStrategy.rsiThreshold && currentRSI !== null) {
-                if (autopilotStrategy.direction === 'RISE' && currentRSI <= autopilotStrategy.rsiThreshold) conditionMet = true;
-                else if (autopilotStrategy.direction === 'FALL' && currentRSI >= autopilotStrategy.rsiThreshold) conditionMet = true;
-            } else if (autopilotStrategy.strategyName === 'STOCH_BASIC' && autopilotStrategy.stochThreshold && currentStoch !== null) {
-                if (autopilotStrategy.direction === 'RISE' && currentStoch <= autopilotStrategy.stochThreshold) conditionMet = true;
-                else if (autopilotStrategy.direction === 'FALL' && currentStoch >= autopilotStrategy.stochThreshold) conditionMet = true;
+            if (autopilotStrategy.strategyName === 'RSI_BASIC' && autopilotStrategy.rsiThreshold && indicators.rsi !== null) {
+                if (autopilotStrategy.direction === 'RISE' && indicators.rsi <= autopilotStrategy.rsiThreshold) conditionMet = true;
+                else if (autopilotStrategy.direction === 'FALL' && indicators.rsi >= autopilotStrategy.rsiThreshold) conditionMet = true;
+            } else if (autopilotStrategy.strategyName === 'STOCH_BASIC' && autopilotStrategy.stochThreshold && indicators.stoch !== null) {
+                if (autopilotStrategy.direction === 'RISE' && indicators.stoch <= autopilotStrategy.stochThreshold) conditionMet = true;
+                else if (autopilotStrategy.direction === 'FALL' && indicators.stoch >= autopilotStrategy.stochThreshold) conditionMet = true;
             }
 
             if (conditionMet) {
@@ -206,7 +135,7 @@ export function useAutopilot() {
         };
 
         checkAndExecute();
-    }, [isAutopilotOn, isExecuting, autopilotStrategy, currentRSI, currentStoch, form, executeTrade, activeSymbol, toast, addActiveContract]);
+    }, [isAutopilotOn, isExecuting, autopilotStrategy, indicators.rsi, indicators.stoch, form, executeTrade, activeSymbol, toast, addActiveContract]);
 
     // Effect for risk management (stop loss/profit target)
     useEffect(() => {
@@ -252,7 +181,7 @@ export function useAutopilot() {
         geminiRequestCount,
         isLoading,
         error,
-        currentRSI,
-        currentStoch,
+        currentRSI: indicators.rsi,
+        currentStoch: indicators.stoch,
     };
 }
