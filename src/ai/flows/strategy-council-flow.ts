@@ -1,57 +1,40 @@
 'use server';
 
 /**
- * @fileOverview An AI flow that generates a "council" of trading robots.
+ * @fileOverview An AI flow that generates a "council" of trading robots in a single, powerful call.
  * 
  * - getStrategyCouncil - The main flow function.
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'zod';
-import { StrategyCouncilInputSchema, StrategyCouncilOutputSchema, RobotStrategySchema, type StrategyCouncilInput, type StrategyCouncilOutput, type RobotStrategy } from './strategy-council-flow.types';
+import { StrategyCouncilInputSchema, StrategyCouncilOutputSchema, type StrategyCouncilInput, type StrategyCouncilOutput } from './strategy-council-flow.types';
 
 
-const STRATEGY_TYPES: RobotStrategy['strategyType'][] = [
-    'RSI', 
-    'STOCHASTIC', 
-    'MOVING_AVERAGE_CROSS',
-    'BOLLINGER_BANDS',
-    'MACD_CROSS',
-    'PRICE_ACTION_PATTERN',
-    'ADX_TREND',
-    'ICHIMOKU_CLOUD',
-    'AWESOME_OSCILLATOR',
-    'VOLUME_PROFILE'
-];
+// This new, powerful prompt acts as a "Chief Architect", designing the entire council at once.
+const councilArchitectPrompt = ai.definePrompt({
+    name: 'councilArchitectPrompt',
+    input: { schema: StrategyCouncilInputSchema },
+    output: { schema: StrategyCouncilOutputSchema },
+    system: `Você é um arquiteto-chefe de estratégias quantitativas. Sua missão é montar um CONSELHO COMPLETO de 10 robôs-analistas especialistas.
 
+Você deve criar um robô para CADA UMA das seguintes estratégias, otimizando seus parâmetros para o ativo solicitado ('{{{symbol}}}') e o horizonte de tempo ('{{{durationUnit}}}').
 
-const RobotSpecialistInputSchema = StrategyCouncilInputSchema.extend({
-    strategyType: RobotStrategySchema.shape.strategyType,
-});
+Estratégias Requeridas (Crie uma para cada):
+- RSI, STOCHASTIC, MOVING_AVERAGE_CROSS, BOLLINGER_BANDS, MACD_CROSS, PRICE_ACTION_PATTERN, ADX_TREND, ICHIMOKU_CLOUD, AWESOME_OSCILLATOR, VOLUME_PROFILE
 
-// This new prompt is an expert in creating ONE specific robot, now with confidence levels.
-const robotSpecialistPrompt = ai.definePrompt({
-    name: 'robotSpecialistPrompt',
-    input: { schema: RobotSpecialistInputSchema },
-    output: { schema: RobotStrategySchema },
-    system: `Você é um analista quantitativo sênior, especialista em criar UM robô-analista de trading para a estratégia específica solicitada, com múltiplos níveis de confiança.
-
-A sua tarefa é criar UM robô para o ativo solicitado, otimizado para o horizonte de tempo ('durationUnit'), usando a estratégia: {{{strategyType}}}.
-
-Para o robô solicitado, você deve:
-1.  **Definir Parâmetros e Limiares de Confiança**: Preencha os parâmetros relevantes para a estratégia '{{{strategyType}}}' e defina dois níveis de limiar: um para um sinal FORTE e um para um sinal FRACO.
-    - Para RSI/STOCHASTIC: defina 'strongBuyThreshold' (ex: RSI < 20) e 'weakBuyThreshold' (ex: RSI < 30). Faça o mesmo para os limiares de venda ('strongSellThreshold' e 'weakSellThreshold').
-    - Para MOVING_AVERAGE_CROSS: Um cruzamento é um sinal FORTE. Um sinal FRACO pode ser o preço cruzando acima/abaixo da média longa.
-    - Para BOLLINGER_BANDS: Tocar a banda é um sinal FORTE. Aproximar-se dela (ex: dentro de 0.5 desvios padrão) é um sinal FRACO.
-    - Para MACD_CROSS: O cruzamento da linha MACD com a linha de sinal é um sinal FORTE. Apenas a linha MACD cruzar o nível zero é um sinal FRACO.
-    - ...e assim por diante para as outras estratégias.
-2.  **Definir Níveis de Confiança**: Atribua um valor numérico para a confiança. 'strongConfidence' deve ser alto (ex: 90-100). 'weakConfidence' deve ser moderado (ex: 60-75).
-3.  **Justificar a Escolha**: Forneça uma justificativa muito breve (1 frase) para a escolha dos parâmetros.
-4.  **Gestão de Risco e Duração**:
+Para CADA robô, você deve:
+1.  **Definir um ID único**: Ex: 'RSI_BOT_1'.
+2.  **Definir Parâmetros e Múltiplos Limiares de Confiança**: Preencha os parâmetros relevantes (ex: períodos de médias móveis) e defina DOIS níveis de limiar: um para um sinal FORTE e um para um sinal FRACO.
+    - Exemplo para RSI: 'strongBuyThreshold': 20 (RSI muito sobrevendido), 'weakBuyThreshold': 30 (RSI sobrevendido). Faça o análogo para venda.
+    - Exemplo para Bandas de Bollinger: um toque na banda é um sinal FORTE, enquanto chegar perto (ex: a 0.5 desvios padrão) é um sinal FRACO.
+    - Aplique esta lógica de duplo limiar para todas as estratégias aplicáveis.
+3.  **Definir Níveis de Confiança Numéricos**: Atribua um valor numérico para a confiança. 'strongConfidence' deve ser alto (ex: 90-100). 'weakConfidence' deve ser moderado (ex: 60-75).
+4.  **Justificar a Escolha**: Forneça uma justificativa muito breve (1 frase) para a escolha dos parâmetros de cada robô.
+5.  **Gestão de Risco**:
     - Defina 'suggestedStake' como 1% da banca do dia ('balance').
-    - Defina 'suggestedDuration' (na unidade 'durationUnit' fornecida).`,
+    - Defina 'suggestedDuration' na unidade 'durationUnit' fornecida.`,
     prompt: `
-Crie um robô especialista na estratégia {{{strategyType}}} para o ativo {{{symbol}}}, otimizado para operar com uma unidade de tempo de '{{{durationUnit}}}'.
+Crie um conselho de 10 robôs-analistas para o ativo {{{symbol}}}, otimizados para operar em '{{{durationUnit}}}'.
 
 Dados de Mercado (para análise de condição):
 \'\'\'json
@@ -72,35 +55,28 @@ const getStrategyCouncilFlow = ai.defineFlow(
   },
   async (input) => {
     
-    const council: RobotStrategy[] = [];
-
-    // Create robots sequentially to avoid hitting API rate limits.
-    for (const strategyType of STRATEGY_TYPES) {
-        console.log(`[Council] Creating specialist: ${strategyType}...`);
-        const specialistInput = { ...input, strategyType };
-        const result = await robotSpecialistPrompt(specialistInput);
-
-        if (!result.output) {
-            throw new Error(`A IA falhou em criar o robô especialista: ${strategyType}.`);
-        }
-        council.push(result.output);
-    }
+    console.log(`[Council Architect] Designing the entire 10-robot council in a single call...`);
     
-    if (council.length !== 10) {
-        throw new Error("O conselho não foi formado com os 10 membros necessários.");
+    // A single, powerful call to the architect prompt.
+    const { output } = await councilArchitectPrompt(input);
+
+    if (!output || !output.council || output.council.length < 10) {
+        throw new Error("A IA falhou em criar o conselho de robôs completo. A resposta foi inválida ou incompleta.");
     }
     
     // Ensure minimum stake is respected for every robot in the council
-    council.forEach(robot => {
+    output.council.forEach(robot => {
         if (robot.suggestedStake < 0.35) {
             robot.suggestedStake = 0.35;
         }
     });
 
-    return { council };
+    return output;
   }
 );
 
 export async function getStrategyCouncil(input: StrategyCouncilInput): Promise<StrategyCouncilOutput> {
   return getStrategyCouncilFlow(input);
 }
+
+    
