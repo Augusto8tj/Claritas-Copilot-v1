@@ -227,7 +227,7 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
                         ticks_history: activeSymbol,
                         style: 'ticks',
                         end: 'latest',
-                        count: 1000
+                        count: 1000,
                     });
 
                     if (isCancelled) return;
@@ -275,7 +275,7 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
                     .catch(e => console.error('[Market] Erro no cleanup:', e));
             }
         };
-    }, [activeSymbol, isConnected, timePeriod, chartType, makeRequest, wsRef, handleMessage]);
+    }, [activeSymbol, isConnected, timePeriod, chartType]);
 
     return {
         chartData,
