@@ -23,6 +23,7 @@ import { useMarketData } from "@/hooks/use-market-data";
 import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
 import { useAutopilot } from "@/hooks/use-autopilot";
 import { useRobotCouncil } from "@/hooks/use-robot-council";
+import { calculateAllIndicators } from "@/services/indicator-service";
 
 
 export default function DerivTraderPage() {
@@ -56,13 +57,34 @@ export default function DerivTraderPage() {
   const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod } = useMarketData(activeSymbol);
   
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
-  const robotCouncil = useRobotCouncil(activeSymbol, chartData, operationsLog, addActiveContract, executeTrade);
-  const autopilot = useAutopilot(robotCouncil.indicators);
   
-  const indicators = React.useMemo(() => {
-    return robotCouncil.indicators;
-  }, [robotCouncil.indicators]);
-  
+  const [indicators, setIndicators] = useState({
+      rsi: null as number | null,
+      stoch: null as number | null,
+      ma: { short: null as number | null, long: null as number | null },
+      bollingerBands: [] as ({ upper: number; middle: number; lower: number } | null)[],
+      macd: null as { macd: number | null, signal: number | null } | null,
+      priceAction: null as string | null,
+      adx: null as number | null,
+      atr: null as number | null,
+      ichimoku: null as { inCloud: boolean, trend: 'bullish' | 'bearish' | 'neutral' } | null,
+      awesomeOscillator: null as number | null,
+      volumePoc: null as number | null,
+      sma: [] as (number | null)[],
+      ema: [] as (number | null)[],
+      vwap: [] as (number | null)[],
+  });
+
+  const robotCouncil = useRobotCouncil(activeSymbol, operationsLog, addActiveContract, executeTrade, indicators);
+  const autopilot = useAutopilot(indicators);
+
+  React.useEffect(() => {
+      if (chartData.length > 0 && robotCouncil.strategyCouncil.length > 0) {
+          const calculatedIndicators = calculateAllIndicators(chartData, robotCouncil.strategyCouncil);
+          setIndicators(calculatedIndicators);
+      }
+  }, [chartData, robotCouncil.strategyCouncil]);
+
   return (
     <FormProvider {...form}>
       <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
@@ -151,7 +173,7 @@ export default function DerivTraderPage() {
           {/* Right Column: AI Copilots */}
           <div className="space-y-6">
               <AutoTraderInterface {...autopilot} />
-              <AutoTraderCouncilInterface />
+              <AutoTraderCouncilInterface {...robotCouncil} />
           </div>
         </div>
       </div>

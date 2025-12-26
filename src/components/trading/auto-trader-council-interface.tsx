@@ -53,30 +53,27 @@ const robotCategories: Record<string, RobotStrategy['strategyType'][]> = {
 };
 
 
-export function AutoTraderCouncilInterface() {
+export function AutoTraderCouncilInterface({ 
+    isCouncilAutopilotOn,
+    setIsCouncilAutopilotOn,
+    strategyCouncil,
+    isFetchingCouncil,
+    councilVotes,
+    geminiRequestCount,
+    dailyBalance,
+    setDailyBalance,
+    dailyTarget,
+    setDailyTarget,
+    consensusThreshold,
+    setConsensusThreshold,
+    isDynamicConsensusOn,
+    setIsDynamicConsensusOn,
+    isMeritocracyOn,
+    setIsMeritocracyOn,
+    indicators,
+    fetchStrategyCouncil,
+ }: ReturnType<typeof useRobotCouncil>) {
   const { toast } = useToast();
-  const form = useFormContext<RiseFallFormValues>();
-  const robotCouncil = useRobotCouncil();
-  
-  const {
-      isCouncilAutopilotOn,
-      setIsCouncilAutopilotOn,
-      strategyCouncil,
-      isFetchingCouncil,
-      councilVotes,
-      geminiRequestCount,
-      dailyBalance,
-      setDailyBalance,
-      dailyTarget,
-      setDailyTarget,
-      consensusThreshold,
-      setConsensusThreshold,
-      isDynamicConsensusOn,
-      setIsDynamicConsensusOn,
-      isMeritocracyOn,
-      setIsMeritocracyOn,
-      indicators,
-  } = robotCouncil;
   
   const handleToggleAutopilot = (isOn: boolean) => {
     if (isOn) {
@@ -175,7 +172,7 @@ export function AutoTraderCouncilInterface() {
             </div>
         </div>
         <CardDescription>
-          Um conselho de 10 analistas vota e 3 supervisores de risco aprovam cada trade.
+          10 analistas votam e 3 supervisores de risco aprovam cada trade.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

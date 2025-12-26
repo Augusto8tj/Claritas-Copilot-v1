@@ -6,13 +6,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDerivApi } from './use-deriv-api';
 import { useToast } from './use-toast';
 import { getStrategyCouncilAction } from '@/app/actions/ai-actions';
-import { calculateAllIndicators } from '@/services/indicator-service';
 import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
 import type { RiseFallFormValues } from '@/components/trading/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
 import type { Operation, OperationInitiator } from '@/components/trading/operations-log.types';
-import type { ChartData } from './use-market-data';
 import type { ActiveContract } from './use-deriv-api';
 import type { DurationUnit } from '@/components/trading/deriv-trader-interface.types';
 import type { TradeResult } from '@/services/deriv-api-service';
@@ -37,7 +35,6 @@ interface RobotPerformance {
 
 export function useRobotCouncil(
     activeSymbol: string | null,
-    chartData: ChartData[],
     operationsLog: Operation[],
     addActiveContract: (contract: ActiveContract) => void,
     executeTrade: (
@@ -48,9 +45,10 @@ export function useRobotCouncil(
         duration: number,
         durationUnit: DurationUnit,
         initiator: OperationInitiator
-    ) => Promise<TradeResult>
+    ) => Promise<TradeResult>,
+    indicators: any
 ) {
-    const { isConnected, getHistoricalData } = useDerivApi();
+    const { isConnected, getHistoricalData, chartData } = useDerivApi();
     const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
@@ -70,24 +68,6 @@ export function useRobotCouncil(
     const [lastCouncilLossSuggestion, setLastCouncilLossSuggestion] = useState<string | null>(null);
     
     const councilExecutionRef = useRef({ isExecuting: false });
-
-    const [indicators, setIndicators] = useState({
-        rsi: null as number | null,
-        stoch: null as number | null,
-        ma: { short: null as number | null, long: null as number | null },
-        bollingerBands: [] as ({ upper: number; middle: number; lower: number } | null)[],
-        macd: null as { macd: number | null, signal: number | null } | null,
-        priceAction: null as string | null,
-        adx: null as number | null,
-        atr: null as number | null,
-        ichimoku: null as { inCloud: boolean, trend: 'bullish' | 'bearish' | 'neutral' } | null,
-        awesomeOscillator: null as number | null,
-        volumePoc: null as number | null,
-        sma: [] as (number | null)[],
-        ema: [] as (number | null)[],
-        vwap: [] as (number | null)[],
-    });
-
 
     useEffect(() => {
         try {
@@ -132,8 +112,6 @@ export function useRobotCouncil(
                 currency: 'USD',
                 historicalDataJson: JSON.stringify(historicalData),
                 durationUnit: duration_unit,
-                // A feature para usar o feedback de perdas precisa ser adicionada ao `getStrategyCouncilAction` e ao `strategy-council-flow`
-                // Por agora, esta lógica prepara o terreno.
             });
             if (result.success) {
                 setStrategyCouncil(result.success.council);
@@ -155,13 +133,7 @@ export function useRobotCouncil(
             fetchStrategyCouncil();
         }
     }, [isCouncilAutopilotOn, activeSymbol, isFetchingCouncil, strategyCouncil.length, fetchStrategyCouncil]);
-
-    useEffect(() => {
-        if (!chartData || chartData.length < 2 || strategyCouncil.length === 0) return;
-        const allIndicators = calculateAllIndicators(chartData, strategyCouncil);
-        setIndicators(allIndicators);
-    }, [chartData, strategyCouncil]);
-
+    
     const supervisionCommitteeCheck = useCallback((stake: number, direction: 'RISE' | 'FALL') => {
         let finalStake = stake;
         let vetoReason: string | null = null;
@@ -181,7 +153,8 @@ export function useRobotCouncil(
 
         // 2. Analista de Volatilidade (ATR)
         const atr = indicators.atr;
-        const lastPrice = chartData.length > 0 ? chartData[chartData.length-1].price : 0;
+        const lastPrice = chartData.length > 0 ? ('price' in chartData[chartData.length-1] ? chartData[chartData.length-1].price : (chartData[chartData.length-1] as any).close) : 0;
+
         if (atr && lastPrice > 0) {
             const normalizedATR = atr / lastPrice; 
             if (normalizedATR > 0.0005) { // Ex: Volatilidade muito alta
@@ -291,6 +264,7 @@ export function useRobotCouncil(
         isCouncilAutopilotOn,
         setIsCouncilAutopilotOn,
         strategyCouncil,
+        fetchStrategyCouncil,
         isFetchingCouncil,
         councilVotes,
         geminiRequestCount,

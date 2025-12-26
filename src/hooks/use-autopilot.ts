@@ -10,12 +10,9 @@ import type { RiseFallFormValues } from "@/components/trading/deriv-trader-inter
 import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
 import { useTradeAnalysis } from "./use-trade-analysis";
 import { useDerivApi } from "./use-deriv-api";
-import { useRobotCouncil } from "./use-robot-council";
 
-export function useAutopilot() {
-    const { getHistoricalData, operationsLog, addActiveContract, executeTrade, priceTicks } = useDerivApi();
-    const { indicators } = useRobotCouncil();
-    const [activeSymbol] = useState<string | null>('1HZ10V'); // This should probably come from context or props
+export function useAutopilot(indicators: { rsi: number | null, stoch: number | null }) {
+    const { getHistoricalData, operationsLog, addActiveContract, executeTrade, priceTicks, activeSymbol } = useDerivApi();
     const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
@@ -130,7 +127,7 @@ export function useAutopilot() {
         };
 
         checkAndExecute();
-    }, [isAutopilotOn, isExecuting, autopilotStrategy, indicators.rsi, indicators.stoch, form, executeTrade, activeSymbol, toast, addActiveContract]);
+    }, [isAutopilotOn, isExecuting, autopilotStrategy, indicators, form, executeTrade, activeSymbol, toast, addActiveContract]);
 
     // Effect for risk management (stop loss/profit target)
     useEffect(() => {
