@@ -102,11 +102,11 @@ interface DerivApiContextType {
   addMarketDataListener: (callback: MarketDataCallback) => void;
   removeMarketDataListener: (callback: MarketDataCallback) => void;
   wsRef: React.RefObject<WebSocket | null>;
+  realtimeCandles: RealtimeCandle[];
   subscribeCandles: (granularity: number) => void;
   unsubscribeCandles: () => void;
   addCandleListener: (cb: (candle: RealtimeCandle) => void) => void;
   removeCandleListener: (cb: (candle: RealtimeCandle) => void) => void;
-  realtimeCandles: RealtimeCandle[];
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
@@ -119,6 +119,22 @@ const marketNameMapping: Record<string, string> = {
     'cryptocurrency': 'Criptomoedas',
     'basket_index': 'Cestas de Moedas e Matérias-Primas'
 };
+
+const getGranularityForTimePeriod = (timePeriod: any): number => {
+    switch(timePeriod) {
+        case '1m': return 60;
+        case '2m': return 120;
+        case '3m': return 180;
+        case '5m': return 300;
+        case '10m': return 600;
+        case '15m': return 900;
+        case '30m': return 1800;
+        case '1h': return 3600;
+        case '8h': return 28800;
+        case '1d': return 86400;
+        default: return 60;
+    }
+}
 
 export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [demoToken, setDemoToken] = useState<string | null>(null);
@@ -275,54 +291,35 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       }
   }, [isConnected, makeRequest]);
   
-  const getGranularityForTimePeriod = (timePeriod: any): number => {
-    switch(timePeriod) {
-        case '1m': return 60;
-        case '2m': return 120;
-        case '3m': return 180;
-        case '5m': return 300;
-        case '10m': return 600;
-        case '15m': return 900;
-        case '30m': return 1800;
-        case '1h': return 3600;
-        case '8h': return 28800;
-        case '1d': return 86400;
-        default: return 60;
-    }
-  }
-
-  const getHistoricalData = useCallback(
-  async (symbol: string, period?: string, count?: number): Promise<HistoricalData[]> => {
+  const getHistoricalData = useCallback(async (symbol: string, period?: string, count?: number): Promise<HistoricalData[]> => {
     if (!wsRef.current || !isConnected) {
       throw new Error("A conexão com a API da Deriv não está ativa.");
     }
-
+  
     const request: any = {
       ticks_history: symbol,
       count: count ?? 1000,
       adjust_start_time: 1,
     };
-
+  
     if (period) {
       request.style = 'candles';
       request.granularity = getGranularityForTimePeriod(period);
-      // 🚫 NÃO usar `end` para candles
+      // 🚫 NÃO usar `end` para candles históricos, a API infere o mais recente
     } else {
       request.style = 'ticks';
       request.end = 'latest'; // ✅ só para ticks
     }
-
+  
     const response: any = await makeRequest(request);
-
-    // ---- TICKS ----
+  
     if (response.history) {
       return response.history.times.map((time: number, index: number) => ({
         epoch: time,
         price: response.history.prices[index],
       }));
     }
-
-    // ---- CANDLES ----
+  
     if (response.candles) {
       return response.candles.map((candle: any) => ({
         epoch: candle.epoch,
@@ -333,11 +330,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         price: candle.close, // compatibilidade com gráfico
       }));
     }
-
+  
     return [];
-  },
-  [isConnected, makeRequest]
-);
+  }, [isConnected, makeRequest]);
+  
   
   // Candle streaming functions
   const subscribeCandles = useCallback((granularity: number) => {
@@ -452,10 +448,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 
                 case 'tick':
                     if (response.tick) {
-                        setPriceTicks(prev => [...prev.slice(-999), { epoch: response.tick.epoch, price: response.tick.quote }]);
+                        const tick = response.tick;
+                        setPriceTicks(prev => [...prev.slice(-999), { epoch: tick.epoch, price: tick.quote }]);
                         
                         // Candle Aggregation Logic
-                        const tick = response.tick;
                         if (!tick) return;
 
                         const granularity = candleGranularityRef.current;
