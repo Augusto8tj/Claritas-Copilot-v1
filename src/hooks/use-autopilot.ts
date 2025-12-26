@@ -9,17 +9,12 @@ import { getAutotraderStrategyAction } from '@/app/actions/ai-actions';
 import type { RiseFallFormValues } from "@/components/trading/deriv-trader-interface.types";
 import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
 import { useTradeAnalysis } from "./use-trade-analysis";
-import type { ChartData } from "./use-market-data";
-import type { Operation } from "@/components/trading/operations-log.types";
-import type { TradeResult } from "@/services/deriv-api-service";
-import type { OperationInitiator } from "@/components/trading/operations-log.types";
-import type { DurationUnit } from "@/components/trading/deriv-trader-interface.types";
-import type { ActiveContract } from "./use-deriv-api";
 import { useDerivApi } from "./use-deriv-api";
+import { useRobotCouncil } from "./use-robot-council";
 
-
-export function useAutopilot(indicators: { rsi: number | null, stoch: number | null }) {
-    const { getHistoricalData, operationsLog, addActiveContract, executeTrade } = useDerivApi();
+export function useAutopilot() {
+    const { getHistoricalData, operationsLog, addActiveContract, executeTrade, priceTicks } = useDerivApi();
+    const { indicators } = useRobotCouncil();
     const [activeSymbol] = useState<string | null>('1HZ10V'); // This should probably come from context or props
     const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
     const { toast } = useToast();
