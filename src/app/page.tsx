@@ -13,6 +13,8 @@ import { MainGoal } from "@/components/dashboard/main-goal";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
+export const revalidate = 0; // Force dynamic rendering
+
 function MainGoalSkeleton() {
   return (
     <Card>

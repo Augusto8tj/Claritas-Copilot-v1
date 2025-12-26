@@ -1,5 +1,5 @@
 
-import type {Metadata} from 'next';
+
 import './globals.css';
 import { AppLayout } from '@/components/layout/app-layout';
 import { Toaster } from '@/components/ui/toaster';
@@ -8,7 +8,7 @@ import { AuthProvider } from '@/hooks/use-auth';
 import { DerivApiProvider } from '@/hooks/use-deriv-api';
 
 
-export const metadata: Metadata = {
+export const metadata = {
   title: 'Claritas Copilot',
   description: 'Seu copiloto financeiro com IA.',
 };

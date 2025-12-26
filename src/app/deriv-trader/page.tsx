@@ -25,6 +25,7 @@ import { useAutopilot } from "@/hooks/use-autopilot";
 import { useRobotCouncil } from "@/hooks/use-robot-council";
 import { calculateAllIndicators } from "@/services/indicator-service";
 
+export const revalidate = 0; // Force dynamic rendering
 
 export default function DerivTraderPage() {
   const [activeSymbol, setActiveSymbol] = useState<string | null>('1HZ10V');
