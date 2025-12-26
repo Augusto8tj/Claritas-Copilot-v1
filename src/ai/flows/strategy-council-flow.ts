@@ -72,23 +72,20 @@ const getStrategyCouncilFlow = ai.defineFlow(
   },
   async (input) => {
     
-    // "Divide and Conquer": Create a promise for each robot specialist.
-    const robotPromises = STRATEGY_TYPES.map(strategyType => {
+    const council: RobotStrategy[] = [];
+
+    // Create robots sequentially to avoid hitting API rate limits.
+    for (const strategyType of STRATEGY_TYPES) {
+        console.log(`[Council] Creating specialist: ${strategyType}...`);
         const specialistInput = { ...input, strategyType };
-        return robotSpecialistPrompt(specialistInput);
-    });
+        const result = await robotSpecialistPrompt(specialistInput);
 
-    // Wait for all specialists to be created in parallel.
-    const results = await Promise.all(robotPromises);
-
-    const council: RobotStrategy[] = results.map(result => {
         if (!result.output) {
-            // This is a safeguard, but with the new approach, it's less likely to happen.
-            throw new Error(`A IA falhou em criar um dos robôs especialistas.`);
+            throw new Error(`A IA falhou em criar o robô especialista: ${strategyType}.`);
         }
-        return result.output;
-    });
-
+        council.push(result.output);
+    }
+    
     if (council.length !== 10) {
         throw new Error("O conselho não foi formado com os 10 membros necessários.");
     }
