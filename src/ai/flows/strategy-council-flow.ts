@@ -6,7 +6,7 @@
  * - getStrategyCouncil - The main flow function.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai, pro } from '@/ai/genkit';
 import { StrategyCouncilInputSchema, StrategyCouncilOutputSchema, type StrategyCouncilInput, type StrategyCouncilOutput } from './strategy-council-flow.types';
 
 
@@ -57,8 +57,13 @@ const getStrategyCouncilFlow = ai.defineFlow(
     
     console.log(`[Council Architect] Designing the entire 10-robot council in a single call...`);
     
-    // A single, powerful call to the architect prompt.
-    const { output } = await councilArchitectPrompt(input);
+    // A single, powerful call to the architect prompt, using the 'pro' model.
+    const { output } = await ai.generate({
+        model: pro,
+        prompt: councilArchitectPrompt,
+        input: input,
+        output: { schema: StrategyCouncilOutputSchema },
+    });
 
     if (!output || !output.council || output.council.length < 10) {
         throw new Error("A IA falhou em criar o conselho de robôs completo. A resposta foi inválida ou incompleta.");
@@ -78,5 +83,3 @@ const getStrategyCouncilFlow = ai.defineFlow(
 export async function getStrategyCouncil(input: StrategyCouncilInput): Promise<StrategyCouncilOutput> {
   return getStrategyCouncilFlow(input);
 }
-
-    
