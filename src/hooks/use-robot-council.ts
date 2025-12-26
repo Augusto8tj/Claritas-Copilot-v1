@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -96,7 +97,6 @@ export function useRobotCouncil(
 
     const fetchStrategyCouncil = useCallback(async () => {
         if (!activeSymbol) {
-            // This check is now redundant due to the useEffect guard, but it's good practice.
             return;
         }
         setIsFetchingCouncil(true);
@@ -115,7 +115,7 @@ export function useRobotCouncil(
             });
             if (result.success) {
                 setStrategyCouncil(result.success.council);
-                toast({ title: "Conselho Formado!", description: "As estratégias dos robôs foram definidas." });
+                toast({ title: "Conselho Formado!", description: "As estratégias dos analistas foram definidas." });
             } else {
                 throw new Error(result.error || "Erro desconhecido ao formar conselho.");
             }
@@ -127,21 +127,67 @@ export function useRobotCouncil(
         }
     }, [activeSymbol, dailyBalance, form, toast, getHistoricalData]);
 
-    // Main logic trigger: only fetch if ON, symbol is selected, and council is empty.
     useEffect(() => {
         if (isCouncilAutopilotOn && activeSymbol && !isFetchingCouncil && strategyCouncil.length === 0) {
             fetchStrategyCouncil();
         }
     }, [isCouncilAutopilotOn, activeSymbol, isFetchingCouncil, strategyCouncil.length, fetchStrategyCouncil]);
 
-    // Indicator calculation
     useEffect(() => {
         if (!chartData || chartData.length < 2 || strategyCouncil.length === 0) return;
         const allIndicators = calculateAllIndicators(chartData, strategyCouncil);
-        setIndicators(allIndicators as any);
+        setIndicators(allIndicators);
     }, [chartData, strategyCouncil]);
 
-    // Voting and Execution Logic
+    const supervisionCommitteeCheck = useCallback((stake: number, direction: 'RISE' | 'FALL') => {
+        let finalStake = stake;
+        let vetoReason: string | null = null;
+    
+        // 1. Analista de Risco
+        const dailyPnL = operationsLog
+            .filter(op => op.initiator === 'Conselho' && op.status !== 'pending' && new Date(op.timestamp).toDateString() === new Date().toDateString())
+            .reduce((sum, op) => sum + (op.result || 0), 0);
+
+        if (dailyPnL <= -dailyBalance) {
+            vetoReason = "Limite de perda diária atingido. Operações bloqueadas.";
+        } else if (dailyPnL >= dailyTarget) {
+            vetoReason = "Meta de lucro diária atingida. Operações bloqueadas.";
+        }
+    
+        if (vetoReason) return { finalStake, vetoReason };
+
+        // 2. Analista de Volatilidade (ATR)
+        const atr = indicators.atr;
+        if (atr) {
+            const normalizedATR = atr / chartData[chartData.length-1].price; 
+            if (normalizedATR > 0.0005) { // Ex: Volatilidade muito alta
+                finalStake *= 0.5;
+                toast({ title: "Supervisor de Volatilidade", description: "Mercado turbulento, risco reduzido para 50%.", variant: "default" });
+            } else if (normalizedATR < 0.0001) { // Ex: Volatilidade muito baixa
+                finalStake *= 0.75;
+                toast({ title: "Supervisor de Volatilidade", description: "Mercado parado, risco reduzido para 75%.", variant: "default" });
+            }
+        }
+    
+        // 3. Analista de Tendência (ADX)
+        const adx = indicators.adx;
+        if (adx) {
+            if (adx < 20) { // Mercado lateral
+                finalStake *= 0.75;
+                toast({ title: "Supervisor de Tendência", description: "Mercado lateral, risco reduzido para 75%.", variant: "default" });
+            } else if (adx > 35) { // Tendência forte
+                finalStake *= 1.25; // Aumenta o risco em 25%
+                toast({ title: "Supervisor de Tendência", description: "Tendência forte confirmada, risco aumentado em 25%.", variant: "default" });
+            }
+        }
+
+        // Garante que o stake não seja menor que o mínimo
+        if (finalStake < 0.35) finalStake = 0.35;
+        
+        return { finalStake, vetoReason };
+
+    }, [operationsLog, dailyBalance, dailyTarget, indicators.atr, indicators.adx, chartData]);
+
     useEffect(() => {
         if (!isCouncilAutopilotOn || !strategyCouncil.length || councilExecutionRef.current.isExecuting) return;
 
@@ -164,7 +210,7 @@ export function useRobotCouncil(
                 const perf = robotPerformance.find(p => p.id === robot.id);
                 if (perf && (perf.wins + perf.losses) > 3) {
                      const winRate = perf.wins / (perf.wins + perf.losses);
-                     weight = 0.5 + winRate; // Weight from 0.5 to 1.5
+                     weight = 0.5 + winRate;
                 }
             }
 
@@ -175,7 +221,6 @@ export function useRobotCouncil(
                     else if (indicators.rsi && robot.strongSellThreshold && indicators.rsi >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
                     else if (indicators.rsi && robot.weakSellThreshold && indicators.rsi >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
                     break;
-                 // Add more detailed voting logic for other strategies here in the future
             }
 
             newVotes[robot.id] = { vote, confidence, weight };
@@ -187,13 +232,25 @@ export function useRobotCouncil(
         const consensusReached = Math.max(riseConfidenceSum, fallConfidenceSum) >= currentThreshold;
         if (consensusReached && activeSymbol) {
             councilExecutionRef.current.isExecuting = true;
-            const direction = riseConfidenceSum > fallConfidenceSum ? 'rise' : 'fall';
-            const stake = strategyCouncil[0].suggestedStake;
-            toast({ title: "Consenso Atingido!", description: `Executando ordem de ${direction.toUpperCase()} com confiança de ${Math.round(Math.max(riseConfidenceSum, fallConfidenceSum))}.` });
+            const direction = riseConfidenceSum > fallConfidenceSum ? 'RISE' : 'FALL';
+            const baseStake = strategyCouncil[0].suggestedStake;
+
+            const { finalStake, vetoReason } = supervisionCommitteeCheck(baseStake, direction);
+
+            if (vetoReason) {
+                toast({ title: "Operação Vetada", description: vetoReason, variant: "destructive" });
+                councilExecutionRef.current.isExecuting = false;
+                if(vetoReason.includes("Limite de perda") || vetoReason.includes("Meta de lucro")){
+                    setIsCouncilAutopilotOn(false); // Desliga o piloto
+                }
+                return;
+            }
+            
+            toast({ title: "Consenso Atingido!", description: `Executando ${direction} com stake ajustado de $${finalStake.toFixed(2)}.` });
             
             const { duration, duration_unit } = form.getValues();
 
-            executeTrade(direction === 'rise' ? 'CALL' : 'PUT', stake, activeSymbol, direction, duration, duration_unit, 'Conselho')
+            executeTrade(direction === 'RISE' ? 'CALL' : 'PUT', finalStake, activeSymbol, direction.toLowerCase() as 'rise' | 'fall', duration, duration_unit, 'Conselho')
                 .then((res: any) => {
                     if (res.success && res.contractId) addActiveContract({ contractId: res.contractId, entryTick: res.entryTick!, entryTime: res.entryTime!, initiator: 'Conselho' });
                 })
@@ -202,7 +259,7 @@ export function useRobotCouncil(
 
     }, [
         isCouncilAutopilotOn, strategyCouncil, indicators, consensusThreshold, isDynamicConsensusOn, isMeritocracyOn, robotPerformance, 
-        executeTrade, activeSymbol, toast, addActiveContract, form
+        executeTrade, activeSymbol, toast, addActiveContract, form, supervisionCommitteeCheck
     ]);
 
     return {

@@ -83,39 +83,118 @@ const calculateMACD = (data: CandleData[], fastPeriod = 12, slowPeriod = 26, sig
     return { macd: macdWithNulls, signal: signalWithNulls, histogram };
 };
 
+const calculateATR = (data: CandleData[], period = 14): (number | null)[] => {
+    if (data.length < 1) return [];
+    
+    const trueRanges: (number | null)[] = [null];
+    for (let i = 1; i < data.length; i++) {
+        const highLow = data[i].high - data[i].low;
+        const highPrevClose = Math.abs(data[i].high - data[i-1].close);
+        const lowPrevClose = Math.abs(data[i].low - data[i-1].close);
+        trueRanges.push(Math.max(highLow, highPrevClose, lowPrevClose));
+    }
+    
+    const atrValues: (number | null)[] = Array(period).fill(null);
+    if (data.length < period) return atrValues;
+    
+    let firstAtr = trueRanges.slice(1, period + 1).reduce((sum, val) => sum + (val || 0), 0) / period;
+    atrValues.push(firstAtr);
+    
+    for (let i = period + 1; i < data.length; i++) {
+        const tr = trueRanges[i];
+        if (tr === null) {
+            atrValues.push(atrValues[atrValues.length - 1]);
+            continue;
+        }
+        const currentAtr = (atrValues[i - 1]! * (period - 1) + tr) / period;
+        atrValues.push(currentAtr);
+    }
+    
+    return atrValues;
+};
+
+
+const calculateADX = (data: CandleData[], period = 14) => {
+    if (data.length < period * 2) return { adx: [], pdi: [], ndi: [] };
+
+    let pdi: (number | null)[] = [], ndi: (number | null)[] = [], trs: (number | null)[] = [];
+    
+    for (let i = 1; i < data.length; i++) {
+        const upMove = data[i].high - data[i - 1].high;
+        const downMove = data[i-1].low - data[i].low;
+        
+        const pdm = (upMove > downMove && upMove > 0) ? upMove : 0;
+        const ndm = (downMove > upMove && downMove > 0) ? downMove : 0;
+        
+        pdi.push(pdm);
+        ndi.push(ndm);
+        
+        const tr = Math.max(data[i].high - data[i].low, Math.abs(data[i].high - data[i-1].close), Math.abs(data[i].low - data[i-1].close));
+        trs.push(tr);
+    }
+    
+    const smooth = (values: (number | null)[]) => {
+        let smoothed: (number | null)[] = [values.slice(0, period).reduce((acc, v) => acc + (v||0), 0)];
+        for (let i = period; i < values.length; i++) {
+            smoothed.push(smoothed[i-period]! - (smoothed[i-period]! / period) + (values[i] || 0));
+        }
+        return smoothed.map(v => v/period);
+    };
+
+    const smoothedPDI = smooth(pdi);
+    const smoothedNDI = smooth(ndi);
+    const smoothedTR = smooth(trs);
+    
+    let pdiFinal: (number | null)[] = [], ndiFinal: (number | null)[] = [], dx: (number | null)[] = [];
+
+    for(let i=0; i< smoothedTR.length; i++){
+        if(!smoothedTR[i]) {
+             pdiFinal.push(null);
+             ndiFinal.push(null);
+             continue;
+        };
+        pdiFinal.push(100 * (smoothedPDI[i]! / smoothedTR[i]!));
+        ndiFinal.push(100 * (smoothedNDI[i]! / smoothedTR[i]!));
+    }
+
+    for (let i = 0; i < pdiFinal.length; i++) {
+        if (pdiFinal[i] === null || ndiFinal[i] === null) {
+            dx.push(null);
+            continue;
+        }
+        const den = pdiFinal[i]! + ndiFinal[i]!;
+        if (den === 0) {
+            dx.push(0);
+        } else {
+            dx.push(100 * Math.abs(pdiFinal[i]! - ndiFinal[i]!) / den);
+        }
+    }
+    
+    const adx = smooth(dx);
+    return { adx: Array(data.length - adx.length).fill(null).concat(adx), pdi: pdiFinal, ndi: ndiFinal };
+};
+
 
 // ===== PUBLIC INDICATOR FUNCTIONS =====
 
-/**
- * Calculates the Simple Moving Average (SMA) for a given period.
- * @param data - Array of candle data.
- * @param period - The number of periods to average.
- * @returns An array of SMA values or nulls.
- */
 export const calcSMA = (data: (CandleData | null)[], period: number): (number | null)[] =>
   data.map((d, i) => {
     if (i < period - 1) return null
     const slice = data.slice(i - period + 1, i + 1).filter((item): item is CandleData => !!item);
-    if (slice.length < period) return null; // Not enough valid data points in the slice
+    if (slice.length < period) return null;
     return slice.reduce((sum, candle) => sum + candle.close, 0) / period
   })
 
-/**
- * Calculates the Exponential Moving Average (EMA) for a given period.
- * @param data - Array of candle data.
- * @param period - The number of periods for the EMA.
- * @returns An array of EMA values.
- */
 export const calcEMA = (data: CandleData[], period: number): (number | null)[] => {
   if (data.length === 0 || !data[0]) return []
   const k = 2 / (period + 1)
-  let ema = data[0].close // Start with the first close
+  let ema = data[0].close
   const emaValues: (number | null)[] = [ema]
 
   for (let i = 1; i < data.length; i++) {
     const d = data[i];
     if (!d) {
-        emaValues.push(ema); // carry over last ema if data is null
+        emaValues.push(ema);
         continue;
     }
     ema = d.close * k + ema * (1 - k)
@@ -124,11 +203,6 @@ export const calcEMA = (data: CandleData[], period: number): (number | null)[] =
   return emaValues
 }
 
-/**
- * Calculates the Volume-Weighted Average Price (VWAP).
- * @param data - Array of candle data.
- * @returns An array of VWAP values.
- */
 export const calcVWAP = (data: CandleData[]): (number | null)[] => {
   let cumulativePV = 0
   let cumulativeVolume = 0
@@ -141,14 +215,6 @@ export const calcVWAP = (data: CandleData[]): (number | null)[] => {
   })
 }
 
-
-/**
- * Calculates Bollinger Bands for a given period and standard deviation.
- * @param data - Array of candle data.
- * @param period - The number of periods for the moving average.
- * @param stdDev - The number of standard deviations.
- * @returns An array of objects containing the upper, middle, and lower bands.
- */
 export const calcBollingerBands = (
   data: (CandleData | null)[],
   period = 20,
@@ -162,10 +228,8 @@ export const calcBollingerBands = (
     
     const closes = slice.map(c => c.close);
     
-    // Middle Band (SMA)
     const middle = closes.reduce((sum, close) => sum + close, 0) / period;
     
-    // Standard Deviation
     const variance = closes.reduce((sum, close) => sum + Math.pow(close - middle, 2), 0) / period;
     const sd = Math.sqrt(variance);
 
@@ -177,53 +241,45 @@ export const calcBollingerBands = (
   });
 };
 
-
-/**
- * Calculates all necessary indicators based on the current chart data and the strategies in the council.
- * @param chartData The raw data from the chart (ticks or candles).
- * @param council The array of robot strategies.
- * @returns An object containing the latest calculated values for all required indicators.
- */
 export const calculateAllIndicators = (chartData: ChartData[], council: RobotStrategy[]) => {
     const candles = chartData.filter(d => 'close' in d) as CandleData[];
     
     if (candles.length < 2) {
         return {
             rsi: null, stoch: null, ma: { short: null, long: null },
-            bollingerBands: null, macd: null, priceAction: null,
+            bollingerBands: [], macd: null, priceAction: null,
             adx: null, atr: null, ichimoku: null, awesomeOscillator: null,
-            volumePoc: null,
+            volumePoc: null, sma: [], ema: [], vwap: [],
         };
     }
 
-    const latestRsi = calculateRSI(candles).pop() ?? null;
-    const latestStoch = calculateStochastic(candles).pop() ?? null;
-    
+    const rsiValues = calculateRSI(candles);
+    const stochValues = calculateStochastic(candles);
     const smaValues = calcSMA(candles, 10);
     const emaValues = calcEMA(candles, 10);
     const vwapValues = calcVWAP(candles);
     const bbValues = calcBollingerBands(candles);
     const macdValues = calculateMACD(candles);
-
+    const adxValues = calculateADX(candles);
+    const atrValues = calculateATR(candles);
 
     return {
-        rsi: latestRsi,
-        stoch: latestStoch,
+        rsi: rsiValues.pop() ?? null,
+        stoch: stochValues.pop() ?? null,
         ma: { 
-            short: smaValues.pop() ?? null,
-            long: emaValues.pop() ?? null, // Example: using ema as long
+            short: smaValues[smaValues.length-1] ?? null,
+            long: emaValues[emaValues.length-1] ?? null,
         },
-        bollingerBands: bbValues.pop() ?? null,
         macd: {
             macd: macdValues.macd.pop() ?? null,
             signal: macdValues.signal.pop() ?? null,
         },
-        priceAction: null, // Placeholder
-        adx: null, // Placeholder
-        atr: null, // Placeholder
-        ichimoku: null, // Placeholder
-        awesomeOscillator: null, // Placeholder
-        volumePoc: null, // Placeholder
+        adx: adxValues.adx.pop() ?? null,
+        atr: atrValues.pop() ?? null,
+        priceAction: null, 
+        ichimoku: null, 
+        awesomeOscillator: null,
+        volumePoc: null,
 
         // Full arrays for chart
         sma: smaValues,
