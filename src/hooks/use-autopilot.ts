@@ -111,14 +111,44 @@ export function useAutopilot() {
     
     // Effect for indicator calculation
     useEffect(() => {
-        if (!chartData) return;
-        const candleData = chartData.filter(d => 'close' in d) as { high: number, low: number, close: number, price: number }[];
-        if (candleData.length > 14) {
-            candleData.forEach(c => { c.price = c.close });
-            setCurrentRSI(calculateRSI(candleData));
-            setCurrentStoch(calculateStochastic(candleData));
+        if (!priceTicks || priceTicks.length < 2) return;
+
+        // Aggregate ticks into 1-minute candles
+        const candles: { high: number, low: number, close: number, price: number, epoch: number }[] = [];
+        let currentCandle: { high: number, low: number, close: number, price: number, epoch: number, open: number } | null = null;
+        const granularity = 60; // 1 minute
+
+        priceTicks.forEach(tick => {
+            const candleEpoch = Math.floor(tick.epoch / granularity) * granularity;
+            
+            if (!currentCandle || currentCandle.epoch !== candleEpoch) {
+                if (currentCandle) {
+                    candles.push(currentCandle);
+                }
+                currentCandle = { 
+                    epoch: candleEpoch,
+                    open: tick.price,
+                    high: tick.price,
+                    low: tick.price,
+                    close: tick.price,
+                    price: tick.price,
+                };
+            } else {
+                currentCandle.high = Math.max(currentCandle.high, tick.price);
+                currentCandle.low = Math.min(currentCandle.low, tick.price);
+                currentCandle.close = tick.price;
+                currentCandle.price = tick.price;
+            }
+        });
+        if (currentCandle) {
+             candles.push(currentCandle);
         }
-    }, [chartData]);
+
+        if (candles.length > 14) {
+            setCurrentRSI(calculateRSI(candles));
+            setCurrentStoch(calculateStochastic(candles as any));
+        }
+    }, [priceTicks]);
     
     // Effect to manage the strategy refresh interval
     useEffect(() => {
