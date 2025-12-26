@@ -10,7 +10,7 @@ import { AssetSelector } from "@/components/trading/asset-selector";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MarketChart } from "@/components/trading/market-chart";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { Trash2, Bot, Users, NotepadText } from "lucide-react";
 import { useDerivApi } from "@/hooks/use-deriv-api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OperationsLog } from "@/components/trading/operations-log";
@@ -26,6 +26,8 @@ import { useRobotCouncil } from "@/hooks/use-robot-council";
 import { calculateAllIndicators } from "@/services/indicator-service";
 import { SystemStatusSummary } from "@/components/trading/system-status-summary";
 import { ManualCouncilInterface } from "@/components/trading/manual-council-interface";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AITradeSuggestion } from "@/components/trading/ai-trade-suggestion";
 
 
 /**
@@ -72,54 +74,76 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
 
   return (
     <>
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Center Column: Trading Terminal & Chart */}
-        <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <div>
-                      <CardTitle className="font-headline text-lg">
-                          Gráfico ({activeSymbol})
-                      </CardTitle>
-                      <CardDescription className="text-xs">
-                          Desempenho em tempo real do ativo.
-                      </CardDescription>
-                  </div>
-              </CardHeader>
-              <CardContent>
-                  <MarketChart 
-                      activeSymbol={activeSymbol || ''}
-                      chartData={chartData}
-                      isChartLoading={isChartLoading}
-                      chartError={chartError}
-                      chartType={chartType}
-                      setChartType={setChartType}
-                      timePeriod={timePeriod}
-                      setTimePeriod={setTimePeriod}
-                      operations={operationsLog}
-                      indicators={indicators}
-                  />
-              </CardContent>
-            </Card>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <DerivTraderInterface 
-                  symbol={activeSymbol || ""}
-              />
-              <div className="space-y-6">
-                  <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
-                  <OperationsLog operations={operationsLog} />
-              </div>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+                <CardTitle className="font-headline text-lg">
+                    Gráfico ({activeSymbol})
+                </CardTitle>
+                <CardDescription className="text-xs">
+                    Desempenho em tempo real do ativo.
+                </CardDescription>
             </div>
-        </div>
+        </CardHeader>
+        <CardContent>
+            <MarketChart 
+                activeSymbol={activeSymbol || ''}
+                chartData={chartData}
+                isChartLoading={isChartLoading}
+                chartError={chartError}
+                chartType={chartType}
+                setChartType={setChartType}
+                timePeriod={timePeriod}
+                setTimePeriod={setTimePeriod}
+                operations={operationsLog}
+                indicators={indicators}
+            />
+        </CardContent>
+      </Card>
+      
+       {/* Layout para telas maiores */}
+       <div className="hidden lg:grid lg:grid-cols-3 gap-6 mt-6">
+            <div className="lg:col-span-2 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <DerivTraderInterface symbol={activeSymbol || ""} />
+                    <div className="space-y-6">
+                        <AITradeSuggestion symbol={activeSymbol || ''} />
+                        <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
+                        <OperationsLog operations={operationsLog} />
+                    </div>
+                </div>
+            </div>
+             <div className="space-y-6">
+                <AutoTraderCouncilInterface {...robotCouncil} />
+                <AutoTraderInterface {...autopilot} />
+            </div>
+       </div>
 
-        {/* Right Column: AI Copilots */}
-        <div className="space-y-6">
-            <AutoTraderCouncilInterface {...robotCouncil} />
-            <AutoTraderInterface {...autopilot} />
-        </div>
-      </div>
+       {/* Layout com Abas para telas pequenas */}
+       <div className="lg:hidden mt-6">
+           <Tabs defaultValue="trade">
+                <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="trade">Negociar</TabsTrigger>
+                    <TabsTrigger value="autopilot"><Bot className="w-4 h-4 mr-1"/> Pilotos IA</TabsTrigger>
+                    <TabsTrigger value="log"><NotepadText className="w-4 h-4 mr-1"/>Registos</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="trade" className="mt-4 space-y-6">
+                    <DerivTraderInterface symbol={activeSymbol || ""} />
+                    <AITradeSuggestion symbol={activeSymbol || ''} />
+                </TabsContent>
+
+                <TabsContent value="autopilot" className="mt-4 space-y-6">
+                    <AutoTraderCouncilInterface {...robotCouncil} />
+                    <AutoTraderInterface {...autopilot} />
+                </TabsContent>
+
+                 <TabsContent value="log" className="mt-4 space-y-6">
+                    <OperationsLog operations={operationsLog} />
+                    <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
+                </TabsContent>
+           </Tabs>
+       </div>
 
        {/* Manual Council Prompt Interface */}
       {robotCouncil.manualPrompt && (
@@ -205,3 +229,5 @@ export default function DerivTraderPage() {
     </FormProvider>
   );
 }
+
+    

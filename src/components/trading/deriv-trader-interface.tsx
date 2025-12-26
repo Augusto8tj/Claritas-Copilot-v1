@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState } from "react";
@@ -25,7 +26,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
-import { AITradeSuggestion } from "./ai-trade-suggestion";
 
 import type { DurationUnit, RiseFallFormValues } from "./deriv-trader-interface.types";
 import { useDerivApi } from "@/hooks/use-deriv-api";
@@ -186,7 +186,7 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
                                     control={form.control}
                                     name="duration_unit"
                                     render={({ field }) => (
-                                        <FormItem className="w-1/2">
+                                        <FormItem className="w-2/5">
                                             <Select onValueChange={(value) => {
                                                 const newUnit = value as DurationUnit;
                                                 field.onChange(newUnit);
@@ -211,7 +211,7 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
                                     control={form.control}
                                     name="duration"
                                     render={({ field }) => (
-                                    <FormItem className="w-1/2">
+                                    <FormItem className="w-3/5">
                                         <div className="flex items-center justify-center gap-0.5">
                                             <Button type="button" variant="outline" size="icon" className="h-10 w-10" onClick={() => handleDurationChange(-1)}><Minus className="h-4 w-4"/></Button>
                                             <div className="relative flex-1">
@@ -332,7 +332,8 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
             </div>
         </CardContent>
       </Card>
-      <AITradeSuggestion symbol={symbol} />
     </div>
   );
 }
+
+    
