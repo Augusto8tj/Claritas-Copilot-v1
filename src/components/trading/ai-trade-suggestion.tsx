@@ -42,7 +42,7 @@ export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
   const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(null);
   const [timeSinceAnalysis, setTimeSinceAnalysis] = useState<string>("");
   const { accountBalance, operationsLog, executeTrade, getHistoricalData } = useDerivApi();
-  const { chartData } = useMarketData();
+  const { chartData } = useMarketData(symbol);
   const { toast } = useToast();
   const [autoExecute, setAutoExecute] = useState(false);
   const [isAwaitingEntry, setIsAwaitingEntry] = useState<AwaitingEntryState | null>(null);
@@ -84,6 +84,11 @@ export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
         throw new Error(`Não foi possível obter dados históricos para ${symbol}.`);
       }
 
+      const historicalDataForAI = historicalData.map(item => ({
+        date: new Date(item.epoch * 1000).toISOString(),
+        price: item.price
+      }));
+
 
       const result = await getAssetAnalysisAction({
           symbol,
@@ -94,7 +99,7 @@ export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
           duration: formData.duration,
           durationUnit: formData.duration_unit,
           recentTrades: operationsLog.slice(0, 5),
-          historicalData: historicalData 
+          historicalData: historicalDataForAI 
       });
 
       if (result.success) {
