@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -62,7 +61,7 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
 
 
 /* =========================================================
-   HOOK PRINCIPAL - NOVA ABORDAGEM
+   HOOK PRINCIPAL
 ========================================================= */
 export function useMarketData(activeSymbol: string | null, defaultTimePeriod: TimePeriod = '5m') {
     const { makeRequest, isConnected, addMarketDataListener, removeMarketDataListener, wsRef } = useDerivApi();
@@ -78,41 +77,36 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
     const currentChartTypeRef = useRef<ChartType>(chartType);
     const isLoadingRef = useRef(false);
 
-    // Atualiza ref sempre que chartType muda
+    // Atualiza refs
     useEffect(() => {
         currentChartTypeRef.current = chartType;
     }, [chartType]);
 
     // --------------------------------------------------------------------------
-    // PROCESSAMENTO DE RESPOSTAS - SIMPLIFICADO
+    // PROCESSAMENTO DE MENSAGENS
     // --------------------------------------------------------------------------
     const handleMessage = useCallback((response: any) => {
-        // Ignora mensagens durante carregamento inicial
-        if (isLoadingRef.current) {
-            return;
-        }
+        // Ignora durante carregamento inicial
+        if (isLoadingRef.current) return;
 
         // Valida símbolo
         const msgSymbol = response.tick?.symbol || response.ohlc?.symbol;
-        if (msgSymbol && msgSymbol !== currentSymbolRef.current) {
-            return;
-        }
+        if (msgSymbol && msgSymbol !== currentSymbolRef.current) return;
 
         // Erros
         if (response.error) {
-            console.error('[useMarketData] Erro recebido:', response.error);
+            console.error('[Market] Erro:', response.error);
             return;
         }
 
-        // Armazena subscription ID
+        // Subscription ID
         if (response.subscription?.id) {
             activeSubscriptionIdRef.current = response.subscription.id;
         }
 
-        // CANDLES - Atualização em tempo real
+        // OHLC updates (candles)
         if (response.msg_type === 'ohlc' && currentChartTypeRef.current === 'Candle') {
             const ohlc = response.ohlc;
-            
             const newCandle: CandleData = {
                 epoch: ohlc.open_time,
                 open: validateNumber(ohlc.open),
@@ -124,23 +118,16 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
 
             setChartData(prev => {
                 const lastCandle = prev[prev.length - 1] as CandleData;
-                
-                // Atualiza candle existente
                 if (lastCandle && lastCandle.epoch === newCandle.epoch) {
-                    const newData = [...prev.slice(0, -1)];
-                    newData.push(newCandle);
-                    return newData;
+                    return [...prev.slice(0, -1), newCandle];
                 }
-                
-                // Adiciona nova candle
                 return addDataPoint(prev, newCandle);
             });
         }
         
-        // TICKS - Atualização em tempo real
+        // Tick updates (area)
         else if (response.msg_type === 'tick' && currentChartTypeRef.current === 'Area') {
             const tick = response.tick;
-            
             const newTick: TickData = {
                 epoch: tick.epoch,
                 price: validateNumber(tick.quote)
@@ -153,17 +140,15 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
     }, []);
 
     // --------------------------------------------------------------------------
-    // LISTENER SETUP
+    // LISTENER
     // --------------------------------------------------------------------------
     useEffect(() => {
         addMarketDataListener(handleMessage);
-        return () => {
-            removeMarketDataListener(handleMessage);
-        };
+        return () => removeMarketDataListener(handleMessage);
     }, [addMarketDataListener, removeMarketDataListener, handleMessage]);
 
     // --------------------------------------------------------------------------
-    // SUBSCRIÇÃO - ABORDAGEM DIRETA
+    // SUBSCRIÇÃO
     // --------------------------------------------------------------------------
     useEffect(() => {
         let isCancelled = false;
@@ -187,34 +172,32 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
                 try {
                     await makeRequest({ forget: activeSubscriptionIdRef.current });
                 } catch (e) {
-                    console.warn('[useMarketData] Erro ao cancelar subscrição anterior:', e);
+                    console.warn('[Market] Erro ao cancelar:', e);
                 }
                 activeSubscriptionIdRef.current = null;
             }
 
-            // Aguarda um pouco para garantir cancelamento
             await new Promise(resolve => setTimeout(resolve, 150));
-
             if (isCancelled) return;
 
             try {
-                // ============ CANDLES ============
                 if (chartType === 'Candle') {
+                    // ============ CANDLES ============
                     const granularity = getGranularityForTimePeriod(timePeriod);
                     
-                    const historyReq = {
+                    // 1. Buscar histórico SEM subscribe
+                    const historyResponse = await makeRequest({
                         ticks_history: activeSymbol,
-                        granularity: granularity,
+                        granularity,
                         style: 'candles',
                         count: 1000
-                    };
-                    
-                    const historyRes = await makeRequest(historyReq);
+                    });
 
                     if (isCancelled) return;
 
-                    if (historyRes.candles && Array.isArray(historyRes.candles)) {
-                        const candles: CandleData[] = historyRes.candles.map((c: any) => ({
+                    // Processar candles
+                    if (historyResponse.candles) {
+                        const candles: CandleData[] = historyResponse.candles.map((c: any) => ({
                             epoch: c.epoch,
                             open: validateNumber(c.open),
                             high: validateNumber(c.high),
@@ -228,52 +211,52 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
                     setIsChartLoading(false);
                     isLoadingRef.current = false;
 
-                    const subReq = {
+                    // 2. Subscrever para updates COM subscribe
+                    await makeRequest({
                         ticks_history: activeSymbol,
-                        granularity: granularity,
+                        granularity,
                         style: 'candles',
                         subscribe: 1
-                    };
-                    await makeRequest(subReq);
-                }
-                // ============ TICKS ============
-                else {
-                    const historyReq = {
+                    });
+
+                } else {
+                    // ============ TICKS ============
+                    
+                    // 1. Buscar histórico SEM subscribe
+                    const historyResponse = await makeRequest({
                         ticks_history: activeSymbol,
                         style: 'ticks',
                         end: 'latest',
                         count: 1000
-                    };
-                    
-                    const historyRes = await makeRequest(historyReq);
+                    });
 
                     if (isCancelled) return;
 
-                    if (historyRes.history) {
-                        const { prices, times } = historyRes.history;
+                    // Processar ticks
+                    if (historyResponse.history) {
+                        const { prices, times } = historyResponse.history;
                         const ticks: TickData[] = prices
                             .map((p: number, i: number) => ({
                                 epoch: times[i],
                                 price: validateNumber(p)
                             }))
                             .filter((t: TickData) => t.price > 0);
-                        
                         setChartData(ticks);
                     }
 
                     setIsChartLoading(false);
                     isLoadingRef.current = false;
 
-                    const subReq = {
+                    // 2. Subscrever para updates COM subscribe
+                    await makeRequest({
                         ticks: activeSymbol,
                         subscribe: 1
-                    };
-                    await makeRequest(subReq);
+                    });
                 }
 
             } catch (error: any) {
                 if (!isCancelled && currentSymbolRef.current === activeSymbol) {
-                    console.error('[useMarketData] Erro na subscrição:', error);
+                    console.error('[Market] ERRO:', error);
                     setChartError(error.message || 'Erro ao carregar dados');
                     setIsChartLoading(false);
                     isLoadingRef.current = false;
@@ -289,7 +272,7 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
             
             if (activeSubscriptionIdRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
                 makeRequest({ forget: activeSubscriptionIdRef.current })
-                    .catch(e => console.error('[useMarketData] Erro no cleanup:', e));
+                    .catch(e => console.error('[Market] Erro no cleanup:', e));
             }
         };
     }, [activeSymbol, isConnected, timePeriod, chartType, makeRequest, wsRef]);
