@@ -167,7 +167,7 @@ export function AutoTraderCouncilInterface() {
         <div className="flex justify-between items-center">
             <CardTitle className="font-headline flex items-center gap-2">
                 <Users className="h-5 w-5 text-primary" />
-                Conselho de Analistas
+                Mesa Operacional de IA
             </CardTitle>
             <div className="flex items-center space-x-2">
                 <Switch id="council-autopilot-switch" checked={isCouncilAutopilotOn} onCheckedChange={handleToggleAutopilot}/>
@@ -175,7 +175,7 @@ export function AutoTraderCouncilInterface() {
             </div>
         </div>
         <CardDescription>
-          Um conselho de IAs vota em cada trade. Uma ordem só é executada se houver consenso.
+          Um conselho de 10 analistas vota e 3 supervisores de risco aprovam cada trade.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -310,7 +310,7 @@ export function AutoTraderCouncilInterface() {
         {!isCouncilAutopilotOn && (
              <div className="text-center text-muted-foreground p-4 border rounded-md bg-muted/50">
                 <Info className="h-5 w-5 mx-auto mb-2" />
-                <p className="text-sm">O Conselho de Analistas está desativado.</p>
+                <p className="text-sm">A Mesa Operacional de IA está desativada.</p>
                 <p className="text-xs">Ative para começar a negociar por consenso.</p>
             </div>
         )}
@@ -318,4 +318,3 @@ export function AutoTraderCouncilInterface() {
     </Card>
   );
 }
-
