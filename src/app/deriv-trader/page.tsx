@@ -146,10 +146,10 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
        </div>
 
        {/* Manual Council Prompt Interface */}
-      {robotCouncil.manualPrompt && (
+      {robotCouncil.manualPromptBatches.length > 0 && (
         <div className="mt-6">
             <ManualCouncilInterface
-                prompt={robotCouncil.manualPrompt}
+                batches={robotCouncil.manualPromptBatches}
                 onProcessResponse={robotCouncil.processManualCouncilResponse}
             />
         </div>

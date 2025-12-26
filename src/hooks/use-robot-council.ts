@@ -33,6 +33,14 @@ export interface RobotPerformance {
     totalProfit: number;
 }
 
+export type ManualPromptBatch = {
+    id: string;
+    theme: string;
+    prompt: string;
+    isCompleted: boolean;
+    strategies: RobotStrategy['strategyType'][];
+};
+
 
 export function useRobotCouncil(
     activeSymbol: string | null,
@@ -69,8 +77,7 @@ export function useRobotCouncil(
     const [lastCouncilLossSuggestion, setLastCouncilLossSuggestion] = useState<string | null>(null);
     const [useManualCouncilMode, setUseManualCouncilMode] = useState(true);
     
-    // For manual prompt interface
-    const [manualPrompt, setManualPrompt] = useState<string | null>(null);
+    const [manualPromptBatches, setManualPromptBatches] = useState<ManualPromptBatch[]>([]);
 
     const councilExecutionRef = useRef({ isExecuting: false });
 
@@ -103,7 +110,7 @@ export function useRobotCouncil(
         if (!activeSymbol) return;
         
         setIsFetchingCouncil(true);
-        setManualPrompt(null);
+        setManualPromptBatches([]);
         setStrategyCouncil([]);
         
         try {
@@ -111,54 +118,54 @@ export function useRobotCouncil(
             const historicalData = await getHistoricalData(activeSymbol, undefined, 200);
             if (!historicalData || historicalData.length < 50) throw new Error("Dados históricos insuficientes.");
 
-            const councilInput = {
-                symbol: activeSymbol,
-                balance: dailyBalance,
-                currency: 'USD',
-                historicalDataJson: JSON.stringify(historicalData.map(d => ({...d, date: new Date(d.epoch * 1000).toISOString()}))),
-                durationUnit: duration_unit,
-            };
+            const historicalDataJson = JSON.stringify(historicalData.map(d => ({...d, date: new Date(d.epoch * 1000).toISOString()})))
 
             if (useManualCouncilMode) {
-                 const strategyBatches = [
-                    ['RSI', 'STOCHASTIC', 'MACD_CROSS'],
-                    ['MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND'],
-                    ['ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE']
+                const strategyBatchesConfig: { theme: string; strategies: RobotStrategy['strategyType'][] }[] = [
+                    { theme: "Analistas de Momentum", strategies: ['RSI', 'STOCHASTIC', 'MACD_CROSS'] },
+                    { theme: "Analistas de Tendência e Volatilidade", strategies: ['MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND'] },
+                    { theme: "Analistas de Padrões e Volume", strategies: ['ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE'] },
                 ];
-                 const fullPrompt = `Você é um arquiteto-chefe de estratégias quantitativas. Sua missão é montar um grupo de robôs-analistas especialistas.
 
-Para CADA robô, você deve:
-1.  **Definir um ID único**: Ex: 'RSI_BOT_1'.
-2.  **Definir Parâmetros e Múltiplos Limiares de Confiança**: Preencha os parâmetros relevantes e defina DOIS níveis de limiar: um para um sinal FORTE e um para um sinal FRACO.
-    - Exemplo para RSI: 'strongBuyThreshold': 20 (RSI muito sobrevendido), 'weakBuyThreshold': 30 (RSI sobrevendido). Faça o análogo para venda.
-3.  **Definir Níveis de Confiança Numéricos**: 'strongConfidence': 90-100, 'weakConfidence': 60-75.
-4.  **Justificar a Escolha**: Forneça uma justificativa muito breve (1 frase).
-5.  **Gestão de Risco**: 'suggestedStake' como 1% da banca do dia, 'suggestedDuration' na unidade fornecida.
+                const batches: ManualPromptBatch[] = strategyBatchesConfig.map((batch, index) => {
+                    const promptText = `Crie um grupo de robôs-analistas para o ativo ${activeSymbol}, otimizados para operar em '${duration_unit}'.
+Estratégias para construir nesta etapa: ${JSON.stringify(batch.strategies)}
+Sua resposta DEVE SER um objeto JSON contendo uma chave "robots" que é um array com EXATAMENTE ${batch.strategies.length} objetos de robôs.
 
----
-**DADOS DA REQUISIÇÃO:**
+Regras para cada robô:
+1.  ID único (ex: 'RSI_BOT_1').
+2.  Parâmetros e DOIS limiares (um para sinal FORTE, um para FRACO). Ex: 'strongBuyThreshold': 20, 'weakBuyThreshold': 30.
+3.  Confiança numérica: 'strongConfidence': 90-100, 'weakConfidence': 60-75.
+4.  Justificativa breve (1 frase).
+5.  Gestão de Risco: 'suggestedStake' como 1% da banca, 'suggestedDuration' na unidade fornecida.
 
-Crie um grupo de robôs-analistas para o ativo ${activeSymbol}, otimizados para operar em '${duration_unit}'.
-A sua resposta DEVE SER um único objeto JSON contendo uma chave "council" que é um array com EXATAMENTE 10 objetos de robôs.
-
-**Estratégias para construir:** ${JSON.stringify(strategyBatches.flat())}
-
-**Dados de Mercado (para análise de condição):**
-\'\'\'json
-${councilInput.historicalDataJson}
-\'\'\'
-
-**Contexto do Trader:**
-- Banca do Dia (para gestão de risco): ${dailyBalance} USD
-`;
-                setManualPrompt(fullPrompt);
+Contexto do Trader:
+- Banca do Dia: ${dailyBalance} USD
+- Dados de Mercado: \'\'\'json\n${historicalDataJson}\n\'\'\'`;
+                    return {
+                        id: `batch_${index + 1}`,
+                        theme: batch.theme,
+                        strategies: batch.strategies,
+                        prompt: promptText,
+                        isCompleted: false,
+                    };
+                });
+                
+                setManualPromptBatches(batches);
                 toast({
-                    title: "Prompt Gerado para Modo Manual",
-                    description: "Copie o prompt do novo card e cole na sua IA externa.",
+                    title: "Modo Manual Ativado",
+                    description: "Siga as etapas na nova interface para montar o conselho.",
                     duration: 8000,
                 });
 
             } else {
+                const councilInput = {
+                    symbol: activeSymbol,
+                    balance: dailyBalance,
+                    currency: 'USD',
+                    historicalDataJson: historicalDataJson,
+                    durationUnit: duration_unit,
+                };
                 setGeminiRequestCount(prev => prev + 1);
                 const result = await getStrategyCouncilAction(councilInput);
                 if (result.success) {
@@ -175,22 +182,29 @@ ${councilInput.historicalDataJson}
         }
     }, [activeSymbol, dailyBalance, form, toast, getHistoricalData, useManualCouncilMode]);
 
-    const processManualCouncilResponse = (jsonResponse: string) => {
+    const processManualCouncilResponse = (batchId: string, jsonResponse: string) => {
         try {
             const parsed = JSON.parse(jsonResponse);
-            const validated = StrategyCouncilOutputSchema.safeParse(parsed);
+            // We expect a response like { "robots": [...] }
+            const validated = StrategyCouncilOutputSchema.pick({ council: true }).safeParse({ council: parsed.robots });
 
             if (!validated.success) {
                 console.error("Validation error:", validated.error);
-                throw new Error(`O JSON fornecido não corresponde ao formato esperado. Erros: ${validated.error.errors.map(e => e.message).join(', ')}`);
+                throw new Error(`O JSON fornecido não corresponde ao formato esperado para os robôs. Erros: ${validated.error.errors.map(e => e.message).join(', ')}`);
             }
             
-            setStrategyCouncil(validated.data.council);
-            setManualPrompt(null); // Hide the manual interface on success
-            toast({ title: "Conselho Montado com Sucesso!", description: "A resposta da IA foi processada e o conselho está ativo." });
+            setStrategyCouncil(prev => [...prev, ...validated.data.council]);
+            setManualPromptBatches(prev => prev.map(b => b.id === batchId ? { ...b, isCompleted: true } : b));
+
+            const isAllCompleted = manualPromptBatches.every(b => b.id === batchId ? true : b.isCompleted);
+            if (isAllCompleted) {
+                toast({ title: "Conselho Montado com Sucesso!", description: "Todos os lotes de analistas foram processados." });
+            } else {
+                 toast({ title: "Lote Processado!", description: "Analistas adicionados ao conselho. Avance para o próximo lote." });
+            }
 
         } catch (e: any) {
-             toast({ variant: "destructive", title: "Erro ao Processar Resposta", description: `Verifique se o texto colado é um JSON válido. Detalhe: ${e.message}` });
+             toast({ variant: "destructive", title: "Erro ao Processar Resposta", description: `Verifique se o texto colado é um JSON válido e contém a chave "robots". Detalhe: ${e.message}` });
         }
     };
 
@@ -346,7 +360,7 @@ ${councilInput.historicalDataJson}
         isMeritocracyOn,
         setIsMeritocracyOn,
         indicators,
-        manualPrompt,
+        manualPromptBatches,
         processManualCouncilResponse,
         useManualCouncilMode,
         setUseManualCouncilMode,

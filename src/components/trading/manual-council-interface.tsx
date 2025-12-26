@@ -11,29 +11,37 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Copy, Sparkles, Wand } from 'lucide-react';
+import { Copy, Sparkles, Wand, CheckCircle, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '../ui/label';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import type { ManualPromptBatch } from '@/hooks/use-robot-council';
 
 interface ManualCouncilInterfaceProps {
-  prompt: string;
-  onProcessResponse: (response: string) => void;
+  batches: ManualPromptBatch[];
+  onProcessResponse: (batchId: string, response: string) => void;
 }
 
-export function ManualCouncilInterface({ prompt, onProcessResponse }: ManualCouncilInterfaceProps) {
-  const [response, setResponse] = useState('');
+export function ManualCouncilInterface({ batches, onProcessResponse }: ManualCouncilInterfaceProps) {
+  const [responses, setResponses] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(prompt);
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
     toast({
       title: 'Copiado!',
       description: 'O prompt foi copiado para a sua área de transferência.',
     });
   };
 
-  const handleSubmit = () => {
-    if (!response.trim()) {
+  const handleSubmit = (batchId: string) => {
+    const response = responses[batchId];
+    if (!response || !response.trim()) {
       toast({
         variant: 'destructive',
         title: 'Resposta Vazia',
@@ -41,54 +49,75 @@ export function ManualCouncilInterface({ prompt, onProcessResponse }: ManualCoun
       });
       return;
     }
-    onProcessResponse(response);
+    onProcessResponse(batchId, response);
   };
+  
+  // Determine qual o primeiro lote não concluído para abrir por defeito
+  const firstIncompleteBatchId = batches.find(b => !b.isCompleted)?.id;
 
   return (
     <Card className="border-primary/50 bg-primary/5">
       <CardHeader>
         <CardTitle className="font-headline flex items-center gap-2 text-primary">
           <Wand className="h-5 w-5" />
-          Interface Manual da Mesa Operacional
+          Linha de Montagem Manual da Mesa Operacional
         </CardTitle>
         <CardDescription className="text-primary/90">
-          Utilize uma IA externa para formar o conselho. Copie o prompt, obtenha a resposta e cole-a abaixo.
+          Siga os passos para construir o conselho de IA. Copie cada prompt, obtenha a resposta da sua IA externa e cole-a para processar.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div>
-          <Label htmlFor="manual-prompt">1. Prompt para a IA Externa</Label>
-          <div className="relative mt-2">
-            <Textarea
-              id="manual-prompt"
-              readOnly
-              value={prompt}
-              className="h-48 resize-none font-mono text-xs bg-background/50"
-            />
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={handleCopy}
-              className="absolute top-2 right-2 h-7 w-7"
-            >
-              <Copy className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-        <div>
-            <Label htmlFor="manual-response">2. Cole a Resposta da IA Aqui</Label>
-            <Textarea
-                id="manual-response"
-                value={response}
-                onChange={(e) => setResponse(e.target.value)}
-                placeholder='Cole o objeto JSON completo retornado pela sua IA aqui... (Ex: { "council": [ ... ] })'
-                className="h-48 resize-none mt-2 font-mono text-xs"
-            />
-        </div>
-        <Button onClick={handleSubmit} className="w-full">
-            <Sparkles className="mr-2 h-4 w-4" />
-            Processar Resposta e Montar Conselho
-        </Button>
+        <Accordion type="single" collapsible defaultValue={firstIncompleteBatchId} className="w-full">
+            {batches.map((batch, index) => (
+                <AccordionItem value={batch.id} key={batch.id} disabled={index > 0 && !batches[index - 1].isCompleted}>
+                    <AccordionTrigger>
+                        <div className="flex items-center gap-2">
+                             {batch.isCompleted ? (
+                                <CheckCircle className="h-5 w-5 text-green-500" />
+                             ) : (
+                                <Clock className="h-5 w-5 text-yellow-500" />
+                             )}
+                             <span className={batch.isCompleted ? "text-muted-foreground line-through" : ""}>Passo {index + 1}: {batch.theme}</span>
+                        </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="space-y-4 pt-2">
+                         <div>
+                            <Label htmlFor={`manual-prompt-${batch.id}`}>1. Copie o Prompt para a IA</Label>
+                            <div className="relative mt-2">
+                                <Textarea
+                                id={`manual-prompt-${batch.id}`}
+                                readOnly
+                                value={batch.prompt}
+                                className="h-40 resize-none font-mono text-xs bg-background/50"
+                                />
+                                <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleCopy(batch.prompt)}
+                                className="absolute top-2 right-2 h-7 w-7"
+                                >
+                                <Copy className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
+                        <div>
+                            <Label htmlFor={`manual-response-${batch.id}`}>2. Cole a Resposta JSON Aqui</Label>
+                            <Textarea
+                                id={`manual-response-${batch.id}`}
+                                value={responses[batch.id] || ''}
+                                onChange={(e) => setResponses(prev => ({...prev, [batch.id]: e.target.value}))}
+                                placeholder='Cole o objeto JSON completo retornado pela sua IA aqui... (Ex: { "robots": [ ... ] })'
+                                className="h-32 resize-none mt-2 font-mono text-xs"
+                            />
+                        </div>
+                        <Button onClick={() => handleSubmit(batch.id)} className="w-full">
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            Processar Lote {index + 1} e Adicionar Analistas
+                        </Button>
+                    </AccordionContent>
+                </AccordionItem>
+            ))}
+        </Accordion>
       </CardContent>
     </Card>
   );
