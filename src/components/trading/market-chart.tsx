@@ -59,6 +59,13 @@ const BRUSH_HEIGHT = 60
 const MIN_CANDLE_WIDTH = 1
 const MAX_CANDLE_WIDTH = 20
 
+const isCandle = (d: ChartData): d is CandleData =>
+    'open' in d && d.open !== undefined;
+
+const getDisplayPrice = (d: ChartData) =>
+  isCandle(d) ? d.close : d.price;
+
+
 export function MarketChart({
   activeSymbol,
   chartData: rawData,
@@ -103,9 +110,6 @@ export function MarketChart({
     target: '' as 'min' | 'max' | 'body' | '',
   })
 
-  const isCandle = (d: ChartData): d is CandleData =>
-    'open' in d && d.open !== undefined
-
   const timePeriods: TimePeriod[] = [
     '1m',
     '2m',
@@ -119,12 +123,13 @@ export function MarketChart({
     '1d',
   ]
 
-  const change =
-    rawData.length > 1
-      ? rawData[rawData.length - 1]!.price - rawData[rawData.length - 2]!.price
-      : 0
-  const prevPrice =
-    rawData.length > 1 ? rawData[rawData.length - 2]!.price : 1
+  const lastDataPoint = rawData.length > 0 ? rawData[rawData.length - 1] : null
+  const prevDataPoint = rawData.length > 1 ? rawData[rawData.length - 2] : null
+
+  const lastPrice = lastDataPoint ? getDisplayPrice(lastDataPoint) : 0
+  const prevPrice = prevDataPoint ? getDisplayPrice(prevDataPoint) : 1
+  
+  const change = lastPrice - prevPrice
   const changePercent = prevPrice !== 0 ? (change / prevPrice) * 100 : 0
   const isPositive = change >= 0
 
@@ -442,8 +447,14 @@ export function MarketChart({
       drawLineIndicator(ctx, slicedIndicators.vwap, colors.vwap, getY, getX)
 
     operations.forEach(op => {
-      if (!op.entryPrice) return
-      const entryEpoch = new Date(op.timestamp).getTime() / 1000
+      if (op.entryPrice == null) return
+
+      const entryEpoch =
+        typeof op.timestamp === 'number'
+          ? op.timestamp > 1e12
+            ? op.timestamp / 1000
+            : op.timestamp
+          : new Date(op.timestamp).getTime() / 1000
 
       if (
         visibleData.length > 0 &&
@@ -665,11 +676,12 @@ export function MarketChart({
 
     ctx.beginPath()
     rawData.forEach((d, i) => {
-      const x = getX(i)
-      const y = getY(d.price)
-      if (i === 0) ctx.moveTo(x, y)
-      else ctx.lineTo(x, y)
-    })
+        const price = getDisplayPrice(d);
+        const x = getX(i);
+        const y = getY(price);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
     ctx.strokeStyle = colors.line
     ctx.lineWidth = 1
     ctx.stroke()
@@ -692,7 +704,7 @@ export function MarketChart({
     ctx.fillStyle = colors.line
     ctx.fillRect(brushMinX - handleWidth / 2, height / 2 - 15, handleWidth, 30)
     ctx.fillRect(brushMaxX - handleWidth / 2, height / 2 - 15, handleWidth, 30)
-  }, [rawData, colors, brushWindow, isCandle])
+  }, [rawData, colors, brushWindow])
 
   const panOffsetRef = React.useRef(0);
   const zoomLevelRef = React.useRef(1);
@@ -818,9 +830,7 @@ export function MarketChart({
             style={{ color: isPositive ? colors.bull : colors.bear }}
           >
             <span className="font-semibold text-lg">
-              {rawData.length > 0
-                ? rawData[rawData.length - 1]!.price.toFixed(4)
-                : '...'}
+              {lastPrice > 0 ? lastPrice.toFixed(4) : '...'}
             </span>
             <div className="text-xs font-mono flex items-center">
               {isPositive ? (
