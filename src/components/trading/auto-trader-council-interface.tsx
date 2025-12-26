@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
-import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award } from "lucide-react";
+import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award, Laptop } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "../ui/label";
@@ -70,6 +70,8 @@ export function AutoTraderCouncilInterface({
     setIsDynamicConsensusOn,
     isMeritocracyOn,
     setIsMeritocracyOn,
+    useManualCouncilMode,
+    setUseManualCouncilMode,
     indicators,
     fetchStrategyCouncil,
  }: ReturnType<typeof useRobotCouncil>) {
@@ -206,6 +208,12 @@ export function AutoTraderCouncilInterface({
         <Separator />
         
         <div className="space-y-4">
+             <div className="flex items-center justify-between">
+                <Label htmlFor="manual-mode-switch" className="flex-1 flex items-center gap-2">
+                    <Laptop className="h-4 w-4" /> Modo Manual (Interface Humana)
+                </Label>
+                <Switch id="manual-mode-switch" checked={useManualCouncilMode} onCheckedChange={setUseManualCouncilMode} disabled={isCouncilAutopilotOn} />
+            </div>
             <div className="flex items-center justify-between">
                 <Label htmlFor="dynamic-consensus-switch" className="flex-1">Consenso Dinâmico</Label>
                 <Switch id="dynamic-consensus-switch" checked={isDynamicConsensusOn} onCheckedChange={setIsDynamicConsensusOn} disabled={isCouncilAutopilotOn} />

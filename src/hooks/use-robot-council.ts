@@ -6,7 +6,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDerivApi } from './use-deriv-api';
 import { useToast } from './use-toast';
 import { getStrategyCouncilAction } from '@/app/actions/ai-actions';
-import type { RobotStrategy, StrategyCouncilOutputSchema } from '@/ai/flows/strategy-council-flow.types';
+import type { RobotStrategy, StrategyCouncilOutput } from '@/ai/flows/strategy-council-flow.types';
+import { StrategyCouncilOutputSchema } from '@/ai/flows/strategy-council-flow.types';
 import type { RiseFallFormValues } from '@/components/trading/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
@@ -66,6 +67,7 @@ export function useRobotCouncil(
     const [isMeritocracyOn, setIsMeritocracyOn] = useState(true);
     const [robotPerformance, setRobotPerformance] = useState<RobotPerformance[]>([]);
     const [lastCouncilLossSuggestion, setLastCouncilLossSuggestion] = useState<string | null>(null);
+    const [useManualCouncilMode, setUseManualCouncilMode] = useState(true);
     
     // For manual prompt interface
     const [manualPrompt, setManualPrompt] = useState<string | null>(null);
@@ -102,20 +104,28 @@ export function useRobotCouncil(
         
         setIsFetchingCouncil(true);
         setManualPrompt(null);
+        setStrategyCouncil([]);
         
         try {
             const { duration_unit } = form.getValues();
             const historicalData = await getHistoricalData(activeSymbol, undefined, 200);
             if (!historicalData || historicalData.length < 50) throw new Error("Dados históricos insuficientes.");
 
-            // Construct the prompt manually for the user
-            const strategyBatches = [
-                ['RSI', 'STOCHASTIC', 'MACD_CROSS'],
-                ['MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND'],
-                ['ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE']
-            ];
+            const councilInput = {
+                symbol: activeSymbol,
+                balance: dailyBalance,
+                currency: 'USD',
+                historicalDataJson: JSON.stringify(historicalData.map(d => ({...d, date: new Date(d.epoch * 1000).toISOString()}))),
+                durationUnit: duration_unit,
+            };
 
-            const fullPrompt = `Você é um arquiteto-chefe de estratégias quantitativas. Sua missão é montar um grupo de robôs-analistas especialistas.
+            if (useManualCouncilMode) {
+                 const strategyBatches = [
+                    ['RSI', 'STOCHASTIC', 'MACD_CROSS'],
+                    ['MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND'],
+                    ['ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE']
+                ];
+                 const fullPrompt = `Você é um arquiteto-chefe de estratégias quantitativas. Sua missão é montar um grupo de robôs-analistas especialistas.
 
 Para CADA robô, você deve:
 1.  **Definir um ID único**: Ex: 'RSI_BOT_1'.
@@ -135,25 +145,35 @@ A sua resposta DEVE SER um único objeto JSON contendo uma chave "council" que �
 
 **Dados de Mercado (para análise de condição):**
 \'\'\'json
-${JSON.stringify(historicalData.map(d => ({...d, date: new Date(d.epoch * 1000).toISOString()})), null, 2)}
+${councilInput.historicalDataJson}
 \'\'\'
 
 **Contexto do Trader:**
 - Banca do Dia (para gestão de risco): ${dailyBalance} USD
 `;
-            
-            setManualPrompt(fullPrompt);
-            toast({
-                title: "Prompt Gerado",
-                description: "Copie o prompt do novo card e cole na sua IA externa.",
-            });
+                setManualPrompt(fullPrompt);
+                toast({
+                    title: "Prompt Gerado para Modo Manual",
+                    description: "Copie o prompt do novo card e cole na sua IA externa.",
+                    duration: 8000,
+                });
 
+            } else {
+                setGeminiRequestCount(prev => prev + 1);
+                const result = await getStrategyCouncilAction(councilInput);
+                if (result.success) {
+                    setStrategyCouncil(result.success.council);
+                    toast({ title: "Conselho de IA Montado!", description: "Os 10 analistas-robôs estão prontos para a sessão." });
+                } else {
+                    throw new Error(result.error || "Ocorreu um erro desconhecido ao gerar o conselho.");
+                }
+            }
         } catch (e: any) {
-            toast({ variant: "destructive", title: "Erro ao Gerar Prompt", description: e.message });
+            toast({ variant: "destructive", title: "Erro ao Montar o Conselho", description: e.message });
         } finally {
             setIsFetchingCouncil(false);
         }
-    }, [activeSymbol, dailyBalance, form, toast, getHistoricalData]);
+    }, [activeSymbol, dailyBalance, form, toast, getHistoricalData, useManualCouncilMode]);
 
     const processManualCouncilResponse = (jsonResponse: string) => {
         try {
@@ -181,8 +201,6 @@ ${JSON.stringify(historicalData.map(d => ({...d, date: new Date(d.epoch * 1000).
         }
     }, [isCouncilAutopilotOn, activeSymbol, isFetchingCouncil, strategyCouncil.length, fetchStrategyCouncil]);
     
-    // ... (o resto do hook permanece igual)
-
     const supervisionCommitteeCheck = useCallback((stake: number, direction: 'RISE' | 'FALL') => {
         let finalStake = stake;
         let vetoReason: string | null = null;
@@ -330,5 +348,7 @@ ${JSON.stringify(historicalData.map(d => ({...d, date: new Date(d.epoch * 1000).
         indicators,
         manualPrompt,
         processManualCouncilResponse,
+        useManualCouncilMode,
+        setUseManualCouncilMode,
     };
 }
