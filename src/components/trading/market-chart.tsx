@@ -92,6 +92,9 @@ export function MarketChart({
     min: 0,
     max: 1,
   })
+  
+  const [mousePosition, setMousePosition] = React.useState<{x: number, y: number} | null>(null);
+
 
   const brushRef = React.useRef({
     isBrushing: false,
@@ -99,8 +102,6 @@ export function MarketChart({
     startX: 0,
     target: '' as 'min' | 'max' | 'body' | '',
   })
-  
-  const throttleTimeoutRef = React.useRef<NodeJS.Timeout>();
 
   const isCandle = (d: ChartData): d is CandleData =>
     'open' in d && d.open !== undefined
@@ -320,6 +321,10 @@ export function MarketChart({
       PADDING.top +
       chartHeight -
       ((price - minPrice) / (maxPrice - minPrice)) * chartHeight
+      
+    const getPrice = (y: number) =>
+      maxPrice - ((y - PADDING.top) / chartHeight) * (maxPrice-minPrice);
+
 
     const getX = (index: number) => {
       if (visibleData.length <= 1) return PADDING.left
@@ -529,6 +534,86 @@ export function MarketChart({
         }
       }
     })
+    
+    if (mousePosition) {
+        const { x, y } = mousePosition;
+
+        // Draw Crosshair
+        ctx.strokeStyle = colors.crosshair;
+        ctx.lineWidth = 0.5;
+        ctx.setLineDash([3, 3]);
+
+        ctx.beginPath();
+        ctx.moveTo(x, PADDING.top);
+        ctx.lineTo(x, height - PADDING.bottom);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(PADDING.left, y);
+        ctx.lineTo(width - PADDING.right, y);
+        ctx.stroke();
+
+        ctx.setLineDash([]);
+
+        // Draw Price Label on Y-Axis
+        const price = getPrice(y);
+        ctx.fillStyle = colors.priceBg;
+        ctx.fillRect(width - PADDING.right, y - 10, Y_AXIS_WIDTH, 20);
+        ctx.fillStyle = colors.text;
+        ctx.fillText(price.toFixed(4), width - PADDING.right + 5, y + 4);
+
+        // Draw Time Label on X-Axis
+        const chartWidth = width - PADDING.left - PADDING.right;
+        const percentX = (x - PADDING.left) / chartWidth;
+        const dataIndex = Math.round(percentX * (visibleData.length - 1));
+        
+        if (dataIndex >= 0 && dataIndex < visibleData.length) {
+            const dataPoint = visibleData[dataIndex];
+            const date = new Date(dataPoint.epoch * 1000);
+            const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+            const textWidth = ctx.measureText(timeString).width;
+            ctx.fillStyle = colors.priceBg;
+            ctx.fillRect(x - textWidth / 2 - 5, height - PADDING.bottom, textWidth + 10, 20);
+            ctx.fillStyle = colors.text;
+            ctx.fillText(timeString, x - textWidth / 2, height - PADDING.bottom + 14);
+
+            // Draw Tooltip
+            if (isCandle(dataPoint)) {
+                let tooltipX = x + 15;
+                let tooltipY = y + 15;
+                const tooltipWidth = 120;
+                const tooltipHeight = 100;
+
+                if (tooltipX + tooltipWidth > width) tooltipX = x - tooltipWidth - 15;
+                if (tooltipY + tooltipHeight > height) tooltipY = y - tooltipHeight - 15;
+
+                ctx.fillStyle = `${colors.priceBg}E6`; // Add alpha
+                ctx.strokeStyle = colors.grid;
+                ctx.lineWidth = 1;
+                ctx.fillRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
+                ctx.strokeRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
+
+                ctx.fillStyle = colors.text;
+                ctx.font = 'bold 11px sans-serif';
+                ctx.fillText(new Date(dataPoint.epoch * 1000).toLocaleString(), tooltipX + 5, tooltipY + 15);
+                
+                ctx.font = '11px sans-serif';
+                const ohlc = [
+                    `O: ${dataPoint.open.toFixed(4)}`,
+                    `H: ${dataPoint.high.toFixed(4)}`,
+                    `L: ${dataPoint.low.toFixed(4)}`,
+                    `C: ${dataPoint.close.toFixed(4)}`,
+                ];
+
+                ohlc.forEach((text, i) => {
+                    ctx.fillText(text, tooltipX + 5, tooltipY + 30 + i * 15);
+                });
+            }
+        }
+    }
+
+
   }, [
     visibleData,
     colors,
@@ -538,7 +623,7 @@ export function MarketChart({
     drawBollingerBands,
     slicedIndicators,
     visibleIndicators,
-    isCandle,
+    mousePosition,
   ])
 
   const drawBrushChart = React.useCallback(() => {
@@ -628,9 +713,11 @@ export function MarketChart({
       cancelAnimationFrame(brushChartAF)
       window.removeEventListener('resize', handleResize)
     }
-  }, [rawData, visibleIndicators, drawMainChart, drawBrushChart])
+  }, [rawData, visibleIndicators, drawMainChart, drawBrushChart, mousePosition])
 
-  const handleBrushMouseDown = React.useCallback((e: React.MouseEvent) => {
+  const throttleTimeoutRef = React.useRef<NodeJS.Timeout>();
+
+  const handleBrushMouseDown = useCallback((e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const pos = x / rect.width
@@ -649,7 +736,7 @@ export function MarketChart({
     }
   }, [brushWindow.min, brushWindow.max]);
 
-  const handleBrushMouseMove = React.useCallback((e: React.MouseEvent) => {
+  const handleBrushMouseMove = useCallback((e: React.MouseEvent) => {
     if (!brushRef.current.target) return
     if (throttleTimeoutRef.current) return;
     
@@ -671,9 +758,9 @@ export function MarketChart({
             newMin = 1 - width
           }
         } else if (brushRef.current.target === 'min') {
-          newMin = Math.min(Math.max(0, prev.min + delta), newMax - 0.01)
+          newMin = Math.min(Math.max(0, pos), newMax - 0.01)
         } else if (brushRef.current.target === 'max') {
-          newMax = Math.max(Math.min(1, prev.max + delta), newMin + 0.01)
+          newMax = Math.max(Math.min(1, pos), newMin + 0.01)
         }
         
         if (newMin !== prev.min || newMax !== prev.max) {
@@ -687,9 +774,27 @@ export function MarketChart({
 
   }, []);
 
-  const handleBrushMouseUp = React.useCallback(() => {
+  const handleBrushMouseUp = useCallback(() => {
     brushRef.current.target = ''
   }, []);
+  
+  const handleChartMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = mainCanvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    if (x >= PADDING.left && x <= rect.width - PADDING.right && y >= PADDING.top && y <= rect.height - PADDING.bottom) {
+        setMousePosition({ x, y });
+    } else {
+        setMousePosition(null);
+    }
+  };
+
+  const handleChartMouseLeave = () => {
+    setMousePosition(null);
+  };
 
 
   return (
@@ -830,6 +935,8 @@ export function MarketChart({
 
       <div
         className="w-full flex-1 relative"
+        onMouseMove={handleChartMouseMove}
+        onMouseLeave={handleChartMouseLeave}
       >
         {isChartLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-10">
