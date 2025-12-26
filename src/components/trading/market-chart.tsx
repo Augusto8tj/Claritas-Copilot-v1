@@ -1,3 +1,4 @@
+
 'use client'
 
 import React, { useCallback } from 'react'
@@ -816,7 +817,7 @@ export function MarketChart({
 
   return (
     <div
-      className="h-[520px] w-full rounded-xl p-4 relative flex flex-col"
+      className="w-full rounded-xl p-4 relative flex flex-col aspect-video min-h-[400px]"
       style={{ backgroundColor: colors.bg }}
       ref={containerRef}
     >
