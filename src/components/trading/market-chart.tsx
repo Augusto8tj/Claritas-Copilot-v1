@@ -231,10 +231,10 @@ export function MarketChart({
       } else {
         pricePoints.push(d.price);
       }
-      if (slicedIndicators.sma[i]) pricePoints.push(slicedIndicators.sma[i]);
-      if (slicedIndicators.ema[i]) pricePoints.push(slicedIndicators.ema[i]);
-      if (slicedIndicators.vwap[i]) pricePoints.push(slicedIndicators.vwap[i]);
-      if (slicedIndicators.bollingerBands[i]) pricePoints.push(slicedIndicators.bollingerBands[i]!.upper, slicedIndicators.bollingerBands[i]!.lower);
+      if (visibleIndicators.sma && slicedIndicators.sma[i]) pricePoints.push(slicedIndicators.sma[i]);
+      if (visibleIndicators.ema && slicedIndicators.ema[i]) pricePoints.push(slicedIndicators.ema[i]);
+      if (visibleIndicators.vwap && slicedIndicators.vwap[i]) pricePoints.push(slicedIndicators.vwap[i]);
+      if (visibleIndicators.bb && slicedIndicators.bollingerBands[i]) pricePoints.push(slicedIndicators.bollingerBands[i]!.upper, slicedIndicators.bollingerBands[i]!.lower);
       
       minPrice = Math.min(minPrice, ...pricePoints.filter(p => p !== null) as number[]);
       maxPrice = Math.max(maxPrice, ...pricePoints.filter(p => p !== null) as number[]);
@@ -350,8 +350,8 @@ export function MarketChart({
       const entryEpoch = new Date(op.timestamp).getTime() / 1000
 
       if (
-        entryEpoch < visibleData[0]?.epoch ||
-        entryEpoch > visibleData[visibleData.length - 1]?.epoch
+        visibleData.length > 0 &&
+        (entryEpoch < visibleData[0]?.epoch || entryEpoch > visibleData[visibleData.length - 1]?.epoch)
       ) {
         return // Don't draw operations outside the visible window
       }
@@ -739,3 +739,5 @@ export function MarketChart({
     </div>
   )
 }
+
+    
