@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useCallback } from "react";
+import React, { useState } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DerivTraderInterface } from "@/components/trading/deriv-trader-interface";
@@ -53,7 +53,7 @@ export default function DerivTraderPage() {
   
   const indicators = React.useMemo(() => {
     return { sma: [], ema: [], vwap: [], bollingerBands: [] };
-  }, [chartData]);
+  }, []);
   
   return (
     <FormProvider {...form}>

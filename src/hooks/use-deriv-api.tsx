@@ -94,6 +94,7 @@ interface DerivApiContextType {
   addActiveContract: (contract: ActiveContract) => void;
   addMarketDataListener: (callback: MarketDataCallback) => void;
   removeMarketDataListener: (callback: MarketDataCallback) => void;
+  wsRef: React.RefObject<WebSocket | null>;
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
@@ -284,7 +285,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       }
       const request: any = {
         ticks_history: symbol,
-        end: "latest",
         count: count || 1000,
       };
 
@@ -293,6 +293,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           request.granularity = getGranularityForTimePeriod(period as any);
       } else {
           request.style = 'ticks';
+          request.end = "latest";
       }
 
       const response: any = await makeRequest(request);
@@ -572,6 +573,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     addActiveContract,
     addMarketDataListener,
     removeMarketDataListener,
+    wsRef
   };
 
   return (

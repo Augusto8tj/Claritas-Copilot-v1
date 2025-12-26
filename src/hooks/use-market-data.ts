@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -202,46 +201,44 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
             try {
                 const isAreaChart = chartType === 'Area';
                 
-                if (isAreaChart) {
-                    const historyResponse: any = await makeRequest({
-                        ticks_history: activeSymbol,
-                        end: 'latest',
-                        count: 500,
-                        style: 'ticks'
-                    });
-                    
-                    if (historyResponse.history) {
-                        handleMarketData(historyResponse);
-                    }
-                    setIsChartLoading(false);
+                // Base da requisição de histórico
+                const historyRequest: any = {
+                    ticks_history: activeSymbol,
+                    count: 500,
+                };
+                
+                // Base da requisição de subscrição
+                const subscribeRequest: any = {
+                    subscribe: 1,
+                };
 
-                    await makeRequest({
-                        ticks: activeSymbol,
-                        subscribe: 1,
-                    });
-                    
+                if (isAreaChart) {
+                    historyRequest.style = 'ticks';
+                    historyRequest.end = 'latest';
+                    subscribeRequest.ticks = activeSymbol;
                 } else { // Candle chart
                     const granularity = getGranularityForTimePeriod(timePeriod);
+                    historyRequest.style = 'candles';
+                    historyRequest.granularity = granularity;
                     
-                    const historyResponse: any = await makeRequest({
-                        ticks_history: activeSymbol,
-                        count: 500,
-                        style: 'candles',
-                        granularity: granularity
-                    });
-                    
-                    if (historyResponse.candles) {
-                        handleMarketData(historyResponse);
-                    }
-                    setIsChartLoading(false);
-
-                    await makeRequest({
-                        ticks_history: activeSymbol,
-                        subscribe: 1,
-                        style: 'candles',
-                        granularity: granularity
-                    });
+                    subscribeRequest.ticks_history = activeSymbol;
+                    subscribeRequest.style = 'candles';
+                    subscribeRequest.granularity = granularity;
                 }
+
+                const historyResponse: any = await makeRequest(historyRequest);
+                
+                // Processa a resposta do histórico (seja 'history' ou 'candles')
+                if (historyResponse.history) {
+                    handleMarketData(historyResponse);
+                } else if (historyResponse.candles) {
+                    handleMarketData(historyResponse);
+                }
+                setIsChartLoading(false);
+
+                // Subscreve para dados em tempo real
+                await makeRequest(subscribeRequest);
+
 
             } catch (error: any) {
                 if(currentSymbolRef.current === activeSymbol) {
@@ -255,7 +252,7 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
         subscribeToSymbol();
         
         return () => {
-            if (activeSubscriptionIdRef.current) {
+            if (activeSubscriptionIdRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
                 makeRequest({ forget: activeSubscriptionIdRef.current }).catch(e => console.error("Cleanup falhou:", e));
                 activeSubscriptionIdRef.current = null;
             }
