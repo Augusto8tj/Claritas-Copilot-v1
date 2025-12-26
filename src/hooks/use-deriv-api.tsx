@@ -1,4 +1,3 @@
-
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -264,7 +263,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   
   const getGranularityForTimePeriod = (timePeriod: any): number => {
     switch(timePeriod) {
-        case '1m': return 0;
+        case '1m': return 60;
         case '2m': return 120;
         case '3m': return 180;
         case '5m': return 300;
@@ -274,11 +273,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         case '1h': return 3600;
         case '8h': return 28800;
         case '1d': return 86400;
-        default: return 0;
+        default: return 60; // Default to 1 minute for safety
     }
   }
 
-  // FIX: Removido parâmetro 'end' que causava erro de validação
   const getHistoricalData = useCallback(async (symbol: string, period?: string, count?: number): Promise<HistoricalData[]> => {
       if (!wsRef.current || !isConnected) {
         throw new Error("A conexão com a API da Deriv não está ativa.");
@@ -286,6 +284,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       const request: any = {
         ticks_history: symbol,
         count: count || 1000,
+        adjust_start_time: 1
       };
 
       if(period && getGranularityForTimePeriod(period as any)) {
@@ -293,6 +292,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           request.granularity = getGranularityForTimePeriod(period as any);
       } else {
           request.style = 'ticks';
+          request.end = "latest";
       }
 
       const response: any = await makeRequest(request);
@@ -589,3 +589,5 @@ export function useDerivApi() {
   }
   return context;
 }
+
+    
