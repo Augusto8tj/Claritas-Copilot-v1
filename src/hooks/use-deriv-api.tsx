@@ -78,6 +78,7 @@ interface DerivApiContextType {
   setAccountType: (type: AccountType) => void;
   setTokens: (tokens: { demo?: string; real?: string }) => void;
   disconnect: (type: AccountType) => void;
+  reconnect: () => Promise<boolean>;
   makeRequest: <T,>(request: object) => Promise<T>;
   executeTrade: (
     contractType: string,
@@ -141,6 +142,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const promisesRef = useRef<Map<string, PromiseCallbacks>>(new Map());
+  const [triggerReconnect, setTriggerReconnect] = useState(0);
 
   const marketDataListenersRef = useRef<MarketDataCallback[]>([]);
 
@@ -323,13 +325,17 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     }
 
     if (wsRef.current && (wsRef.current.readyState === WebSocket.CONNECTING || wsRef.current.readyState === WebSocket.OPEN)) {
-        return;
+        if (triggerReconnect === 0) return; // Don't reconnect if not explicitly triggered
     }
     
     setIsConnecting(true);
     setConnectionError(null);
     setIsAssetsLoading(true);
   
+    if (wsRef.current) {
+        wsRef.current.close();
+    }
+
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     wsRef.current = ws;
     
@@ -494,7 +500,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         wsRef.current.close();
       }
     };
-  }, [activeToken, isLoading, makeRequest, toast]);
+  }, [activeToken, isLoading, makeRequest, toast, triggerReconnect]);
 
   const setAccountType = (type: AccountType) => {
     try {
@@ -533,6 +539,21 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         console.error("Failed to remove token from localStorage:", error);
     }
   };
+  
+  const reconnect = useCallback(async (): Promise<boolean> => {
+    setTriggerReconnect(c => c + 1);
+    
+    // Give it a moment to see if the connection establishes
+    return new Promise(resolve => {
+        setTimeout(() => {
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && isConnected) {
+                resolve(true);
+            } else {
+                resolve(false);
+            }
+        }, 3000); // 3-second timeout for the connection attempt
+    });
+  }, [isConnected]);
 
   const clearActiveContracts = () => {
     setOperationsLog([]);
@@ -554,6 +575,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     setAccountType,
     setTokens,
     disconnect,
+    reconnect,
     accountBalance,
     activeContracts,
     operationsLog,
