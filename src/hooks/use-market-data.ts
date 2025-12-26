@@ -64,7 +64,7 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
    HOOK PRINCIPAL
 ========================================================= */
 export function useMarketData(activeSymbol: string | null, defaultTimePeriod: TimePeriod = '5m') {
-    const { makeRequest, isConnected, addMarketDataListener, removeMarketDataListener } = useDerivApi();
+    const { makeRequest, isConnected, addMarketDataListener, removeMarketDataListener, wsRef } = useDerivApi();
     
     const [chartData, setChartData] = useState<ChartData[]>([]);
     const [isChartLoading, setIsChartLoading] = useState(true);
@@ -199,12 +199,11 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
             isSwitchingRef.current = false;
 
             try {
-                const isAreaChart = chartType === 'Area';
-                
                 // Base da requisição de histórico
                 const historyRequest: any = {
                     ticks_history: activeSymbol,
-                    count: 500,
+                    count: 1000,
+                    adjust_start_time: 1,
                 };
                 
                 // Base da requisição de subscrição
@@ -212,7 +211,7 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
                     subscribe: 1,
                 };
 
-                if (isAreaChart) {
+                if (chartType === 'Area') {
                     historyRequest.style = 'ticks';
                     historyRequest.end = 'latest';
                     subscribeRequest.ticks = activeSymbol;
@@ -220,6 +219,7 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
                     const granularity = getGranularityForTimePeriod(timePeriod);
                     historyRequest.style = 'candles';
                     historyRequest.granularity = granularity;
+                    // O `end` é omitido para candles para obter os mais recentes por defeito
                     
                     subscribeRequest.ticks_history = activeSymbol;
                     subscribeRequest.style = 'candles';
@@ -238,7 +238,6 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
 
                 // Subscreve para dados em tempo real
                 await makeRequest(subscribeRequest);
-
 
             } catch (error: any) {
                 if(currentSymbolRef.current === activeSymbol) {
