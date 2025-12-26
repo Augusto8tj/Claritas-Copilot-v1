@@ -150,28 +150,7 @@ export function MarketChart({
     const candleWidth = (chartWidth / visibleData.length) * 0.7;
     
     // Draw Chart Data
-    if (chartType === 'Area') {
-        ctx.beginPath();
-        visibleData.forEach((d, i) => {
-            const x = getX(i);
-            const y = getY(d.price);
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        });
-        ctx.strokeStyle = colors.line;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        const gradient = ctx.createLinearGradient(0, PADDING.top, 0, height - PADDING.bottom);
-        gradient.addColorStop(0, colors.areaTop);
-        gradient.addColorStop(1, colors.areaBottom);
-        ctx.fillStyle = gradient;
-        ctx.lineTo(getX(visibleData.length - 1), height - PADDING.bottom);
-        ctx.lineTo(getX(0), height - PADDING.bottom);
-        ctx.closePath();
-        ctx.fill();
-
-    } else { // Candle
+    if (chartType === 'Candle') {
         visibleData.forEach((d, i) => {
             if (!isCandle(d)) return;
             const x = getX(i);
@@ -195,16 +174,56 @@ export function MarketChart({
             const bodyHeight = Math.max(1, Math.abs(openY - closeY));
             ctx.fillRect(x - candleWidth / 2, Math.min(openY, closeY), candleWidth, bodyHeight);
         });
+
+    } else { // Area
+        ctx.beginPath();
+        visibleData.forEach((d, i) => {
+            const x = getX(i);
+            const y = getY(d.price);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.strokeStyle = colors.line;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        const gradient = ctx.createLinearGradient(0, PADDING.top, 0, height - PADDING.bottom);
+        gradient.addColorStop(0, colors.areaTop);
+        gradient.addColorStop(1, colors.areaBottom);
+        ctx.fillStyle = gradient;
+        ctx.lineTo(getX(visibleData.length - 1), height - PADDING.bottom);
+        ctx.lineTo(getX(0), height - PADDING.bottom);
+        ctx.closePath();
+        ctx.fill();
     }
 
     // Draw Operations
     operations.forEach(op => {
+      if (!op.entryPrice) return;
       const entryEpoch = new Date(op.timestamp).getTime() / 1000;
-      const entryDataIndex = visibleData.findIndex(d => d.epoch >= entryEpoch);
+      
+      const visibleStartEpoch = visibleData[0].epoch;
+      const visibleEndEpoch = visibleData[visibleData.length - 1].epoch;
+
+      if (entryEpoch < visibleStartEpoch || entryEpoch > visibleEndEpoch) {
+          return; // Don't draw operations outside the visible window
+      }
+      
+      // Find the index by finding the closest epoch
+      let entryDataIndex = -1;
+      let minDiff = Infinity;
+      visibleData.forEach((d, i) => {
+          const diff = Math.abs(d.epoch - entryEpoch);
+          if (diff < minDiff) {
+              minDiff = diff;
+              entryDataIndex = i;
+          }
+      });
+      
       if (entryDataIndex === -1) return;
 
       const entryX = getX(entryDataIndex);
-      const entryY = getY(op.entryPrice!);
+      const entryY = getY(op.entryPrice);
 
       let statusColor = '#3b82f6'; // Blue for pending
       if (op.status === 'won') statusColor = '#22c55e';
@@ -220,18 +239,28 @@ export function MarketChart({
       ctx.stroke();
 
       // Draw line to exit
-      if (op.exitPrice) {
+      if (op.exitPrice && op.status !== 'pending') {
           let durationInSeconds = 0;
           switch (op.durationUnit) {
-              case 't': durationInSeconds = op.duration * 2; break;
+              case 't': durationInSeconds = op.duration * 2; break; // Approximate
               case 's': durationInSeconds = op.duration; break;
               case 'm': durationInSeconds = op.duration * 60; break;
               case 'h': durationInSeconds = op.duration * 3600; break;
               case 'd': durationInSeconds = op.duration * 86400; break;
           }
           const exitEpoch = entryEpoch + durationInSeconds;
-          const exitDataIndex = visibleData.findIndex(d => d.epoch >= exitEpoch);
-          if(exitDataIndex !== -1) {
+          
+          let exitDataIndex = -1;
+          let minExitDiff = Infinity;
+          visibleData.forEach((d, i) => {
+              const diff = Math.abs(d.epoch - exitEpoch);
+              if (diff < minExitDiff) {
+                  minExitDiff = diff;
+                  exitDataIndex = i;
+              }
+          });
+
+          if(exitDataIndex !== -1 && exitDataIndex < visibleData.length) {
               const exitX = getX(exitDataIndex);
               const exitY = getY(op.exitPrice);
               
