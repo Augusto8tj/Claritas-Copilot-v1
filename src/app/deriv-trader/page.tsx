@@ -25,6 +25,8 @@ import { useAutopilot } from "@/hooks/use-autopilot";
 import { useRobotCouncil } from "@/hooks/use-robot-council";
 import { calculateAllIndicators } from "@/services/indicator-service";
 import { SystemStatusSummary } from "@/components/trading/system-status-summary";
+import { ManualCouncilInterface } from "@/components/trading/manual-council-interface";
+
 
 /**
  * This core component is now separate to ensure that all hooks using
@@ -118,6 +120,16 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
             <AutoTraderInterface {...autopilot} />
         </div>
       </div>
+
+       {/* Manual Council Prompt Interface */}
+      {robotCouncil.manualPrompt && (
+        <div className="mt-6">
+            <ManualCouncilInterface
+                prompt={robotCouncil.manualPrompt}
+                onProcessResponse={robotCouncil.processManualCouncilResponse}
+            />
+        </div>
+      )}
     </>
   );
 }

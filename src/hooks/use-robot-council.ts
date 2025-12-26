@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDerivApi } from './use-deriv-api';
 import { useToast } from './use-toast';
 import { getStrategyCouncilAction } from '@/app/actions/ai-actions';
-import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
+import type { RobotStrategy, StrategyCouncilOutputSchema } from '@/ai/flows/strategy-council-flow.types';
 import type { RiseFallFormValues } from '@/components/trading/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
@@ -67,6 +67,9 @@ export function useRobotCouncil(
     const [robotPerformance, setRobotPerformance] = useState<RobotPerformance[]>([]);
     const [lastCouncilLossSuggestion, setLastCouncilLossSuggestion] = useState<string | null>(null);
     
+    // For manual prompt interface
+    const [manualPrompt, setManualPrompt] = useState<string | null>(null);
+
     const councilExecutionRef = useRef({ isExecuting: false });
 
     useEffect(() => {
@@ -80,7 +83,6 @@ export function useRobotCouncil(
         if (!operationsLog || operationsLog.length === 0) return;
         const lastOp = operationsLog[0];
         if (lastOp && lastOp.status === 'lost' && lastOp.initiator === 'Conselho') {
-            // A null strategy is passed because the council doesn't have a single "active strategy"
             tradeAnalysis.analyzeLosingTrade(lastOp, null).then(suggestion => {
                 if (suggestion) {
                     setLastCouncilLossSuggestion(suggestion);
@@ -96,38 +98,82 @@ export function useRobotCouncil(
 
 
     const fetchStrategyCouncil = useCallback(async () => {
-        if (!activeSymbol) {
-            return;
-        }
+        if (!activeSymbol) return;
+        
         setIsFetchingCouncil(true);
+        setManualPrompt(null);
+        
         try {
             const { duration_unit } = form.getValues();
             const historicalData = await getHistoricalData(activeSymbol, undefined, 200);
             if (!historicalData || historicalData.length < 50) throw new Error("Dados históricos insuficientes.");
+
+            // Construct the prompt manually for the user
+            const strategyBatches = [
+                ['RSI', 'STOCHASTIC', 'MACD_CROSS'],
+                ['MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND'],
+                ['ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE']
+            ];
+
+            const fullPrompt = `Você é um arquiteto-chefe de estratégias quantitativas. Sua missão é montar um grupo de robôs-analistas especialistas.
+
+Para CADA robô, você deve:
+1.  **Definir um ID único**: Ex: 'RSI_BOT_1'.
+2.  **Definir Parâmetros e Múltiplos Limiares de Confiança**: Preencha os parâmetros relevantes e defina DOIS níveis de limiar: um para um sinal FORTE e um para um sinal FRACO.
+    - Exemplo para RSI: 'strongBuyThreshold': 20 (RSI muito sobrevendido), 'weakBuyThreshold': 30 (RSI sobrevendido). Faça o análogo para venda.
+3.  **Definir Níveis de Confiança Numéricos**: 'strongConfidence': 90-100, 'weakConfidence': 60-75.
+4.  **Justificar a Escolha**: Forneça uma justificativa muito breve (1 frase).
+5.  **Gestão de Risco**: 'suggestedStake' como 1% da banca do dia, 'suggestedDuration' na unidade fornecida.
+
+---
+**DADOS DA REQUISIÇÃO:**
+
+Crie um grupo de robôs-analistas para o ativo ${activeSymbol}, otimizados para operar em '${duration_unit}'.
+A sua resposta DEVE SER um único objeto JSON contendo uma chave "council" que é um array com EXATAMENTE 10 objetos de robôs.
+
+**Estratégias para construir:** ${JSON.stringify(strategyBatches.flat())}
+
+**Dados de Mercado (para análise de condição):**
+\'\'\'json
+${JSON.stringify(historicalData.map(d => ({...d, date: new Date(d.epoch * 1000).toISOString()})), null, 2)}
+\'\'\'
+
+**Contexto do Trader:**
+- Banca do Dia (para gestão de risco): ${dailyBalance} USD
+`;
             
-            setGeminiRequestCount(prev => prev + 1); // Only 1 call now
-            
-            const result = await getStrategyCouncilAction({
-                symbol: activeSymbol,
-                balance: dailyBalance,
-                currency: 'USD',
-                historicalDataJson: JSON.stringify(historicalData.map(d => ({...d, date: new Date(d.epoch * 1000).toISOString()}))),
-                durationUnit: duration_unit,
+            setManualPrompt(fullPrompt);
+            toast({
+                title: "Prompt Gerado",
+                description: "Copie o prompt do novo card e cole na sua IA externa.",
             });
-            if (result.success) {
-                setStrategyCouncil(result.success.council);
-                toast({ title: "Conselho Formado!", description: "As estratégias dos analistas foram definidas." });
-                 if(lastCouncilLossSuggestion) setLastCouncilLossSuggestion(null); // Limpa a sugestão depois de usada
-            } else {
-                throw new Error(result.error || "Erro desconhecido ao formar conselho.");
-            }
+
         } catch (e: any) {
-            toast({ variant: "destructive", title: "Erro ao Formar Conselho", description: e.message });
-            setStrategyCouncil([]);
+            toast({ variant: "destructive", title: "Erro ao Gerar Prompt", description: e.message });
         } finally {
             setIsFetchingCouncil(false);
         }
-    }, [activeSymbol, dailyBalance, form, toast, getHistoricalData, lastCouncilLossSuggestion]);
+    }, [activeSymbol, dailyBalance, form, toast, getHistoricalData]);
+
+    const processManualCouncilResponse = (jsonResponse: string) => {
+        try {
+            const parsed = JSON.parse(jsonResponse);
+            const validated = StrategyCouncilOutputSchema.safeParse(parsed);
+
+            if (!validated.success) {
+                console.error("Validation error:", validated.error);
+                throw new Error(`O JSON fornecido não corresponde ao formato esperado. Erros: ${validated.error.errors.map(e => e.message).join(', ')}`);
+            }
+            
+            setStrategyCouncil(validated.data.council);
+            setManualPrompt(null); // Hide the manual interface on success
+            toast({ title: "Conselho Montado com Sucesso!", description: "A resposta da IA foi processada e o conselho está ativo." });
+
+        } catch (e: any) {
+             toast({ variant: "destructive", title: "Erro ao Processar Resposta", description: `Verifique se o texto colado é um JSON válido. Detalhe: ${e.message}` });
+        }
+    };
+
 
     useEffect(() => {
         if (isCouncilAutopilotOn && activeSymbol && !isFetchingCouncil && strategyCouncil.length === 0) {
@@ -135,6 +181,8 @@ export function useRobotCouncil(
         }
     }, [isCouncilAutopilotOn, activeSymbol, isFetchingCouncil, strategyCouncil.length, fetchStrategyCouncil]);
     
+    // ... (o resto do hook permanece igual)
+
     const supervisionCommitteeCheck = useCallback((stake: number, direction: 'RISE' | 'FALL') => {
         let finalStake = stake;
         let vetoReason: string | null = null;
@@ -280,5 +328,7 @@ export function useRobotCouncil(
         isMeritocracyOn,
         setIsMeritocracyOn,
         indicators,
+        manualPrompt,
+        processManualCouncilResponse,
     };
 }
