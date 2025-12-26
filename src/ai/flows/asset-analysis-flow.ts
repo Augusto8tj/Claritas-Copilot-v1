@@ -6,7 +6,7 @@
  * - getAssetAnalysis - The main flow function.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai, flash } from '@/ai/genkit';
 import { z } from 'zod';
 import { AssetAnalysisInputSchema, AssetAnalysisOutputSchema, type AssetAnalysisInput, type AssetAnalysisOutput } from './asset-analysis-flow.types';
 
@@ -65,7 +65,13 @@ const getAssetAnalysisFlow = ai.defineFlow(
       recentTrades: recentTradesJson,
     };
 
-    const { output } = await analysisPrompt(promptInput);
+    // Explicitly use ai.generate with the prompt. This ensures the default model (flash) is used.
+    const { output } = await ai.generate({
+        prompt: analysisPrompt,
+        input: promptInput,
+        output: { schema: AssetAnalysisOutputSchema }
+    });
+
     if (!output) throw new Error("A IA não conseguiu analisar o ativo.");
     
     // Add the data points count to the output
