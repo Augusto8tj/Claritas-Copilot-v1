@@ -106,11 +106,12 @@ export function useRobotCouncil(
             if (!historicalData || historicalData.length < 50) throw new Error("Dados históricos insuficientes.");
             
             setGeminiRequestCount(prev => prev + 1); // Only 1 call now
+            
             const result = await getStrategyCouncilAction({
                 symbol: activeSymbol,
                 balance: dailyBalance,
                 currency: 'USD',
-                historicalDataJson: JSON.stringify(historicalData),
+                historicalDataJson: JSON.stringify(historicalData.map(d => ({...d, date: new Date(d.epoch * 1000).toISOString()}))),
                 durationUnit: duration_unit,
             });
             if (result.success) {
