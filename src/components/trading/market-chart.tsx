@@ -1,22 +1,8 @@
-
 'use client'
 
-import React from 'react'
-import {
-  ResponsiveContainer,
-  ComposedChart,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ReferenceLine,
-  Line,
-  Area,
-  Scatter,
-  Bar,
-} from 'recharts'
-import { Flag, Settings } from 'lucide-react'
-import { useTheme } from '@/hooks/use-theme';
+import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react'
+import { Flag, Settings, Loader2 } from 'lucide-react'
+import { useTheme as useAppTheme } from '@/hooks/use-theme'
 import type {
   ChartData,
   CandleData,
@@ -24,8 +10,6 @@ import type {
   ChartType,
 } from '@/hooks/use-market-data'
 import { HeaderInfo } from './chart-parts/header-info'
-import { CustomTooltip } from './chart-parts/custom-tooltip'
-import { CandleShape } from './chart-parts/candle-shape'
 import { THEMES } from './chart-parts/themes'
 import type { Operation } from '@/components/trading/operations-log.types'
 import {
@@ -37,66 +21,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Button } from '../ui/button'
-
-
-const EntryMarker = (props: any) => {
-  const { cx, cy, payload } = props
-  
-  if (!cx || !cy || !payload) return null
-
-  const direction = payload.direction
-  const status = payload.status
-  
-  let ENTRY_COLOR = '#3b82f6' // Blue for pending
-  if (status === 'won') {
-    ENTRY_COLOR = '#22c55e' // Green for win
-  } else if (status === 'lost') {
-    ENTRY_COLOR = '#ef4444' // Red for loss
-  }
-
-  return (
-    <g transform={`translate(${cx}, ${cy})`}>
-      <circle r={8} fill={ENTRY_COLOR} stroke="#ffffff" strokeWidth={2.5} />
-      <circle r={3.5} fill="#ffffff" />
-      {direction === 'rise' ? (
-        <path
-          d="M -3,-6 L 0,-9 L 3,-6"
-          stroke="#ffffff"
-          strokeWidth={1.5}
-          fill="none"
-        />
-      ) : (
-        <path
-          d="M -3,6 L 0,9 L 3,6"
-          stroke="#ffffff"
-          strokeWidth={1.5}
-          fill="none"
-        />
-      )}
-    </g>
-  )
-}
-
-const ExitMarker = (props: any) => {
-  const { cx, cy, payload } = props
-  
-  if (!cx || !cy || !payload) return null
-
-  const status = payload.status
-  const isWin = status === 'won'
-  const flagColor = isWin ? '#22c55e' : '#ef4444'
-
-  return (
-    <g transform={`translate(${cx - 10}, ${cy - 22})`}>
-      <Flag
-        fill={flagColor}
-        stroke="#ffffff"
-        strokeWidth={2.5}
-        size={24}
-      />
-    </g>
-  )
-}
+import { cn } from '@/lib/utils'
 
 interface MarketChartProps {
   activeSymbol: string
@@ -116,6 +41,9 @@ interface MarketChartProps {
   }
 }
 
+const Y_AXIS_WIDTH = 80;
+const PADDING = { top: 20, right: Y_AXIS_WIDTH, bottom: 40, left: 10 };
+
 export function MarketChart({
   activeSymbol,
   chartData: rawData,
@@ -126,152 +54,242 @@ export function MarketChart({
   timePeriod,
   setTimePeriod,
   operations,
-  indicators,
 }: MarketChartProps) {
-  const { theme: appTheme } = useTheme();
-  const [chartTheme, setChartTheme] = React.useState<'light' | 'dark'>(appTheme.includes('dark') ? 'dark' : 'light');
-  const [cursor, setCursor] = React.useState<string | null>(null);
-  const [showIndicators, setShowIndicators] = React.useState({
-    sma: false,
-    ema: false,
-    vwap: false,
-    bollingerBands: false,
-  });
-
-  const colors = THEMES[chartTheme];
-  const latestPrice = rawData.length > 0 ? rawData[rawData.length - 1]!.price : 0
-  const prevPrice = rawData.length > 1 ? rawData[rawData.length - 2]!.price : latestPrice
+  const { theme: appTheme } = useAppTheme();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   
-  const yDomain = React.useMemo(() => {
-    if (rawData.length === 0) return ['auto', 'auto'];
+  const [chartTheme, setChartTheme] = useState<'light' | 'dark'>(appTheme.includes('dark') ? 'dark' : 'light');
+  const colors = THEMES[chartTheme];
+  
+  const panOffsetRef = useRef(0);
+  const zoomLevelRef = useRef(1);
+  const isDraggingRef = useRef(false);
+  const lastMouseXRef = useRef(0);
+  const crosshairPositionRef = useRef<{ x: number, y: number } | null>(null);
 
-    const prices = rawData.map(d => 'high' in d ? [d.high, d.low] : d.price).flat();
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
-    const padding = (maxPrice - minPrice) * 0.15;
-    return [minPrice - padding, maxPrice + padding];
+  const isCandle = (d: ChartData): d is CandleData => 'open' in d && d.open !== undefined;
+  
+  const getVisibleData = useCallback(() => {
+    const candlesToShow = 100 / zoomLevelRef.current;
+    const endIndex = Math.floor(rawData.length - panOffsetRef.current);
+    const startIndex = Math.max(0, Math.floor(endIndex - candlesToShow));
+    return rawData.slice(startIndex, endIndex);
   }, [rawData]);
 
-  const visibleOperations = React.useMemo(() => {
-    if (!Array.isArray(operations)) return []
-    return operations
-  }, [operations])
+  const drawChart = useCallback(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    const visibleData = getVisibleData();
+    if (!canvas || !container || visibleData.length === 0) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-  const { entryPoints, exitPoints, operationLines } = React.useMemo(() => {
-    const entries: any[] = []
-    const exits: any[] = []
-    const lines: any[] = []
+    const dpr = window.devicePixelRatio || 1;
+    const rect = container.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
 
-    visibleOperations.forEach(op => {
-      if (!op.timestamp) return
+    const width = rect.width;
+    const height = rect.height;
+    const chartWidth = width - PADDING.left - PADDING.right;
+    const chartHeight = height - PADDING.top - PADDING.bottom;
 
-      const entryEpoch = Math.floor(new Date(op.timestamp).getTime() / 1000)
-      
-      let entryPrice = op.entryPrice
-      if (!entryPrice && rawData.length > 0) {
-        const closestPoint = rawData.reduce((prev, curr) => {
-          const prevDiff = Math.abs(prev.epoch - entryEpoch)
-          const currDiff = Math.abs(curr.epoch - entryEpoch)
-          return currDiff < prevDiff ? curr : prev
-        })
-        if (Math.abs(closestPoint.epoch - entryEpoch) <= 10) {
-          entryPrice = closestPoint.price
-        }
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = colors.bg;
+    ctx.fillRect(0, 0, width, height);
+    
+    let minPrice = Infinity;
+    let maxPrice = -Infinity;
+    visibleData.forEach(d => {
+      if (isCandle(d)) {
+        minPrice = Math.min(minPrice, d.low);
+        maxPrice = Math.max(maxPrice, d.high);
+      } else {
+        minPrice = Math.min(minPrice, d.price);
+        maxPrice = Math.max(maxPrice, d.price);
       }
-      
-      if (!entryPrice || entryPrice <= 0) return
+    });
+    
+    const priceRange = maxPrice - minPrice || 1;
+    const pricePadding = priceRange * 0.1;
+    minPrice -= pricePadding;
+    maxPrice += pricePadding;
 
-      let durationInSeconds = 0
-      switch (op.durationUnit) {
-        case 't': durationInSeconds = op.duration * 2; break
-        case 's': durationInSeconds = op.duration; break
-        case 'm': durationInSeconds = op.duration * 60; break
-        case 'h': durationInSeconds = op.duration * 3600; break
-        case 'd': durationInSeconds = op.duration * 86400; break
-      }
-      const exitEpoch = entryEpoch + durationInSeconds
-
-      entries.push({
-        x: entryEpoch,
-        y: entryPrice,
-        direction: op.direction,
-        status: op.status,
-        id: op.id,
-      })
-
-      const isPending = op.status === 'pending'
-      
-      if (isPending) {
-        const currentPoint = rawData.length > 0 ? rawData[rawData.length - 1] : null
-        if (currentPoint) {
-          const currentEpoch = Math.min(exitEpoch, currentPoint.epoch)
-          const currentPrice = currentPoint.price
-
-          lines.push({
-            id: op.id,
-            isPending: true,
-            segment: [
-              { x: entryEpoch, y: entryPrice },
-              { x: currentEpoch, y: currentPrice },
-            ],
-          })
-        }
-      } else if (op.exitPrice && op.exitPrice > 0) {
-        lines.push({
-          id: op.id,
-          isPending: false,
-          status: op.status,
-          segment: [
-            { x: entryEpoch, y: entryPrice },
-            { x: exitEpoch, y: op.exitPrice },
-          ],
-        })
-
-        exits.push({
-          x: exitEpoch,
-          y: op.exitPrice,
-          status: op.status,
-          id: op.id,
-        })
-      }
-    })
-
-    return {
-      entryPoints: entries,
-      exitPoints: exits,
-      operationLines: lines,
+    const getY = (price: number) => PADDING.top + chartHeight - ((price - minPrice) / (maxPrice - minPrice)) * chartHeight;
+    const getX = (index: number) => PADDING.left + (index / (visibleData.length - 1)) * chartWidth;
+    
+    // Draw Grid & Y-Axis Labels
+    ctx.strokeStyle = colors.grid;
+    ctx.lineWidth = 1;
+    ctx.font = '10px sans-serif';
+    ctx.fillStyle = colors.text;
+    const gridLines = 5;
+    for (let i = 0; i <= gridLines; i++) {
+        const y = PADDING.top + (chartHeight / gridLines) * i;
+        ctx.beginPath();
+        ctx.moveTo(PADDING.left, y);
+        ctx.lineTo(width - PADDING.right, y);
+        ctx.stroke();
+        const price = maxPrice - (i / gridLines) * (maxPrice - minPrice);
+        ctx.fillText(price.toFixed(4), width - PADDING.right + 5, y + 3);
     }
-  }, [visibleOperations, rawData]);
+    
+    // Draw X-Axis Labels
+    const labelCount = Math.floor(chartWidth / 100);
+    const labelInterval = Math.max(1, Math.floor(visibleData.length / labelCount));
+    for (let i = 0; i < visibleData.length; i += labelInterval) {
+        const x = getX(i);
+        const date = new Date(visibleData[i].epoch * 1000);
+        const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        ctx.fillText(timeString, x, height - PADDING.bottom + 15);
+    }
+    
+    const candleWidth = (chartWidth / visibleData.length) * 0.7;
+    
+    // Draw Chart Data
+    if (chartType === 'Area') {
+        ctx.beginPath();
+        visibleData.forEach((d, i) => {
+            const x = getX(i);
+            const y = getY(d.price);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.strokeStyle = colors.line;
+        ctx.lineWidth = 2;
+        ctx.stroke();
 
-  const augmentedData = React.useMemo(() => {
-    return rawData.map((d, i) => ({
-      ...d,
-      sma: indicators.sma[i],
-      ema: indicators.ema[i],
-      vwap: indicators.vwap[i],
-      bb: indicators.bollingerBands[i],
-    }));
-  }, [rawData, indicators]);
+        const gradient = ctx.createLinearGradient(0, PADDING.top, 0, height - PADDING.bottom);
+        gradient.addColorStop(0, colors.areaTop);
+        gradient.addColorStop(1, colors.areaBottom);
+        ctx.fillStyle = gradient;
+        ctx.lineTo(getX(visibleData.length - 1), height - PADDING.bottom);
+        ctx.lineTo(getX(0), height - PADDING.bottom);
+        ctx.closePath();
+        ctx.fill();
 
-  if (isChartLoading && rawData.length === 0) {
-    return (
-      <div className="flex h-[520px] w-full items-center justify-center bg-zinc-900 text-white">
-        Carregando...
-      </div>
-    )
-  }
-  if (chartError) {
-    return (
-      <div className="flex h-[520px] w-full items-center justify-center text-red-500 bg-zinc-900">
-        {chartError}
-      </div>
-    )
-  }
+    } else { // Candle
+        visibleData.forEach((d, i) => {
+            if (!isCandle(d)) return;
+            const x = getX(i);
+            const openY = getY(d.open);
+            const closeY = getY(d.close);
+            const highY = getY(d.high);
+            const lowY = getY(d.low);
+
+            const isBullish = d.close >= d.open;
+            ctx.fillStyle = isBullish ? colors.bull : colors.bear;
+            ctx.strokeStyle = isBullish ? colors.bull : colors.bear;
+            
+            // Wick
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x, highY);
+            ctx.lineTo(x, lowY);
+            ctx.stroke();
+
+            // Body
+            const bodyHeight = Math.max(1, Math.abs(openY - closeY));
+            ctx.fillRect(x - candleWidth / 2, Math.min(openY, closeY), candleWidth, bodyHeight);
+        });
+    }
+
+    // Draw Operations
+    operations.forEach(op => {
+      const entryEpoch = new Date(op.timestamp).getTime() / 1000;
+      const entryDataIndex = visibleData.findIndex(d => d.epoch >= entryEpoch);
+      if (entryDataIndex === -1) return;
+
+      const entryX = getX(entryDataIndex);
+      const entryY = getY(op.entryPrice!);
+
+      let statusColor = '#3b82f6'; // Blue for pending
+      if (op.status === 'won') statusColor = '#22c55e';
+      else if (op.status === 'lost') statusColor = '#ef4444';
+      
+      // Draw entry circle
+      ctx.beginPath();
+      ctx.arc(entryX, entryY, 6, 0, 2 * Math.PI);
+      ctx.fillStyle = statusColor;
+      ctx.fill();
+      ctx.strokeStyle = colors.bg;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Draw line to exit
+      if (op.exitPrice) {
+          let durationInSeconds = 0;
+          switch (op.durationUnit) {
+              case 't': durationInSeconds = op.duration * 2; break;
+              case 's': durationInSeconds = op.duration; break;
+              case 'm': durationInSeconds = op.duration * 60; break;
+              case 'h': durationInSeconds = op.duration * 3600; break;
+              case 'd': durationInSeconds = op.duration * 86400; break;
+          }
+          const exitEpoch = entryEpoch + durationInSeconds;
+          const exitDataIndex = visibleData.findIndex(d => d.epoch >= exitEpoch);
+          if(exitDataIndex !== -1) {
+              const exitX = getX(exitDataIndex);
+              const exitY = getY(op.exitPrice);
+              
+              ctx.beginPath();
+              ctx.moveTo(entryX, entryY);
+              ctx.lineTo(exitX, exitY);
+              ctx.strokeStyle = statusColor;
+              ctx.lineWidth = 1;
+              ctx.setLineDash([3, 3]);
+              ctx.stroke();
+              ctx.setLineDash([]);
+          }
+      }
+    });
+
+  }, [rawData, colors, chartType, getVisibleData, operations]);
+  
+  useEffect(() => {
+    panOffsetRef.current = 0;
+    zoomLevelRef.current = 1;
+    const animationFrameId = requestAnimationFrame(drawChart);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [rawData, chartType, timePeriod, drawChart]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const animationFrameId = requestAnimationFrame(drawChart);
+      return () => cancelAnimationFrame(animationFrameId);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [drawChart]);
+
+  const handleMouseDown = (e: React.MouseEvent) => { isDraggingRef.current = true; lastMouseXRef.current = e.clientX; };
+  const handleMouseUp = () => { isDraggingRef.current = false; };
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingRef.current) return;
+    const deltaX = e.clientX - lastMouseXRef.current;
+    const sensitivity = 50 / ((containerRef.current?.clientWidth || 500));
+    panOffsetRef.current = Math.max(0, Math.min(rawData.length - 2, panOffsetRef.current - deltaX * sensitivity));
+    lastMouseXRef.current = e.clientX;
+    requestAnimationFrame(drawChart);
+  };
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
+    zoomLevelRef.current = Math.max(0.2, Math.min(5, zoomLevelRef.current * zoomFactor));
+    requestAnimationFrame(drawChart);
+  };
+
+  const latestPrice = rawData.length > 0 ? rawData[rawData.length - 1]!.price : 0
+  const prevPrice = rawData.length > 1 ? rawData[rawData.length - 2]!.price : latestPrice
 
   return (
     <div
-      className="h-[520px] w-full rounded-xl p-4"
+      className="h-[520px] w-full rounded-xl p-4 relative"
       style={{ backgroundColor: colors.bg }}
+      ref={containerRef}
     >
       <HeaderInfo
         symbol={activeSymbol}
@@ -287,161 +305,33 @@ export function MarketChart({
       />
       
       <div className="mb-2 flex items-center justify-end">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9 gap-1.5">
-              <Settings size={14} /> Indicadores
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56">
-            <DropdownMenuLabel>Indicadores Técnicos</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuCheckboxItem
-              checked={showIndicators.sma}
-              onCheckedChange={(checked) => setShowIndicators(s => ({ ...s, sma: checked }))}
-            >
-              Média Móvel Simples (SMA)
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={showIndicators.ema}
-              onCheckedChange={(checked) => setShowIndicators(s => ({ ...s, ema: checked }))}
-            >
-              Média Móvel Exponencial (EMA)
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={showIndicators.vwap}
-              onCheckedChange={(checked) => setShowIndicators(s => ({ ...s, vwap: checked }))}
-            >
-              Preço Médio Ponderado por Volume (VWAP)
-            </DropdownMenuCheckboxItem>
-             <DropdownMenuCheckboxItem
-              checked={showIndicators.bollingerBands}
-              onCheckedChange={(checked) => setShowIndicators(s => ({ ...s, bollingerBands: checked }))}
-            >
-              Bandas de Bollinger
-            </DropdownMenuCheckboxItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* O botão de indicadores pode ser reativado aqui no futuro */}
       </div>
 
-      <ResponsiveContainer width="100%" height="80%">
-        <ComposedChart
-          data={augmentedData}
-          margin={{ top: 5, right: 50, left: 0, bottom: 20 }}
-          onMouseMove={e => e?.activeLabel && setCursor(e.activeLabel)}
-          onMouseLeave={() => setCursor(null)}
-        >
-          <CartesianGrid stroke={colors.grid} strokeDasharray="3 3" />
-
-          <XAxis
-            dataKey="epoch"
-            type="number"
-            domain={['dataMin', 'dataMax']}
-            tickFormatter={time => new Date(time * 1000).toLocaleTimeString()}
-            stroke={colors.text}
-            tick={{ fontSize: 10 }}
-          />
-
-          <YAxis
-            yAxisId="price"
-            orientation="right"
-            domain={yDomain}
-            stroke={colors.text}
-            tick={{ fontSize: 10 }}
-            tickFormatter={val => typeof val === 'number' ? val.toFixed(4) : ''}
-          />
-          
-          <Tooltip
-            content={<CustomTooltip colors={colors} />}
-            cursor={{ stroke: colors.crosshair, strokeDasharray: '3 3' }}
-          />
-
-          {operationLines.map(line => (
-            <ReferenceLine
-              key={`line-${line.id}`}
-              yAxisId="price"
-              segment={line.segment}
-              stroke={
-                line.isPending
-                  ? '#f59e0b'
-                  : line.status === 'won'
-                  ? '#22c55e'
-                  : '#ef4444'
-              }
-              strokeDasharray={line.isPending ? '5 5' : '4 4'}
-              strokeWidth={2}
-              ifOverflow="visible"
-            />
-          ))}
-
-          {chartType === 'Area' && (
-            <>
-              <defs>
-                <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={colors.areaTop} />
-                  <stop offset="100%" stopColor={colors.areaBottom} />
-                </linearGradient>
-              </defs>
-              <Area
-                yAxisId="price"
-                dataKey="price"
-                fill="url(#areaGrad)"
-                stroke="none"
-                isAnimationActive={false}
-              />
-              <Line
-                yAxisId="price"
-                dataKey="price"
-                stroke={colors.line}
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4, fill: colors.line }}
-                isAnimationActive={false}
-              />
-            </>
-          )}
-
-          {chartType === 'Candle' && (
-            <Bar
-              yAxisId="price"
-              dataKey="price"
-              isAnimationActive={false}
-              shape={<CandleShape colors={colors} />}
-            />
-          )}
-
-          {cursor && (
-            <ReferenceLine
-              x={cursor as any}
-              stroke={colors.crosshair}
-              strokeDasharray="3 3"
-              yAxisId="price"
-            />
-          )}
-
-          {entryPoints.length > 0 && (
-            <Scatter
-              yAxisId="price"
-              dataKey="y"
-              data={entryPoints}
-              shape={<EntryMarker />}
-              isAnimationActive={false}
-              fill="transparent"
-            />
-          )}
-
-          {exitPoints.length > 0 && (
-            <Scatter
-              yAxisId="price"
-              dataKey="y"
-              data={exitPoints}
-              shape={<ExitMarker />}
-              isAnimationActive={false}
-              fill="transparent"
-            />
-          )}
-        </ComposedChart>
-      </ResponsiveContainer>
+       <div 
+        className="w-full h-[80%] relative"
+        style={{ cursor: isDraggingRef.current ? 'grabbing' : 'grab' }}
+       >
+        {isChartLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-10">
+                <Loader2 className="h-8 w-8 animate-spin text-white" />
+            </div>
+        )}
+        {chartError && !isChartLoading && (
+             <div className="absolute inset-0 flex items-center justify-center bg-red-900/50 z-10 text-white p-4 text-center">
+                {chartError}
+            </div>
+        )}
+        <canvas
+            ref={canvasRef}
+            onMouseDown={handleMouseDown}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onMouseMove={handleMouseMove}
+            onWheel={handleWheel}
+            className="w-full h-full"
+        />
+       </div>
     </div>
   )
 }

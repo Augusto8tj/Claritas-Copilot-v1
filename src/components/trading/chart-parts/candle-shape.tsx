@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { THEMES } from './themes';
@@ -13,6 +12,8 @@ interface CandleShapeProps {
   colors: typeof THEMES.dark;
 }
 
+// Este componente não é mais usado diretamente pela implementação em Canvas,
+// mas o mantemos caso seja necessário para alguma outra visualização no futuro.
 export const CandleShape = ({ x = 0, width = 0, payload, yAxis, colors }: CandleShapeProps) => {
   if (!payload || !yAxis || !payload.open) return null;
 
