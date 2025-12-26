@@ -16,17 +16,17 @@ import type { DurationUnit } from '@/components/trading/deriv-trader-interface.t
 import type { TradeResult } from '@/services/deriv-api-service';
 
 
-type RobotVote = {
+export type RobotVote = {
     vote: 'RISE' | 'FALL' | 'HOLD';
     confidence: number;
     weight: number;
 };
-type CouncilVotes = { [key: string]: RobotVote };
+export type CouncilVotes = { [key: string]: RobotVote };
 
 const ROBOT_PERFORMANCE_KEY = 'derivRobotPerformance';
-interface RobotPerformance {
+export interface RobotPerformance {
     id: string;
-    strategy: RobotStrategy;
+    strategyType: RobotStrategy['strategyType'];
     wins: number;
     losses: number;
     totalProfit: number;
@@ -105,7 +105,7 @@ export function useRobotCouncil(
             const historicalData = await getHistoricalData(activeSymbol, undefined, 200);
             if (!historicalData || historicalData.length < 50) throw new Error("Dados históricos insuficientes.");
             
-            setGeminiRequestCount(prev => prev + 10);
+            setGeminiRequestCount(prev => prev + 1); // Only 1 call now
             const result = await getStrategyCouncilAction({
                 symbol: activeSymbol,
                 balance: dailyBalance,

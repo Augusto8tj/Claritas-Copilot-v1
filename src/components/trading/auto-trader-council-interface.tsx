@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "../ui/input";
 import { useFormContext } from "react-hook-form";
 import type { RiseFallFormValues } from "./deriv-trader-interface.types";
-import { useRobotCouncil } from "@/hooks/use-robot-council";
+import { useRobotCouncil, type CouncilVotes, type RobotVote } from "@/hooks/use-robot-council";
 
 const indicatorIcons: { [key: string]: React.ReactNode } = {
     RSI: <BrainCircuit className="h-4 w-4" />,

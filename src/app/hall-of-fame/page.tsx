@@ -4,13 +4,11 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import type { RobotPerformance } from '@/components/trading/operations-log.types';
-import { BrainCircuit, Activity, Waves, CandlestickChart, Bot, Trophy, TrendingUp, TrendingDown } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
+import { BrainCircuit, Activity, Waves, CandlestickChart, Bot, Trophy } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import type { RobotPerformance } from '@/hooks/use-robot-council';
 
-const HALL_OF_FAME_KEY = 'derivHallOfFame';
 const PROMOTION_THRESHOLD_WINS = 10;
 const PROMOTION_THRESHOLD_PROFIT = 0;
 
@@ -22,14 +20,17 @@ const indicatorIcons: { [key: string]: React.ReactNode } = {
     MACD_CROSS: <Activity className="h-4 w-4" />,
     PRICE_ACTION_PATTERN: <CandlestickChart className="h-4 w-4" />,
     ADX_TREND: <BrainCircuit className="h-4 w-4" />,
+    ICHIMOKU_CLOUD: <Waves className="h-4 w-4" />,
+    AWESOME_OSCILLATOR: <Activity className="h-4 w-4" />,
+    VOLUME_PROFILE: <Activity className="h-4 w-4" />,
 };
 
 function renderStrategyParams(robot: RobotStrategy) {
     switch (robot.strategyType) {
         case 'RSI':
-            return `Compra < ${robot.buyThreshold}, Venda > ${robot.sellThreshold}`;
+            return `Compra < ${robot.strongBuyThreshold}, Venda > ${robot.strongSellThreshold}`;
         case 'STOCHASTIC':
-            return `Compra < ${robot.buyThreshold}, Venda > ${robot.sellThreshold}`;
+            return `Compra < ${robot.strongBuyThreshold}, Venda > ${robot.strongSellThreshold}`;
         case 'MOVING_AVERAGE_CROSS':
             return `Cruzamento ${robot.shortPeriod}/${robot.longPeriod}`;
         case 'BOLLINGER_BANDS':
@@ -111,8 +112,8 @@ export default function HallOfFamePage() {
                                     <TableRow key={robot.id}>
                                         <TableCell className="font-medium">
                                             <div className="flex items-center gap-2">
-                                                {indicatorIcons[robot.strategy.strategyType] || <Bot />}
-                                                <span>{robot.strategy.strategyType}</span>
+                                                {indicatorIcons[robot.strategyType] || <Bot />}
+                                                <span>{robot.strategyType}</span>
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-sm text-muted-foreground">{renderStrategyParams(robot.strategy)}</TableCell>
