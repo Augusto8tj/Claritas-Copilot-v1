@@ -89,17 +89,18 @@ export function MarketChart({
     bb: false,
   })
 
-  // FIX: Usar state para forçar re-render quando brush muda
   const [brushWindow, setBrushWindow] = React.useState({
     min: 0,
     max: 1,
   })
 
-  const isDraggingRef = React.useRef(false)
   const brushRef = React.useRef({
     isBrushing: false,
     isDragging: false,
     startX: 0,
+    startMin: 0,
+    startMax: 0,
+    target: '' as 'min' | 'max' | 'body' | '',
   })
 
   const isCandle = (d: ChartData): d is CandleData =>
@@ -127,7 +128,6 @@ export function MarketChart({
   const changePercent = prevPrice !== 0 ? (change / prevPrice) * 100 : 0
   const isPositive = change >= 0
 
-  // FIX: Agora dataWindow reage às mudanças do brushWindow state
   const dataWindow = React.useMemo(() => {
     const start = Math.floor(rawData.length * brushWindow.min)
     const end = Math.ceil(rawData.length * brushWindow.max)
@@ -144,7 +144,10 @@ export function MarketChart({
       sma: indicators.sma.slice(dataWindow.start, dataWindow.end),
       ema: indicators.ema.slice(dataWindow.start, dataWindow.end),
       vwap: indicators.vwap.slice(dataWindow.start, dataWindow.end),
-      bollingerBands: indicators.bollingerBands.slice(dataWindow.start, dataWindow.end),
+      bollingerBands: indicators.bollingerBands.slice(
+        dataWindow.start,
+        dataWindow.end
+      ),
     }
   }, [indicators, dataWindow])
 
@@ -176,7 +179,6 @@ export function MarketChart({
     []
   )
 
-  // FIX: Bollinger Bands - algoritmo corrigido
   const drawBollingerBands = React.useCallback(
     (
       ctx: CanvasRenderingContext2D,
@@ -185,7 +187,6 @@ export function MarketChart({
       getY: (price: number) => number,
       getX: (index: number) => number
     ) => {
-      // Desenhar linha do meio
       ctx.beginPath()
       let firstMiddle = true
       bbData.forEach((d, i) => {
@@ -205,7 +206,6 @@ export function MarketChart({
       ctx.stroke()
       ctx.setLineDash([])
 
-      // Desenhar bandas superior e inferior
       const upperPath = new Path2D()
       const lowerPath = new Path2D()
       let firstUpper = true
@@ -234,11 +234,9 @@ export function MarketChart({
       ctx.stroke(upperPath)
       ctx.stroke(lowerPath)
 
-      // FIX: Criar área preenchida corretamente
       const fillPath = new Path2D()
       let firstFill = true
 
-      // Desenhar banda superior da esquerda para direita
       bbData.forEach((d, i) => {
         if (!d) return
         const x = getX(i)
@@ -251,7 +249,6 @@ export function MarketChart({
         }
       })
 
-      // Desenhar banda inferior da direita para esquerda
       for (let i = bbData.length - 1; i >= 0; i--) {
         const d = bbData[i]
         if (!d) continue
@@ -288,7 +285,6 @@ export function MarketChart({
     ctx.fillStyle = colors.bg
     ctx.fillRect(0, 0, width, height)
 
-    // Calcular min/max price incluindo indicadores
     let minPrice = Infinity
     let maxPrice = -Infinity
     visibleData.forEach((d, i) => {
@@ -327,7 +323,7 @@ export function MarketChart({
       ((price - minPrice) / (maxPrice - minPrice)) * chartHeight
 
     const getX = (index: number) => {
-      if (visibleData.length === 1) return width / 2
+      if (visibleData.length <= 1) return PADDING.left
       return (
         PADDING.left +
         (index / (visibleData.length - 1)) *
@@ -335,7 +331,6 @@ export function MarketChart({
       )
     }
 
-    // Desenhar grid
     ctx.strokeStyle = colors.grid
     ctx.lineWidth = 0.5
     ctx.font = '10px sans-serif'
@@ -351,7 +346,6 @@ export function MarketChart({
       ctx.fillText(price.toFixed(4), width - PADDING.right + 5, y + 3)
     }
 
-    // Desenhar labels de tempo
     const labelCount = Math.floor((width - PADDING.left - PADDING.right) / 100)
     const labelInterval = Math.max(
       1,
@@ -367,7 +361,6 @@ export function MarketChart({
       ctx.fillText(timeString, x, height - PADDING.bottom + 15)
     }
 
-    // FIX: Melhor cálculo da largura das velas
     if (chartType === 'Candle') {
       const availableWidth = width - PADDING.left - PADDING.right
       const spacing = availableWidth / Math.max(1, visibleData.length)
@@ -388,14 +381,12 @@ export function MarketChart({
         ctx.strokeStyle = isBullish ? colors.bull : colors.bear
         ctx.fillStyle = isBullish ? colors.bull : colors.bear
 
-        // Desenhar pavio
         ctx.lineWidth = 1
         ctx.beginPath()
         ctx.moveTo(x, highY)
         ctx.lineTo(x, lowY)
         ctx.stroke()
 
-        // Desenhar corpo
         const bodyHeight = Math.max(1, Math.abs(openY - closeY))
         ctx.fillRect(
           x - candleWidth / 2,
@@ -405,7 +396,6 @@ export function MarketChart({
         )
       })
     } else {
-      // Area Chart
       ctx.beginPath()
       visibleData.forEach((d, i) => {
         const x = getX(i)
@@ -417,7 +407,6 @@ export function MarketChart({
       ctx.lineWidth = 2
       ctx.stroke()
 
-      // Área com gradiente
       const gradient = ctx.createLinearGradient(
         0,
         PADDING.top,
@@ -433,9 +422,14 @@ export function MarketChart({
       ctx.fill()
     }
 
-    // Desenhar Indicadores
     if (visibleIndicators.bb)
-      drawBollingerBands(ctx, slicedIndicators.bollingerBands, colors.line, getY, getX)
+      drawBollingerBands(
+        ctx,
+        slicedIndicators.bollingerBands,
+        colors.line,
+        getY,
+        getX
+      )
     if (visibleIndicators.sma)
       drawLineIndicator(ctx, slicedIndicators.sma, colors.sma, getY, getX)
     if (visibleIndicators.ema)
@@ -443,7 +437,6 @@ export function MarketChart({
     if (visibleIndicators.vwap)
       drawLineIndicator(ctx, slicedIndicators.vwap, colors.vwap, getY, getX)
 
-    // Desenhar operações
     operations.forEach(op => {
       if (!op.entryPrice) return
       const entryEpoch = new Date(op.timestamp).getTime() / 1000
@@ -475,7 +468,6 @@ export function MarketChart({
       if (op.status === 'won') statusColor = colors.bull
       else if (op.status === 'lost') statusColor = colors.bear
 
-      // Desenhar círculo de entrada
       ctx.beginPath()
       ctx.arc(entryX, entryY, 6, 0, 2 * Math.PI)
       ctx.fillStyle = statusColor
@@ -484,7 +476,6 @@ export function MarketChart({
       ctx.lineWidth = 2
       ctx.stroke()
 
-      // Desenhar linha até saída
       if (op.exitPrice && op.status !== 'pending') {
         let durationInSeconds = 0
         switch (op.durationUnit) {
@@ -529,7 +520,6 @@ export function MarketChart({
           ctx.stroke()
           ctx.setLineDash([])
 
-          // Desenhar círculo de saída
           ctx.beginPath()
           ctx.arc(exitX, exitY, 4, 0, 2 * Math.PI)
           ctx.fillStyle = statusColor
@@ -549,6 +539,7 @@ export function MarketChart({
     drawBollingerBands,
     slicedIndicators,
     visibleIndicators,
+    isCandle,
   ])
 
   const drawBrushChart = React.useCallback(() => {
@@ -585,9 +576,9 @@ export function MarketChart({
     const priceRange = maxPrice - minPrice || 1
     const getY = (price: number) =>
       height - ((price - minPrice) / priceRange) * height
-    const getX = (index: number) => (index / (rawData.length - 1)) * width
+    const getX = (index: number) =>
+      rawData.length <= 1 ? width / 2 : (index / (rawData.length - 1)) * width
 
-    // Desenhar linha de preços
     ctx.beginPath()
     rawData.forEach((d, i) => {
       const x = getX(i)
@@ -599,43 +590,30 @@ export function MarketChart({
     ctx.lineWidth = 1
     ctx.stroke()
 
-    // Desenhar janela de seleção
     const brushMinX = width * brushWindow.min
     const brushMaxX = width * brushWindow.max
-    
-    // Área escurecida fora da seleção
+
     ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
     ctx.fillRect(0, 0, brushMinX, height)
     ctx.fillRect(brushMaxX, 0, width - brushMaxX, height)
-    
-    // Área selecionada
+
     ctx.fillStyle = 'rgba(100, 150, 250, 0.1)'
     ctx.fillRect(brushMinX, 0, brushMaxX - brushMinX, height)
-    
-    // Bordas da seleção
+
     ctx.strokeStyle = colors.line
     ctx.lineWidth = 2
     ctx.strokeRect(brushMinX, 0, brushMaxX - brushMinX, height)
-    
-    // Handles (alças) para arrastar
+
     const handleWidth = 8
     ctx.fillStyle = colors.line
     ctx.fillRect(brushMinX - handleWidth / 2, height / 2 - 15, handleWidth, 30)
     ctx.fillRect(brushMaxX - handleWidth / 2, height / 2 - 15, handleWidth, 30)
   }, [rawData, colors, brushWindow, isCandle])
 
-  // Reset ao mudar contexto
   React.useEffect(() => {
     setBrushWindow({ min: 0, max: 1 })
-    const mainChartAF = requestAnimationFrame(drawMainChart)
-    const brushChartAF = requestAnimationFrame(drawBrushChart)
-    return () => {
-      cancelAnimationFrame(mainChartAF)
-      cancelAnimationFrame(brushChartAF)
-    }
-  }, [activeSymbol, timePeriod, chartType, drawMainChart, drawBrushChart])
+  }, [activeSymbol, timePeriod, chartType])
 
-  // Redesenhar quando dados mudam
   React.useEffect(() => {
     const handleResize = () => {
       requestAnimationFrame(drawMainChart)
@@ -653,82 +631,58 @@ export function MarketChart({
     }
   }, [rawData, visibleIndicators, drawMainChart, drawBrushChart])
 
-  // FIX: Throttle para o brush
-  const throttleTimeoutRef = React.useRef<NodeJS.Timeout>()
-
-  const handleBrushMouseDown = (e: React.MouseEvent) => {
+  const handleBrushMouseDown = React.useCallback((e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const pos = x / rect.width
-
     const handleMargin = 10 / rect.width
-    const minPos = brushWindow.min
-    const maxPos = brushWindow.max
 
-    // Verificar se clicou nas alças
-    if (Math.abs(pos - minPos) < handleMargin) {
-      brushRef.current.isBrushing = true
-      brushRef.current.isDragging = false
-      brushRef.current.startX = maxPos // anchor is the opposite handle
-    } else if (Math.abs(pos - maxPos) < handleMargin) {
-      brushRef.current.isBrushing = true
-      brushRef.current.isDragging = false
-      brushRef.current.startX = minPos // anchor is the opposite handle
-    } else if (pos > minPos && pos < maxPos) {
-      brushRef.current.isDragging = true
-      brushRef.current.isBrushing = false
-      brushRef.current.startX = pos
+    brushRef.current.startX = pos
+    brushRef.current.startMin = brushWindow.min
+    brushRef.current.startMax = brushWindow.max
+
+    if (Math.abs(pos - brushWindow.min) < handleMargin) {
+      brushRef.current.target = 'min'
+    } else if (Math.abs(pos - brushWindow.max) < handleMargin) {
+      brushRef.current.target = 'max'
+    } else if (pos > brushWindow.min && pos < brushWindow.max) {
+      brushRef.current.target = 'body'
     } else {
-       brushRef.current.isBrushing = true
-       brushRef.current.isDragging = false
-       brushRef.current.startX = pos
+      brushRef.current.target = ''
     }
-  }
+  }, [brushWindow.min, brushWindow.max]);
 
-  const handleBrushMouseMove = (e: React.MouseEvent) => {
-    if (!brushRef.current.isBrushing && !brushRef.current.isDragging) return
-
-    if (throttleTimeoutRef.current) return
+  const handleBrushMouseMove = React.useCallback((e: React.MouseEvent) => {
+    if (!brushRef.current.target) return
 
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const pos = Math.max(0, Math.min(1, x / rect.width))
+    const delta = pos - brushRef.current.startX
 
-    if (brushRef.current.isDragging) {
-        const delta = pos - brushRef.current.startX;
-        const currentWidth = brushWindow.max - brushWindow.min;
-        let newMin = brushWindow.min + delta;
-        let newMax = brushWindow.max + delta;
+    let newMin = brushRef.current.startMin
+    let newMax = brushRef.current.startMax
 
-        if (newMin < 0) {
-            newMin = 0;
-            newMax = currentWidth;
-        }
-        if (newMax > 1) {
-            newMax = 1;
-            newMin = 1 - currentWidth;
-        }
-        setBrushWindow({ min: newMin, max: newMax });
-    } else {
-      const newMin = Math.min(pos, brushRef.current.startX)
-      const newMax = Math.max(pos, brushRef.current.startX)
-      setBrushWindow({ min: newMin, max: newMax })
-    }
-    
-    // We don't update startX when brushing, only when dragging.
-    if(brushRef.current.isDragging) {
-        brushRef.current.startX = pos
+    if (brushRef.current.target === 'body') {
+      const width = newMax - newMin
+      newMin = Math.max(0, brushRef.current.startMin + delta)
+      newMax = Math.min(1, newMin + width)
+      if (newMax === 1) {
+        newMin = 1 - width
+      }
+    } else if (brushRef.current.target === 'min') {
+      newMin = Math.min(Math.max(0, newMin + delta), newMax - 0.01)
+    } else if (brushRef.current.target === 'max') {
+      newMax = Math.max(Math.min(1, newMax + delta), newMin + 0.01)
     }
 
-    throttleTimeoutRef.current = setTimeout(() => {
-      throttleTimeoutRef.current = undefined
-    }, 16)
-  }
+    setBrushWindow({ min: newMin, max: newMax })
+  }, []);
 
-  const handleBrushMouseUp = () => {
-    brushRef.current.isBrushing = false
-    brushRef.current.isDragging = false
-  }
+  const handleBrushMouseUp = React.useCallback(() => {
+    brushRef.current.target = ''
+  }, []);
+
 
   return (
     <div
@@ -868,7 +822,6 @@ export function MarketChart({
 
       <div
         className="w-full flex-1 relative"
-        style={{ cursor: isDraggingRef.current ? 'grabbing' : 'grab' }}
       >
         {isChartLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-10">
@@ -883,14 +836,6 @@ export function MarketChart({
         <canvas
           ref={mainCanvasRef}
           className="w-full h-full"
-          onMouseDown={e => {
-            isDraggingRef.current = true
-          }}
-          onMouseMove={e => {
-            if (!isDraggingRef.current) return
-          }}
-          onMouseUp={() => (isDraggingRef.current = false)}
-          onMouseLeave={() => (isDraggingRef.current = false)}
         />
       </div>
       <div className="w-full h-[60px] mt-2">
