@@ -272,10 +272,10 @@ export function AutoTraderCouncilInterface() {
                                             <div className="text-xs space-y-1">
                                                 <div className="flex justify-between items-center">
                                                     <p className="font-bold flex items-center gap-1.5">{indicatorIcons[robot.strategyType] || <Bot />} Analista de {robot.strategyType}</p>
-                                                    {isMeritocracyOn && weight !== 1.0 && (
-                                                        <Badge variant="secondary" className="flex items-center gap-1">
+                                                    {isMeritocracyOn && weight > 1.0 && (
+                                                        <Badge variant="secondary" className="flex items-center gap-1 text-amber-600 border-amber-500/50">
                                                             <Award className="h-3 w-3" />
-                                                            x{weight.toFixed(2)}
+                                                            x{weight.toFixed(1)}
                                                         </Badge>
                                                     )}
                                                 </div>
