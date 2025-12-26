@@ -24,6 +24,7 @@ import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
 import { useAutopilot } from "@/hooks/use-autopilot";
 import { useRobotCouncil } from "@/hooks/use-robot-council";
 import { calculateAllIndicators } from "@/services/indicator-service";
+import { SystemStatusSummary } from "@/components/trading/system-status-summary";
 
 export default function DerivTraderPage() {
   const [activeSymbol, setActiveSymbol] = useState<string | null>('1HZ10V');
@@ -116,6 +117,8 @@ export default function DerivTraderPage() {
               </div>
           </div>
         </div>
+
+        <SystemStatusSummary />
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
