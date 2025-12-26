@@ -3,7 +3,7 @@ import {googleAI} from '@genkit-ai/google-genai';
 
 // Define model names for consistency
 export const flash = 'googleai/gemini-flash-latest';
-export const pro = 'googleai/gemini-2.5-pro';
+export const pro = 'googleai/gemini-3-pro-preview';
 
 
 export const ai = genkit({
