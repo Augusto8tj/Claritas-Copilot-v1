@@ -88,13 +88,7 @@ export function MarketChart({
   })
 
   // State Refs for interactivity
-  const panOffsetRef = React.useRef(0)
-  const zoomLevelRef = React.useRef(1)
   const isDraggingRef = React.useRef(false)
-  const lastMouseXRef = React.useRef(0)
-  const crosshairPositionRef = React.useRef<{ x: number; y: number } | null>(
-    null
-  )
   const brushRef = React.useRef({
     isBrushing: false,
     isDragging: false,
@@ -139,7 +133,7 @@ export function MarketChart({
     () => rawData.slice(dataWindow.start, dataWindow.end),
     [rawData, dataWindow]
   )
-  const visibleIndicators = React.useMemo(() => {
+  const slicedIndicators = React.useMemo(() => {
     return {
         sma: indicators.sma.slice(dataWindow.start, dataWindow.end),
         ema: indicators.ema.slice(dataWindow.start, dataWindow.end),
@@ -237,10 +231,10 @@ export function MarketChart({
       } else {
         pricePoints.push(d.price);
       }
-      if (visibleIndicators.sma[i]) pricePoints.push(visibleIndicators.sma[i]);
-      if (visibleIndicators.ema[i]) pricePoints.push(visibleIndicators.ema[i]);
-      if (visibleIndicators.vwap[i]) pricePoints.push(visibleIndicators.vwap[i]);
-      if (visibleIndicators.bollingerBands[i]) pricePoints.push(visibleIndicators.bollingerBands[i]!.upper, visibleIndicators.bollingerBands[i]!.lower);
+      if (slicedIndicators.sma[i]) pricePoints.push(slicedIndicators.sma[i]);
+      if (slicedIndicators.ema[i]) pricePoints.push(slicedIndicators.ema[i]);
+      if (slicedIndicators.vwap[i]) pricePoints.push(slicedIndicators.vwap[i]);
+      if (slicedIndicators.bollingerBands[i]) pricePoints.push(slicedIndicators.bollingerBands[i]!.upper, slicedIndicators.bollingerBands[i]!.lower);
       
       minPrice = Math.min(minPrice, ...pricePoints.filter(p => p !== null) as number[]);
       maxPrice = Math.max(maxPrice, ...pricePoints.filter(p => p !== null) as number[]);
@@ -344,10 +338,10 @@ export function MarketChart({
     }
     
     // Draw Indicators
-    if (visibleIndicators.sma) drawLineIndicator(ctx, visibleIndicators.sma, colors.sma, getY, getX);
-    if (visibleIndicators.ema) drawLineIndicator(ctx, visibleIndicators.ema, colors.ema, getY, getX);
-    if (visibleIndicators.vwap) drawLineIndicator(ctx, visibleIndicators.vwap, colors.vwap, getY, getX);
-    if (visibleIndicators.bollingerBands) drawBollingerBands(ctx, visibleIndicators.bollingerBands, colors.line, getY, getX);
+    if (visibleIndicators.sma) drawLineIndicator(ctx, slicedIndicators.sma, colors.sma, getY, getX);
+    if (visibleIndicators.ema) drawLineIndicator(ctx, slicedIndicators.ema, colors.ema, getY, getX);
+    if (visibleIndicators.vwap) drawLineIndicator(ctx, slicedIndicators.vwap, colors.vwap, getY, getX);
+    if (visibleIndicators.bb) drawBollingerBands(ctx, slicedIndicators.bollingerBands, colors.line, getY, getX);
 
 
     // Draw operations
@@ -435,7 +429,7 @@ export function MarketChart({
         }
       }
     })
-  }, [visibleData, colors, chartType, operations, drawLineIndicator, drawBollingerBands, visibleIndicators])
+  }, [visibleData, colors, chartType, operations, drawLineIndicator, drawBollingerBands, slicedIndicators, visibleIndicators])
 
   const drawBrushChart = React.useCallback(() => {
     const canvas = brushCanvasRef.current
@@ -489,47 +483,35 @@ export function MarketChart({
     ctx.strokeRect(brushMinX, 0, brushMaxX - brushMinX, height)
   }, [rawData, colors])
 
-  // Initial draw and redraw on resize
-  React.useEffect(() => {
-    const mainChartAF = requestAnimationFrame(drawMainChart)
-    const brushChartAF = requestAnimationFrame(drawBrushChart)
-
-    const handleResize = () => {
-      requestAnimationFrame(drawMainChart)
-      requestAnimationFrame(drawBrushChart)
-    }
-    window.addEventListener('resize', handleResize)
-    return () => {
-      cancelAnimationFrame(mainChartAF)
-      cancelAnimationFrame(brushChartAF)
-      window.removeEventListener('resize', handleResize)
-    }
-  }, [drawMainChart, drawBrushChart])
-  
-  // This effect resets the pan/zoom ONLY when the context changes.
+  // Reset pan/zoom on context change
   React.useEffect(() => {
     brushRef.current = {
-      isBrushing: false,
-      isDragging: false,
-      startX: 0,
-      currentMin: 0,
-      currentMax: 1,
-    }
+      isBrushing: false, isDragging: false, startX: 0,
+      currentMin: 0, currentMax: 1,
+    };
     const mainChartAF = requestAnimationFrame(drawMainChart);
     const brushChartAF = requestAnimationFrame(drawBrushChart);
     return () => {
       cancelAnimationFrame(mainChartAF);
       cancelAnimationFrame(brushChartAF);
     }
-  }, [activeSymbol, timePeriod, chartType]);
+  }, [activeSymbol, timePeriod, chartType, drawMainChart, drawBrushChart]);
 
-  // This effect redraws charts when data or dependencies change.
+  // Redraw charts when data or dependencies change.
   React.useEffect(() => {
+    const handleResize = () => {
+        requestAnimationFrame(drawMainChart);
+        requestAnimationFrame(drawBrushChart);
+    };
+    window.addEventListener('resize', handleResize);
+
     const mainChartAF = requestAnimationFrame(drawMainChart);
     const brushChartAF = requestAnimationFrame(drawBrushChart);
+
     return () => {
-      cancelAnimationFrame(mainChartAF);
-      cancelAnimationFrame(brushChartAF);
+        cancelAnimationFrame(mainChartAF);
+        cancelAnimationFrame(brushChartAF);
+        window.removeEventListener('resize', handleResize);
     }
   }, [rawData, colors, drawMainChart, drawBrushChart]);
 
@@ -650,8 +632,8 @@ export function MarketChart({
               <DropdownMenuSeparator />
                <DropdownMenuLabel>Bandas</DropdownMenuLabel>
                <DropdownMenuCheckboxItem
-                checked={visibleIndicators.bollingerBands}
-                onCheckedChange={() => setVisibleIndicators(p => ({...p, bollingerBands: !p.bollingerBands}))}
+                checked={visibleIndicators.bb}
+                onCheckedChange={() => setVisibleIndicators(p => ({...p, bb: !p.bb}))}
               >
                 Bandas de Bollinger
               </DropdownMenuCheckboxItem>
@@ -735,7 +717,6 @@ export function MarketChart({
           className="w-full h-full"
           onMouseDown={e => {
             isDraggingRef.current = true
-            lastMouseXRef.current = e.clientX
           }}
           onMouseMove={e => {
             if (!isDraggingRef.current) return
