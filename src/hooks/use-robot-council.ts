@@ -67,6 +67,7 @@ export function useRobotCouncil(
     const [isDynamicConsensusOn, setIsDynamicConsensusOn] = useState(true);
     const [isMeritocracyOn, setIsMeritocracyOn] = useState(true);
     const [robotPerformance, setRobotPerformance] = useState<RobotPerformance[]>([]);
+    const [lastCouncilLossSuggestion, setLastCouncilLossSuggestion] = useState<string | null>(null);
     
     const councilExecutionRef = useRef({ isExecuting: false });
 
@@ -94,6 +95,25 @@ export function useRobotCouncil(
             if (stored) setRobotPerformance(JSON.parse(stored));
         } catch (e) { console.error("Failed to load robot performance from localStorage", e); }
     }, []);
+    
+    useEffect(() => {
+        if (!operationsLog || operationsLog.length === 0) return;
+        const lastOp = operationsLog[0];
+        if (lastOp && lastOp.status === 'lost' && lastOp.initiator === 'Conselho') {
+            // A null strategy is passed because the council doesn't have a single "active strategy"
+            tradeAnalysis.analyzeLosingTrade(lastOp, null).then(suggestion => {
+                if (suggestion) {
+                    setLastCouncilLossSuggestion(suggestion);
+                    toast({
+                        title: "Feedback do Analista de Perdas",
+                        description: `Nova diretriz para o conselho: ${suggestion}`,
+                        duration: 8000,
+                    });
+                }
+            });
+        }
+    }, [operationsLog, tradeAnalysis, toast]);
+
 
     const fetchStrategyCouncil = useCallback(async () => {
         if (!activeSymbol) {
@@ -112,10 +132,13 @@ export function useRobotCouncil(
                 currency: 'USD',
                 historicalDataJson: JSON.stringify(historicalData),
                 durationUnit: duration_unit,
+                // A feature para usar o feedback de perdas precisa ser adicionada ao `getStrategyCouncilAction` e ao `strategy-council-flow`
+                // Por agora, esta lógica prepara o terreno.
             });
             if (result.success) {
                 setStrategyCouncil(result.success.council);
                 toast({ title: "Conselho Formado!", description: "As estratégias dos analistas foram definidas." });
+                 if(lastCouncilLossSuggestion) setLastCouncilLossSuggestion(null); // Limpa a sugestão depois de usada
             } else {
                 throw new Error(result.error || "Erro desconhecido ao formar conselho.");
             }
@@ -125,7 +148,7 @@ export function useRobotCouncil(
         } finally {
             setIsFetchingCouncil(false);
         }
-    }, [activeSymbol, dailyBalance, form, toast, getHistoricalData]);
+    }, [activeSymbol, dailyBalance, form, toast, getHistoricalData, lastCouncilLossSuggestion]);
 
     useEffect(() => {
         if (isCouncilAutopilotOn && activeSymbol && !isFetchingCouncil && strategyCouncil.length === 0) {
@@ -148,9 +171,9 @@ export function useRobotCouncil(
             .filter(op => op.initiator === 'Conselho' && op.status !== 'pending' && new Date(op.timestamp).toDateString() === new Date().toDateString())
             .reduce((sum, op) => sum + (op.result || 0), 0);
 
-        if (dailyPnL <= -dailyBalance) {
+        if (dailyBalance > 0 && dailyPnL <= -dailyBalance) {
             vetoReason = "Limite de perda diária atingido. Operações bloqueadas.";
-        } else if (dailyPnL >= dailyTarget) {
+        } else if (dailyTarget > 0 && dailyPnL >= dailyTarget) {
             vetoReason = "Meta de lucro diária atingida. Operações bloqueadas.";
         }
     
@@ -158,8 +181,9 @@ export function useRobotCouncil(
 
         // 2. Analista de Volatilidade (ATR)
         const atr = indicators.atr;
-        if (atr) {
-            const normalizedATR = atr / chartData[chartData.length-1].price; 
+        const lastPrice = chartData.length > 0 ? chartData[chartData.length-1].price : 0;
+        if (atr && lastPrice > 0) {
+            const normalizedATR = atr / lastPrice; 
             if (normalizedATR > 0.0005) { // Ex: Volatilidade muito alta
                 finalStake *= 0.5;
                 toast({ title: "Supervisor de Volatilidade", description: "Mercado turbulento, risco reduzido para 50%.", variant: "default" });
@@ -186,7 +210,7 @@ export function useRobotCouncil(
         
         return { finalStake, vetoReason };
 
-    }, [operationsLog, dailyBalance, dailyTarget, indicators.atr, indicators.adx, chartData]);
+    }, [operationsLog, dailyBalance, dailyTarget, indicators.atr, indicators.adx, chartData, toast]);
 
     useEffect(() => {
         if (!isCouncilAutopilotOn || !strategyCouncil.length || councilExecutionRef.current.isExecuting) return;
@@ -221,6 +245,7 @@ export function useRobotCouncil(
                     else if (indicators.rsi && robot.strongSellThreshold && indicators.rsi >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
                     else if (indicators.rsi && robot.weakSellThreshold && indicators.rsi >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
                     break;
+                 // Adicionar lógica de votação para outros tipos de robôs aqui...
             }
 
             newVotes[robot.id] = { vote, confidence, weight };
