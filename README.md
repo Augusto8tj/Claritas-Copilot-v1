@@ -1,4 +1,4 @@
-# Firebase Studio
+me envie o arquivo use-deriv-api.tsx completo # Firebase Studio
 
 This is a NextJS starter in Firebase Studio.
 
