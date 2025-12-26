@@ -57,16 +57,15 @@ const getAssetAnalysisFlow = ai.defineFlow(
   async (input) => {
     
     const historicalDataJson = JSON.stringify(input.historicalData);
-    const recentTradesJson = JSON.stringify(input.recentTrades);
-
+    
     const promptInput = {
       ...input,
       historicalDataJson,
-      recentTrades: recentTradesJson,
     };
 
     // Explicitly use ai.generate with the prompt. This ensures the default model (flash) is used.
     const { output } = await ai.generate({
+        model: flash,
         prompt: analysisPrompt,
         input: promptInput,
         output: { schema: AssetAnalysisOutputSchema }
