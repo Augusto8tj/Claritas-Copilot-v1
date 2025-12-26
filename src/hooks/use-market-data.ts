@@ -275,7 +275,7 @@ export function useMarketData(activeSymbol: string | null, defaultTimePeriod: Ti
                     .catch(e => console.error('[Market] Erro no cleanup:', e));
             }
         };
-    }, [activeSymbol, isConnected, timePeriod, chartType, makeRequest, wsRef]);
+    }, [activeSymbol, isConnected, timePeriod, chartType, makeRequest, wsRef, handleMessage]);
 
     return {
         chartData,
