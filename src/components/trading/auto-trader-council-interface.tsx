@@ -167,7 +167,7 @@ export function AutoTraderCouncilInterface() {
         <div className="flex justify-between items-center">
             <CardTitle className="font-headline flex items-center gap-2">
                 <Users className="h-5 w-5 text-primary" />
-                Conselho de Robôs
+                Conselho de Analistas
             </CardTitle>
             <div className="flex items-center space-x-2">
                 <Switch id="council-autopilot-switch" checked={isCouncilAutopilotOn} onCheckedChange={handleToggleAutopilot}/>
@@ -250,7 +250,7 @@ export function AutoTraderCouncilInterface() {
             isFetchingCouncil ? (
                 <div className="flex items-center justify-center text-muted-foreground p-4">
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    <span>Convocando o conselho de robôs...</span>
+                    <span>Convocando o conselho de analistas...</span>
                 </div>
             ) : strategyCouncil.length > 0 ? (
                 <Alert className="bg-primary/5 border-primary/20 max-h-96 overflow-y-auto">
@@ -271,7 +271,7 @@ export function AutoTraderCouncilInterface() {
                                         <Fragment key={robot.id}>
                                             <div className="text-xs space-y-1">
                                                 <div className="flex justify-between items-center">
-                                                    <p className="font-bold flex items-center gap-1.5">{indicatorIcons[robot.strategyType] || <Bot />} {robot.strategyType}</p>
+                                                    <p className="font-bold flex items-center gap-1.5">{indicatorIcons[robot.strategyType] || <Bot />} Analista de {robot.strategyType}</p>
                                                     {isMeritocracyOn && weight !== 1.0 && (
                                                         <Badge variant="secondary" className="flex items-center gap-1">
                                                             <Award className="h-3 w-3" />
@@ -310,7 +310,7 @@ export function AutoTraderCouncilInterface() {
         {!isCouncilAutopilotOn && (
              <div className="text-center text-muted-foreground p-4 border rounded-md bg-muted/50">
                 <Info className="h-5 w-5 mx-auto mb-2" />
-                <p className="text-sm">O Conselho de Robôs está desativado.</p>
+                <p className="text-sm">O Conselho de Analistas está desativado.</p>
                 <p className="text-xs">Ative para começar a negociar por consenso.</p>
             </div>
         )}
@@ -318,3 +318,4 @@ export function AutoTraderCouncilInterface() {
     </Card>
   );
 }
+
