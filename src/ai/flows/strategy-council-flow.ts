@@ -24,6 +24,7 @@ const RobotAnalystGeneratorOutputSchema = z.object({
 // This new, more focused prompt builds a SUBSET of robots at a time.
 const robotAnalystGeneratorPrompt = ai.definePrompt({
     name: 'robotAnalystGeneratorPrompt',
+    model: pro, // Explicitly use the 'pro' model for this complex task
     input: { schema: RobotAnalystGeneratorInputSchema },
     output: { schema: RobotAnalystGeneratorOutputSchema },
     system: `Você é um arquiteto-chefe de estratégias quantitativas. Sua missão é montar um grupo de robôs-analistas especialistas.
@@ -89,6 +90,9 @@ const getStrategyCouncilFlow = ai.defineFlow(
         
         allRobots.push(...output.robots);
         console.log(`[Council Flow] Lote concluído. Total de robôs montados: ${allRobots.length}`);
+        
+        // Strategic pause to respect API rate limits (20 reqs/minute -> 1 req every 3 seconds)
+        await new Promise(resolve => setTimeout(resolve, 3000));
     }
 
 
