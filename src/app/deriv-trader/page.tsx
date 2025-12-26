@@ -15,10 +15,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { OperationsLog } from "@/components/trading/operations-log";
 import { AIAnalysisInterface } from "@/components/trading/ai-analysis-interface";
 import { riseFallSchema, type RiseFallFormValues } from "@/components/trading/deriv-trader-interface.types";
+import { AutoTraderInterface } from "@/components/trading/auto-trader-interface";
 import { AutoTraderCouncilInterface } from "@/components/trading/auto-trader-council-interface";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useMarketData } from "@/hooks/use-market-data";
 import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
+import { useAutopilot } from "@/hooks/use-autopilot";
 
 
 export default function DerivTraderPage() {
@@ -28,8 +30,8 @@ export default function DerivTraderPage() {
     resolver: zodResolver(riseFallSchema),
     defaultValues: {
       stake: 10,
-      duration: 28,
-      duration_unit: "s",
+      duration: 5,
+      duration_unit: "t",
       allowEquals: false,
     },
   });
@@ -45,11 +47,13 @@ export default function DerivTraderPage() {
     isAssetsLoading,
     assetGroups,
     executeTrade,
+    addActiveContract,
   } = useDerivApi();
   
   const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod } = useMarketData(activeSymbol, '5m');
   
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
+  const autopilot = useAutopilot(activeSymbol, chartData, operationsLog, addActiveContract, executeTrade);
   
   const indicators = React.useMemo(() => {
     return { sma: [], ema: [], vwap: [], bollingerBands: [] };
@@ -89,10 +93,10 @@ export default function DerivTraderPage() {
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
-          {/* Left Column: Trading Terminal */}
-          <div className="space-y-6">
+          {/* Center Column: Trading Terminal & Chart */}
+          <div className="lg:col-span-2 space-y-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <div>
@@ -127,18 +131,23 @@ export default function DerivTraderPage() {
                     />
                 </CardContent>
               </Card>
-              <DerivTraderInterface 
-                  symbol={activeSymbol || ""}
-                  isConnected={isConnected}
-                  executeTrade={executeTrade}
-              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <DerivTraderInterface 
+                    symbol={activeSymbol || ""}
+                    isConnected={isConnected}
+                    executeTrade={executeTrade}
+                />
+                <div className="space-y-6">
+                    <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
+                    <OperationsLog operations={operationsLog} />
+                </div>
+              </div>
           </div>
 
-          {/* Right Column: AI Copilot */}
+          {/* Right Column: AI Copilots */}
           <div className="space-y-6">
+              <AutoTraderInterface {...autopilot} />
               <AutoTraderCouncilInterface />
-              <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
-              <OperationsLog operations={operationsLog} />
           </div>
         </div>
       </div>

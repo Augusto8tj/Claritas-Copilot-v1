@@ -147,7 +147,7 @@ export function DerivTraderInterface({ symbol, isConnected, executeTrade }: Deri
 
   return (
     <div className="space-y-6">
-        <Card className="bg-card/50">
+      <Card className="bg-card/50">
         <CardContent className="p-4 space-y-4">
             
             <Popover>
@@ -341,8 +341,8 @@ export function DerivTraderInterface({ symbol, isConnected, executeTrade }: Deri
                 </Button>
             </div>
         </CardContent>
-        </Card>
-        <AITradeSuggestion symbol={symbol} />
+      </Card>
+      <AITradeSuggestion symbol={symbol} />
     </div>
   );
 }
