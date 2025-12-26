@@ -10,13 +10,8 @@ import { ai, flash } from '@/ai/genkit';
 import { z } from 'zod';
 import { AssetAnalysisInputSchema, AssetAnalysisOutputSchema, type AssetAnalysisInput, type AssetAnalysisOutput } from './asset-analysis-flow.types';
 
-
-// 1. Create the Prompt
-const analysisPrompt = ai.definePrompt({
-  name: 'assetAnalysisPrompt',
-  input: { schema: AssetAnalysisInputSchema },
-  output: { schema: AssetAnalysisOutputSchema },
-  system: `Você é um copiloto de negociação e gestor de risco. Sua tarefa é analisar os dados do ativo, o contexto do trader e fornecer uma sugestão de negociação inteligente e segura.
+// O prompt é definido diretamente como uma string para clareza
+const ANALYSIS_PROMPT = `Você é um copiloto de negociação e gestor de risco. Sua tarefa é analisar os dados do ativo, o contexto do trader e fornecer uma sugestão de negociação inteligente e segura.
 
 Contexto do Trader:
 - Saldo da Conta (Total): {{{balance}}} {{{currency}}}
@@ -35,19 +30,15 @@ Sua Análise deve seguir estes passos:
     - **Nível de Confiança (confidenceScore):** Calcule um score de 0 a 100. Uma tendência clara e forte com baixo risco deve ter uma confiança alta (>70). Um mercado lateral, volátil ou uma aposta de alto risco devem resultar numa confiança baixa (<50).
     - **Stake Sugerido (suggestedStake):** Se a aposta atual for de alto risco em relação à banca do dia, sugira um valor mais seguro (ex: 2% da banca do dia). Caso contrário, mantenha a aposta atual.
     - **Duração Sugerida (suggestedDuration):** Mantenha a duração atual, a menos que a análise dos dados sugira uma mudança iminente que justifique uma operação mais curta ou mais longa.
-    - **Justificativa (justification):** Forneça uma justificativa clara, concisa (máximo 2 frases) que combine a análise técnica com a gestão de risco. Ex: "A tendência de curto prazo é de alta, mas sua aposta é arriscada em relação à sua banca diária. Sugiro reduzir para manter a gestão de risco." ou "Tendência de queda clara nos últimos minutos. A configuração atual parece boa."`,
-  prompt: `
-Analise os seguintes dados de preço para o ativo {{{symbol}}} e forneça uma sugestão de negociação considerando o contexto do trader.
+    - **Justificativa (justification):** Forneça uma justificativa clara, concisa (máximo 2 frases) que combine a análise técnica com a gestão de risco. Ex: "A tendência de curto prazo é de alta, mas sua aposta é arriscada em relação à sua banca diária. Sugiro reduzir para manter a gestão de risco." ou "Tendência de queda clara nos últimos minutos. A configuração atual parece boa."
 
-Dados de Preço Recentes (JSON):
+Dados de Preço Recentes para o ativo {{{symbol}}} (JSON):
 \'\'\'json
 {{{historicalData}}}
 \'\'\'
-`
-});
+`;
 
-
-// 2. Define the Flow
+// O fluxo agora usa ai.generate() explicitamente com o modelo 'flash'
 const getAssetAnalysisFlow = ai.defineFlow(
   {
     name: 'getAssetAnalysisFlow',
@@ -56,19 +47,31 @@ const getAssetAnalysisFlow = ai.defineFlow(
   },
   async (input) => {
     
-    // Invoke the prompt directly with the validated input.
-    const { output } = await analysisPrompt(input);
+    // Usando ai.generate para ter controlo explícito sobre o modelo
+    const { output } = await ai.generate({
+      model: flash, // Garante que o modelo rápido é usado
+      prompt: {
+        text: ANALYSIS_PROMPT,
+        input: {
+          ...input,
+          // A conversão para JSON é tratada internamente pelo Genkit/Handlebars
+          historicalData: JSON.stringify(input.historicalData), 
+          recentTrades: JSON.stringify(input.recentTrades)
+        }
+      },
+      output: { schema: AssetAnalysisOutputSchema },
+    });
 
     if (!output) throw new Error("A IA não conseguiu analisar o ativo.");
     
-    // Add the data points count to the output
+    // Adiciona a contagem de pontos de dados à saída
     output.analysisDataPointsCount = input.historicalData.length;
     
     return output;
   }
 );
 
-// 3. Export a wrapper function
+// A função de invólucro permanece a mesma
 export async function getAssetAnalysis(input: AssetAnalysisInput): Promise<AssetAnalysisOutput> {
     return getAssetAnalysisFlow(input);
 }
