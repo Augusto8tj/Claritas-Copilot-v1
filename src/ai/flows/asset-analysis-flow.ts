@@ -41,7 +41,7 @@ Analise os seguintes dados de preço para o ativo {{{symbol}}} e forneça uma su
 
 Dados de Preço Recentes (JSON):
 \'\'\'json
-{{{historicalDataJson}}}
+{{{historicalData}}}
 \'\'\'
 `
 });
@@ -56,20 +56,8 @@ const getAssetAnalysisFlow = ai.defineFlow(
   },
   async (input) => {
     
-    const historicalDataJson = JSON.stringify(input.historicalData);
-    
-    const promptInput = {
-      ...input,
-      historicalDataJson,
-    };
-
-    // Explicitly use ai.generate with the prompt. This ensures the default model (flash) is used.
-    const { output } = await ai.generate({
-        model: flash,
-        prompt: analysisPrompt,
-        input: promptInput,
-        output: { schema: AssetAnalysisOutputSchema }
-    });
+    // Invoke the prompt directly with the validated input.
+    const { output } = await analysisPrompt(input);
 
     if (!output) throw new Error("A IA não conseguiu analisar o ativo.");
     
