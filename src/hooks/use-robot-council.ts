@@ -192,8 +192,9 @@ Contexto do Trader:
     const processManualCouncilResponse = (batchId: string, jsonResponse: string) => {
         try {
             const parsed = JSON.parse(jsonResponse);
-            // We expect a response like { "robots": [...] }
-            const validated = StrategyCouncilOutputSchema.pick({ council: true }).safeParse({ council: parsed.robots });
+            // The prompt asks for a "robots" key. We validate that and then pass it as "council" to our schema.
+            const dataToValidate = { council: parsed.robots };
+            const validated = StrategyCouncilOutputSchema.safeParse(dataToValidate);
 
             if (!validated.success) {
                 console.error("Validation error:", validated.error);
@@ -214,13 +215,6 @@ Contexto do Trader:
              toast({ variant: "destructive", title: "Erro ao Processar Resposta", description: `Verifique se o texto colado é um JSON válido e contém a chave "robots". Detalhe: ${e.message}` });
         }
     };
-
-    // This effect is no longer needed as the fetch is now manual
-    // useEffect(() => {
-    //     if (isCouncilAutopilotOn && activeSymbol && !isFetchingCouncil && strategyCouncil.length === 0) {
-    //         fetchStrategyCouncil();
-    //     }
-    // }, [isCouncilAutopilotOn, activeSymbol, isFetchingCouncil, strategyCouncil.length, fetchStrategyCouncil]);
     
     const supervisionCommitteeCheck = useCallback((stake: number, direction: 'RISE' | 'FALL') => {
         let finalStake = stake;

@@ -68,6 +68,6 @@ export const RobotStrategySchema = z.object({
 export type RobotStrategy = z.infer<typeof RobotStrategySchema>;
 
 export const StrategyCouncilOutputSchema = z.object({
-  council: z.array(RobotStrategySchema).min(10).max(10).describe("An array of 10 distinct robot analyst strategies, using the unified schema."),
+  council: z.array(RobotStrategySchema),
 });
 export type StrategyCouncilOutput = z.infer<typeof StrategyCouncilOutputSchema>;
