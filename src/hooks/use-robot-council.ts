@@ -147,7 +147,9 @@ Regras para cada robô:
 
 Contexto do Trader:
 - Banca do Dia: ${dailyBalance} USD
-- Dados de Mercado: \'\'\'json\n${historicalDataJson}\n\'\'\'`;
+- Dados de Mercado: \'\'\'json
+${historicalDataJson}
+\'\'\'`;
                     return {
                         id: `batch_${index + 1}`,
                         theme: batch.theme,
