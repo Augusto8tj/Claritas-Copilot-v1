@@ -133,17 +133,17 @@ export function useRobotCouncil(
                 ];
 
                 const batches: ManualPromptBatch[] = strategyBatchesConfig.map((batch, index) => {
-                    incrementGeminiRequestCount();
                     const promptText = `Crie um grupo de robôs-analistas para o ativo ${activeSymbol}, otimizados para operar em '${duration_unit}'.
 Estratégias para construir nesta etapa: ${JSON.stringify(batch.strategies)}
 Sua resposta DEVE SER um objeto JSON contendo uma chave "robots" que é um array com EXATAMENTE ${batch.strategies.length} objetos de robôs.
 
 Regras para cada robô:
-1.  ID único (ex: 'RSI_BOT_1').
-2.  Parâmetros e DOIS limiares (um para sinal FORTE, um para FRACO). Ex: 'strongBuyThreshold': 20, 'weakBuyThreshold': 30.
-3.  Confiança numérica: 'strongConfidence': 90-100, 'weakConfidence': 60-75.
-4.  Justificativa breve (1 frase).
-5.  Gestão de Risco: 'suggestedStake' como 1% da banca, 'suggestedDuration' na unidade fornecida.
+1. ID único (ex: 'RSI_BOT_1').
+2. Preencha OBRIGATORIAMENTE os seguintes campos para cada robô: 'id', 'strategyType', 'justification', 'suggestedStake', 'suggestedDuration', 'suggestedDurationUnit', 'strongConfidence', 'weakConfidence', e os limiares específicos da estratégia (como 'strongBuyThreshold').
+3. Parâmetros e DOIS limiares (um para sinal FORTE, um para FRACO). Ex: 'strongBuyThreshold': 20, 'weakBuyThreshold': 30.
+4. Confiança numérica: 'strongConfidence': 90-100, 'weakConfidence': 60-75.
+5. Justificativa breve (1 frase).
+6. Gestão de Risco: 'suggestedStake' como 1% da banca, 'suggestedDuration' na unidade fornecida.
 
 Contexto do Trader:
 - Banca do Dia: ${dailyBalance} USD
@@ -193,7 +193,7 @@ Contexto do Trader:
         try {
             const parsed = JSON.parse(jsonResponse);
             // The prompt asks for a "robots" key. We validate that and then pass it as "council" to our schema.
-            const dataToValidate = { council: parsed.robots };
+            const dataToValidate = { council: parsed.robots || [] };
             const validated = StrategyCouncilOutputSchema.safeParse(dataToValidate);
 
             if (!validated.success) {
