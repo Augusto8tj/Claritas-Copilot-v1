@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -12,15 +10,11 @@ import type { RiseFallFormValues } from '@/components/trading/deriv-trader-inter
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
 import type { Operation, OperationInitiator } from '@/components/trading/operations-log.types';
-import type { ActiveContract } from './use-deriv-api';
-import type { DurationUnit } from '@/components/trading/deriv-trader-interface.types';
-import type { TradeResult } from '@/services/deriv-api-service';
 import type { CandleData, ChartData } from './types';
 
 
 // ========================================================
 // INTERNAL INDICATOR CALCULATION ENGINE
-// Moved here to make the hook self-sufficient.
 // ========================================================
 const calculateSMA = (data: CandleData[], period: number): (number | null)[] => {
     if (data.length < period) return Array(data.length).fill(null);
@@ -123,7 +117,7 @@ const calculateRSI = (data: CandleData[], period = 14): (number | null)[] => {
     return rsiValues;
 };
 
-const calculateStochastic = (data: CandleData[], period = 14, smoothK = 3) => {
+const calculateStochastic = (data: CandleData[], period = 14) => {
     if (data.length < period) return Array(data.length).fill(null);
 
     const kValues: (number | null)[] = [];
@@ -137,7 +131,7 @@ const calculateStochastic = (data: CandleData[], period = 14, smoothK = 3) => {
         const highestHigh = Math.max(...slice.map(d => d.high));
         const currentClose = slice[slice.length - 1].close;
         if (highestHigh === lowestLow) {
-            kValues.push(i > 0 ? kValues[i - 1] : 50);
+            kValues.push(i > 0 && kValues[i-1] ? kValues[i-1] : 50);
         } else {
             kValues.push(100 * ((currentClose - lowestLow) / (highestHigh - lowestLow)));
         }
@@ -274,6 +268,7 @@ const ROBOT_PERFORMANCE_KEY = 'derivRobotPerformance';
 export interface RobotPerformance {
     id: string;
     strategyType: RobotStrategy['strategyType'];
+    strategy: RobotStrategy; // Adicionado para renderização
     wins: number;
     losses: number;
     totalProfit: number;
@@ -291,7 +286,7 @@ export type ManualPromptBatch = {
 export function useRobotCouncil(
     activeSymbol: string | null
 ) {
-    const { isConnected, chartData, operationsLog, addActiveContract, executeTrade } = useDerivApi();
+    const { isConnected, chartData, operationsLog, executeTrade } = useDerivApi();
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
@@ -468,7 +463,6 @@ ${basePromptInstructions}`;
             // Be flexible: accept "robots" or "council" as the key
             const dataToValidate = parsed.robots || parsed.council || [];
             
-            // Use a more flexible schema that doesn't require a minimum of 10 for each batch
             const validated = RobotAnalystGeneratorOutputSchema.safeParse({ robots: dataToValidate });
 
             if (!validated.success) {
@@ -560,35 +554,35 @@ ${basePromptInstructions}`;
         const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
         const bbRobot = strategyCouncil.find(r => r.strategyType === 'BOLLINGER_BANDS');
 
-        const rsiValues = calculateRSI(candles, rsiRobot?.period || 14);
-        const stochValues = calculateStochastic(candles, stochRobot?.period || 14);
-        const macdValues = macdRobot ? calculateMACD(candles, macdRobot.fastPeriod, macdRobot.slowPeriod, macdRobot.signalPeriod) : { macd: [], signal: [] };
+        const rsiValues = rsiRobot ? calculateRSI(candles, rsiRobot.period || 14) : [];
+        const stochValues = stochRobot ? calculateStochastic(candles, stochRobot.period || 14) : [];
+        const macdValues = macdRobot ? calculateMACD(candles, macdRobot.fastPeriod || 12, macdRobot.slowPeriod || 26, macdRobot.signalPeriod || 9) : { macd: [], signal: [] };
         const adxValues = adxRobot ? calculateADX(candles, adxRobot.period || 14) : { adx: [], pdi: [], ndi: [] };
         const atrValues = calculateATR(candles);
         
         const smaValues = maRobot ? calculateSMA(candles, maRobot.longPeriod || 20) : [];
         const emaValues = maRobot ? calculateEMA(candles, maRobot.shortPeriod || 10) : [];
         const vwapValues = calculateVWAP(candles);
-        const bbValues = bbRobot ? calculateBollingerBands(candles, bbRobot.period, bbRobot.stdDev) : [];
+        const bbValues = bbRobot ? calculateBollingerBands(candles, bbRobot.period || 20, bbRobot.stdDev || 2) : [];
 
         setIndicators({
-            rsi: rsiValues.pop() ?? null,
-            stoch: stochValues.pop() ?? null,
+            rsi: rsiValues.length > 0 ? rsiValues[rsiValues.length - 1] : null,
+            stoch: stochValues.length > 0 ? stochValues[stochValues.length - 1] : null,
             macd: { 
-                macd: macdValues.macd.pop() ?? null,
-                signal: macdValues.signal.pop() ?? null,
+                macd: macdValues.macd.length > 0 ? macdValues.macd[macdValues.macd.length - 1] : null,
+                signal: macdValues.signal.length > 0 ? macdValues.signal[macdValues.signal.length - 1] : null,
              },
-            adx: adxValues.adx.pop() ?? null,
-            pdi: adxValues.pdi.pop() ?? null,
-            ndi: adxValues.ndi.pop() ?? null,
-            atr: atrValues.pop() ?? null,
+            adx: adxValues.adx.length > 0 ? adxValues.adx[adxValues.adx.length - 1] : null,
+            pdi: adxValues.pdi.length > 0 ? adxValues.pdi[adxValues.pdi.length - 1] : null,
+            ndi: adxValues.ndi.length > 0 ? adxValues.ndi[adxValues.ndi.length - 1] : null,
+            atr: atrValues.length > 0 ? atrValues[atrValues.length - 1] : null,
             sma: smaValues,
             ema: emaValues,
             vwap: vwapValues,
             bollingerBands: bbValues,
             ma: {
-                short: emaValues[emaValues.length - 1] ?? null,
-                long: smaValues[smaValues.length - 1] ?? null,
+                short: emaValues.length > 0 ? emaValues[emaValues.length - 1] : null,
+                long: smaValues.length > 0 ? smaValues[smaValues.length - 1] : null,
             }
         });
 
@@ -600,9 +594,9 @@ ${basePromptInstructions}`;
         if (!isCouncilAutopilotOn || !strategyCouncil.length || councilExecutionRef.current.isExecuting) return;
 
         let currentThreshold = consensusThreshold;
-        if (isDynamicConsensusOn) {
+        if (isDynamicConsensusOn && indicators.atr) {
             const baseThreshold = 250;
-            const volatilityFactor = (indicators.atr ?? 0) * 1000;
+            const volatilityFactor = indicators.atr * 1000;
             const dynamicThreshold = Math.round(baseThreshold + volatilityFactor);
             currentThreshold = Math.max(150, Math.min(700, dynamicThreshold));
             setDynamicConsensus(currentThreshold);
@@ -622,6 +616,7 @@ ${basePromptInstructions}`;
                 }
             }
 
+            // A lógica de votação permanece a mesma
             switch(robot.strategyType) {
                  case 'RSI':
                     if (indicators.rsi) {
@@ -669,15 +664,22 @@ ${basePromptInstructions}`;
             const { duration, duration_unit } = form.getValues();
 
             executeTrade(direction === 'RISE' ? 'CALL' : 'PUT', finalStake, activeSymbol, direction.toLowerCase() as 'rise' | 'fall', duration, duration_unit, 'Conselho')
-                .then((res: any) => {
-                    if (res.success && res.contractId) addActiveContract({ contractId: res.contractId, entryTick: res.entryTick!, entryTime: res.entryTime!, initiator: 'Conselho' });
-                })
                 .finally(() => setTimeout(() => { councilExecutionRef.current.isExecuting = false; }, 10000));
         }
 
     }, [
-        isCouncilAutopilotOn, strategyCouncil, indicators, consensusThreshold, isDynamicConsensusOn, isMeritocracyOn, robotPerformance, 
-        executeTrade, activeSymbol, toast, addActiveContract, form, supervisionCommitteeCheck
+        isCouncilAutopilotOn, 
+        indicators, // O gatilho principal agora são os indicadores
+        strategyCouncil, 
+        consensusThreshold, 
+        isDynamicConsensusOn, 
+        isMeritocracyOn, 
+        robotPerformance, 
+        executeTrade, 
+        activeSymbol, 
+        toast, 
+        form, 
+        supervisionCommitteeCheck
     ]);
 
     return {

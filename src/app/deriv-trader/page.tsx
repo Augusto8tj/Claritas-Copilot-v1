@@ -45,11 +45,10 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   // Initialize hooks that depend on the active symbol and other API data
   const robotCouncil = useRobotCouncil(activeSymbol);
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, robotCouncil.incrementGeminiRequestCount);
-  const autopilot = useAutopilot(activeSymbol, robotCouncil.incrementGeminiRequestCount);
   
   // The `indicators` are calculated and managed inside useRobotCouncil.
-  // We extract them here to pass down to any component that needs them.
   const { indicators } = robotCouncil;
+  const autopilot = useAutopilot(activeSymbol, robotCouncil.incrementGeminiRequestCount, indicators);
 
   return (
     <>
@@ -75,7 +74,6 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                 timePeriod={timePeriod}
                 setTimePeriod={setTimePeriod}
                 operations={operationsLog}
-                // Pass indicators from the council hook to the chart
                 indicators={indicators}
             />
         </CardContent>
@@ -150,7 +148,6 @@ export default function DerivTraderPage() {
     },
   });
 
-  // All API state is now managed by the single useDerivApi hook
   const { 
     accountType, 
     setAccountType, 
@@ -164,7 +161,6 @@ export default function DerivTraderPage() {
     setActiveSymbol,
   } = useDerivApi();
   
-  // Ensure the hook's active symbol is updated when the local state changes
   const handleAssetChange = (asset: string) => {
     setActiveSymbol(asset);
   };

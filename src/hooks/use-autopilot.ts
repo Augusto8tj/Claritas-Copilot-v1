@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -11,9 +9,11 @@ import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-f
 import { useTradeAnalysis } from "./use-trade-analysis";
 import { useDerivApi, type ChartData } from "./use-deriv-api";
 
+// Este hook agora depende dos indicadores calculados externamente.
 export function useAutopilot(
     activeSymbol: string | null,
-    incrementRequestCount: () => void
+    incrementRequestCount: () => void,
+    indicators: any // Recebe os indicadores como prop
 ) {
     const { operationsLog, addActiveContract, executeTrade, chartData } = useDerivApi();
     const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, incrementRequestCount);
@@ -29,11 +29,6 @@ export function useAutopilot(
     const [error, setError] = useState<string | null>(null);
     const [isExecuting, setIsExecuting] = useState(false);
     
-    // This hook no longer calculates indicators itself. It relies on them being passed or fetched elsewhere.
-    // For this implementation, we'll assume the council's indicators are the source of truth if needed.
-    // Or, for simplicity, we can make the autopilot dumber and not dependent on live indicators.
-    // Let's refactor to make it fully independent and based only on its fetched strategy.
-
     const strategyIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const STRATEGY_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
@@ -91,18 +86,42 @@ export function useAutopilot(
                 clearInterval(strategyIntervalRef.current);
                 strategyIntervalRef.current = null;
             }
+            setAutopilotStrategy(null); // Limpa a estratégia ao desligar
         }
         return () => {
             if (strategyIntervalRef.current) clearInterval(strategyIntervalRef.current);
         };
     }, [isAutopilotOn, fetchAutopilotStrategy]);
     
-    // Autopilot execution logic is simplified as it doesn't have direct indicator access anymore.
-    // This is a placeholder; a more robust implementation would need indicator data.
     useEffect(() => {
-        // This effect is currently disabled as the hook doesn't receive live indicators.
-        // The responsibility for execution now lies fully with the `useRobotCouncil` hook.
-    }, [isAutopilotOn, isExecuting, autopilotStrategy, form, executeTrade, activeSymbol, toast, addActiveContract]);
+        if (!isAutopilotOn || !autopilotStrategy || isExecuting || !activeSymbol || !indicators) return;
+
+        const { rsi, stoch } = indicators;
+        const { strategyName, direction, rsiThreshold, stochThreshold } = autopilotStrategy;
+        
+        let conditionMet = false;
+        if (strategyName === 'RSI_BASIC' && rsi && rsiThreshold) {
+            if (direction === 'RISE' && rsi <= rsiThreshold) conditionMet = true;
+            if (direction === 'FALL' && rsi >= rsiThreshold) conditionMet = true;
+        }
+        if (strategyName === 'STOCH_BASIC' && stoch && stochThreshold) {
+            if (direction === 'RISE' && stoch <= stochThreshold) conditionMet = true;
+            if (direction === 'FALL' && stoch >= stochThreshold) conditionMet = true;
+        }
+
+        if (conditionMet) {
+            setIsExecuting(true);
+            const { suggestedStake, suggestedDuration } = autopilotStrategy;
+            toast({
+                title: "Piloto Automático: Condição Atingida!",
+                description: `Executando ordem de ${direction} para ${activeSymbol}.`,
+            });
+            executeTrade(direction === 'RISE' ? 'CALL' : 'PUT', suggestedStake, activeSymbol, direction.toLowerCase() as 'rise' | 'fall', suggestedDuration, 't', 'Piloto')
+                .finally(() => {
+                    setTimeout(() => setIsExecuting(false), 10000); // 10s cooldown
+                });
+        }
+    }, [isAutopilotOn, isExecuting, autopilotStrategy, indicators, form, executeTrade, activeSymbol, toast]);
 
     useEffect(() => {
         if (!isAutopilotOn || !operationsLog) return;
@@ -145,6 +164,6 @@ export function useAutopilot(
         setDailyTarget,
         isLoading,
         error,
-        // Removed geminiRequestCount from here as it's managed by the council
+        indicators, // Passa os indicadores para a UI
     };
 }

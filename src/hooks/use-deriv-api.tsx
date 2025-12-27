@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -20,16 +18,6 @@ export interface AccountBalance {
   balance: number | null;
   currency: string | null;
   loading: boolean;
-}
-
-export interface ActiveContract {
-  contractId: number;
-  entryTick: number;
-  entryTime: number;
-  status?: 'open' | 'won' | 'lost';
-  exitTick?: number;
-  exitTime?: number;
-  initiator: OperationInitiator;
 }
 
 export type PromiseCallbacks = { 
@@ -60,8 +48,6 @@ export type ApiHistoricalData = {
     close?: number;
 };
 
-type MarketDataCallback = (data: any) => void;
-
 interface DerivApiContextType {
   ws: WebSocket | null;
   isConnected: boolean;
@@ -72,7 +58,6 @@ interface DerivApiContextType {
   activeToken: string | null;
   accountType: AccountType;
   accountBalance: AccountBalance;
-  activeContracts: ActiveContract[];
   operationsLog: Operation[];
   assetGroups: AssetGroup[];
   isAssetsLoading: boolean;
@@ -102,7 +87,6 @@ interface DerivApiContextType {
     initiator: OperationInitiator,
   ) => Promise<TradeResult>;
   clearActiveContracts: () => void;
-  addActiveContract: (contract: ActiveContract) => void;
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
@@ -148,7 +132,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [accountType, setAccountTypeState] = useState<AccountType>('demo');
   const [accountBalance, setAccountBalance] = useState<AccountBalance>({ balance: null, currency: null, loading: true });
   const [isLoading, setIsLoading] = useState(true);
-  const [activeContracts, setActiveContracts] = useState<ActiveContract[]>([]);
   const [operationsLog, setOperationsLog] = useState<Operation[]>([]);
   const [assetGroups, setAssetGroups] = useState<AssetGroup[]>([]);
   const [isAssetsLoading, setIsAssetsLoading] = useState(true);
@@ -227,7 +210,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       const request: any = {
           ticks_history: symbol,
           count,
-          end: 'latest',
           adjust_start_time: 1,
           style: style,
       };
@@ -251,7 +233,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           high: candle.high,
           low: candle.low,
           close: candle.close,
-          price: candle.close, // Add price for consistency
+          price: candle.close,
         }));
       }
       return [];
@@ -308,8 +290,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           success: true,
           message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${stake} USD executada com sucesso.`,
           contractId: buyResult.contract_id,
-          entryTick: buyResult.entry_tick,
-          entryTime: buyResult.entry_tick_time,
         };
       } catch (error) {
          console.error("[Deriv Hook] Erro durante a negociação:", error);
@@ -318,16 +298,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       }
   }, [isConnected, makeRequest]);
 
-  const subscribeToMarketData = useCallback(async (symbol: string | null) => {
+  const subscribeToMarketData = useCallback(async (symbol: string) => {
     if (activeSubscriptionIdRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
         try { await makeRequest({ forget: activeSubscriptionIdRef.current }); } catch (e) { /* ignore */ }
         activeSubscriptionIdRef.current = null;
-    }
-
-    if (!isConnected || !symbol) {
-        setChartData([]);
-        setIsChartLoading(!!symbol);
-        return;
     }
 
     setIsChartLoading(true);
@@ -335,7 +309,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     setChartData([]);
 
     try {
-        const history = await getHistoricalData(symbol, chartType === 'Candle' ? 'candles' : 'ticks', 1000, timePeriod);
+        const historyStyle = chartType === 'Candle' ? 'candles' : 'ticks';
+        const history = await getHistoricalData(symbol, historyStyle, 1000, timePeriod);
         setChartData(history as ChartData[]);
 
         const subRequest = chartType === 'Candle'
@@ -351,7 +326,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     } finally {
         setIsChartLoading(false);
     }
-  }, [isConnected, getHistoricalData, makeRequest, chartType, timePeriod]);
+  }, [getHistoricalData, makeRequest, chartType, timePeriod]);
 
 
   // Main Connection and Data Subscription Effect
@@ -512,12 +487,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       if (wsRef.current) wsRef.current.close();
     };
-  }, [activeToken, isLoading, makeRequest, toast, triggerReconnect]);
+  }, [activeToken, isLoading, makeRequest, toast, triggerReconnect, chartType, activeSymbol]);
 
   
   // Effect to manage market data subscription
   useEffect(() => {
-    if (isConnected) {
+    if (isConnected && activeSymbol) {
         subscribeToMarketData(activeSymbol);
     }
     // Cleanup function to unsubscribe when component unmounts or deps change
@@ -584,10 +559,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     setOperationsLog([]);
   };
 
-  const addActiveContract = (contract: ActiveContract) => {
-    setActiveContracts(prev => [...prev, contract]);
-  }
-
   const contextValue: DerivApiContextType = {
     ws: wsRef.current,
     isConnected,
@@ -602,7 +573,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     disconnect,
     reconnect,
     accountBalance,
-    activeContracts,
     operationsLog,
     assetGroups,
     isAssetsLoading,
@@ -617,7 +587,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     setTimePeriod,
     executeTrade,
     clearActiveContracts,
-    addActiveContract,
   };
 
   return (

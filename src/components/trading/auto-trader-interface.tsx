@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState } from "react";
@@ -21,8 +19,9 @@ import { Badge } from "../ui/badge";
 import { Input } from "../ui/input";
 import { useAutopilot } from "@/hooks/use-autopilot";
 
-// This component no longer needs direct access to geminiRequestCount or indicators.
-export function AutoTraderInterface({ 
+// Este componente no longer needs direct access to geminiRequestCount or indicators.
+export function AutoTraderInterface(props: ReturnType<typeof useAutopilot>) {
+  const { 
     isAutopilotOn, 
     setIsAutopilotOn,
     autopilotStrategy,
@@ -32,27 +31,32 @@ export function AutoTraderInterface({
     setDailyTarget,
     isLoading,
     error,
-}: ReturnType<typeof useAutopilot>) {
+    indicators, // Agora recebe os indicadores do hook
+  } = props;
+
   const { toast } = useToast();
   
   const handleToggleAutopilot = (isOn: boolean) => {
-    if (isOn) {
-        setIsAutopilotOn(true);
-    } else {
-        setIsAutopilotOn(false);
-    }
+    setIsAutopilotOn(isOn);
   };
 
   const getActiveIndicatorValue = () => {
-    // This function is now a placeholder as indicator data is not directly available here.
+    if (!autopilotStrategy || !indicators) return "N/A";
+    if (autopilotStrategy.strategyName === 'RSI_BASIC' && indicators.rsi) {
+      return indicators.rsi.toFixed(2);
+    }
+    if (autopilotStrategy.strategyName === 'STOCH_BASIC' && indicators.stoch) {
+      return indicators.stoch.toFixed(2);
+    }
     return "N/A";
-  }
+  };
+
   const getActiveIndicatorName = () => {
     if (!autopilotStrategy) return "Indicador";
     if (autopilotStrategy.strategyName === 'RSI_BASIC') return "RSI Atual";
     if (autopilotStrategy.strategyName === 'STOCH_BASIC') return "Estocástico Atual";
     return "Indicador";
-  }
+  };
 
   return (
     <Card>
