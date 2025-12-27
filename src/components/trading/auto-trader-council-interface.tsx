@@ -109,26 +109,27 @@ export function AutoTraderCouncilInterface({
             return `Padrão: ${pattern}`;
         case 'ADX_TREND':
             return `Limiar de Tendência > ${robot.trendStrengthThreshold}`;
+        case 'VOLUME_PROFILE':
+            return `POC de ${robot.profileBars} barras`;
         case 'ICHIMOKU_CLOUD':
             return "Análise da Nuvem";
         case 'AWESOME_OSCILLATOR':
             return "Cruzamento de Zero";
-        case 'VOLUME_PROFILE':
-            return `POC de ${robot.profileBars} barras`;
         default:
             return "Parâmetros não definidos";
     }
   }
 
   const renderIndicatorValue = (robot: RobotStrategy) => {
+    if (!indicators) return <p>...</p>;
     switch (robot.strategyType) {
         case 'RSI':
             return <p>RSI Atual: <strong>{indicators.rsi?.toFixed(2) ?? "..."}</strong></p>;
         case 'STOCHASTIC':
             return <p>Estocástico Atual: <strong>{indicators.stoch?.toFixed(2) ?? "..."}</strong></p>;
         case 'MOVING_AVERAGE_CROSS':
-            const shortMA = indicators.ma.short?.toFixed(4) ?? "-";
-            const longMA = indicators.ma.long?.toFixed(4) ?? "-";
+            const shortMA = indicators.ma?.short?.toFixed(4) ?? "-";
+            const longMA = indicators.ma?.long?.toFixed(4) ?? "-";
             return <p>Médias Atuais: <strong>{shortMA} / {longMA}</strong></p>;
         case 'BOLLINGER_BANDS':
             if (!indicators.bollingerBands || indicators.bollingerBands.length === 0) return <p>Bandas: <strong>...</strong></p>;
@@ -139,16 +140,8 @@ export function AutoTraderCouncilInterface({
             if (!indicators.macd) return <p>MACD: <strong>...</strong></p>;
             const { macd, signal } = indicators.macd;
             return <p>MACD/Sinal: <strong>{macd?.toFixed(4) ?? '...'} / {signal?.toFixed(4) ?? '...'}</strong></p>;
-        case 'PRICE_ACTION_PATTERN':
-             return <p>Último Padrão: <strong>{indicators.priceAction || "Nenhum"}</strong></p>;
         case 'ADX_TREND':
             return <p>Força da Tendência (ADX): <strong>{indicators.adx?.toFixed(2) ?? "..."}</strong></p>;
-        case 'ICHIMOKU_CLOUD':
-            return <p>Ichimoku: <strong>{indicators.ichimoku ? (indicators.ichimoku.inCloud ? 'Na Nuvem' : indicators.ichimoku.trend) : '...'}</strong></p>;
-        case 'AWESOME_OSCILLATOR':
-            return <p>AO: <strong>{indicators.awesomeOscillator?.toFixed(4) ?? '...'}</strong></p>;
-        case 'VOLUME_PROFILE':
-            return <p>POC: <strong>{indicators.volumePoc?.toFixed(4) ?? '...'}</strong></p>;
         default:
             return null;
     }
