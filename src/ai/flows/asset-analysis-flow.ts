@@ -50,14 +50,12 @@ const getAssetAnalysisFlow = ai.defineFlow(
     // Usando ai.generate para ter controlo explícito sobre o modelo
     const { output } = await ai.generate({
       model: flash, // Garante que o modelo rápido é usado
-      prompt: {
-        text: ANALYSIS_PROMPT,
-        input: {
+      prompt: ANALYSIS_PROMPT,
+      input: {
           ...input,
           // A conversão para JSON é tratada internamente pelo Genkit/Handlebars
           historicalData: JSON.stringify(input.historicalData), 
           recentTrades: JSON.stringify(input.recentTrades)
-        }
       },
       output: { schema: AssetAnalysisOutputSchema },
     });
