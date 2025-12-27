@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState, Fragment } from "react";
@@ -52,6 +50,11 @@ const robotCategories: Record<string, RobotStrategy['strategyType'][]> = {
     'Especialistas em Volume': ['VOLUME_PROFILE'],
 };
 
+// Extracted the props type from ReturnType for clarity and added 'indicators'
+type AutoTraderCouncilInterfaceProps = ReturnType<typeof useRobotCouncil> & {
+    indicators: ReturnType<typeof useRobotCouncil>['indicators'];
+};
+
 
 export function AutoTraderCouncilInterface({ 
     isCouncilAutopilotOn,
@@ -74,10 +77,10 @@ export function AutoTraderCouncilInterface({
     setUseManualCouncilMode,
     useSingleManualPrompt,
     setUseSingleManualPrompt,
-    indicators,
+    indicators, // Now received as a prop
     fetchStrategyCouncil,
     dissolveCouncil,
- }: ReturnType<typeof useRobotCouncil>) {
+ }: AutoTraderCouncilInterfaceProps) {
   const { toast } = useToast();
   
   const handleToggleAutopilot = (isOn: boolean) => {
@@ -99,7 +102,7 @@ export function AutoTraderCouncilInterface({
         case 'STOCHASTIC':
             return `Sinal Forte < ${robot.strongBuyThreshold}, Sinal Fraco < ${robot.weakBuyThreshold}`;
         case 'MOVING_AVERAGE_CROSS':
-            return `Cruzamento de Médias ${robot.shortPeriod}/${robot.longPeriod}`;
+            return `Cruzamento ${robot.shortPeriod}/${robot.longPeriod}`;
         case 'BOLLINGER_BANDS':
             return `Período: ${robot.period}, Desvio Padrão: ${robot.stdDev}`;
         case 'MACD_CROSS':

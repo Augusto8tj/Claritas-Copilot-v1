@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import React, { useState, useEffect } from "react";
@@ -32,7 +30,7 @@ import { AITradeSuggestion } from "@/components/trading/ai-trade-suggestion";
  * This core component is now separate to ensure that all hooks using
  * `useFormContext` are called within the <FormProvider> of the parent page.
  */
-function DerivTraderCore({ activeSymbol, setActiveSymbol, indicators }: { activeSymbol: string | null, setActiveSymbol: (symbol: string | null) => void, indicators: any }) {
+function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   const { 
     operationsLog,
     chartData,
@@ -49,8 +47,9 @@ function DerivTraderCore({ activeSymbol, setActiveSymbol, indicators }: { active
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, robotCouncil.incrementGeminiRequestCount);
   const autopilot = useAutopilot(activeSymbol, robotCouncil.incrementGeminiRequestCount);
   
-  // Note: The `indicators` state is now managed inside useRobotCouncil.
-  // We can extract it if other components need it, or pass the whole council object.
+  // The `indicators` are calculated and managed inside useRobotCouncil.
+  // We extract them here to pass down to any component that needs them.
+  const { indicators } = robotCouncil;
 
   return (
     <>
@@ -76,7 +75,7 @@ function DerivTraderCore({ activeSymbol, setActiveSymbol, indicators }: { active
                 timePeriod={timePeriod}
                 setTimePeriod={setTimePeriod}
                 operations={operationsLog}
-                // Pass indicators from the council hook if needed by the chart
+                // Pass indicators from the council hook to the chart
                 indicators={indicators}
             />
         </CardContent>
@@ -95,7 +94,7 @@ function DerivTraderCore({ activeSymbol, setActiveSymbol, indicators }: { active
                 </div>
             </div>
              <div className="space-y-6">
-                <AutoTraderCouncilInterface {...robotCouncil} />
+                <AutoTraderCouncilInterface {...robotCouncil} indicators={indicators} />
                 <AutoTraderInterface {...autopilot} />
             </div>
        </div>
@@ -115,7 +114,7 @@ function DerivTraderCore({ activeSymbol, setActiveSymbol, indicators }: { active
                 </TabsContent>
 
                 <TabsContent value="autopilot" className="mt-4 space-y-6">
-                    <AutoTraderCouncilInterface {...robotCouncil} />
+                    <AutoTraderCouncilInterface {...robotCouncil} indicators={indicators} />
                     <AutoTraderInterface {...autopilot} />
                 </TabsContent>
 
@@ -164,9 +163,6 @@ export default function DerivTraderPage() {
     activeSymbol,
     setActiveSymbol,
   } = useDerivApi();
-
-   // The indicators state now lives here as the source of truth
-  const { indicators } = useRobotCouncil(activeSymbol);
   
   // Ensure the hook's active symbol is updated when the local state changes
   const handleAssetChange = (asset: string) => {
@@ -214,7 +210,7 @@ export default function DerivTraderPage() {
 
         <SystemStatusSummary />
 
-        <DerivTraderCore activeSymbol={activeSymbol} setActiveSymbol={setActiveSymbol} indicators={indicators} />
+        <DerivTraderCore activeSymbol={activeSymbol} />
       </div>
     </FormProvider>
   );
