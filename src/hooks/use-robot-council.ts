@@ -318,6 +318,7 @@ export function useRobotCouncil(
     // This state now lives inside the hook and is calculated here
     const [indicators, setIndicators] = useState<any>({
         rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null, macd: null,
+        ma: { short: null, long: null },
         sma: [], ema: [], vwap: [], bollingerBands: [],
     });
 
@@ -568,6 +569,10 @@ ${basePromptInstructions}`;
             ema: emaValues,
             vwap: vwapValues,
             bollingerBands: bbValues,
+            ma: {
+                short: emaValues[emaValues.length - 1] ?? null,
+                long: smaValues[smaValues.length - 1] ?? null,
+            }
         });
 
     }, [chartData, strategyCouncil]);
