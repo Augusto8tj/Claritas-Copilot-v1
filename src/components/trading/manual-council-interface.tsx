@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Copy, Sparkles, Wand, CheckCircle, Clock } from 'lucide-react';
+import { Copy, Sparkles, Wand, CheckCircle, Clock, ClipboardPaste } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '../ui/label';
 import {
@@ -37,6 +37,24 @@ export function ManualCouncilInterface({ batches, onProcessResponse }: ManualCou
       title: 'Copiado!',
       description: 'O prompt foi copiado para a sua área de transferência.',
     });
+  };
+
+  const handlePaste = async (batchId: string) => {
+    try {
+        const text = await navigator.clipboard.readText();
+        setResponses(prev => ({...prev, [batchId]: text}));
+        toast({
+            title: 'Colado!',
+            description: 'O conteúdo da área de transferência foi colado.',
+        });
+    } catch (error) {
+        console.error('Falha ao ler da área de transferência:', error);
+        toast({
+            variant: 'destructive',
+            title: 'Falha ao Colar',
+            description: 'Não foi possível ler o conteúdo da área de transferência. Verifique as permissões do seu navegador.',
+        });
+    }
   };
 
   const handleSubmit = (batchId: string) => {
@@ -101,7 +119,13 @@ export function ManualCouncilInterface({ batches, onProcessResponse }: ManualCou
                             </div>
                         </div>
                         <div>
-                            <Label htmlFor={`manual-response-${batch.id}`}>2. Cole a Resposta JSON Aqui</Label>
+                            <div className="flex justify-between items-center">
+                                <Label htmlFor={`manual-response-${batch.id}`}>2. Cole a Resposta JSON Aqui</Label>
+                                <Button variant="outline" size="sm" className="h-7" onClick={() => handlePaste(batch.id)}>
+                                    <ClipboardPaste className="mr-2 h-3 w-3" />
+                                    Colar
+                                </Button>
+                            </div>
                             <Textarea
                                 id={`manual-response-${batch.id}`}
                                 value={responses[batch.id] || ''}
