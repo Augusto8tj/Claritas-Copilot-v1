@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -9,13 +10,13 @@ import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-f
 import { useTradeAnalysis } from "./use-trade-analysis";
 import { useDerivApi, type ChartData } from "./use-deriv-api";
 
-// Este hook agora depende dos indicadores calculados externamente.
+// This hook now depends on the indicators calculated externally.
 export function useAutopilot(
     activeSymbol: string | null,
     incrementRequestCount: () => void,
     indicators: any // Recebe os indicadores como prop
 ) {
-    const { operationsLog, addActiveContract, executeTrade, chartData } = useDerivApi();
+    const { operationsLog, executeTrade, chartData } = useDerivApi();
     const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, incrementRequestCount);
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();

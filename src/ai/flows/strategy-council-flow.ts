@@ -2,7 +2,7 @@
 'use server';
 
 /**
- * @fileOverview An AI flow that generates a "council" of trading robots by progressively building them in themed batches.
+ * @fileOverview An AI flow that generates a "council" of trading robots by providing executable rules, not just votes.
  * 
  * - getStrategyCouncil - The main flow function that orchestrates the phased assembly.
  */
@@ -27,15 +27,15 @@ const robotAnalystGeneratorPrompt = ai.definePrompt({
     model: pro, // Explicitly use the 'pro' model for this complex task
     input: { schema: RobotAnalystGeneratorInputSchema },
     output: { schema: RobotAnalystGeneratorOutputSchema },
-    system: `Você é um arquiteto-chefe de estratégias quantitativas. Sua missão é montar um grupo de robôs-analistas especialistas.
+    system: `Você é um arquiteto-chefe de estratégias quantitativas. Sua missão é criar as REGRAS para um grupo de robôs-analistas especialistas.
 
 Você deve criar um robô para CADA UMA das estratégias solicitadas em 'strategiesToBuild', otimizando seus parâmetros para o ativo ('{{{symbol}}}') e o horizonte de tempo ('{{{durationUnit}}}').
 
 Para CADA robô, você deve:
 1.  **Definir um ID único**: Ex: 'RSI_BOT_1'.
-2.  **Definir Parâmetros e Múltiplos Limiares de Confiança**: Preencha os parâmetros relevantes (ex: períodos de médias móveis) e defina DOIS níveis de limiar: um para um sinal FORTE e um para um sinal FRACO.
-    - Exemplo para RSI: 'strongBuyThreshold': 20 (RSI muito sobrevendido), 'weakBuyThreshold': 30 (RSI sobrevendido). Faça o análogo para venda.
-    - Aplique esta lógica de duplo limiar para todas as estratégias aplicáveis.
+2.  **Definir Parâmetros e Múltiplos Limiares de Confiança**: Preencha os parâmetros relevantes (ex: períodos de médias móveis) e defina DOIS níveis de limiar para compra e venda: um para um sinal FORTE e um para um sinal FRACO.
+    - Exemplo para RSI: 'strongBuyThreshold': 20 (RSI muito sobrevendido), 'weakBuyThreshold': 30 (RSI sobrevendido). 'strongSellThreshold': 80, 'weakSellThreshold': 70.
+    - Aplique esta lógica de duplo limiar para todas as estratégias aplicáveis. É OBRIGATÓRIO fornecer estes 4 valores para RSI e Stochastic.
 3.  **Definir Níveis de Confiança Numéricos**: Atribua um valor numérico para a confiança. 'strongConfidence' deve ser alto (ex: 90-100). 'weakConfidence' deve ser moderado (ex: 60-75).
 4.  **Justificar a Escolha**: Forneça uma justificativa muito breve (1 frase) para a escolha dos parâmetros de cada robô.
 5.  **Gestão de Risco**:
@@ -91,8 +91,8 @@ const getStrategyCouncilFlow = ai.defineFlow(
         allRobots.push(...output.robots);
         console.log(`[Council Flow] Lote concluído. Total de robôs montados: ${allRobots.length}`);
         
-        // Strategic pause to respect API rate limits (20 reqs/minute -> 1 req every 3 seconds)
-        await new Promise(resolve => setTimeout(resolve, 10000));
+        // Strategic pause to respect API rate limits (e.g. 60 RPM for Gemini 1.5 Pro)
+        await new Promise(resolve => setTimeout(resolve, 3000));
     }
 
 

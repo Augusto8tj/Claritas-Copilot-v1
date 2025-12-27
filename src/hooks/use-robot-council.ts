@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -85,11 +86,12 @@ const calculateVWAP = (data: CandleData[]): (number | null)[] => {
 const calculateRSI = (data: CandleData[], period = 14): (number | null)[] => {
     if (data.length < period) return Array(data.length).fill(null);
 
-    const rsiValues: (number | null)[] = Array(period - 1).fill(null);
+    const rsiValues: (number | null)[] = Array(period).fill(null);
     let avgGain = 0;
     let avgLoss = 0;
 
-    for (let i = 1; i < period; i++) {
+    // First RSI calculation
+    for (let i = 1; i <= period; i++) {
         const change = data[i].close - data[i - 1].close;
         if (change > 0) {
             avgGain += change;
@@ -99,10 +101,11 @@ const calculateRSI = (data: CandleData[], period = 14): (number | null)[] => {
     }
     avgGain /= period;
     avgLoss /= period;
-
+    
     let rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
-    rsiValues.push(100 - (100 / (1 + rs)));
+    rsiValues[period-1] = 100 - (100 / (1 + rs));
 
+    // Subsequent RSI calculations
     for (let i = period; i < data.length; i++) {
         const change = data[i].close - data[i - 1].close;
         let gain = change > 0 ? change : 0;
@@ -149,10 +152,11 @@ const calculateMACD = (data: CandleData[], fastPeriod = 12, slowPeriod = 26, sig
     
     const signalData = macdLine.map(v => v !== null ? { close: v, high:v, low:v, epoch:0, open:v } : null).filter((v): v is CandleData => v !== null);
 
-    const signalLine = calculateEMA(signalData, signalPeriod);
-
-    const macdWithNulls = [...Array(slowPeriod - 1).fill(null), ...macdLine.slice(slowPeriod-1)];
-    const signalWithNulls = [...Array(slowPeriod + signalPeriod - 2).fill(null), ...signalLine.map(s => s)];
+    const signalLineRaw = calculateEMA(signalData, signalPeriod);
+    
+    // Adjust array lengths to match original data length
+    const macdWithNulls = [...Array(data.length - macdLine.length).fill(null), ...macdLine];
+    const signalWithNulls = [...Array(data.length - signalLineRaw.length).fill(null), ...signalLineRaw];
 
     const histogram = macdWithNulls.map((m, i) => (m && signalWithNulls[i]) ? m - signalWithNulls[i]! : null);
 
@@ -160,9 +164,9 @@ const calculateMACD = (data: CandleData[], fastPeriod = 12, slowPeriod = 26, sig
 };
 
 const calculateATR = (data: CandleData[], period = 14): (number | null)[] => {
-    if (data.length < 1) return [];
+    if (data.length < period) return Array(data.length).fill(null);
     
-    const trueRanges: (number | null)[] = [null];
+    const trueRanges: (number | null)[] = [];
     for (let i = 1; i < data.length; i++) {
         const highLow = data[i].high - data[i].low;
         const highPrevClose = Math.abs(data[i].high - data[i-1].close);
@@ -171,27 +175,26 @@ const calculateATR = (data: CandleData[], period = 14): (number | null)[] => {
     }
     
     const atrValues: (number | null)[] = Array(period).fill(null);
-    if (data.length < period + 1) return Array(data.length).fill(null);
     
-    let firstAtrSum = trueRanges.slice(1, period + 1).reduce((sum, val) => sum + (val || 0), 0);
-    atrValues.push(firstAtrSum / period);
+    let firstAtrSum = trueRanges.slice(0, period - 1).reduce((sum, val) => sum + (val || 0), 0);
+    atrValues[period - 1] = firstAtrSum / period;
     
-    for (let i = period + 1; i < data.length; i++) {
+    for (let i = period; i < trueRanges.length + 1; i++) {
         const prevAtr = atrValues[i-1];
-        const tr = trueRanges[i];
+        const tr = trueRanges[i-1];
         if (tr === null || prevAtr === null) {
-            atrValues.push(atrValues[i - 1]);
+            atrValues.push(null);
             continue;
         }
         const currentAtr = (prevAtr * (period - 1) + tr) / period;
         atrValues.push(currentAtr);
     }
     
-    return atrValues;
+    return [null, ...atrValues];
 };
 
 const calculateADX = (data: CandleData[], period = 14) => {
-    if (data.length < period * 2) return { adx: [], pdi: [], ndi: [] };
+    if (data.length < period * 2) return { adx: Array(data.length).fill(null), pdi: [], ndi: [] };
 
     let pdi: (number | null)[] = [], ndi: (number | null)[] = [], trs: (number | null)[] = [];
     
@@ -208,24 +211,30 @@ const calculateADX = (data: CandleData[], period = 14) => {
         const tr = Math.max(data[i].high - data[i].low, Math.abs(data[i].high - data[i-1].close), Math.abs(data[i].low - data[i-1].close));
         trs.push(tr);
     }
-    
-    const smooth = (values: (number | null)[]) => {
-        if(values.length < period) return [];
-        let smoothed: (number | null)[] = [values.slice(0, period).reduce((acc, v) => acc + (v||0), 0)];
-        for (let i = period; i < values.length; i++) {
-            smoothed.push(smoothed[i-period]! - (smoothed[i-period]! / period) + (values[i] || 0));
+
+    const smooth = (values: (number | null)[], smoothingPeriod: number) => {
+        if(values.length < smoothingPeriod) return Array(values.length).fill(null);
+        let smoothed: (number | null)[] = Array(smoothingPeriod-1).fill(null);
+        smoothed.push(values.slice(0, smoothingPeriod).reduce((acc, v) => acc + (v||0), 0));
+        for (let i = smoothingPeriod; i < values.length; i++) {
+             const prevSmoothed = smoothed[i-1];
+             if(prevSmoothed !== null && values[i] !== null){
+                smoothed.push(prevSmoothed - (prevSmoothed / smoothingPeriod) + (values[i] || 0));
+             } else {
+                smoothed.push(null);
+             }
         }
         return smoothed;
     };
 
-    const smoothedPDI = smooth(pdi);
-    const smoothedNDI = smooth(ndi);
-    const smoothedTR = smooth(trs);
+    const smoothedPDI = smooth(pdi, period);
+    const smoothedNDI = smooth(ndi, period);
+    const smoothedTR = smooth(trs, period);
     
     let pdiFinal: (number | null)[] = [], ndiFinal: (number | null)[] = [], dx: (number | null)[] = [];
 
     for(let i=0; i< smoothedTR.length; i++){
-        if(!smoothedTR[i] || smoothedTR[i] === 0) {
+        if(!smoothedTR[i] || smoothedTR[i] === 0 || smoothedPDI[i] === null || smoothedNDI[i] === null) {
              pdiFinal.push(null);
              ndiFinal.push(null);
              continue;
@@ -233,21 +242,16 @@ const calculateADX = (data: CandleData[], period = 14) => {
         pdiFinal.push(100 * (smoothedPDI[i]! / smoothedTR[i]!));
         ndiFinal.push(100 * (smoothedNDI[i]! / smoothedTR[i]!));
     }
-
+    
     for (let i = 0; i < pdiFinal.length; i++) {
-        if (pdiFinal[i] === null || ndiFinal[i] === null) {
-            dx.push(null);
-            continue;
-        }
-        const den = pdiFinal[i]! + ndiFinal[i]!;
-        if (den === 0) {
-            dx.push(0);
-        } else {
-            dx.push(100 * Math.abs(pdiFinal[i]! - ndiFinal[i]!) / den);
-        }
+        const p = pdiFinal[i];
+        const n = ndiFinal[i];
+        if (p === null || n === null) { dx.push(null); continue; }
+        const den = p + n;
+        dx.push(den === 0 ? 0 : 100 * Math.abs(p - n) / den);
     }
     
-    const adx = smooth(dx.filter((v): v is number => v !== null));
+    const adx = smooth(dx.filter((v): v is number => v !== null), period);
     
     const fillCount = data.length - adx.length;
     return { adx: Array(fillCount).fill(null).concat(adx), pdi: pdiFinal, ndi: ndiFinal };
@@ -318,7 +322,7 @@ export function useRobotCouncil(
         adx: null as number | null,
         pdi: null as number | null,
         ndi: null as number | null,
-        macd: null as { macd: number | null, signal: number | null } | null,
+        macd: { macd: null, signal: null } as { macd: number | null, signal: number | null },
         ma: { short: null, long: null } as { short: number | null, long: number | null },
         sma: [] as (number | null)[],
         ema: [] as (number | null)[],
@@ -540,58 +544,66 @@ ${basePromptInstructions}`;
         toast({ title: "Conselho Dissolvido", description: "A equipa de analistas foi dispensada." });
     };
 
-    // Effect to calculate indicators whenever chartData or council changes
+    // Effect to calculate indicators whenever chartData or council definition changes
     useEffect(() => {
-        if (!chartData.length || !strategyCouncil.length) return;
+        if (!chartData.length || chartData.length < 2) return;
 
         const candles = chartData.filter(d => 'close' in d) as CandleData[];
         if (candles.length < 2) return;
 
-        const rsiRobot = strategyCouncil.find(r => r.strategyType === 'RSI');
-        const stochRobot = strategyCouncil.find(r => r.strategyType === 'STOCHASTIC');
-        const macdRobot = strategyCouncil.find(r => r.strategyType === 'MACD_CROSS');
-        const adxRobot = strategyCouncil.find(r => r.strategyType === 'ADX_TREND');
+        // Use a Set for efficiency
+        const requiredIndicators = new Set(strategyCouncil.map(r => r.strategyType));
+
+        const newIndicators: typeof indicators = { ...indicators };
+
+        if (requiredIndicators.has('RSI')) {
+            const rsiRobot = strategyCouncil.find(r => r.strategyType === 'RSI')!;
+            const rsiValues = calculateRSI(candles, rsiRobot.period || 14);
+            newIndicators.rsi = rsiValues[rsiValues.length - 1] ?? null;
+        }
+        if (requiredIndicators.has('STOCHASTIC')) {
+            const stochRobot = strategyCouncil.find(r => r.strategyType === 'STOCHASTIC')!;
+            const stochValues = calculateStochastic(candles, stochRobot.period || 14);
+            newIndicators.stoch = stochValues[stochValues.length - 1] ?? null;
+        }
+        if (requiredIndicators.has('MACD_CROSS')) {
+            const macdRobot = strategyCouncil.find(r => r.strategyType === 'MACD_CROSS')!;
+            const macdValues = calculateMACD(candles, macdRobot.fastPeriod || 12, macdRobot.slowPeriod || 26, macdRobot.signalPeriod || 9);
+            newIndicators.macd = { 
+                macd: macdValues.macd[macdValues.macd.length - 1] ?? null,
+                signal: macdValues.signal[macdValues.signal.length - 1] ?? null,
+             };
+        }
+         if (requiredIndicators.has('ADX_TREND')) {
+            const adxRobot = strategyCouncil.find(r => r.strategyType === 'ADX_TREND')!;
+            const adxValues = calculateADX(candles, adxRobot.period || 14);
+            newIndicators.adx = adxValues.adx[adxValues.adx.length - 1] ?? null;
+         }
+        
+        // ATR is always useful for supervision
+        const atrValues = calculateATR(candles);
+        newIndicators.atr = atrValues[atrValues.length - 1] ?? null;
+
+        // For chart display
         const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
         const bbRobot = strategyCouncil.find(r => r.strategyType === 'BOLLINGER_BANDS');
+        newIndicators.sma = maRobot ? calculateSMA(candles, maRobot.longPeriod || 50) : [];
+        newIndicators.ema = maRobot ? calculateEMA(candles, maRobot.shortPeriod || 20) : [];
+        newIndicators.vwap = calculateVWAP(candles);
+        newIndicators.bollingerBands = bbRobot ? calculateBollingerBands(candles, bbRobot.period || 20, bbRobot.stdDev || 2) : [];
+        newIndicators.ma = {
+            short: newIndicators.ema.length > 0 ? newIndicators.ema[newIndicators.ema.length - 1] : null,
+            long: newIndicators.sma.length > 0 ? newIndicators.sma[newIndicators.sma.length - 1] : null,
+        }
 
-        const rsiValues = rsiRobot ? calculateRSI(candles, rsiRobot.period || 14) : [];
-        const stochValues = stochRobot ? calculateStochastic(candles, stochRobot.period || 14) : [];
-        const macdValues = macdRobot ? calculateMACD(candles, macdRobot.fastPeriod || 12, macdRobot.slowPeriod || 26, macdRobot.signalPeriod || 9) : { macd: [], signal: [] };
-        const adxValues = adxRobot ? calculateADX(candles, adxRobot.period || 14) : { adx: [], pdi: [], ndi: [] };
-        const atrValues = calculateATR(candles);
-        
-        const smaValues = maRobot ? calculateSMA(candles, maRobot.longPeriod || 20) : [];
-        const emaValues = maRobot ? calculateEMA(candles, maRobot.shortPeriod || 10) : [];
-        const vwapValues = calculateVWAP(candles);
-        const bbValues = bbRobot ? calculateBollingerBands(candles, bbRobot.period || 20, bbRobot.stdDev || 2) : [];
-
-        setIndicators({
-            rsi: rsiValues.length > 0 ? rsiValues[rsiValues.length - 1] : null,
-            stoch: stochValues.length > 0 ? stochValues[stochValues.length - 1] : null,
-            macd: { 
-                macd: macdValues.macd.length > 0 ? macdValues.macd[macdValues.macd.length - 1] : null,
-                signal: macdValues.signal.length > 0 ? macdValues.signal[macdValues.signal.length - 1] : null,
-             },
-            adx: adxValues.adx.length > 0 ? adxValues.adx[adxValues.adx.length - 1] : null,
-            pdi: adxValues.pdi.length > 0 ? adxValues.pdi[adxValues.pdi.length - 1] : null,
-            ndi: adxValues.ndi.length > 0 ? adxValues.ndi[adxValues.ndi.length - 1] : null,
-            atr: atrValues.length > 0 ? atrValues[atrValues.length - 1] : null,
-            sma: smaValues,
-            ema: emaValues,
-            vwap: vwapValues,
-            bollingerBands: bbValues,
-            ma: {
-                short: emaValues.length > 0 ? emaValues[emaValues.length - 1] : null,
-                long: smaValues.length > 0 ? smaValues[smaValues.length - 1] : null,
-            }
-        });
+        setIndicators(newIndicators);
 
     }, [chartData, strategyCouncil]);
 
 
-    // Effect for council voting and execution
+    // Effect for council voting and execution logic
     useEffect(() => {
-        if (!isCouncilAutopilotOn || !strategyCouncil.length || councilExecutionRef.current.isExecuting) return;
+        if (!isCouncilAutopilotOn || !strategyCouncil.length || councilExecutionRef.current.isExecuting || !indicators) return;
 
         let currentThreshold = consensusThreshold;
         if (isDynamicConsensusOn && indicators.atr) {
@@ -616,7 +628,6 @@ ${basePromptInstructions}`;
                 }
             }
 
-            // A lógica de votação permanece a mesma
             switch(robot.strategyType) {
                  case 'RSI':
                     if (indicators.rsi) {
@@ -632,6 +643,15 @@ ${basePromptInstructions}`;
                         else if (robot.weakBuyThreshold && indicators.stoch <= robot.weakBuyThreshold) { vote = 'RISE'; confidence = robot.weakConfidence; }
                         else if (robot.strongSellThreshold && indicators.stoch >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
                         else if (robot.weakSellThreshold && indicators.stoch >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    }
+                    break;
+                 case 'MACD_CROSS':
+                    if (indicators.macd?.macd && indicators.macd.signal) {
+                        const prevMacd = chartData.length > 1 ? calculateMACD(chartData.slice(0,-1) as CandleData[]).macd.pop() : null;
+                        if(prevMacd) {
+                             if(prevMacd <= indicators.macd.signal && indicators.macd.macd > indicators.macd.signal) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                             if(prevMacd >= indicators.macd.signal && indicators.macd.macd < indicators.macd.signal) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                        }
                     }
                     break;
             }
@@ -669,7 +689,7 @@ ${basePromptInstructions}`;
 
     }, [
         isCouncilAutopilotOn, 
-        indicators, // O gatilho principal agora são os indicadores
+        indicators, // The main trigger is now the indicators object itself
         strategyCouncil, 
         consensusThreshold, 
         isDynamicConsensusOn, 
@@ -679,7 +699,8 @@ ${basePromptInstructions}`;
         activeSymbol, 
         toast, 
         form, 
-        supervisionCommitteeCheck
+        supervisionCommitteeCheck,
+        chartData // Also listen to chartData for MACD prev calculation
     ]);
 
     return {
