@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, Fragment } from "react";
@@ -11,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
-import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award, Laptop, Wand } from "lucide-react";
+import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award, Laptop, Wand, ClipboardPaste } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "../ui/label";
@@ -94,6 +93,7 @@ export function AutoTraderCouncilInterface({
   const renderStrategyParams = (robot: RobotStrategy) => {
     switch (robot.strategyType) {
         case 'RSI':
+            return `Sinal Forte < ${robot.strongBuyThreshold}, Sinal Fraco < ${robot.weakBuyThreshold}`;
         case 'STOCHASTIC':
             return `Sinal Forte < ${robot.strongBuyThreshold}, Sinal Fraco < ${robot.weakBuyThreshold}`;
         case 'MOVING_AVERAGE_CROSS':
@@ -114,7 +114,7 @@ export function AutoTraderCouncilInterface({
         case 'VOLUME_PROFILE':
             return `POC de ${robot.profileBars} barras`;
         default:
-            return "Parâmetros desconhecidos";
+            return "Parâmetros não definidos";
     }
   }
 
