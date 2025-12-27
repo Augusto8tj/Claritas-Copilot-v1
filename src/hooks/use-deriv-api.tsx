@@ -374,8 +374,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         try {
             const response = JSON.parse(event.data);
 
-            if (response.error) {
-                if (response.error.code !== 'AlreadySubscribed') console.error(`[Deriv WS] Error:`, response.error);
+            if (response.error && response.error.code) {
+                if (response.error.code !== 'AlreadySubscribed') {
+                  console.error(`[Deriv WS] Error:`, response.error);
+                }
             }
             
             const reqId = response.req_id;
@@ -515,7 +517,20 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   
   // Effect to manage market data subscription
   useEffect(() => {
-    subscribeToMarketData(activeSymbol);
+    if (isConnected) {
+        subscribeToMarketData(activeSymbol);
+    }
+    // Cleanup function to unsubscribe when component unmounts or deps change
+    return () => {
+        if (activeSubscriptionIdRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
+            try {
+                wsRef.current.send(JSON.stringify({ forget: activeSubscriptionIdRef.current }));
+            } catch (e) {
+                console.warn('[Deriv WS] Could not unsubscribe on cleanup:', e);
+            }
+            activeSubscriptionIdRef.current = null;
+        }
+    };
   }, [isConnected, chartType, timePeriod, activeSymbol, subscribeToMarketData]);
 
   const setAccountType = (type: AccountType) => {
