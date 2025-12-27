@@ -8,14 +8,19 @@ import { analyzeTradeLossAction } from '@/app/actions/ai-actions';
 import type { Operation } from '@/components/trading/operations-log.types';
 import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
 import { useToast } from './use-toast';
-import { useDerivApi } from './use-deriv-api';
+import { useDerivApi, type ApiHistoricalData } from './use-deriv-api';
+
+
+const getHistoricalDataFromApi = async (getFn: (symbol: string, style: 'ticks' | 'candles', count: number) => Promise<ApiHistoricalData[]>, symbol: string) => {
+    return getFn(symbol, 'ticks', 100);
+}
 
 export function useTradeAnalysis(
     activeSymbol: string | null,
     operationsLog: Operation[],
     incrementRequestCount: () => void,
 ) {
-    const { getHistoricalData } = useDerivApi();
+    const { chartData } = useDerivApi();
     const { toast } = useToast();
     
     const analyzeSessionPerformance = useCallback(async (): Promise<string> => {
@@ -37,11 +42,17 @@ export function useTradeAnalysis(
     const analyzeLosingTrade = useCallback(async (losingOp: Operation, activeStrategy: AutoTraderStrategyOutput | null): Promise<string | null> => {
         console.log(`[Loss Analyzer] Analyzing losing trade: ${losingOp.id}`);
         try {
-            const historicalData = await getHistoricalData(losingOp.asset, undefined, 100);
+            if (!chartData || chartData.length < 50) {
+                throw new Error("Dados históricos insuficientes para analisar a perda.");
+            }
+            const historicalDataForAI = chartData.map(item => ({
+                date: new Date(item.epoch * 1000).toISOString(),
+                price: 'price' in item ? item.price : item.close
+            }));
             
             const analysisInput = {
                 operation: JSON.stringify(losingOp),
-                historicalDataJson: JSON.stringify(historicalData),
+                historicalDataJson: JSON.stringify(historicalDataForAI),
                 activeStrategyJson: JSON.stringify(activeStrategy), 
             };
             
@@ -64,7 +75,7 @@ export function useTradeAnalysis(
             toast({ variant: 'destructive', title: "Erro na Análise", description: e.message });
             return null;
         }
-    }, [toast, getHistoricalData, incrementRequestCount]);
+    }, [toast, chartData, incrementRequestCount]);
 
     return {
         analyzeSessionPerformance,

@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useDerivApi } from './use-deriv-api';
+import { useDerivApi, type ChartData } from './use-deriv-api';
 import { useToast } from './use-toast';
 import { getStrategyCouncilAction } from '@/app/actions/ai-actions';
 import type { RobotStrategy, StrategyCouncilOutput } from '@/ai/flows/strategy-council-flow.types';
@@ -57,7 +57,7 @@ export function useRobotCouncil(
     ) => Promise<TradeResult>,
     indicators: any
 ) {
-    const { isConnected, getHistoricalData, chartData } = useDerivApi();
+    const { isConnected, chartData } = useDerivApi();
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
@@ -121,10 +121,9 @@ export function useRobotCouncil(
         
         try {
             const { duration_unit } = form.getValues();
-            const historicalData = await getHistoricalData(activeSymbol, undefined, 200);
-            if (!historicalData || historicalData.length < 50) throw new Error("Dados históricos insuficientes.");
+            if (!chartData || chartData.length < 50) throw new Error("Dados históricos insuficientes.");
 
-            const historicalDataJson = JSON.stringify(historicalData.map(d => ({...d, date: new Date(d.epoch * 1000).toISOString()})))
+            const historicalDataJson = JSON.stringify(chartData.map(d => ({...d, date: new Date(d.epoch * 1000).toISOString()})))
 
             if (useManualCouncilMode) {
                 const allStrategies: RobotStrategy['strategyType'][] = ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE'];
@@ -210,7 +209,7 @@ ${basePromptInstructions}`;
         } finally {
             setIsFetchingCouncil(false);
         }
-    }, [activeSymbol, dailyBalance, form, toast, getHistoricalData, useManualCouncilMode, useSingleManualPrompt, incrementGeminiRequestCount]);
+    }, [activeSymbol, dailyBalance, form, toast, chartData, useManualCouncilMode, useSingleManualPrompt, incrementGeminiRequestCount]);
 
     const processManualCouncilResponse = (batchId: string, jsonResponse: string) => {
         try {

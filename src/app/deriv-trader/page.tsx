@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DerivTraderInterface } from "@/components/trading/deriv-trader-interface";
@@ -19,7 +19,6 @@ import { riseFallSchema, type RiseFallFormValues } from "@/components/trading/de
 import { AutoTraderInterface } from "@/components/trading/auto-trader-interface";
 import { AutoTraderCouncilInterface } from "@/components/trading/auto-trader-council-interface";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useMarketData } from "@/hooks/use-market-data";
 import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
 import { useAutopilot } from "@/hooks/use-autopilot";
 import { useRobotCouncil } from "@/hooks/use-robot-council";
@@ -39,10 +38,14 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
     operationsLog,
     addActiveContract,
     executeTrade,
+    chartData,
+    isChartLoading,
+    chartError,
+    chartType,
+    setChartType,
+    timePeriod,
+    setTimePeriod,
   } = useDerivApi();
-  
-  const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod } = useMarketData(activeSymbol);
-  
   
   const [indicators, setIndicators] = useState({
       rsi: null as number | null,
@@ -65,7 +68,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, robotCouncil.incrementGeminiRequestCount);
   const autopilot = useAutopilot(indicators, robotCouncil.incrementGeminiRequestCount);
 
-  React.useEffect(() => {
+  useEffect(() => {
       if (chartData.length > 0 && robotCouncil.strategyCouncil.length > 0) {
           const calculatedIndicators = calculateAllIndicators(chartData, robotCouncil.strategyCouncil);
           setIndicators(calculatedIndicators);
@@ -181,7 +184,14 @@ export default function DerivTraderPage() {
     isConnecting,
     isAssetsLoading,
     assetGroups,
+    setActiveSymbol: setApiActiveSymbol,
   } = useDerivApi();
+  
+  useEffect(() => {
+      if (activeSymbol) {
+          setApiActiveSymbol(activeSymbol);
+      }
+  }, [activeSymbol, setApiActiveSymbol]);
 
   return (
     <FormProvider {...form}>
@@ -229,5 +239,3 @@ export default function DerivTraderPage() {
     </FormProvider>
   );
 }
-
-    

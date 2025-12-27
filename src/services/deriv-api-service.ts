@@ -1,4 +1,5 @@
 
+
 'use client';
 
 /**
@@ -16,26 +17,3 @@ export interface TradeResult {
   entryTick?: number;
   entryTime?: number;
 }
-
-export interface Asset {
-  value: string;
-  label: string;
-  marketIsOpen: boolean;
-  submarket: string;
-  market: string;
-  minDuration: string;
-}
-
-export interface AssetGroup {
-  label: string;
-  options: Asset[];
-}
-
-export type HistoricalData = {
-    date: string;
-    price: number;
-    open?: number;
-    high?: number;
-    low?: number;
-    close?: number;
-};

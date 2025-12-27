@@ -9,13 +9,18 @@ import { getAutotraderStrategyAction } from '@/app/actions/ai-actions';
 import type { RiseFallFormValues } from "@/components/trading/deriv-trader-interface.types";
 import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
 import { useTradeAnalysis } from "./use-trade-analysis";
-import { useDerivApi } from "./use-deriv-api";
+import { useDerivApi, type ApiHistoricalData } from "./use-deriv-api";
+
+// Helper function to get historical data from the main hook
+const getHistoricalDataFromApi = async (getFn: (symbol: string, style: 'ticks' | 'candles', count: number) => Promise<ApiHistoricalData[]>, symbol: string) => {
+    return getFn(symbol, 'ticks', 200);
+}
 
 export function useAutopilot(
     indicators: { rsi: number | null, stoch: number | null },
     incrementRequestCount: () => void
 ) {
-    const { getHistoricalData, operationsLog, addActiveContract, executeTrade, priceTicks, activeSymbol } = useDerivApi();
+    const { operationsLog, addActiveContract, executeTrade, chartData, activeSymbol } = useDerivApi();
     const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, incrementRequestCount);
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
@@ -39,10 +44,13 @@ export function useAutopilot(
         setIsLoading(true);
         setError(null);
         try {
-            const historicalData = await getHistoricalData(activeSymbol, undefined, 200);
-            if(!historicalData || historicalData.length < 50) {
+            if (!chartData || chartData.length < 50) {
                 throw new Error("Dados históricos insuficientes para definir a estratégia.");
             }
+            const historicalDataForAI = chartData.map(item => ({
+                date: new Date(item.epoch * 1000).toISOString(),
+                price: 'price' in item ? item.price : item.close
+            }));
             
             incrementRequestCount();
             const result = await getAutotraderStrategyAction({
@@ -53,7 +61,7 @@ export function useAutopilot(
                 duration: 5,
                 durationUnit: 't',
                 recentTrades: operationsLog.slice(0, 5),
-                historicalData: historicalData,
+                historicalData: historicalDataForAI,
                 lastLossAnalysisSuggestion: lastAutopilotLossSuggestion ?? undefined,
             });
 
@@ -71,7 +79,7 @@ export function useAutopilot(
         } finally {
             setIsLoading(false);
         }
-      }, [isAutopilotOn, activeSymbol, dailyBalance, operationsLog, lastAutopilotLossSuggestion, toast, getHistoricalData, incrementRequestCount]);
+      }, [isAutopilotOn, activeSymbol, dailyBalance, operationsLog, lastAutopilotLossSuggestion, toast, chartData, incrementRequestCount]);
     
     // Effect to manage the strategy refresh interval
     useEffect(() => {

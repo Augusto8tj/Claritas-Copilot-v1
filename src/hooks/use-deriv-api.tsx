@@ -13,6 +13,14 @@ const DERIV_REAL_TOKEN_KEY = 'derivRealApiToken';
 const DERIV_ACCOUNT_TYPE_KEY = 'derivAccountType';
 const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
 
+// Types that were in use-market-data.ts
+export type TimePeriod = '1m' | '2m' | '3m' | '5m' | '10m' | '15m' | '30m' | '1h' | '8h' | '1d';
+export type ChartType = 'Area' | 'Candle';
+export type TickData = { epoch: number; price: number };
+export type CandleData = { epoch: number; open: number; high: number; low: number; close: number; volume?: number };
+export type ChartData = TickData | CandleData;
+
+
 export type AccountType = 'demo' | 'real';
 
 export interface AccountBalance {
@@ -50,7 +58,8 @@ export interface AssetGroup {
   options: Asset[];
 }
 
-export type HistoricalData = {
+// Renamed from HistoricalData to avoid confusion with ChartData
+export type ApiHistoricalData = {
     epoch: number;
     price: number;
     open?: number;
@@ -75,12 +84,22 @@ interface DerivApiContextType {
   operationsLog: Operation[];
   assetGroups: AssetGroup[];
   isAssetsLoading: boolean;
-  priceTicks: { epoch: number, price: number }[];
+  
+  // Data for consumers
+  activeSymbol: string | null;
+  setActiveSymbol: (symbol: string | null) => void;
+  chartData: ChartData[];
+  isChartLoading: boolean;
+  chartError: string | null;
+  chartType: ChartType;
+  setChartType: (type: ChartType) => void;
+  timePeriod: TimePeriod;
+  setTimePeriod: (period: TimePeriod) => void;
+
   setAccountType: (type: AccountType) => void;
   setTokens: (tokens: { demo?: string; real?: string }) => void;
   disconnect: (type: AccountType) => void;
   reconnect: () => Promise<boolean>;
-  makeRequest: <T,>(request: object) => Promise<T>;
   executeTrade: (
     contractType: string,
     stake: number,
@@ -90,12 +109,8 @@ interface DerivApiContextType {
     durationUnit: DurationUnit,
     initiator: OperationInitiator,
   ) => Promise<TradeResult>;
-  getHistoricalData: (symbol: string, period?: string, count?: number) => Promise<HistoricalData[]>;
   clearActiveContracts: () => void;
   addActiveContract: (contract: ActiveContract) => void;
-  addMarketDataListener: (callback: MarketDataCallback) => void;
-  removeMarketDataListener: (callback: MarketDataCallback) => void;
-  wsRef: React.RefObject<WebSocket | null>;
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
@@ -109,7 +124,7 @@ const marketNameMapping: Record<string, string> = {
     'basket_index': 'Cestas de Moedas e Matérias-Primas'
 };
 
-const getGranularityForTimePeriod = (timePeriod: any): number => {
+const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     switch(timePeriod) {
         case '1m': return 60;
         case '2m': return 120;
@@ -125,6 +140,16 @@ const getGranularityForTimePeriod = (timePeriod: any): number => {
     }
 }
 
+const MAX_DATA_POINTS = 1000;
+const addDataPoint = (prevData: ChartData[], newPoint: ChartData): ChartData[] => {
+    const data = [...prevData];
+    if (data.length >= MAX_DATA_POINTS) {
+        data.shift();
+    }
+    data.push(newPoint);
+    return data;
+};
+
 export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [demoToken, setDemoToken] = useState<string | null>(null);
   const [realToken, setRealToken] = useState<string | null>(null);
@@ -135,8 +160,16 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [operationsLog, setOperationsLog] = useState<Operation[]>([]);
   const [assetGroups, setAssetGroups] = useState<AssetGroup[]>([]);
   const [isAssetsLoading, setIsAssetsLoading] = useState(true);
-  const [priceTicks, setPriceTicks] = useState<{ epoch: number, price: number }[]>([]);
   const { toast } = useToast();
+
+  // Chart state now lives here
+  const [activeSymbol, setActiveSymbol] = useState<string | null>(null);
+  const [chartData, setChartData] = useState<ChartData[]>([]);
+  const [isChartLoading, setIsChartLoading] = useState(true);
+  const [chartError, setChartError] = useState<string | null>(null);
+  const [chartType, setChartType] = useState<ChartType>('Area');
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('5m');
+  const activeSubscriptionIdRef = useRef<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -145,22 +178,18 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const promisesRef = useRef<Map<string, PromiseCallbacks>>(new Map());
   const [triggerReconnect, setTriggerReconnect] = useState(0);
 
-  const marketDataListenersRef = useRef<MarketDataCallback[]>([]);
-
   useEffect(() => {
     try {
       const storedDemoToken = localStorage.getItem(DERIV_DEMO_TOKEN_KEY);
       const storedRealToken = localStorage.getItem(DERIV_REAL_TOKEN_KEY);
       const storedAccountType = localStorage.getItem(DERIV_ACCOUNT_TYPE_KEY) as AccountType | null;
       
-      setDemoToken(storedDemoToken || "ljUGk6wbLSrtEDo");
-      setRealToken(storedRealToken || "GU5MwbX1kwvSoyw");
+      setDemoToken(storedDemoToken);
+      setRealToken(storedRealToken);
 
       if (storedAccountType) setAccountTypeState(storedAccountType);
     } catch (error) {
       console.error("Failed to access localStorage:", error);
-       setDemoToken("ljUGk6wbLSrtEDo");
-       setRealToken("GU5MwbX1kwvSoyw");
     }
     setIsLoading(false);
   }, []);
@@ -176,8 +205,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         
         const req_id = Date.now() + Math.floor(Math.random() * 1000000);
         const payload = { ...request, req_id };
-        
-        promisesRef.current.set(String(req_id), { resolve, reject });
         
         const timeoutId = setTimeout(() => {
             if (promisesRef.current.has(String(req_id))) {
@@ -204,15 +231,39 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     });
   }, []);
   
-  const addMarketDataListener = useCallback((callback: MarketDataCallback) => {
-    marketDataListenersRef.current.push(callback);
-  }, []);
+  const getHistoricalData = useCallback(async (symbol: string, style: 'ticks' | 'candles', count: number, period?: TimePeriod): Promise<ApiHistoricalData[]> => {
+      const request: any = {
+          ticks_history: symbol,
+          count,
+          end: 'latest',
+          adjust_start_time: 1,
+          style: style,
+      };
+      if (style === 'candles') {
+          request.granularity = getGranularityForTimePeriod(period!);
+      }
+      
+      const response: any = await makeRequest(request);
 
-  const removeMarketDataListener = useCallback((callback: MarketDataCallback) => {
-    marketDataListenersRef.current = marketDataListenersRef.current.filter(
-      (cb) => cb !== callback
-    );
-  }, []);
+      if (response.history) {
+        return response.history.times.map((time: number, index: number) => ({
+          epoch: time,
+          price: response.history.prices[index],
+        }));
+      }
+    
+      if (response.candles) {
+        return response.candles.map((candle: any) => ({
+          epoch: candle.epoch,
+          open: candle.open,
+          high: candle.high,
+          low: candle.low,
+          close: candle.close,
+          price: candle.close, // Add price for consistency
+        }));
+      }
+      return [];
+  }, [makeRequest]);
 
   const executeTrade = useCallback(async (
     contractType: string,
@@ -257,7 +308,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             duration: duration,
             durationUnit: durationUnit,
             initiator,
-            entryPrice: buyResult.entry_tick,
+            entryPrice: buyResult.entry_tick_display_value ? parseFloat(buyResult.entry_tick_display_value) : undefined,
         };
         setOperationsLog(prevLog => [newOperation, ...prevLog]);
 
@@ -274,68 +325,55 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
          return { success: false, message };
       }
   }, [isConnected, makeRequest]);
-  
-  const getHistoricalData = useCallback(async (symbol: string, period?: string, count?: number): Promise<HistoricalData[]> => {
-    if (!wsRef.current || !isConnected) {
-      throw new Error("A conexão com a API da Deriv não está ativa.");
+
+  const subscribeToMarketData = useCallback(async (symbol: string | null) => {
+    if (activeSubscriptionIdRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
+        try { await makeRequest({ forget: activeSubscriptionIdRef.current }); } catch (e) { /* ignore */ }
+        activeSubscriptionIdRef.current = null;
     }
 
-    const request: any = {
-      ticks_history: symbol,
-      count: count ?? 1000,
-      adjust_start_time: 1,
-    };
+    if (!isConnected || !symbol) {
+        setChartData([]);
+        setIsChartLoading(!!symbol);
+        return;
+    }
 
-    if (period) {
-      request.style = 'candles';
-      request.granularity = getGranularityForTimePeriod(period);
-    } else {
-      request.style = 'ticks';
-      request.end = 'latest';
-    }
-  
-    const response: any = await makeRequest(request);
-  
-    if (response.history) {
-      return response.history.times.map((time: number, index: number) => ({
-        epoch: time,
-        price: response.history.prices[index],
-      }));
-    }
-  
-    if (response.candles) {
-      return response.candles.map((candle: any) => ({
-        epoch: candle.epoch,
-        open: candle.open,
-        high: candle.high,
-        low: candle.low,
-        close: candle.close,
-        price: candle.close,
-      }));
-    }
-  
-    return [];
-  }, [isConnected, makeRequest]);
+    setIsChartLoading(true);
+    setChartError(null);
+    setChartData([]);
 
+    try {
+        const history = await getHistoricalData(symbol, chartType === 'Candle' ? 'candles' : 'ticks', 1000, timePeriod);
+        setChartData(history as ChartData[]);
+
+        const subRequest = chartType === 'Candle'
+            ? { ticks_history: symbol, style: 'candles', granularity: getGranularityForTimePeriod(timePeriod), subscribe: 1 }
+            : { ticks: symbol, subscribe: 1 };
+        
+        const subResponse: any = await makeRequest(subRequest);
+        activeSubscriptionIdRef.current = subResponse.subscription.id;
+
+    } catch (error: any) {
+        console.error(`[Market Data] Error for ${symbol}:`, error);
+        setChartError(error.message || 'Falha ao carregar dados do mercado.');
+    } finally {
+        setIsChartLoading(false);
+    }
+  }, [isConnected, getHistoricalData, makeRequest, chartType, timePeriod]);
+
+
+  // Main Connection and Data Subscription Effect
   useEffect(() => {
     if (!activeToken || isLoading) {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
+      if (wsRef.current) wsRef.current.close();
       return;
     }
 
-    if (wsRef.current && (wsRef.current.readyState === WebSocket.CONNECTING || wsRef.current.readyState === WebSocket.OPEN)) {
-        if (triggerReconnect === 0) return; // Don't reconnect if not explicitly triggered
-    }
-    
     setIsConnecting(true);
     setConnectionError(null);
     setIsAssetsLoading(true);
   
-    if (wsRef.current) {
-        wsRef.current.close();
-    }
+    if (wsRef.current) wsRef.current.close();
 
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     wsRef.current = ws;
@@ -343,37 +381,26 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     ws.onmessage = (event) => {
         try {
             const response = JSON.parse(event.data);
-            const reqId = response.req_id;
+
+            if (response.error) {
+                if (response.error.code !== 'AlreadySubscribed') console.error(`[Deriv WS] Error:`, response.error);
+            }
             
+            const reqId = response.req_id;
             if (reqId && promisesRef.current.has(String(reqId))) {
                 const promise = promisesRef.current.get(String(reqId));
                 promisesRef.current.delete(String(reqId));
                 if (response.error) {
-                    if (response.error.code === 'AlreadySubscribed') {
-                        promise?.resolve(response);
-                    } else {
-                        promise?.reject(new Error(response.error.message || 'Unknown error'));
-                    }
+                    promise?.reject(new Error(response.error.message || 'Unknown error'));
                 } else {
                     promise?.resolve(response);
                 }
                 return;
             }
 
-            if (response.error) {
-                if (response.error.code !== 'AlreadySubscribed') {
-                    console.error(`[Deriv WS Provider] Error received:`, response.error);
-                }
-                return;
-            }
-
             switch (response.msg_type) {
                 case 'balance':
-                    setAccountBalance({
-                        balance: response.balance.balance,
-                        currency: response.balance.currency,
-                        loading: false
-                    });
+                    setAccountBalance({ balance: response.balance.balance, currency: response.balance.currency, loading: false });
                     break;
                 case 'proposal_open_contract':
                     const contract = response.proposal_open_contract;
@@ -390,38 +417,38 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
                     setOperationsLog(prevLog => prevLog.map(op =>
                         op.id === contract.contract_id 
-                        ? { 
-                            ...op, 
-                            status: profit >= 0 ? 'won' : 'lost', 
-                            result: profit,
-                            exitPrice: parseFloat(contract.exit_tick_display_value)
-                          } 
+                        ? { ...op, status: profit >= 0 ? 'won' : 'lost', result: profit, exitPrice: parseFloat(contract.exit_tick_display_value) } 
                         : op
                     ));
                     
-                    setActiveContracts(prev => prev.map(c => 
-                        c.contractId === contract.contract_id 
-                            ? { ...c, status: profit >= 0 ? 'won' : 'lost', exitTick: parseFloat(contract.exit_tick_display_value), exitTime: contract.exit_tick_time }
-                            : c
-                    ));
-
-                    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                        const req_id = Date.now() + Math.floor(Math.random() * 1000000);
-                        wsRef.current.send(JSON.stringify({"balance": 1, "req_id": req_id}));
+                    if (wsRef.current?.readyState === WebSocket.OPEN) {
+                        wsRef.current.send(JSON.stringify({"balance": 1, "req_id": Date.now()}));
                     }
                     break;
-                
                 case 'tick':
-                    if (response.tick) {
+                    if (chartType === 'Area' && response.tick.symbol === activeSymbol) {
                         const tick = response.tick;
-                        setPriceTicks(prev => [...prev.slice(-999), { epoch: tick.epoch, price: tick.quote }]);
+                        setChartData(prev => addDataPoint(prev, { epoch: tick.epoch, price: tick.quote }));
                     }
-                    marketDataListenersRef.current.forEach(callback => callback(response));
                     break;
                 case 'ohlc':
-                case 'history':
-                case 'candles':
-                    marketDataListenersRef.current.forEach(callback => callback(response));
+                     if (chartType === 'Candle' && response.ohlc.symbol === activeSymbol) {
+                        const ohlc = response.ohlc;
+                        const newCandle: CandleData = {
+                            epoch: ohlc.open_time,
+                            open: parseFloat(ohlc.open),
+                            high: parseFloat(ohlc.high),
+                            low: parseFloat(ohlc.low),
+                            close: parseFloat(ohlc.close),
+                        };
+                        setChartData(prev => {
+                            const lastCandle = prev.length > 0 ? prev[prev.length - 1] as CandleData : null;
+                            if (lastCandle && lastCandle.epoch === newCandle.epoch) {
+                                return [...prev.slice(0, -1), newCandle];
+                            }
+                            return addDataPoint(prev, newCandle);
+                        });
+                    }
                     break;
             }
         } catch (parseError) {
@@ -443,14 +470,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             
             const groupedAssets: { [key: string]: Asset[] } = {};
             assetsRes.active_symbols.forEach((symbol: any) => {
-                let marketKey = symbol.market;
-                if (symbol.market === 'synthetic_index' && symbol.submarket === 'basket_index') {
-                    marketKey = 'basket_index';
-                }
+                const marketKey = (symbol.market === 'synthetic_index' && symbol.submarket === 'basket_index') ? 'basket_index' : symbol.market;
                 const groupName = marketNameMapping[marketKey] || 'Outros';
-                if (!groupedAssets[groupName]) {
-                    groupedAssets[groupName] = [];
-                }
+                if (!groupedAssets[groupName]) groupedAssets[groupName] = [];
                 groupedAssets[groupName].push({
                     value: symbol.symbol,
                     label: symbol.display_name,
@@ -461,21 +483,19 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 });
             });
             
-            const finalAssetGroups: AssetGroup[] = Object.keys(groupedAssets)
+            setAssetGroups(Object.keys(groupedAssets)
                 .map(label => ({ label, options: groupedAssets[label].sort((a, b) => a.label.localeCompare(b.label)) }))
-                .sort((a, b) => a.label.localeCompare(b.label));
-                
-            setAssetGroups(finalAssetGroups);
+                .sort((a, b) => a.label.localeCompare(b.label)));
             setIsAssetsLoading(false);
+            subscribeToMarketData(activeSymbol);
     
         } catch (error: any) {
-            let errorMessage = 'Erro desconhecido ao conectar';
-            if (error instanceof Error) { errorMessage = error.message; }
+            let errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao conectar';
             setConnectionError(`Falha na autorização: ${errorMessage}`);
             setIsConnected(false);
             setIsConnecting(false);
             setIsAssetsLoading(false);
-            if (ws.readyState === WebSocket.OPEN) { ws.close(); }
+            if (ws.readyState === WebSocket.OPEN) ws.close();
         }
     };
   
@@ -497,11 +517,15 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     };
   
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
+      if (wsRef.current) wsRef.current.close();
     };
   }, [activeToken, isLoading, makeRequest, toast, triggerReconnect]);
+
+  
+  // Effect to manage market data subscription
+  useEffect(() => {
+    subscribeToMarketData(activeSymbol);
+  }, [isConnected, chartType, timePeriod, activeSymbol, subscribeToMarketData]);
 
   const setAccountType = (type: AccountType) => {
     try {
@@ -543,16 +567,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   
   const reconnect = useCallback(async (): Promise<boolean> => {
     setTriggerReconnect(c => c + 1);
-    
-    // Give it a moment to see if the connection establishes
     return new Promise(resolve => {
         setTimeout(() => {
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && isConnected) {
-                resolve(true);
-            } else {
-                resolve(false);
-            }
-        }, 3000); // 3-second timeout for the connection attempt
+            resolve(wsRef.current?.readyState === WebSocket.OPEN && isConnected);
+        }, 3000);
     });
   }, [isConnected]);
 
@@ -582,15 +600,18 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     operationsLog,
     assetGroups,
     isAssetsLoading,
-    priceTicks,
-    makeRequest,
+    activeSymbol,
+    setActiveSymbol,
+    chartData,
+    isChartLoading,
+    chartError,
+    chartType,
+    setChartType,
+    timePeriod,
+    setTimePeriod,
     executeTrade,
-    getHistoricalData,
     clearActiveContracts,
     addActiveContract,
-    addMarketDataListener,
-    removeMarketDataListener,
-    wsRef,
   };
 
   return (

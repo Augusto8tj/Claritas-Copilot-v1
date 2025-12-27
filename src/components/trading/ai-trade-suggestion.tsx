@@ -22,7 +22,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Switch } from "../ui/switch";
 import { Label } from "../ui/label";
 import type { RiseFallFormValues } from "./deriv-trader-interface.types";
-import { useMarketData } from "@/hooks/use-market-data";
 
 interface AITradeSuggestionProps {
   symbol: string;
@@ -42,8 +41,7 @@ export function AITradeSuggestion({ symbol, incrementRequestCount }: AITradeSugg
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
   const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(null);
   const [timeSinceAnalysis, setTimeSinceAnalysis] = useState<string>("");
-  const { accountBalance, operationsLog, executeTrade } = useDerivApi();
-  const { chartData } = useMarketData(symbol);
+  const { accountBalance, operationsLog, executeTrade, chartData } = useDerivApi();
   const { toast } = useToast();
   const [autoExecute, setAutoExecute] = useState(false);
   const [isAwaitingEntry, setIsAwaitingEntry] = useState<AwaitingEntryState | null>(null);
@@ -65,21 +63,6 @@ export function AITradeSuggestion({ symbol, incrementRequestCount }: AITradeSugg
     try {
       const formData = form.getValues();
       
-      let dataCount;
-      switch (formData.duration_unit) {
-        case 't': 
-        case 's': 
-          dataCount = 200;
-          break;
-        case 'm': 
-        case 'h': 
-        case 'd': 
-          dataCount = 1000;
-          break;
-        default:
-          dataCount = 200;
-      }
-
       // Use the chartData from the hook as the primary source
       if (!chartData || chartData.length < 50) {
         throw new Error(`Dados históricos insuficientes no gráfico para ${symbol}.`);

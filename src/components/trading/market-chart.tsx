@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import React, { useCallback } from 'react'
@@ -20,7 +21,7 @@ import type {
   CandleData,
   TimePeriod,
   ChartType,
-} from '@/hooks/use-market-data'
+} from '@/hooks/use-deriv-api'
 import { THEMES } from './chart-parts/themes'
 import type { Operation } from '@/components/trading/operations-log.types'
 import {
@@ -408,10 +409,12 @@ export function MarketChart({
     } else {
       ctx.beginPath()
       visibleData.forEach((d, i) => {
-        const x = getX(i)
-        const y = getY(d.price)
-        if (i === 0) ctx.moveTo(x, y)
-        else ctx.lineTo(x, y)
+        if ('price' in d) {
+            const x = getX(i)
+            const y = getY(d.price)
+            if (i === 0) ctx.moveTo(x, y)
+            else ctx.lineTo(x, y)
+        }
       })
       ctx.strokeStyle = colors.line
       ctx.lineWidth = 2
@@ -663,7 +666,7 @@ export function MarketChart({
       if (isCandle(d)) {
         minPrice = Math.min(minPrice, d.low)
         maxPrice = Math.max(maxPrice, d.high)
-      } else {
+      } else if ('price' in d) {
         minPrice = Math.min(minPrice, d.price)
         maxPrice = Math.max(maxPrice, d.price)
       }
