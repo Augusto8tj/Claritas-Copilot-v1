@@ -6,20 +6,13 @@ import { createContext, useContext, useState, useEffect, type ReactNode, useCall
 import type { TradeResult } from '@/services/deriv-api-service';
 import { useToast } from './use-toast';
 import type { Operation, OperationInitiator } from '@/components/trading/operations-log.types';
-import type { DurationUnit } from '@/components/trading/deriv-trader-interface.types';
+import type { DurationUnit, ChartType, TimePeriod, ChartData, CandleData } from './types';
+
 
 const DERIV_DEMO_TOKEN_KEY = 'derivDemoApiToken';
 const DERIV_REAL_TOKEN_KEY = 'derivRealApiToken';
 const DERIV_ACCOUNT_TYPE_KEY = 'derivAccountType';
 const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || "1089";
-
-// Types that were in use-market-data.ts
-export type TimePeriod = '1m' | '2m' | '3m' | '5m' | '10m' | '15m' | '30m' | '1h' | '8h' | '1d';
-export type ChartType = 'Area' | 'Candle';
-export type TickData = { epoch: number; price: number };
-export type CandleData = { epoch: number; open: number; high: number; low: number; close: number; volume?: number };
-export type ChartData = TickData | CandleData;
-
 
 export type AccountType = 'demo' | 'real';
 
@@ -58,7 +51,6 @@ export interface AssetGroup {
   options: Asset[];
 }
 
-// Renamed from HistoricalData to avoid confusion with ChartData
 export type ApiHistoricalData = {
     epoch: number;
     price: number;
@@ -163,7 +155,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
 
   // Chart state now lives here
-  const [activeSymbol, setActiveSymbol] = useState<string | null>(null);
+  const [activeSymbol, setActiveSymbol] = useState<string | null>('1HZ10V');
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [isChartLoading, setIsChartLoading] = useState(true);
   const [chartError, setChartError] = useState<string | null>(null);
@@ -487,7 +479,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 .map(label => ({ label, options: groupedAssets[label].sort((a, b) => a.label.localeCompare(b.label)) }))
                 .sort((a, b) => a.label.localeCompare(b.label)));
             setIsAssetsLoading(false);
-            subscribeToMarketData(activeSymbol);
     
         } catch (error: any) {
             let errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao conectar';
