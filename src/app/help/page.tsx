@@ -124,10 +124,10 @@ export default function HelpPage() {
 
              <AccordionItem value="item-11">
                 <AccordionTrigger className="text-lg font-semibold">
-                    Mesa Operacional de IA (Conselho de Robôs)
+                    Mesa Operacional de IA (Conselho e Supervisão)
                 </AccordionTrigger>
                 <AccordionContent className="text-base leading-relaxed space-y-4">
-                    <p>Esta é a funcionalidade mais avançada do Claritas. Em vez de depender de um único robô, o sistema simula uma "mesa de operações" com 13 entidades de IA que colaboram para tomar decisões de trading mais seguras e inteligentes. A estrutura funciona em duas camadas:</p>
+                    <p>Esta é a funcionalidade mais avançada do Claritas. Em vez de depender de um único robô, o sistema simula uma "mesa de operações" com entidades de IA que colaboram para tomar decisões de trading mais seguras e inteligentes. A estrutura funciona em duas camadas hierárquicas:</p>
                     
                     <div>
                         <h4 className="font-semibold text-md mb-2">Camada 1: O Conselho de Votação (10 Analistas Especialistas)</h4>
@@ -142,8 +142,10 @@ export default function HelpPage() {
                     </div>
 
                     <div>
-                        <h4 className="font-semibold text-md mb-2">Camada 2: O Comité de Supervisão (3 Analistas de Risco)</h4>
-                        <p>Após o conselho votar, a decisão não é final. Ela passa por 3 supervisores que não votam, mas têm poder de veto e ajuste, funcionando como uma camada final de prudência:</p>
+                        <h4 className="font-semibold text-md mb-2">Camada 2: O Comité de Supervisão (3 Supervisores de Risco)</h4>
+                        <p>
+                           Esta é a camada de governação. Após o conselho votar, a decisão **não é final**. Ela passa por 3 supervisores que são **lógica de programação fixa**, não entidades de IA. Eles não votam, mas têm poder de veto e ajuste, funcionando como uma camada final de prudência antes de qualquer capital ser arriscado. Eles são invocados em código sempre que uma operação está prestes a ser executada.
+                        </p>
                         <ul className="list-disc pl-6 mt-2 space-y-2 text-sm">
                             <li><strong>Analista de Risco:</strong> O mais importante. Ele verifica a sua banca do dia, o alvo de lucro e o limite de perdas. Se algum limite for atingido, ele <strong>veta a operação</strong> para proteger o seu capital.</li>
                             <li><strong>Analista de Volatilidade (ATR):</strong> Mede a "turbulência" do mercado. Se o mercado estiver demasiado caótico ou parado, ele <strong>reduz o valor da aposta (stake)</strong> para diminuir o risco.</li>

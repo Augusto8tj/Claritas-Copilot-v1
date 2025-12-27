@@ -202,7 +202,7 @@ ${basePromptInstructions}`;
                     setStrategyCouncil(result.success.council);
                     toast({ title: "Conselho de IA Montado!", description: "Os 10 analistas-robôs estão prontos para a sessão." });
                 } else {
-                    throw new Error(result.error || "Ocorreu um erro desconhecido ao gerar o conselho.");
+                    throw new Error(result.error || "Ocorreu um erro inesperado ao gerar o conselho.");
                 }
             }
         } catch (e: any) {
@@ -215,8 +215,7 @@ ${basePromptInstructions}`;
     const processManualCouncilResponse = (batchId: string, jsonResponse: string) => {
         try {
             const parsed = JSON.parse(jsonResponse);
-            // The prompt asks for a "robots" key. We validate that and then pass it as "council" to our schema.
-            const dataToValidate = { council: parsed.robots || [] };
+            const dataToValidate = { council: parsed.robots || parsed.council || [] };
             const validated = StrategyCouncilOutputSchema.safeParse(dataToValidate);
 
             if (!validated.success) {
@@ -239,11 +238,20 @@ ${basePromptInstructions}`;
         }
     };
     
+    /**
+     * This function acts as the "Supervision Committee", a hard-coded layer of risk management.
+     * It is invoked AFTER the AI council votes, but BEFORE the trade is executed.
+     * It does not create AI entities, but rather applies a set of fixed, logical rules.
+     * 1. Risk Analyst: Checks daily PnL against stop-loss and take-profit targets. Has veto power.
+     * 2. Volatility Analyst (ATR): Measures market turbulence and adjusts stake down if too high or low.
+     * 3. Trend Analyst (ADX): Measures trend clarity. Reduces risk in sideways markets, can increase in strong trends.
+     * @returns An object with the final adjusted stake and a potential veto reason.
+     */
     const supervisionCommitteeCheck = useCallback((stake: number, direction: 'RISE' | 'FALL') => {
         let finalStake = stake;
         let vetoReason: string | null = null;
     
-        // 1. Analista de Risco
+        // 1. Risk Analyst (Chief Supervisor)
         const dailyPnL = operationsLog
             .filter(op => op.initiator === 'Conselho' && op.status !== 'pending' && new Date(op.timestamp).toDateString() === new Date().toDateString())
             .reduce((sum, op) => sum + (op.result || 0), 0);
@@ -256,34 +264,34 @@ ${basePromptInstructions}`;
     
         if (vetoReason) return { finalStake, vetoReason };
 
-        // 2. Analista de Volatilidade (ATR)
+        // 2. Volatility Analyst (ATR)
         const atr = indicators.atr;
         const lastPrice = chartData.length > 0 ? ('price' in chartData[chartData.length-1] ? chartData[chartData.length-1].price : (chartData[chartData.length-1] as any).close) : 0;
 
         if (atr && lastPrice > 0) {
             const normalizedATR = atr / lastPrice; 
-            if (normalizedATR > 0.0005) { // Ex: Volatilidade muito alta
+            if (normalizedATR > 0.0005) { // Ex: Volatility too high
                 finalStake *= 0.5;
                 toast({ title: "Supervisor de Volatilidade", description: "Mercado turbulento, risco reduzido para 50%.", variant: "default" });
-            } else if (normalizedATR < 0.0001) { // Ex: Volatilidade muito baixa
+            } else if (normalizedATR < 0.0001) { // Ex: Volatility too low
                 finalStake *= 0.75;
                 toast({ title: "Supervisor de Volatilidade", description: "Mercado parado, risco reduzido para 75%.", variant: "default" });
             }
         }
     
-        // 3. Analista de Tendência (ADX)
+        // 3. Trend Analyst (ADX)
         const adx = indicators.adx;
         if (adx) {
-            if (adx < 20) { // Mercado lateral
+            if (adx < 20) { // Sideways market
                 finalStake *= 0.75;
                 toast({ title: "Supervisor de Tendência", description: "Mercado lateral, risco reduzido para 75%.", variant: "default" });
-            } else if (adx > 35) { // Tendência forte
-                finalStake *= 1.25; // Aumenta o risco em 25%
+            } else if (adx > 35) { // Strong trend
+                finalStake *= 1.25; // Increase risk by 25%
                 toast({ title: "Supervisor de Tendência", description: "Tendência forte confirmada, risco aumentado em 25%.", variant: "default" });
             }
         }
 
-        // Garante que o stake não seja menor que o mínimo
+        // Ensure stake is not below the minimum
         if (finalStake < 0.35) finalStake = 0.35;
         
         return { finalStake, vetoReason };
@@ -323,7 +331,7 @@ ${basePromptInstructions}`;
                     else if (indicators.rsi && robot.strongSellThreshold && indicators.rsi >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
                     else if (indicators.rsi && robot.weakSellThreshold && indicators.rsi >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
                     break;
-                 // Adicionar lógica de votação para outros tipos de robôs aqui...
+                 // Add voting logic for other robot types here...
             }
 
             newVotes[robot.id] = { vote, confidence, weight };
@@ -344,7 +352,7 @@ ${basePromptInstructions}`;
                 toast({ title: "Operação Vetada", description: vetoReason, variant: "destructive" });
                 councilExecutionRef.current.isExecuting = false;
                 if(vetoReason.includes("Limite de perda") || vetoReason.includes("Meta de lucro")){
-                    setIsCouncilAutopilotOn(false); // Desliga o piloto
+                    setIsCouncilAutopilotOn(false); // Turn off autopilot
                 }
                 return;
             }
