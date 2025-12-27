@@ -92,7 +92,7 @@ const getStrategyCouncilFlow = ai.defineFlow(
         console.log(`[Council Flow] Lote concluído. Total de robôs montados: ${allRobots.length}`);
         
         // Strategic pause to respect API rate limits (20 reqs/minute -> 1 req every 3 seconds)
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await new Promise(resolve => setTimeout(resolve, 10000));
     }
 
 

@@ -11,16 +11,18 @@ import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-f
 import { useTradeAnalysis } from "./use-trade-analysis";
 import { useDerivApi } from "./use-deriv-api";
 
-export function useAutopilot(indicators: { rsi: number | null, stoch: number | null }) {
+export function useAutopilot(
+    indicators: { rsi: number | null, stoch: number | null },
+    incrementRequestCount: () => void
+) {
     const { getHistoricalData, operationsLog, addActiveContract, executeTrade, priceTicks, activeSymbol } = useDerivApi();
-    const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
+    const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, incrementRequestCount);
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
     const [isAutopilotOn, setIsAutopilotOn] = useState(false);
     const [autopilotStrategy, setAutopilotStrategy] = useState<AutoTraderStrategyOutput | null>(null);
     const [lastAutopilotLossSuggestion, setLastAutopilotLossSuggestion] = useState<string | null>(null);
-    const [geminiRequestCount, setGeminiRequestCount] = useState(0);
     const [dailyBalance, setDailyBalance] = useState(100);
     const [dailyTarget, setDailyTarget] = useState(50);
     const [isLoading, setIsLoading] = useState(false);
@@ -42,7 +44,7 @@ export function useAutopilot(indicators: { rsi: number | null, stoch: number | n
                 throw new Error("Dados históricos insuficientes para definir a estratégia.");
             }
             
-            setGeminiRequestCount(prev => prev + 1);
+            incrementRequestCount();
             const result = await getAutotraderStrategyAction({
                 symbol: activeSymbol,
                 balance: dailyBalance,
@@ -69,7 +71,7 @@ export function useAutopilot(indicators: { rsi: number | null, stoch: number | n
         } finally {
             setIsLoading(false);
         }
-      }, [isAutopilotOn, activeSymbol, dailyBalance, operationsLog, lastAutopilotLossSuggestion, toast, getHistoricalData]);
+      }, [isAutopilotOn, activeSymbol, dailyBalance, operationsLog, lastAutopilotLossSuggestion, toast, getHistoricalData, incrementRequestCount]);
     
     // Effect to manage the strategy refresh interval
     useEffect(() => {
@@ -170,7 +172,6 @@ export function useAutopilot(indicators: { rsi: number | null, stoch: number | n
         setDailyBalance,
         dailyTarget,
         setDailyTarget,
-        geminiRequestCount,
         isLoading,
         error,
         currentRSI: indicators.rsi,

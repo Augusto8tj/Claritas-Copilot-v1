@@ -58,7 +58,6 @@ export function useRobotCouncil(
     indicators: any
 ) {
     const { isConnected, getHistoricalData, chartData } = useDerivApi();
-    const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
@@ -80,6 +79,12 @@ export function useRobotCouncil(
     const [manualPromptBatches, setManualPromptBatches] = useState<ManualPromptBatch[]>([]);
 
     const councilExecutionRef = useRef({ isExecuting: false });
+
+    const incrementGeminiRequestCount = useCallback(() => {
+        setGeminiRequestCount(prev => prev + 1);
+    }, []);
+
+    const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, incrementGeminiRequestCount);
 
     useEffect(() => {
         try {
@@ -128,6 +133,7 @@ export function useRobotCouncil(
                 ];
 
                 const batches: ManualPromptBatch[] = strategyBatchesConfig.map((batch, index) => {
+                    incrementGeminiRequestCount();
                     const promptText = `Crie um grupo de robôs-analistas para o ativo ${activeSymbol}, otimizados para operar em '${duration_unit}'.
 Estratégias para construir nesta etapa: ${JSON.stringify(batch.strategies)}
 Sua resposta DEVE SER um objeto JSON contendo uma chave "robots" que é um array com EXATAMENTE ${batch.strategies.length} objetos de robôs.
@@ -159,6 +165,7 @@ Contexto do Trader:
                 });
 
             } else {
+                incrementGeminiRequestCount();
                 const councilInput = {
                     symbol: activeSymbol,
                     balance: dailyBalance,
@@ -166,7 +173,7 @@ Contexto do Trader:
                     historicalDataJson: historicalDataJson,
                     durationUnit: duration_unit,
                 };
-                setGeminiRequestCount(prev => prev + 1);
+                
                 const result = await getStrategyCouncilAction(councilInput);
                 if (result.success) {
                     setStrategyCouncil(result.success.council);
@@ -180,7 +187,7 @@ Contexto do Trader:
         } finally {
             setIsFetchingCouncil(false);
         }
-    }, [activeSymbol, dailyBalance, form, toast, getHistoricalData, useManualCouncilMode]);
+    }, [activeSymbol, dailyBalance, form, toast, getHistoricalData, useManualCouncilMode, incrementGeminiRequestCount]);
 
     const processManualCouncilResponse = (batchId: string, jsonResponse: string) => {
         try {
@@ -349,6 +356,7 @@ Contexto do Trader:
         isFetchingCouncil,
         councilVotes,
         geminiRequestCount,
+        incrementGeminiRequestCount,
         dailyBalance,
         setDailyBalance,
         dailyTarget,

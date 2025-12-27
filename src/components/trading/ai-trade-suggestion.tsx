@@ -26,6 +26,7 @@ import { useMarketData } from "@/hooks/use-market-data";
 
 interface AITradeSuggestionProps {
   symbol: string;
+  incrementRequestCount: () => void;
 }
 
 type AwaitingEntryState = {
@@ -34,7 +35,7 @@ type AwaitingEntryState = {
     initialPrices: number[];
 };
 
-export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
+export function AITradeSuggestion({ symbol, incrementRequestCount }: AITradeSuggestionProps) {
   const [analysisResult, setAnalysisResult] = useState<AssetAnalysisOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -89,7 +90,7 @@ export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
         price: 'price' in item ? item.price : item.close
       }));
 
-
+      incrementRequestCount();
       const result = await getAssetAnalysisAction({
           symbol,
           balance: accountBalance.balance || 0,
@@ -124,7 +125,7 @@ export function AITradeSuggestion({ symbol }: AITradeSuggestionProps) {
     }
 
     setIsAnalyzing(false);
-  }, [symbol, form, accountBalance, dailyBalance, operationsLog, autoExecute, priceTicks, toast, chartData]);
+  }, [symbol, form, accountBalance, dailyBalance, operationsLog, autoExecute, priceTicks, toast, chartData, incrementRequestCount]);
   
   const handleExecute = useCallback(async (direction: 'rise' | 'fall') => {
     setIsExecuting(true);

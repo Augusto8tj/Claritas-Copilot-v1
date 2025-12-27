@@ -12,12 +12,12 @@ import { useDerivApi } from './use-deriv-api';
 
 export function useTradeAnalysis(
     activeSymbol: string | null,
-    operationsLog: Operation[]
+    operationsLog: Operation[],
+    incrementRequestCount: () => void,
 ) {
     const { getHistoricalData } = useDerivApi();
     const { toast } = useToast();
-    const [geminiRequestCount, setGeminiRequestCount] = useState(0);
-
+    
     const analyzeSessionPerformance = useCallback(async (): Promise<string> => {
         if (!activeSymbol) return "Erro: Nenhum ativo selecionado.";
         
@@ -26,13 +26,13 @@ export function useTradeAnalysis(
             return "Não há operações concluídas suficientes para este ativo na sessão atual para fazer uma análise."
         }
 
-        setGeminiRequestCount(prev => prev + 1);
+        incrementRequestCount();
         const response = await analyzeOperationsAction({ operations: closedOperations });
         if (response.success) {
           return response.success;
         }
         return `Erro: ${response.error || 'Falha ao obter análise.'}`;
-    }, [operationsLog, activeSymbol]);
+    }, [operationsLog, activeSymbol, incrementRequestCount]);
 
     const analyzeLosingTrade = useCallback(async (losingOp: Operation, activeStrategy: AutoTraderStrategyOutput | null): Promise<string | null> => {
         console.log(`[Loss Analyzer] Analyzing losing trade: ${losingOp.id}`);
@@ -45,7 +45,7 @@ export function useTradeAnalysis(
                 activeStrategyJson: JSON.stringify(activeStrategy), 
             };
             
-            setGeminiRequestCount(prev => prev + 1);
+            incrementRequestCount();
             const result = await analyzeTradeLossAction(analysisInput);
 
             if (result.success) {
@@ -64,11 +64,10 @@ export function useTradeAnalysis(
             toast({ variant: 'destructive', title: "Erro na Análise", description: e.message });
             return null;
         }
-    }, [toast, getHistoricalData]);
+    }, [toast, getHistoricalData, incrementRequestCount]);
 
     return {
         analyzeSessionPerformance,
         analyzeLosingTrade,
-        geminiRequestCount,
     };
 }
