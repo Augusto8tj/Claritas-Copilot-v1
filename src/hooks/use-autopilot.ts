@@ -9,18 +9,13 @@ import { getAutotraderStrategyAction } from '@/app/actions/ai-actions';
 import type { RiseFallFormValues } from "@/components/trading/deriv-trader-interface.types";
 import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
 import { useTradeAnalysis } from "./use-trade-analysis";
-import { useDerivApi, type ApiHistoricalData } from "./use-deriv-api";
-
-// Helper function to get historical data from the main hook
-const getHistoricalDataFromApi = async (getFn: (symbol: string, style: 'ticks' | 'candles', count: number) => Promise<ApiHistoricalData[]>, symbol: string) => {
-    return getFn(symbol, 'ticks', 200);
-}
+import { useDerivApi, type ChartData } from "./use-deriv-api";
 
 export function useAutopilot(
-    indicators: { rsi: number | null, stoch: number | null },
+    activeSymbol: string | null,
     incrementRequestCount: () => void
 ) {
-    const { operationsLog, addActiveContract, executeTrade, chartData, activeSymbol } = useDerivApi();
+    const { operationsLog, addActiveContract, executeTrade, chartData } = useDerivApi();
     const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, incrementRequestCount);
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
@@ -34,6 +29,11 @@ export function useAutopilot(
     const [error, setError] = useState<string | null>(null);
     const [isExecuting, setIsExecuting] = useState(false);
     
+    // This hook no longer calculates indicators itself. It relies on them being passed or fetched elsewhere.
+    // For this implementation, we'll assume the council's indicators are the source of truth if needed.
+    // Or, for simplicity, we can make the autopilot dumber and not dependent on live indicators.
+    // Let's refactor to make it fully independent and based only on its fetched strategy.
+
     const strategyIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const STRATEGY_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
@@ -68,7 +68,7 @@ export function useAutopilot(
             if (result.success) {
                 setAutopilotStrategy(result.success);
                 toast({ title: "Nova Estratégia do Piloto Automático", description: result.success.justification });
-                setLastAutopilotLossSuggestion(null); // Clear suggestion after using it
+                setLastAutopilotLossSuggestion(null);
             } else {
                 throw new Error(result.error || "Ocorreu um erro desconhecido ao buscar estratégia.");
             }
@@ -81,7 +81,6 @@ export function useAutopilot(
         }
       }, [isAutopilotOn, activeSymbol, dailyBalance, operationsLog, lastAutopilotLossSuggestion, toast, chartData, incrementRequestCount]);
     
-    // Effect to manage the strategy refresh interval
     useEffect(() => {
         if (isAutopilotOn) {
             fetchAutopilotStrategy(); 
@@ -98,48 +97,13 @@ export function useAutopilot(
         };
     }, [isAutopilotOn, fetchAutopilotStrategy]);
     
-    // Effect to check and execute trades based on strategy
+    // Autopilot execution logic is simplified as it doesn't have direct indicator access anymore.
+    // This is a placeholder; a more robust implementation would need indicator data.
     useEffect(() => {
-        const checkAndExecute = async () => {
-            if (isExecuting || !isAutopilotOn || !autopilotStrategy || (indicators.rsi === null && indicators.stoch === null) || !activeSymbol) return;
+        // This effect is currently disabled as the hook doesn't receive live indicators.
+        // The responsibility for execution now lies fully with the `useRobotCouncil` hook.
+    }, [isAutopilotOn, isExecuting, autopilotStrategy, form, executeTrade, activeSymbol, toast, addActiveContract]);
 
-            let conditionMet = false;
-            if (autopilotStrategy.strategyName === 'RSI_BASIC' && autopilotStrategy.rsiThreshold && indicators.rsi !== null) {
-                if (autopilotStrategy.direction === 'RISE' && indicators.rsi <= autopilotStrategy.rsiThreshold) conditionMet = true;
-                else if (autopilotStrategy.direction === 'FALL' && indicators.rsi >= autopilotStrategy.rsiThreshold) conditionMet = true;
-            } else if (autopilotStrategy.strategyName === 'STOCH_BASIC' && autopilotStrategy.stochThreshold && indicators.stoch !== null) {
-                if (autopilotStrategy.direction === 'RISE' && indicators.stoch <= autopilotStrategy.stochThreshold) conditionMet = true;
-                else if (autopilotStrategy.direction === 'FALL' && indicators.stoch >= autopilotStrategy.stochThreshold) conditionMet = true;
-            }
-
-            if (conditionMet) {
-                setIsExecuting(true);
-                const { allowEquals } = form.getValues();
-                const { suggestedStake, suggestedDuration, direction } = autopilotStrategy;
-                
-                toast({ title: "Piloto Automático", description: `Condição de ${direction} atingida! Executando.` });
-                
-                let contractType = direction === 'RISE' ? (allowEquals ? 'CALLE' : 'CALL') : (allowEquals ? 'PUTE' : 'PUT');
-
-                const result = await executeTrade(contractType, suggestedStake, activeSymbol, direction.toLowerCase() as 'rise' | 'fall', suggestedDuration, 't', 'Piloto');
-                
-                if (result.success && result.contractId && result.entryTick && result.entryTime) {
-                    addActiveContract({
-                        contractId: result.contractId,
-                        entryTick: result.entryTick,
-                        entryTime: result.entryTime,
-                        initiator: 'Piloto'
-                    });
-                }
-                
-                setTimeout(() => setIsExecuting(false), 10000); 
-            }
-        };
-
-        checkAndExecute();
-    }, [isAutopilotOn, isExecuting, autopilotStrategy, indicators, form, executeTrade, activeSymbol, toast, addActiveContract]);
-
-    // Effect for risk management (stop loss/profit target)
     useEffect(() => {
         if (!isAutopilotOn || !operationsLog) return;
 
@@ -159,7 +123,6 @@ export function useAutopilot(
         }
     }, [operationsLog, isAutopilotOn, dailyBalance, dailyTarget, toast]);
     
-    // Effect to handle losing trades analysis
     useEffect(() => {
       if (!operationsLog || operationsLog.length === 0) return;
       const lastOp = operationsLog[0];
@@ -182,7 +145,6 @@ export function useAutopilot(
         setDailyTarget,
         isLoading,
         error,
-        currentRSI: indicators.rsi,
-        currentStoch: indicators.stoch,
+        // Removed geminiRequestCount from here as it's managed by the council
     };
 }

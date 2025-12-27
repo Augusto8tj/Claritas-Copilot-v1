@@ -7,7 +7,7 @@ import { useDerivApi, type ChartData } from './use-deriv-api';
 import { useToast } from './use-toast';
 import { getStrategyCouncilAction } from '@/app/actions/ai-actions';
 import type { RobotStrategy, StrategyCouncilOutput } from '@/ai/flows/strategy-council-flow.types';
-import { RobotAnalystGeneratorOutputSchema, StrategyCouncilOutputSchema } from '@/ai/flows/strategy-council-flow.types';
+import { RobotAnalystGeneratorOutputSchema } from '@/ai/flows/strategy-council-flow.types';
 import type { RiseFallFormValues } from '@/components/trading/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
@@ -15,6 +15,207 @@ import type { Operation, OperationInitiator } from '@/components/trading/operati
 import type { ActiveContract } from './use-deriv-api';
 import type { DurationUnit } from '@/components/trading/deriv-trader-interface.types';
 import type { TradeResult } from '@/services/deriv-api-service';
+import type { CandleData } from './use-deriv-api';
+
+
+// ========================================================
+// INTERNAL INDICATOR CALCULATION ENGINE
+// Moved here to make the hook self-sufficient.
+// ========================================================
+
+const calculateRSI = (data: CandleData[], period = 14): (number | null)[] => {
+    if (data.length < period) return Array(data.length).fill(null);
+
+    const rsiValues: (number | null)[] = Array(period - 1).fill(null);
+    let avgGain = 0;
+    let avgLoss = 0;
+
+    for (let i = 1; i < period; i++) {
+        const change = data[i].close - data[i - 1].close;
+        if (change > 0) {
+            avgGain += change;
+        } else {
+            avgLoss -= change;
+        }
+    }
+    avgGain /= period;
+    avgLoss /= period;
+
+    let rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
+    rsiValues.push(100 - (100 / (1 + rs)));
+
+    for (let i = period; i < data.length; i++) {
+        const change = data[i].close - data[i - 1].close;
+        let gain = change > 0 ? change : 0;
+        let loss = change < 0 ? -change : 0;
+
+        avgGain = (avgGain * (period - 1) + gain) / period;
+        avgLoss = (avgLoss * (period - 1) + loss) / period;
+        
+        rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
+        rsiValues.push(100 - (100 / (1 + rs)));
+    }
+    return rsiValues;
+};
+
+const calculateStochastic = (data: CandleData[], period = 14, smoothK = 3) => {
+    if (data.length < period) return Array(data.length).fill(null);
+
+    const kValues: (number | null)[] = [];
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+            kValues.push(null);
+            continue;
+        }
+        const slice = data.slice(i - period + 1, i + 1);
+        const lowestLow = Math.min(...slice.map(d => d.low));
+        const highestHigh = Math.max(...slice.map(d => d.high));
+        const currentClose = slice[slice.length - 1].close;
+        if (highestHigh === lowestLow) {
+            kValues.push(i > 0 ? kValues[i - 1] : 50);
+        } else {
+            kValues.push(100 * ((currentClose - lowestLow) / (highestHigh - lowestLow)));
+        }
+    }
+    return kValues;
+};
+
+const calcEMA = (data: {close: number}[], period: number): (number | null)[] => {
+  if (data.length < period) return Array(data.length).fill(null);
+  const k = 2 / (period + 1)
+  
+  const emaValues: (number | null)[] = Array(period - 1).fill(null);
+  let firstEma = data.slice(0, period).reduce((sum, d) => sum + d.close, 0) / period;
+  emaValues.push(firstEma);
+
+  for (let i = period; i < data.length; i++) {
+    const d = data[i];
+    const prevEma = emaValues[i - 1];
+    if (!d || prevEma === null) {
+        emaValues.push(prevEma);
+        continue;
+    }
+    const newEma = d.close * k + prevEma * (1 - k)
+    emaValues.push(newEma)
+  }
+  return emaValues
+}
+
+const calculateMACD = (data: CandleData[], fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) => {
+    if (data.length < slowPeriod) return { macd: [], signal: [], histogram: [] };
+
+    const emaFast = calcEMA(data, fastPeriod);
+    const emaSlow = calcEMA(data, slowPeriod);
+    
+    const macdLine = data.map((_, i) => (emaFast[i] && emaSlow[i]) ? emaFast[i]! - emaSlow[i]! : null);
+    
+    const signalData = macdLine.map(v => v !== null ? { close: v } : null).filter((v): v is {close: number} => v !== null);
+    const signalLine = calcEMA(signalData, signalPeriod);
+
+    const macdWithNulls = [...Array(slowPeriod - 1).fill(null), ...macdLine.slice(slowPeriod-1)];
+    const signalWithNulls = [...Array(slowPeriod + signalPeriod - 2).fill(null), ...signalLine.map(s => s)];
+
+    const histogram = macdWithNulls.map((m, i) => (m && signalWithNulls[i]) ? m - signalWithNulls[i]! : null);
+
+    return { macd: macdWithNulls, signal: signalWithNulls, histogram };
+};
+
+const calculateATR = (data: CandleData[], period = 14): (number | null)[] => {
+    if (data.length < 1) return [];
+    
+    const trueRanges: (number | null)[] = [null];
+    for (let i = 1; i < data.length; i++) {
+        const highLow = data[i].high - data[i].low;
+        const highPrevClose = Math.abs(data[i].high - data[i-1].close);
+        const lowPrevClose = Math.abs(data[i].low - data[i-1].close);
+        trueRanges.push(Math.max(highLow, highPrevClose, lowPrevClose));
+    }
+    
+    const atrValues: (number | null)[] = Array(period).fill(null);
+    if (data.length < period + 1) return Array(data.length).fill(null);
+    
+    let firstAtrSum = trueRanges.slice(1, period + 1).reduce((sum, val) => sum + (val || 0), 0);
+    atrValues.push(firstAtrSum / period);
+    
+    for (let i = period + 1; i < data.length; i++) {
+        const prevAtr = atrValues[i-1];
+        const tr = trueRanges[i];
+        if (tr === null || prevAtr === null) {
+            atrValues.push(atrValues[i - 1]);
+            continue;
+        }
+        const currentAtr = (prevAtr * (period - 1) + tr) / period;
+        atrValues.push(currentAtr);
+    }
+    
+    return atrValues;
+};
+
+const calculateADX = (data: CandleData[], period = 14) => {
+    if (data.length < period * 2) return { adx: [], pdi: [], ndi: [] };
+
+    let pdi: (number | null)[] = [], ndi: (number | null)[] = [], trs: (number | null)[] = [];
+    
+    for (let i = 1; i < data.length; i++) {
+        const upMove = data[i].high - data[i - 1].high;
+        const downMove = data[i-1].low - data[i].low;
+        
+        const pdm = (upMove > downMove && upMove > 0) ? upMove : 0;
+        const ndm = (downMove > upMove && downMove > 0) ? downMove : 0;
+        
+        pdi.push(pdm);
+        ndi.push(ndm);
+        
+        const tr = Math.max(data[i].high - data[i].low, Math.abs(data[i].high - data[i-1].close), Math.abs(data[i].low - data[i-1].close));
+        trs.push(tr);
+    }
+    
+    const smooth = (values: (number | null)[]) => {
+        if(values.length < period) return [];
+        let smoothed: (number | null)[] = [values.slice(0, period).reduce((acc, v) => acc + (v||0), 0)];
+        for (let i = period; i < values.length; i++) {
+            smoothed.push(smoothed[i-period]! - (smoothed[i-period]! / period) + (values[i] || 0));
+        }
+        return smoothed;
+    };
+
+    const smoothedPDI = smooth(pdi);
+    const smoothedNDI = smooth(ndi);
+    const smoothedTR = smooth(trs);
+    
+    let pdiFinal: (number | null)[] = [], ndiFinal: (number | null)[] = [], dx: (number | null)[] = [];
+
+    for(let i=0; i< smoothedTR.length; i++){
+        if(!smoothedTR[i] || smoothedTR[i] === 0) {
+             pdiFinal.push(null);
+             ndiFinal.push(null);
+             continue;
+        };
+        pdiFinal.push(100 * (smoothedPDI[i]! / smoothedTR[i]!));
+        ndiFinal.push(100 * (smoothedNDI[i]! / smoothedTR[i]!));
+    }
+
+    for (let i = 0; i < pdiFinal.length; i++) {
+        if (pdiFinal[i] === null || ndiFinal[i] === null) {
+            dx.push(null);
+            continue;
+        }
+        const den = pdiFinal[i]! + ndiFinal[i]!;
+        if (den === 0) {
+            dx.push(0);
+        } else {
+            dx.push(100 * Math.abs(pdiFinal[i]! - ndiFinal[i]!) / den);
+        }
+    }
+    
+    const adx = smooth(dx.filter((v): v is number => v !== null));
+    
+    const fillCount = data.length - adx.length;
+    return { adx: Array(fillCount).fill(null).concat(adx), pdi: pdiFinal, ndi: ndiFinal };
+};
+// ========================================================
+// END OF INDICATOR ENGINE
+// ========================================================
 
 
 export type RobotVote = {
@@ -43,21 +244,9 @@ export type ManualPromptBatch = {
 
 
 export function useRobotCouncil(
-    activeSymbol: string | null,
-    operationsLog: Operation[],
-    addActiveContract: (contract: ActiveContract) => void,
-    executeTrade: (
-        contractType: string,
-        stake: number,
-        symbol: string,
-        tradeDirection: 'rise' | 'fall',
-        duration: number,
-        durationUnit: DurationUnit,
-        initiator: OperationInitiator
-    ) => Promise<TradeResult>,
-    indicators: any
+    activeSymbol: string | null
 ) {
-    const { isConnected, chartData } = useDerivApi();
+    const { isConnected, chartData, operationsLog, addActiveContract, executeTrade } = useDerivApi();
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
@@ -80,6 +269,10 @@ export function useRobotCouncil(
     const [manualPromptBatches, setManualPromptBatches] = useState<ManualPromptBatch[]>([]);
 
     const councilExecutionRef = useRef({ isExecuting: false });
+
+    // This state now lives inside the hook and is calculated here
+    const [indicators, setIndicators] = useState<any>({ rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null, macd: null });
+
 
     const incrementGeminiRequestCount = useCallback(() => {
         setGeminiRequestCount(prev => prev + 1);
@@ -240,20 +433,10 @@ ${basePromptInstructions}`;
         }
     };
     
-    /**
-     * This function acts as the "Supervision Committee", a hard-coded layer of risk management.
-     * It is invoked AFTER the AI council votes, but BEFORE the trade is executed.
-     * It does not create AI entities, but rather applies a set of fixed, logical rules.
-     * 1. Risk Analyst: Checks daily PnL against stop-loss and take-profit targets. Has veto power.
-     * 2. Volatility Analyst (ATR): Measures market turbulence and adjusts stake down if too high or low.
-     * 3. Trend Analyst (ADX): Measures trend clarity. Reduces risk in sideways markets, can increase in strong trends.
-     * @returns An object with the final adjusted stake and a potential veto reason.
-     */
     const supervisionCommitteeCheck = useCallback((stake: number, direction: 'RISE' | 'FALL') => {
         let finalStake = stake;
         let vetoReason: string | null = null;
     
-        // 1. Risk Analyst (Chief Supervisor)
         const dailyPnL = operationsLog
             .filter(op => op.initiator === 'Conselho' && op.status !== 'pending' && new Date(op.timestamp).toDateString() === new Date().toDateString())
             .reduce((sum, op) => sum + (op.result || 0), 0);
@@ -266,40 +449,72 @@ ${basePromptInstructions}`;
     
         if (vetoReason) return { finalStake, vetoReason };
 
-        // 2. Volatility Analyst (ATR)
         const atr = indicators.atr;
         const lastPrice = chartData.length > 0 ? ('price' in chartData[chartData.length-1] ? chartData[chartData.length-1].price : (chartData[chartData.length-1] as any).close) : 0;
 
         if (atr && lastPrice > 0) {
             const normalizedATR = atr / lastPrice; 
-            if (normalizedATR > 0.0005) { // Ex: Volatility too high
+            if (normalizedATR > 0.0005) { 
                 finalStake *= 0.5;
                 toast({ title: "Supervisor de Volatilidade", description: "Mercado turbulento, risco reduzido para 50%.", variant: "default" });
-            } else if (normalizedATR < 0.0001) { // Ex: Volatility too low
+            } else if (normalizedATR < 0.0001) {
                 finalStake *= 0.75;
                 toast({ title: "Supervisor de Volatilidade", description: "Mercado parado, risco reduzido para 75%.", variant: "default" });
             }
         }
     
-        // 3. Trend Analyst (ADX)
         const adx = indicators.adx;
         if (adx) {
-            if (adx < 20) { // Sideways market
+            if (adx < 20) {
                 finalStake *= 0.75;
                 toast({ title: "Supervisor de Tendência", description: "Mercado lateral, risco reduzido para 75%.", variant: "default" });
-            } else if (adx > 35) { // Strong trend
-                finalStake *= 1.25; // Increase risk by 25%
+            } else if (adx > 35) {
+                finalStake *= 1.25; 
                 toast({ title: "Supervisor de Tendência", description: "Tendência forte confirmada, risco aumentado em 25%.", variant: "default" });
             }
         }
 
-        // Ensure stake is not below the minimum
         if (finalStake < 0.35) finalStake = 0.35;
         
         return { finalStake, vetoReason };
 
-    }, [operationsLog, dailyBalance, dailyTarget, indicators.atr, indicators.adx, chartData, toast]);
+    }, [operationsLog, dailyBalance, dailyTarget, indicators, chartData, toast]);
 
+    // Effect to calculate indicators whenever chartData or council changes
+    useEffect(() => {
+        if (!chartData.length || !strategyCouncil.length) return;
+
+        const candles = chartData.filter(d => 'close' in d) as CandleData[];
+        if (candles.length < 2) return;
+
+        const rsiRobot = strategyCouncil.find(r => r.strategyType === 'RSI');
+        const stochRobot = strategyCouncil.find(r => r.strategyType === 'STOCHASTIC');
+        const macdRobot = strategyCouncil.find(r => r.strategyType === 'MACD_CROSS');
+        const adxRobot = strategyCouncil.find(r => r.strategyType === 'ADX_TREND');
+
+        const rsiValues = calculateRSI(candles, rsiRobot?.period || 14);
+        const stochValues = calculateStochastic(candles, stochRobot?.period || 14);
+        const macdValues = macdRobot ? calculateMACD(candles, macdRobot.fastPeriod, macdRobot.slowPeriod, macdRobot.signalPeriod) : { macd: [], signal: [] };
+        const adxValues = adxRobot ? calculateADX(candles, adxRobot.period || 14) : { adx: [], pdi: [], ndi: [] };
+        const atrValues = calculateATR(candles);
+
+        setIndicators({
+            rsi: rsiValues.pop() ?? null,
+            stoch: stochValues.pop() ?? null,
+            macd: { 
+                macd: macdValues.macd.pop() ?? null,
+                signal: macdValues.signal.pop() ?? null,
+             },
+            adx: adxValues.adx.pop() ?? null,
+            pdi: adxValues.pdi.pop() ?? null,
+            ndi: adxValues.ndi.pop() ?? null,
+            atr: atrValues.pop() ?? null,
+        });
+
+    }, [chartData, strategyCouncil]);
+
+
+    // Effect for council voting and execution
     useEffect(() => {
         if (!isCouncilAutopilotOn || !strategyCouncil.length || councilExecutionRef.current.isExecuting) return;
 
@@ -343,45 +558,6 @@ ${basePromptInstructions}`;
                         else if (robot.weakSellThreshold && indicators.stoch >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
                     }
                     break;
-                case 'MACD_CROSS':
-                    if (indicators.macd?.macd && indicators.macd?.signal) {
-                        if (indicators.macd.macd > indicators.macd.signal) { vote = 'RISE'; confidence = robot.weakConfidence; }
-                        else { vote = 'FALL'; confidence = robot.weakConfidence; }
-                    }
-                    break;
-                case 'MOVING_AVERAGE_CROSS':
-                     if (indicators.ma?.short && indicators.ma?.long) {
-                        const previousShort = indicators.sma[indicators.sma.length - 2];
-                        const previousLong = indicators.ema[indicators.ema.length - 2];
-                        if (previousShort && previousLong) {
-                            // Bullish cross
-                            if (previousShort <= previousLong && indicators.ma.short > indicators.ma.long) {
-                                vote = 'RISE'; confidence = robot.strongConfidence;
-                            }
-                            // Bearish cross
-                            else if (previousShort >= previousLong && indicators.ma.short < indicators.ma.long) {
-                                vote = 'FALL'; confidence = robot.strongConfidence;
-                            }
-                        }
-                    }
-                    break;
-                case 'BOLLINGER_BANDS':
-                    if (indicators.bollingerBands.length > 0) {
-                        const lastBB = indicators.bollingerBands[indicators.bollingerBands.length - 1];
-                        const lastPrice = chartData.length > 0 ? (chartData[chartData.length - 1] as any).price : null;
-                        if (lastBB && lastPrice) {
-                            if (lastPrice <= lastBB.lower) { vote = 'RISE'; confidence = robot.strongConfidence; }
-                            else if (lastPrice >= lastBB.upper) { vote = 'FALL'; confidence = robot.strongConfidence; }
-                        }
-                    }
-                    break;
-                case 'ADX_TREND':
-                     if (indicators.adx && robot.trendStrengthThreshold && indicators.adx > robot.trendStrengthThreshold) {
-                        if (indicators.pdi > indicators.ndi) { vote = 'RISE'; confidence = robot.weakConfidence; }
-                        else { vote = 'FALL'; confidence = robot.weakConfidence; }
-                    }
-                    break;
-                 // Add more detailed voting logic for other strategies here...
             }
 
             newVotes[robot.id] = { vote, confidence, weight };
@@ -402,7 +578,7 @@ ${basePromptInstructions}`;
                 toast({ title: "Operação Vetada", description: vetoReason, variant: "destructive" });
                 councilExecutionRef.current.isExecuting = false;
                 if(vetoReason.includes("Limite de perda") || vetoReason.includes("Meta de lucro")){
-                    setIsCouncilAutopilotOn(false); // Turn off autopilot
+                    setIsCouncilAutopilotOn(false);
                 }
                 return;
             }
@@ -420,7 +596,7 @@ ${basePromptInstructions}`;
 
     }, [
         isCouncilAutopilotOn, strategyCouncil, indicators, consensusThreshold, isDynamicConsensusOn, isMeritocracyOn, robotPerformance, 
-        executeTrade, activeSymbol, toast, addActiveContract, form, supervisionCommitteeCheck, chartData
+        executeTrade, activeSymbol, toast, addActiveContract, form, supervisionCommitteeCheck
     ]);
 
     return {

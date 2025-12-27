@@ -2,18 +2,14 @@
 
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { analyzeOperationsAction } from '@/app/actions/trading-actions';
 import { analyzeTradeLossAction } from '@/app/actions/ai-actions';
 import type { Operation } from '@/components/trading/operations-log.types';
 import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
 import { useToast } from './use-toast';
-import { useDerivApi, type ApiHistoricalData } from './use-deriv-api';
+import { useDerivApi } from './use-deriv-api';
 
-
-const getHistoricalDataFromApi = async (getFn: (symbol: string, style: 'ticks' | 'candles', count: number) => Promise<ApiHistoricalData[]>, symbol: string) => {
-    return getFn(symbol, 'ticks', 100);
-}
 
 export function useTradeAnalysis(
     activeSymbol: string | null,

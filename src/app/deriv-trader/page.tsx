@@ -22,7 +22,6 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
 import { useAutopilot } from "@/hooks/use-autopilot";
 import { useRobotCouncil } from "@/hooks/use-robot-council";
-import { calculateAllIndicators } from "@/services/indicator-service";
 import { SystemStatusSummary } from "@/components/trading/system-status-summary";
 import { ManualCouncilInterface } from "@/components/trading/manual-council-interface";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -33,11 +32,9 @@ import { AITradeSuggestion } from "@/components/trading/ai-trade-suggestion";
  * This core component is now separate to ensure that all hooks using
  * `useFormContext` are called within the <FormProvider> of the parent page.
  */
-function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
+function DerivTraderCore({ activeSymbol, setActiveSymbol }: { activeSymbol: string | null, setActiveSymbol: (symbol: string | null) => void }) {
   const { 
     operationsLog,
-    addActiveContract,
-    executeTrade,
     chartData,
     isChartLoading,
     chartError,
@@ -47,33 +44,13 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
     setTimePeriod,
   } = useDerivApi();
   
-  const [indicators, setIndicators] = useState({
-      rsi: null as number | null,
-      stoch: null as number | null,
-      ma: { short: null as number | null, long: null as number | null },
-      bollingerBands: [] as ({ upper: number; middle: number; lower: number } | null)[],
-      macd: null as { macd: number | null, signal: number | null } | null,
-      priceAction: null as string | null,
-      adx: null as number | null,
-      atr: null as number | null,
-      ichimoku: null as { inCloud: boolean, trend: 'bullish' | 'bearish' | 'neutral' } | null,
-      awesomeOscillator: null as number | null,
-      volumePoc: null as number | null,
-      sma: [] as (number | null)[],
-      ema: [] as (number | null)[],
-      vwap: [] as (number | null)[],
-  });
-
-  const robotCouncil = useRobotCouncil(activeSymbol, operationsLog, addActiveContract, executeTrade, indicators);
+  // Initialize hooks that depend on the active symbol and other API data
+  const robotCouncil = useRobotCouncil(activeSymbol);
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, robotCouncil.incrementGeminiRequestCount);
-  const autopilot = useAutopilot(indicators, robotCouncil.incrementGeminiRequestCount);
-
-  useEffect(() => {
-      if (chartData.length > 0 && robotCouncil.strategyCouncil.length > 0) {
-          const calculatedIndicators = calculateAllIndicators(chartData, robotCouncil.strategyCouncil);
-          setIndicators(calculatedIndicators);
-      }
-  }, [chartData, robotCouncil.strategyCouncil]);
+  const autopilot = useAutopilot(activeSymbol, robotCouncil.incrementGeminiRequestCount);
+  
+  // Note: The `indicators` state is now managed inside useRobotCouncil.
+  // We can extract it if other components need it, or pass the whole council object.
 
   return (
     <>
@@ -99,7 +76,8 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                 timePeriod={timePeriod}
                 setTimePeriod={setTimePeriod}
                 operations={operationsLog}
-                indicators={indicators}
+                // Pass indicators from the council hook if needed by the chart
+                indicators={robotCouncil.indicators}
             />
         </CardContent>
       </Card>
@@ -163,8 +141,6 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
 
 
 export default function DerivTraderPage() {
-  const [activeSymbol, setActiveSymbol] = useState<string | null>('1HZ10V');
-
   const form = useForm<RiseFallFormValues>({
     resolver: zodResolver(riseFallSchema),
     defaultValues: {
@@ -175,6 +151,7 @@ export default function DerivTraderPage() {
     },
   });
 
+  // All API state is now managed by the single useDerivApi hook
   const { 
     accountType, 
     setAccountType, 
@@ -184,14 +161,14 @@ export default function DerivTraderPage() {
     isConnecting,
     isAssetsLoading,
     assetGroups,
-    setActiveSymbol: setApiActiveSymbol,
+    activeSymbol,
+    setActiveSymbol,
   } = useDerivApi();
   
-  useEffect(() => {
-      if (activeSymbol) {
-          setApiActiveSymbol(activeSymbol);
-      }
-  }, [activeSymbol, setApiActiveSymbol]);
+  // Ensure the hook's active symbol is updated when the local state changes
+  const handleAssetChange = (asset: string) => {
+    setActiveSymbol(asset);
+  };
 
   return (
     <FormProvider {...form}>
@@ -204,7 +181,7 @@ export default function DerivTraderPage() {
               </h1>
               <AssetSelector 
                 selectedAsset={activeSymbol || ""} 
-                onAssetChange={(asset) => setActiveSymbol(asset)} 
+                onAssetChange={handleAssetChange} 
                 assetGroups={assetGroups}
                 isAssetsLoading={isAssetsLoading}
               />
@@ -234,7 +211,7 @@ export default function DerivTraderPage() {
 
         <SystemStatusSummary />
 
-        <DerivTraderCore activeSymbol={activeSymbol} />
+        <DerivTraderCore activeSymbol={activeSymbol} setActiveSymbol={setActiveSymbol} />
       </div>
     </FormProvider>
   );

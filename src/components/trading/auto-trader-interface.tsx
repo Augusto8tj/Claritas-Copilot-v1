@@ -21,6 +21,7 @@ import { Badge } from "../ui/badge";
 import { Input } from "../ui/input";
 import { useAutopilot } from "@/hooks/use-autopilot";
 
+// This component no longer needs direct access to geminiRequestCount or indicators.
 export function AutoTraderInterface({ 
     isAutopilotOn, 
     setIsAutopilotOn,
@@ -29,11 +30,8 @@ export function AutoTraderInterface({
     setDailyBalance,
     dailyTarget,
     setDailyTarget,
-    geminiRequestCount,
     isLoading,
     error,
-    currentRSI,
-    currentStoch
 }: ReturnType<typeof useAutopilot>) {
   const { toast } = useToast();
   
@@ -46,9 +44,7 @@ export function AutoTraderInterface({
   };
 
   const getActiveIndicatorValue = () => {
-    if (!autopilotStrategy) return "N/A";
-    if (autopilotStrategy.strategyName === 'RSI_BASIC') return currentRSI?.toFixed(2) ?? "Calculando...";
-    if (autopilotStrategy.strategyName === 'STOCH_BASIC') return currentStoch?.toFixed(2) ?? "Calculando...";
+    // This function is now a placeholder as indicator data is not directly available here.
     return "N/A";
   }
   const getActiveIndicatorName = () => {
@@ -64,7 +60,7 @@ export function AutoTraderInterface({
         <div className="flex justify-between items-center">
             <CardTitle className="font-headline flex items-center gap-2">
                 <Bot className="h-5 w-5 text-primary" />
-                Piloto Automático
+                Piloto Automático (Simples)
             </CardTitle>
             <div className="flex items-center space-x-2">
                 <Switch id="autopilot-switch" checked={isAutopilotOn} onCheckedChange={handleToggleAutopilot}/>
@@ -72,7 +68,7 @@ export function AutoTraderInterface({
             </div>
         </div>
         <CardDescription>
-          Defina seus limites e deixe a IA executar uma estratégia de trading para você.
+          Deixa a IA executar uma estratégia de indicador único para você. Menos robusto que o Conselho.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -102,12 +98,7 @@ export function AutoTraderInterface({
                 <p className="text-xs text-muted-foreground">Sua meta de lucro no dia.</p>
             </div>
         </div>
-
-        <div className="flex justify-between items-center text-xs text-muted-foreground border-t pt-4">
-            <span>Requisições à IA (sessão)</span>
-            <Badge variant="outline">{geminiRequestCount}</Badge>
-        </div>
-
+        
         {isAutopilotOn && (
             isLoading ? (
                 <div className="flex items-center justify-center text-muted-foreground p-4">
