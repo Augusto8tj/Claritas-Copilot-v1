@@ -43,7 +43,6 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   
   const { chartData, isChartLoading, chartError, chartType, setChartType, timePeriod, setTimePeriod } = useMarketData(activeSymbol);
   
-  const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
   
   const [indicators, setIndicators] = useState({
       rsi: null as number | null,
@@ -63,7 +62,8 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   });
 
   const robotCouncil = useRobotCouncil(activeSymbol, operationsLog, addActiveContract, executeTrade, indicators);
-  const autopilot = useAutopilot(indicators);
+  const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, robotCouncil.incrementGeminiRequestCount);
+  const autopilot = useAutopilot(indicators, robotCouncil.incrementGeminiRequestCount);
 
   React.useEffect(() => {
       if (chartData.length > 0 && robotCouncil.strategyCouncil.length > 0) {
@@ -107,7 +107,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <DerivTraderInterface symbol={activeSymbol || ""} />
                     <div className="space-y-6">
-                        <AITradeSuggestion symbol={activeSymbol || ''} />
+                        <AITradeSuggestion symbol={activeSymbol || ''} incrementRequestCount={robotCouncil.incrementGeminiRequestCount} />
                         <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
                         <OperationsLog operations={operationsLog} />
                     </div>
@@ -130,7 +130,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
 
                 <TabsContent value="trade" className="mt-4 space-y-6">
                     <DerivTraderInterface symbol={activeSymbol || ""} />
-                    <AITradeSuggestion symbol={activeSymbol || ''} />
+                    <AITradeSuggestion symbol={activeSymbol || ''} incrementRequestCount={robotCouncil.incrementGeminiRequestCount} />
                 </TabsContent>
 
                 <TabsContent value="autopilot" className="mt-4 space-y-6">
