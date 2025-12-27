@@ -132,7 +132,7 @@ export function useRobotCouncil(
                 const basePromptInstructions = `Sua resposta DEVE SER um objeto JSON contendo uma chave "robots" que é um array com objetos de robôs.
 Regras para cada robô:
 1. ID único (ex: 'RSI_BOT_1').
-2. Preencha OBRIGATORIAMENTE os seguintes campos para cada robô: 'id', 'strategyType', 'justification', 'suggestedStake', 'suggestedDuration', 'suggestedDurationUnit', 'strongConfidence', 'weakConfidence', e os limiares específicos da estratégia (como 'strongBuyThreshold').
+2. Preencha OBRIGATORIAMENTE os seguintes campos para cada robô: 'id', 'strategyType', 'justification', 'suggestedStake', 'suggestedDuration', 'suggestedDurationUnit', 'strongConfidence', 'weakConfidence', e os limiares e parâmetros específicos da estratégia (como 'strongBuyThreshold', 'period', 'shortPeriod', 'longPeriod').
 3. Parâmetros e DOIS limiares (um para sinal FORTE, um para FRACO). Ex: 'strongBuyThreshold': 20, 'weakBuyThreshold': 30.
 4. Confiança numérica: 'strongConfidence': 90-100, 'weakConfidence': 60-75.
 5. Justificativa breve (1 frase).
@@ -351,9 +351,19 @@ ${basePromptInstructions}`;
                     }
                     break;
                 case 'MOVING_AVERAGE_CROSS':
-                    if (indicators.ma?.short && indicators.ma?.long) {
-                        if (indicators.ma.short > indicators.ma.long) { vote = 'RISE'; confidence = robot.weakConfidence; }
-                        else { vote = 'FALL'; confidence = robot.weakConfidence; }
+                     if (indicators.ma?.short && indicators.ma?.long) {
+                        const previousShort = indicators.sma[indicators.sma.length - 2];
+                        const previousLong = indicators.ema[indicators.ema.length - 2];
+                        if (previousShort && previousLong) {
+                            // Bullish cross
+                            if (previousShort <= previousLong && indicators.ma.short > indicators.ma.long) {
+                                vote = 'RISE'; confidence = robot.strongConfidence;
+                            }
+                            // Bearish cross
+                            else if (previousShort >= previousLong && indicators.ma.short < indicators.ma.long) {
+                                vote = 'FALL'; confidence = robot.strongConfidence;
+                            }
+                        }
                     }
                     break;
                 case 'BOLLINGER_BANDS':
@@ -368,7 +378,7 @@ ${basePromptInstructions}`;
                     break;
                 case 'ADX_TREND':
                      if (indicators.adx && robot.trendStrengthThreshold && indicators.adx > robot.trendStrengthThreshold) {
-                        if ((indicators as any).pdi > (indicators as any).ndi) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        if (indicators.pdi > indicators.ndi) { vote = 'RISE'; confidence = robot.weakConfidence; }
                         else { vote = 'FALL'; confidence = robot.weakConfidence; }
                     }
                     break;
