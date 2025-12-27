@@ -1,8 +1,9 @@
+
 /**
  * @fileOverview A service dedicated to calculating various technical trading indicators.
  */
 
-import type { ChartData, CandleData, TickData } from '@/hooks/use-market-data'
+import type { CandleData, ChartData } from '@/hooks/types';
 import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
 
 // ===== PRIVATE HELPERS =====
@@ -273,11 +274,12 @@ export const calculateAllIndicators = (chartData: ChartData[], council: RobotStr
     const macdRobot = council.find(r => r.strategyType === 'MACD_CROSS');
     const adxRobot = council.find(r => r.strategyType === 'ADX_TREND');
 
+    // Perform calculations using parameters from robots, with fallbacks
     const rsiValues = calculateRSI(candles, rsiRobot?.period || 14);
     const stochValues = calculateStochastic(candles, stochRobot?.period || 14);
     const smaValues = maRobot?.shortPeriod ? calcSMA(candles, maRobot.shortPeriod) : [];
     const emaValues = maRobot?.longPeriod ? calcEMA(candles, maRobot.longPeriod) : [];
-    const vwapValues = calcVWAP(candles); // VWAP doesn't need external params
+    const vwapValues = calcVWAP(candles);
     const bbValues = bbRobot ? calcBollingerBands(candles, bbRobot.period, bbRobot.stdDev) : [];
     const macdValues = macdRobot ? calculateMACD(candles, macdRobot.fastPeriod, macdRobot.slowPeriod, macdRobot.signalPeriod) : { macd: [], signal: [], histogram: [] };
     const adxData = adxRobot ? calculateADX(candles, adxRobot.period || 14) : { adx: [], pdi: [], ndi: [] };
@@ -311,3 +313,4 @@ export const calculateAllIndicators = (chartData: ChartData[], council: RobotStr
         bollingerBands: bbValues,
     };
 };
+
