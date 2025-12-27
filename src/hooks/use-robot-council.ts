@@ -316,10 +316,19 @@ export function useRobotCouncil(
     const councilExecutionRef = useRef({ isExecuting: false });
 
     // This state now lives inside the hook and is calculated here
-    const [indicators, setIndicators] = useState<any>({
-        rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null, macd: null,
-        ma: { short: null, long: null },
-        sma: [], ema: [], vwap: [], bollingerBands: [],
+    const [indicators, setIndicators] = useState({
+        rsi: null as number | null,
+        stoch: null as number | null,
+        atr: null as number | null,
+        adx: null as number | null,
+        pdi: null as number | null,
+        ndi: null as number | null,
+        macd: null as { macd: number | null, signal: number | null } | null,
+        ma: { short: null, long: null } as { short: number | null, long: number | null },
+        sma: [] as (number | null)[],
+        ema: [] as (number | null)[],
+        vwap: [] as (number | null)[],
+        bollingerBands: [] as ({ upper: number; middle: number; lower: number } | null)[],
     });
 
 
@@ -529,6 +538,14 @@ ${basePromptInstructions}`;
 
     }, [operationsLog, dailyBalance, dailyTarget, indicators, chartData, toast]);
 
+    const dissolveCouncil = () => {
+        setStrategyCouncil([]);
+        setCouncilVotes({});
+        setIsCouncilAutopilotOn(false);
+        setManualPromptBatches([]);
+        toast({ title: "Conselho Dissolvido", description: "A equipa de analistas foi dispensada." });
+    };
+
     // Effect to calculate indicators whenever chartData or council changes
     useEffect(() => {
         if (!chartData.length || !strategyCouncil.length) return;
@@ -668,6 +685,7 @@ ${basePromptInstructions}`;
         setIsCouncilAutopilotOn,
         strategyCouncil,
         fetchStrategyCouncil,
+        dissolveCouncil,
         isFetchingCouncil,
         councilVotes,
         geminiRequestCount,

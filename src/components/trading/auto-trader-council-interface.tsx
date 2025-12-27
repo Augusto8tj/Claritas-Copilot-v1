@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, Fragment } from "react";
@@ -10,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
-import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award, Laptop, Wand, ClipboardPaste } from "lucide-react";
+import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award, Laptop, Wand, ClipboardPaste, Trash2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "../ui/label";
@@ -75,6 +76,7 @@ export function AutoTraderCouncilInterface({
     setUseSingleManualPrompt,
     indicators,
     fetchStrategyCouncil,
+    dissolveCouncil,
  }: ReturnType<typeof useRobotCouncil>) {
   const { toast } = useToast();
   
@@ -263,7 +265,12 @@ export function AutoTraderCouncilInterface({
 
         <Separator />
 
-        {strategyCouncil.length < 10 ? (
+        {strategyCouncil.length > 0 ? (
+             <Button variant="destructive" className="w-full" onClick={dissolveCouncil} disabled={isFetchingCouncil || isCouncilAutopilotOn}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Dissolver Conselho
+            </Button>
+        ) : (
             <Button className="w-full" onClick={fetchStrategyCouncil} disabled={isFetchingCouncil}>
                 {isFetchingCouncil ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -272,7 +279,7 @@ export function AutoTraderCouncilInterface({
                 )}
                 {isFetchingCouncil ? 'Construindo...' : 'Construir Conselho de Analistas'}
             </Button>
-        ) : null}
+        )}
 
          <div className="flex justify-between items-center text-xs text-muted-foreground pt-2">
             <span>Analistas Montados</span>
