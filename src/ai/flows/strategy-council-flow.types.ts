@@ -71,3 +71,9 @@ export const StrategyCouncilOutputSchema = z.object({
   council: z.array(RobotStrategySchema).min(10, "Array must contain at least 10 element(s)"),
 });
 export type StrategyCouncilOutput = z.infer<typeof StrategyCouncilOutputSchema>;
+
+
+// Schema for the smaller, focused prompt output. Does not require a min length.
+export const RobotAnalystGeneratorOutputSchema = z.object({
+    robots: z.array(RobotStrategySchema).describe("An array of the generated robot analysts for the requested strategies.")
+});

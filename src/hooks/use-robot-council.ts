@@ -7,7 +7,7 @@ import { useDerivApi } from './use-deriv-api';
 import { useToast } from './use-toast';
 import { getStrategyCouncilAction } from '@/app/actions/ai-actions';
 import type { RobotStrategy, StrategyCouncilOutput } from '@/ai/flows/strategy-council-flow.types';
-import { StrategyCouncilOutputSchema } from '@/ai/flows/strategy-council-flow.types';
+import { RobotAnalystGeneratorOutputSchema, StrategyCouncilOutputSchema } from '@/ai/flows/strategy-council-flow.types';
 import type { RiseFallFormValues } from '@/components/trading/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
@@ -216,15 +216,17 @@ ${basePromptInstructions}`;
         try {
             const parsed = JSON.parse(jsonResponse);
             // Be flexible: accept "robots" or "council" as the key
-            const dataToValidate = { council: parsed.robots || parsed.council || [] };
-            const validated = StrategyCouncilOutputSchema.safeParse(dataToValidate);
+            const dataToValidate = parsed.robots || parsed.council || [];
+            
+            // Use a more flexible schema that doesn't require a minimum of 10 for each batch
+            const validated = RobotAnalystGeneratorOutputSchema.safeParse({ robots: dataToValidate });
 
             if (!validated.success) {
                 console.error("Validation error:", validated.error);
                 throw new Error(`O JSON fornecido não corresponde ao formato esperado para os robôs. Erros: ${validated.error.errors.map(e => e.message).join(', ')}`);
             }
             
-            setStrategyCouncil(prev => [...prev, ...validated.data.council]);
+            setStrategyCouncil(prev => [...prev, ...validated.data.robots]);
             setManualPromptBatches(prev => prev.map(b => b.id === batchId ? { ...b, isCompleted: true } : b));
 
             const isAllCompleted = manualPromptBatches.every(b => b.id === batchId ? true : b.isCompleted);
@@ -366,7 +368,7 @@ ${basePromptInstructions}`;
                     break;
                 case 'ADX_TREND':
                      if (indicators.adx && robot.trendStrengthThreshold && indicators.adx > robot.trendStrengthThreshold) {
-                        if (indicators.pdi > indicators.ndi) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        if ((indicators as any).pdi > (indicators as any).ndi) { vote = 'RISE'; confidence = robot.weakConfidence; }
                         else { vote = 'FALL'; confidence = robot.weakConfidence; }
                     }
                     break;
