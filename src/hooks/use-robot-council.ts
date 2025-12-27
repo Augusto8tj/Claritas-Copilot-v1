@@ -215,6 +215,7 @@ ${basePromptInstructions}`;
     const processManualCouncilResponse = (batchId: string, jsonResponse: string) => {
         try {
             const parsed = JSON.parse(jsonResponse);
+            // Be flexible: accept "robots" or "council" as the key
             const dataToValidate = { council: parsed.robots || parsed.council || [] };
             const validated = StrategyCouncilOutputSchema.safeParse(dataToValidate);
 
@@ -234,7 +235,7 @@ ${basePromptInstructions}`;
             }
 
         } catch (e: any) {
-             toast({ variant: "destructive", title: "Erro ao Processar Resposta", description: `Verifique se o texto colado é um JSON válido e contém a chave "robots". Detalhe: ${e.message}` });
+             toast({ variant: "destructive", title: "Erro ao Processar Resposta", description: `Verifique se o texto colado é um JSON válido. Detalhe: ${e.message}` });
         }
     };
     
@@ -325,13 +326,51 @@ ${basePromptInstructions}`;
             }
 
             switch(robot.strategyType) {
-                case 'RSI':
-                    if(indicators.rsi && robot.strongBuyThreshold && indicators.rsi <= robot.strongBuyThreshold) { vote = 'RISE'; confidence = robot.strongConfidence; }
-                    else if (indicators.rsi && robot.weakBuyThreshold && indicators.rsi <= robot.weakBuyThreshold) { vote = 'RISE'; confidence = robot.weakConfidence; }
-                    else if (indicators.rsi && robot.strongSellThreshold && indicators.rsi >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
-                    else if (indicators.rsi && robot.weakSellThreshold && indicators.rsi >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
+                 case 'RSI':
+                    if (indicators.rsi) {
+                        if (robot.strongBuyThreshold && indicators.rsi <= robot.strongBuyThreshold) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                        else if (robot.weakBuyThreshold && indicators.rsi <= robot.weakBuyThreshold) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        else if (robot.strongSellThreshold && indicators.rsi >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                        else if (robot.weakSellThreshold && indicators.rsi >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    }
                     break;
-                 // Add voting logic for other robot types here...
+                case 'STOCHASTIC':
+                    if (indicators.stoch) {
+                        if (robot.strongBuyThreshold && indicators.stoch <= robot.strongBuyThreshold) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                        else if (robot.weakBuyThreshold && indicators.stoch <= robot.weakBuyThreshold) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        else if (robot.strongSellThreshold && indicators.stoch >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                        else if (robot.weakSellThreshold && indicators.stoch >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    }
+                    break;
+                case 'MACD_CROSS':
+                    if (indicators.macd?.macd && indicators.macd?.signal) {
+                        if (indicators.macd.macd > indicators.macd.signal) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        else { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    }
+                    break;
+                case 'MOVING_AVERAGE_CROSS':
+                    if (indicators.ma?.short && indicators.ma?.long) {
+                        if (indicators.ma.short > indicators.ma.long) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        else { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    }
+                    break;
+                case 'BOLLINGER_BANDS':
+                    if (indicators.bollingerBands.length > 0) {
+                        const lastBB = indicators.bollingerBands[indicators.bollingerBands.length - 1];
+                        const lastPrice = chartData.length > 0 ? (chartData[chartData.length - 1] as any).price : null;
+                        if (lastBB && lastPrice) {
+                            if (lastPrice <= lastBB.lower) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                            else if (lastPrice >= lastBB.upper) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                        }
+                    }
+                    break;
+                case 'ADX_TREND':
+                     if (indicators.adx && robot.trendStrengthThreshold && indicators.adx > robot.trendStrengthThreshold) {
+                        if (indicators.pdi > indicators.ndi) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        else { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    }
+                    break;
+                 // Add more detailed voting logic for other strategies here...
             }
 
             newVotes[robot.id] = { vote, confidence, weight };
@@ -370,7 +409,7 @@ ${basePromptInstructions}`;
 
     }, [
         isCouncilAutopilotOn, strategyCouncil, indicators, consensusThreshold, isDynamicConsensusOn, isMeritocracyOn, robotPerformance, 
-        executeTrade, activeSymbol, toast, addActiveContract, form, supervisionCommitteeCheck
+        executeTrade, activeSymbol, toast, addActiveContract, form, supervisionCommitteeCheck, chartData
     ]);
 
     return {
