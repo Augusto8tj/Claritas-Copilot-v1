@@ -32,7 +32,7 @@ import { AITradeSuggestion } from "@/components/trading/ai-trade-suggestion";
  * This core component is now separate to ensure that all hooks using
  * `useFormContext` are called within the <FormProvider> of the parent page.
  */
-function DerivTraderCore({ activeSymbol, setActiveSymbol }: { activeSymbol: string | null, setActiveSymbol: (symbol: string | null) => void }) {
+function DerivTraderCore({ activeSymbol, setActiveSymbol, indicators }: { activeSymbol: string | null, setActiveSymbol: (symbol: string | null) => void, indicators: any }) {
   const { 
     operationsLog,
     chartData,
@@ -77,7 +77,7 @@ function DerivTraderCore({ activeSymbol, setActiveSymbol }: { activeSymbol: stri
                 setTimePeriod={setTimePeriod}
                 operations={operationsLog}
                 // Pass indicators from the council hook if needed by the chart
-                indicators={robotCouncil.indicators}
+                indicators={indicators}
             />
         </CardContent>
       </Card>
@@ -164,6 +164,9 @@ export default function DerivTraderPage() {
     activeSymbol,
     setActiveSymbol,
   } = useDerivApi();
+
+   // The indicators state now lives here as the source of truth
+  const { indicators } = useRobotCouncil(activeSymbol);
   
   // Ensure the hook's active symbol is updated when the local state changes
   const handleAssetChange = (asset: string) => {
@@ -211,7 +214,7 @@ export default function DerivTraderPage() {
 
         <SystemStatusSummary />
 
-        <DerivTraderCore activeSymbol={activeSymbol} setActiveSymbol={setActiveSymbol} />
+        <DerivTraderCore activeSymbol={activeSymbol} setActiveSymbol={setActiveSymbol} indicators={indicators} />
       </div>
     </FormProvider>
   );

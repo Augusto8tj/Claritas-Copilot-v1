@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useDerivApi, type ChartData } from './use-deriv-api';
+import { useDerivApi } from './use-deriv-api';
 import { useToast } from './use-toast';
 import { getStrategyCouncilAction } from '@/app/actions/ai-actions';
 import type { RobotStrategy, StrategyCouncilOutput } from '@/ai/flows/strategy-council-flow.types';
@@ -15,13 +15,78 @@ import type { Operation, OperationInitiator } from '@/components/trading/operati
 import type { ActiveContract } from './use-deriv-api';
 import type { DurationUnit } from '@/components/trading/deriv-trader-interface.types';
 import type { TradeResult } from '@/services/deriv-api-service';
-import type { CandleData } from './use-deriv-api';
+import type { CandleData, ChartData } from './types';
 
 
 // ========================================================
 // INTERNAL INDICATOR CALCULATION ENGINE
 // Moved here to make the hook self-sufficient.
 // ========================================================
+const calculateSMA = (data: CandleData[], period: number): (number | null)[] => {
+    if (data.length < period) return Array(data.length).fill(null);
+    const smaValues: (number | null)[] = Array(period - 1).fill(null);
+    let sum = 0;
+    for(let i=0; i<period; i++) sum += data[i].close;
+    smaValues.push(sum / period);
+    for(let i=period; i<data.length; i++){
+        sum = sum - data[i-period].close + data[i].close;
+        smaValues.push(sum / period);
+    }
+    return smaValues;
+}
+
+const calculateEMA = (data: CandleData[], period: number): (number | null)[] => {
+  if (data.length < period) return Array(data.length).fill(null);
+  const k = 2 / (period + 1)
+  const emaValues: (number | null)[] = Array(period - 1).fill(null);
+  let sum = data.slice(0, period).reduce((acc, d) => acc + d.close, 0);
+  emaValues.push(sum / period);
+
+  for (let i = period; i < data.length; i++) {
+    const prevEma = emaValues[i - 1];
+    if(prevEma !== null) {
+      emaValues.push(data[i].close * k + prevEma * (1 - k));
+    } else {
+      emaValues.push(null);
+    }
+  }
+  return emaValues;
+}
+
+const calculateBollingerBands = (data: CandleData[], period = 20, stdDev = 2) => {
+    if (data.length < period) return Array(data.length).fill(null);
+    const bands: ({ upper: number; middle: number; lower: number } | null)[] = Array(period - 1).fill(null);
+    for (let i = period - 1; i < data.length; i++) {
+        const slice = data.slice(i - period + 1, i + 1);
+        const middle = slice.reduce((sum, d) => sum + d.close, 0) / period;
+        const standardDeviation = Math.sqrt(slice.reduce((sum, d) => sum + Math.pow(d.close - middle, 2), 0) / period);
+        bands.push({
+            upper: middle + stdDev * standardDeviation,
+            middle: middle,
+            lower: middle - stdDev * standardDeviation
+        });
+    }
+    return bands;
+};
+
+const calculateVWAP = (data: CandleData[]): (number | null)[] => {
+    const vwapValues: (number | null)[] = [];
+    let cumulativeTypicalPriceVolume = 0;
+    let cumulativeVolume = 0;
+
+    for (let i = 0; i < data.length; i++) {
+        const d = data[i];
+        if (d.volume) {
+            const typicalPrice = (d.high + d.low + d.close) / 3;
+            cumulativeTypicalPriceVolume += typicalPrice * d.volume;
+            cumulativeVolume += d.volume;
+            vwapValues.push(cumulativeVolume > 0 ? cumulativeTypicalPriceVolume / cumulativeVolume : null);
+        } else {
+            vwapValues.push(null);
+        }
+    }
+    return vwapValues;
+};
 
 const calculateRSI = (data: CandleData[], period = 14): (number | null)[] => {
     if (data.length < period) return Array(data.length).fill(null);
@@ -80,37 +145,17 @@ const calculateStochastic = (data: CandleData[], period = 14, smoothK = 3) => {
     return kValues;
 };
 
-const calcEMA = (data: {close: number}[], period: number): (number | null)[] => {
-  if (data.length < period) return Array(data.length).fill(null);
-  const k = 2 / (period + 1)
-  
-  const emaValues: (number | null)[] = Array(period - 1).fill(null);
-  let firstEma = data.slice(0, period).reduce((sum, d) => sum + d.close, 0) / period;
-  emaValues.push(firstEma);
-
-  for (let i = period; i < data.length; i++) {
-    const d = data[i];
-    const prevEma = emaValues[i - 1];
-    if (!d || prevEma === null) {
-        emaValues.push(prevEma);
-        continue;
-    }
-    const newEma = d.close * k + prevEma * (1 - k)
-    emaValues.push(newEma)
-  }
-  return emaValues
-}
-
 const calculateMACD = (data: CandleData[], fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) => {
     if (data.length < slowPeriod) return { macd: [], signal: [], histogram: [] };
 
-    const emaFast = calcEMA(data, fastPeriod);
-    const emaSlow = calcEMA(data, slowPeriod);
+    const emaFast = calculateEMA(data, fastPeriod);
+    const emaSlow = calculateEMA(data, slowPeriod);
     
     const macdLine = data.map((_, i) => (emaFast[i] && emaSlow[i]) ? emaFast[i]! - emaSlow[i]! : null);
     
-    const signalData = macdLine.map(v => v !== null ? { close: v } : null).filter((v): v is {close: number} => v !== null);
-    const signalLine = calcEMA(signalData, signalPeriod);
+    const signalData = macdLine.map(v => v !== null ? { close: v, high:v, low:v, epoch:0, open:v } : null).filter((v): v is CandleData => v !== null);
+
+    const signalLine = calculateEMA(signalData, signalPeriod);
 
     const macdWithNulls = [...Array(slowPeriod - 1).fill(null), ...macdLine.slice(slowPeriod-1)];
     const signalWithNulls = [...Array(slowPeriod + signalPeriod - 2).fill(null), ...signalLine.map(s => s)];
@@ -271,7 +316,10 @@ export function useRobotCouncil(
     const councilExecutionRef = useRef({ isExecuting: false });
 
     // This state now lives inside the hook and is calculated here
-    const [indicators, setIndicators] = useState<any>({ rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null, macd: null });
+    const [indicators, setIndicators] = useState<any>({
+        rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null, macd: null,
+        sma: [], ema: [], vwap: [], bollingerBands: [],
+    });
 
 
     const incrementGeminiRequestCount = useCallback(() => {
@@ -491,12 +539,19 @@ ${basePromptInstructions}`;
         const stochRobot = strategyCouncil.find(r => r.strategyType === 'STOCHASTIC');
         const macdRobot = strategyCouncil.find(r => r.strategyType === 'MACD_CROSS');
         const adxRobot = strategyCouncil.find(r => r.strategyType === 'ADX_TREND');
+        const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
+        const bbRobot = strategyCouncil.find(r => r.strategyType === 'BOLLINGER_BANDS');
 
         const rsiValues = calculateRSI(candles, rsiRobot?.period || 14);
         const stochValues = calculateStochastic(candles, stochRobot?.period || 14);
         const macdValues = macdRobot ? calculateMACD(candles, macdRobot.fastPeriod, macdRobot.slowPeriod, macdRobot.signalPeriod) : { macd: [], signal: [] };
         const adxValues = adxRobot ? calculateADX(candles, adxRobot.period || 14) : { adx: [], pdi: [], ndi: [] };
         const atrValues = calculateATR(candles);
+        
+        const smaValues = maRobot ? calculateSMA(candles, maRobot.longPeriod || 20) : [];
+        const emaValues = maRobot ? calculateEMA(candles, maRobot.shortPeriod || 10) : [];
+        const vwapValues = calculateVWAP(candles);
+        const bbValues = bbRobot ? calculateBollingerBands(candles, bbRobot.period, bbRobot.stdDev) : [];
 
         setIndicators({
             rsi: rsiValues.pop() ?? null,
@@ -509,6 +564,10 @@ ${basePromptInstructions}`;
             pdi: adxValues.pdi.pop() ?? null,
             ndi: adxValues.ndi.pop() ?? null,
             atr: atrValues.pop() ?? null,
+            sma: smaValues,
+            ema: emaValues,
+            vwap: vwapValues,
+            bollingerBands: bbValues,
         });
 
     }, [chartData, strategyCouncil]);
