@@ -7,7 +7,7 @@
  * - getStrategyCouncil - The main flow function that orchestrates the phased assembly.
  */
 
-import { ai, pro } from '@/ai/genkit';
+import { ai, flash } from '@/ai/genkit';
 import { z } from 'zod';
 import { StrategyCouncilInputSchema, StrategyCouncilOutputSchema, RobotStrategySchema, type StrategyCouncilInput, type StrategyCouncilOutput, type RobotStrategy } from './strategy-council-flow.types';
 
@@ -24,7 +24,7 @@ const RobotAnalystGeneratorOutputSchema = z.object({
 // This new, more focused prompt builds a SUBSET of robots at a time.
 const robotAnalystGeneratorPrompt = ai.definePrompt({
     name: 'robotAnalystGeneratorPrompt',
-    model: pro, // Explicitly use the 'pro' model for this complex task
+    model: flash, // Explicitly use the 'flash' model for this complex task
     input: { schema: RobotAnalystGeneratorInputSchema },
     output: { schema: RobotAnalystGeneratorOutputSchema },
     system: `Você é um arquiteto-chefe de estratégias quantitativas. Sua missão é criar as REGRAS para um grupo de robôs-analistas especialistas.
