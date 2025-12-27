@@ -75,6 +75,7 @@ export function useRobotCouncil(
     const [robotPerformance, setRobotPerformance] = useState<RobotPerformance[]>([]);
     const [lastCouncilLossSuggestion, setLastCouncilLossSuggestion] = useState<string | null>(null);
     const [useManualCouncilMode, setUseManualCouncilMode] = useState(true);
+    const [useSingleManualPrompt, setUseSingleManualPrompt] = useState(true);
     
     const [manualPromptBatches, setManualPromptBatches] = useState<ManualPromptBatch[]>([]);
 
@@ -126,17 +127,9 @@ export function useRobotCouncil(
             const historicalDataJson = JSON.stringify(historicalData.map(d => ({...d, date: new Date(d.epoch * 1000).toISOString()})))
 
             if (useManualCouncilMode) {
-                const strategyBatchesConfig: { theme: string; strategies: RobotStrategy['strategyType'][] }[] = [
-                    { theme: "Analistas de Momentum", strategies: ['RSI', 'STOCHASTIC', 'MACD_CROSS'] },
-                    { theme: "Analistas de Tendência e Volatilidade", strategies: ['MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND'] },
-                    { theme: "Analistas de Padrões e Volume", strategies: ['ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE'] },
-                ];
-
-                const batches: ManualPromptBatch[] = strategyBatchesConfig.map((batch, index) => {
-                    const promptText = `Crie um grupo de robôs-analistas para o ativo ${activeSymbol}, otimizados para operar em '${duration_unit}'.
-Estratégias para construir nesta etapa: ${JSON.stringify(batch.strategies)}
-Sua resposta DEVE SER um objeto JSON contendo uma chave "robots" que é um array com EXATAMENTE ${batch.strategies.length} objetos de robôs.
-
+                const allStrategies: RobotStrategy['strategyType'][] = ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE'];
+                
+                const basePromptInstructions = `Sua resposta DEVE SER um objeto JSON contendo uma chave "robots" que é um array com objetos de robôs.
 Regras para cada robô:
 1. ID único (ex: 'RSI_BOT_1').
 2. Preencha OBRIGATORIAMENTE os seguintes campos para cada robô: 'id', 'strategyType', 'justification', 'suggestedStake', 'suggestedDuration', 'suggestedDurationUnit', 'strongConfidence', 'weakConfidence', e os limiares específicos da estratégia (como 'strongBuyThreshold').
@@ -150,19 +143,47 @@ Contexto do Trader:
 - Dados de Mercado: \'\'\'json
 ${historicalDataJson}
 \'\'\'`;
-                    return {
-                        id: `batch_${index + 1}`,
-                        theme: batch.theme,
-                        strategies: batch.strategies,
+
+                let batches: ManualPromptBatch[] = [];
+
+                if (useSingleManualPrompt) {
+                    const promptText = `Crie um conselho completo de 10 robôs-analistas para o ativo ${activeSymbol}, otimizados para operar em '${duration_unit}'.
+As estratégias a serem criadas são: ${JSON.stringify(allStrategies)}.
+${basePromptInstructions}`;
+                    batches = [{
+                        id: 'batch_single',
+                        theme: 'Prompt Único para Conselho Completo',
+                        strategies: allStrategies,
                         prompt: promptText,
                         isCompleted: false,
-                    };
-                });
+                    }];
+
+                } else {
+                     const strategyBatchesConfig: { theme: string; strategies: RobotStrategy['strategyType'][] }[] = [
+                        { theme: "Analistas de Momentum", strategies: ['RSI', 'STOCHASTIC', 'MACD_CROSS'] },
+                        { theme: "Analistas de Tendência e Volatilidade", strategies: ['MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND'] },
+                        { theme: "Analistas de Padrões e Volume", strategies: ['ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE'] },
+                    ];
+
+                    batches = strategyBatchesConfig.map((batch, index) => {
+                        const promptText = `Crie um grupo de robôs-analistas para o ativo ${activeSymbol}, otimizados para operar em '${duration_unit}'.
+Estratégias para construir nesta etapa: ${JSON.stringify(batch.strategies)}.
+A resposta DEVE ser um objeto JSON contendo uma chave "robots" com EXATAMENTE ${batch.strategies.length} objetos.
+${basePromptInstructions}`;
+                        return {
+                            id: `batch_${index + 1}`,
+                            theme: batch.theme,
+                            strategies: batch.strategies,
+                            prompt: promptText,
+                            isCompleted: false,
+                        };
+                    });
+                }
                 
                 setManualPromptBatches(batches);
                 toast({
                     title: "Modo Manual Ativado",
-                    description: "Siga as etapas na nova interface para montar o conselho.",
+                    description: "Siga as etapas na interface para montar o conselho.",
                     duration: 8000,
                 });
 
@@ -189,7 +210,7 @@ ${historicalDataJson}
         } finally {
             setIsFetchingCouncil(false);
         }
-    }, [activeSymbol, dailyBalance, form, toast, getHistoricalData, useManualCouncilMode, incrementGeminiRequestCount]);
+    }, [activeSymbol, dailyBalance, form, toast, getHistoricalData, useManualCouncilMode, useSingleManualPrompt, incrementGeminiRequestCount]);
 
     const processManualCouncilResponse = (batchId: string, jsonResponse: string) => {
         try {
@@ -368,5 +389,7 @@ ${historicalDataJson}
         processManualCouncilResponse,
         useManualCouncilMode,
         setUseManualCouncilMode,
+        useSingleManualPrompt,
+        setUseSingleManualPrompt,
     };
 }

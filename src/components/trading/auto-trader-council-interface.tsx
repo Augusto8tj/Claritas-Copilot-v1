@@ -72,6 +72,8 @@ export function AutoTraderCouncilInterface({
     setIsMeritocracyOn,
     useManualCouncilMode,
     setUseManualCouncilMode,
+    useSingleManualPrompt,
+    setUseSingleManualPrompt,
     indicators,
     fetchStrategyCouncil,
  }: ReturnType<typeof useRobotCouncil>) {
@@ -218,6 +220,15 @@ export function AutoTraderCouncilInterface({
                 </Label>
                 <Switch id="manual-mode-switch" checked={useManualCouncilMode} onCheckedChange={setUseManualCouncilMode} disabled={isCouncilAutopilotOn} />
             </div>
+
+            {useManualCouncilMode && (
+                <div className="flex items-center justify-between pl-6">
+                    <Label htmlFor="single-prompt-switch" className="flex-1 text-muted-foreground">Prompt Único (Contexto Grande)</Label>
+                    <Switch id="single-prompt-switch" checked={useSingleManualPrompt} onCheckedChange={setUseSingleManualPrompt} disabled={isCouncilAutopilotOn} />
+                </div>
+            )}
+
+
             <div className="flex items-center justify-between">
                 <Label htmlFor="dynamic-consensus-switch" className="flex-1">Consenso Dinâmico</Label>
                 <Switch id="dynamic-consensus-switch" checked={isDynamicConsensusOn} onCheckedChange={setIsDynamicConsensusOn} disabled={isCouncilAutopilotOn} />
