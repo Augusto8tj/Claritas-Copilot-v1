@@ -68,6 +68,6 @@ export const RobotStrategySchema = z.object({
 export type RobotStrategy = z.infer<typeof RobotStrategySchema>;
 
 export const StrategyCouncilOutputSchema = z.object({
-  council: z.array(RobotStrategySchema),
+  council: z.array(RobotStrategySchema).min(10, "Array must contain at least 10 element(s)"),
 });
 export type StrategyCouncilOutput = z.infer<typeof StrategyCouncilOutputSchema>;
