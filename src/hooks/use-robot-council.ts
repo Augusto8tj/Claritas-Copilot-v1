@@ -647,7 +647,8 @@ ${basePromptInstructions}`;
                     break;
                  case 'MACD_CROSS':
                     if (indicators.macd?.macd && indicators.macd.signal) {
-                        const prevMacd = chartData.length > 1 ? calculateMACD(chartData.slice(0,-1) as CandleData[]).macd.pop() : null;
+                        const candles = chartData.filter(d => 'close' in d) as CandleData[];
+                        const prevMacd = candles.length > 1 ? calculateMACD(candles.slice(0,-1)).macd.pop() : null;
                         if(prevMacd) {
                              if(prevMacd <= indicators.macd.signal && indicators.macd.macd > indicators.macd.signal) { vote = 'RISE'; confidence = robot.strongConfidence; }
                              if(prevMacd >= indicators.macd.signal && indicators.macd.macd < indicators.macd.signal) { vote = 'FALL'; confidence = robot.strongConfidence; }
@@ -689,7 +690,7 @@ ${basePromptInstructions}`;
 
     }, [
         isCouncilAutopilotOn, 
-        indicators, // The main trigger is now the indicators object itself
+        indicators,
         strategyCouncil, 
         consensusThreshold, 
         isDynamicConsensusOn, 
@@ -700,7 +701,7 @@ ${basePromptInstructions}`;
         toast, 
         form, 
         supervisionCommitteeCheck,
-        chartData // Also listen to chartData for MACD prev calculation
+        chartData
     ]);
 
     return {

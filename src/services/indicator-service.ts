@@ -6,7 +6,7 @@
  * It is kept for potential future use or for non-real-time analysis.
  */
 
-import type { CandleData, ChartData } from '@/hooks/use-deriv-api';
+import type { CandleData } from '@/hooks/types';
 import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
 
 // This file is intentionally left with minimal logic as the core calculations

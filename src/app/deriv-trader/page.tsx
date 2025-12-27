@@ -48,7 +48,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   
   // The `indicators` are calculated and managed inside useRobotCouncil.
   const { indicators } = robotCouncil;
-  const autopilot = useAutopilot(activeSymbol, robotCouncil.incrementGeminiRequestCount, indicators);
+  const autopilot = useAutopilot(activeSymbol, indicators, robotCouncil.incrementGeminiRequestCount);
 
   return (
     <>
