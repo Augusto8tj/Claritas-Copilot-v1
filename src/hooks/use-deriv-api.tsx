@@ -1,3 +1,4 @@
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -211,6 +212,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
           ticks_history: symbol,
           count,
           adjust_start_time: 1,
+          end: "latest",
           style: style,
       };
       if (style === 'candles') {
@@ -409,6 +411,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                             high: parseFloat(ohlc.high),
                             low: parseFloat(ohlc.low),
                             close: parseFloat(ohlc.close),
+                            price: parseFloat(ohlc.close),
                         };
                         setChartData(prev => {
                             const lastCandle = prev.length > 0 ? prev[prev.length - 1] as CandleData : null;
@@ -487,7 +490,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       if (wsRef.current) wsRef.current.close();
     };
-  }, [activeToken, isLoading, makeRequest, toast, triggerReconnect, chartType, activeSymbol]);
+  }, [activeToken, isLoading, makeRequest, toast, triggerReconnect]);
 
   
   // Effect to manage market data subscription
