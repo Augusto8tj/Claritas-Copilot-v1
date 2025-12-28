@@ -124,40 +124,57 @@ export default function HelpPage() {
 
              <AccordionItem value="item-11">
                 <AccordionTrigger className="text-lg font-semibold">
-                    Mesa Operacional de IA (Conselho e Supervisão)
+                    Mesa Operacional de IA (Arquitetura Técnica)
                 </AccordionTrigger>
                 <AccordionContent className="text-base leading-relaxed space-y-4">
-                    <p>Esta é a funcionalidade mais avançada do Claritas. Em vez de depender de um único robô, o sistema simula uma "mesa de operações" com entidades de IA que colaboram para tomar decisões de trading mais seguras e inteligentes. A estrutura funciona em duas camadas hierárquicas:</p>
+                    <p>
+                        A "Mesa Operacional de IA" é o sistema mais avançado do Claritas. Em vez de um único robô, ela simula uma "mesa de operações" hierárquica para tomar decisões de trading mais seguras e inteligentes. A arquitetura é dividida em fluxo de dados, uma camada de decisão por IA e uma camada de supervisão por lógica de programação.
+                    </p>
+
+                    <div>
+                        <h4 className="font-semibold text-md mb-2">Fluxo de Dados e Motor de Indicadores</h4>
+                        <p>
+                            O sistema opera num fluxo de dados reativo e centralizado no hook `useRobotCouncil`:
+                        </p>
+                        <ol className="list-decimal pl-6 mt-2 space-y-2 text-sm">
+                            <li><strong>Entrada de Dados:</strong> O hook `useDerivApi` estabelece a conexão WebSocket e recebe os dados brutos do mercado (`chartData`) em tempo real.</li>
+                            <li><strong>Acionamento do Motor:</strong> Um `useEffect` no `useRobotCouncil` monitoriza continuamente o `chartData`. Qualquer novo "tick" (preço) aciona o motor de cálculo.</li>
+                            <li><strong>Cálculo Centralizado:</strong> O motor lê a configuração de todos os robôs do `strategyCouncil` (ex: período 14 para RSI, 10/30 para médias móveis) e calcula todos os indicadores necessários de uma só vez, usando os dados mais recentes.</li>
+                            <li><strong>Atualização de Estado:</strong> Os valores calculados (RSI, MACD, etc.) são armazenados no estado `indicators` do hook. Esta atualização desencadeia a próxima fase.</li>
+                        </ol>
+                    </div>
                     
                     <div>
-                        <h4 className="font-semibold text-md mb-2">Camada 1: O Conselho de Votação (10 Analistas Especialistas)</h4>
-                        <p>Quando você ativa o piloto automático do conselho, a IA forma uma equipa de 10 "analistas" de software, cada um especialista numa única filosofia de trading. Eles analisam o mercado em tempo real e votam numa direção (RISE ou FALL) com base nos seus próprios critérios. Os especialistas são:</p>
-                        <ul className="list-disc pl-6 mt-2 space-y-1 text-sm">
-                            <li>Analistas de Momentum: <strong>RSI, Estocástico, MACD, Awesome Oscillator</strong></li>
-                            <li>Analistas de Tendência: <strong>Cruzamento de Médias Móveis, ADX, Nuvem Ichimoku</strong></li>
-                            <li>Analista de Volatilidade: <strong>Bandas de Bollinger</strong></li>
-                            <li>Analista de Padrões: <strong>Price Action (Padrões de Velas)</strong></li>
-                            <li>Analista de Volume: <strong>Volume Profile</strong></li>
+                        <h4 className="font-semibold text-md mb-2">Camada 1: O Conselho de Votação (Decisão da IA)</h4>
+                        <p>
+                            Quando o estado `indicators` é atualizado, um segundo `useEffect` é acionado para realizar a votação.
+                        </p>
+                        <ul className="list-disc pl-6 mt-2 space-y-2 text-sm">
+                            <li><strong>Formação do Conselho:</strong> Ao clicar em "Construir Conselho", a aplicação chama o fluxo Genkit `getStrategyCouncilFlow`, que pede à IA para criar as regras e parâmetros para 10 "analistas-robôs" de software, cada um especialista numa única filosofia de trading (RSI, MACD, etc.).</li>
+                            <li><strong>Votação Individual:</strong> Para cada robô no conselho, a lógica de programação verifica se os indicadores atuais satisfazem as suas regras de entrada (ex: `indicators.rsi <= robot.strongBuyThreshold`).</li>
+                            <li><strong>Atribuição de Voto:</strong> Com base na regra, é atribuído um voto ('RISE', 'FALL' ou 'HOLD') e uma pontuação de confiança ('strongConfidence' ou 'weakConfidence').</li>
+                            <li><strong>Consolidação:</strong> Os votos e as confianças de todos os 10 robôs são somados para `riseConfidenceSum` e `fallConfidenceSum`.</li>
                         </ul>
                     </div>
 
                     <div>
-                        <h4 className="font-semibold text-md mb-2">Camada 2: O Comité de Supervisão (3 Supervisores de Risco)</h4>
+                        <h4 className="font-semibold text-md mb-2">Camada 2: O Comité de Supervisão (Governança por Código)</h4>
                         <p>
-                           Esta é a camada de governação. Após o conselho votar, a decisão **não é final**. Ela passa por 3 supervisores que são **lógica de programação fixa**, não entidades de IA. Eles não votam, mas têm poder de veto e ajuste, funcionando como uma camada final de prudência antes de qualquer capital ser arriscado. Eles são invocados em código sempre que uma operação está prestes a ser executada.
+                           Se a soma de confiança de uma direção (`RISE` ou `FALL`) atingir o limiar de consenso, a decisão **não é final**. Ela passa por uma verificação final na função `supervisionCommitteeCheck`, que é lógica de programação fixa, não IA.
                         </p>
                         <ul className="list-disc pl-6 mt-2 space-y-2 text-sm">
-                            <li><strong>Analista de Risco:</strong> O mais importante. Ele verifica a sua banca do dia, o alvo de lucro e o limite de perdas. Se algum limite for atingido, ele <strong>veta a operação</strong> para proteger o seu capital.</li>
-                            <li><strong>Analista de Volatilidade (ATR):</strong> Mede a "turbulência" do mercado. Se o mercado estiver demasiado caótico ou parado, ele <strong>reduz o valor da aposta (stake)</strong> para diminuir o risco.</li>
-                            <li><strong>Analista de Tendência (ADX):</strong> Mede a "clareza" da tendência. Se o mercado estiver lateral, ele também reduz o risco. Se houver uma tendência muito forte a favor do voto do conselho, ele pode manter ou até aumentar ligeiramente a aposta.</li>
+                            <li><strong>Analista de Risco (Veto):</strong> Verifica a banca do dia (`dailyBalance`) e o alvo de lucro (`dailyTarget`). Se algum limite for atingido, ele **veta a operação**, devolvendo um `vetoReason`.</li>
+                            <li><strong>Analista de Volatilidade (ATR):</strong> Mede a "turbulência" do mercado (ATR). Se estiver muito caótico, ele **reduz o valor da aposta (stake)** para diminuir o risco.</li>
+                            <li><strong>Analista de Tendência (ADX):</strong> Mede a "clareza" da tendência (ADX). Se o mercado estiver lateral, também reduz o risco. Se houver uma tendência forte, pode manter ou aumentar a aposta.</li>
+                            <li><strong>Execução Final:</strong> Apenas se não houver veto, a ordem é enviada para a API da Deriv com o `finalStake` ajustado.</li>
                         </ul>
                     </div>
 
                     <div>
                         <h4 className="font-semibold text-md mb-2">Inteligência e Aprendizagem Contínua</h4>
                         <ul className="list-disc pl-6 mt-2 space-y-2 text-sm">
-                            <li><strong>Meritocracia:</strong> Se ativada, os analistas com melhor histórico de vitórias ganham mais "peso" no voto, tornando as suas opiniões mais influentes. Os melhores são promovidos e os piores, rebaixados, automaticamente.</li>
-                            <li><strong>Analista de Perdas:</strong> Sempre que uma operação do conselho resulta em prejuízo, uma IA "médico legista" é acionada para analisar o que correu mal e fornecer uma sugestão para ajustar a estratégia. Essa sugestão é usada na próxima vez que o conselho for formado, criando um ciclo de aprendizagem.</li>
+                            <li><strong>Meritocracia:</strong> Se ativada, os analistas com melhor histórico (guardado no `localStorage`) ganham mais "peso" no voto, tornando as suas opiniões mais influentes.</li>
+                            <li><strong>Analista de Perdas:</strong> Sempre que uma operação do conselho resulta em prejuízo, uma IA "médico legista" (`analyzeTradeLossAction`) é acionada para analisar o que correu mal e fornecer uma sugestão. Essa sugestão pode ser usada na próxima vez que o conselho for formado, criando um ciclo de aprendizagem.</li>
                              <li><strong>Hall da Fama:</strong> A página "Hall da Fama" regista permanentemente os analistas que provaram ser os mais lucrativos e consistentes, permitindo-lhe ver quais estratégias funcionaram melhor ao longo do tempo.</li>
                         </ul>
                     </div>
