@@ -25,7 +25,7 @@ import { SystemStatusSummary } from "@/components/trading/system-status-summary"
 import { ManualCouncilInterface } from "@/components/trading/manual-council-interface";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AITradeSuggestion } from "@/components/trading/ai-trade-suggestion";
-import { IndicatorDebugPanel } from "@/components/trading/indicator-debug-panel";
+import { IndicatorPanel } from "@/components/trading/indicator-panel";
 import { calculateAllIndicators } from "@/services/indicator-service";
 import type { CandleData } from "@/hooks/types";
 
@@ -110,6 +110,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
             </div>
              <div className="space-y-6">
                 <AutoTraderCouncilInterface {...robotCouncil} />
+                <IndicatorPanel indicators={robotCouncil.indicators} latestDataPoint={latestDataPoint} />
                 <AutoTraderInterface {...autopilot} />
             </div>
        </div>
@@ -130,6 +131,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
 
                 <TabsContent value="autopilot" className="mt-4 space-y-6">
                     <AutoTraderCouncilInterface {...robotCouncil} />
+                    <IndicatorPanel indicators={robotCouncil.indicators} latestDataPoint={latestDataPoint} />
                     <AutoTraderInterface {...autopilot} />
                 </TabsContent>
 
@@ -149,8 +151,6 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
             />
         </div>
       )}
-      {/* Painel de Depuração */}
-      <IndicatorDebugPanel indicators={robotCouncil.indicators} latestDataPoint={latestDataPoint} />
     </>
   );
 }
