@@ -22,7 +22,7 @@ import type {
   TimePeriod,
   ChartType,
   TradeAnnotation,
-} from '@/hooks/use-deriv-api'
+} from '@/hooks/types' // Corrected import path
 import { THEMES } from './chart-parts/themes'
 import type { Operation } from '@/components/trading/operations-log.types'
 import {
@@ -297,6 +297,8 @@ export function MarketChart({
 
     let minPrice = Infinity
     let maxPrice = -Infinity
+    
+    // Correctly calculate min/max for both chart types
     visibleData.forEach((d, i) => {
       const pricePoints: (number | null)[] = []
       if (isCandle(d)) {
@@ -304,23 +306,18 @@ export function MarketChart({
       } else {
         pricePoints.push(d.price)
       }
-      if (visibleIndicators.sma && slicedIndicators.sma[i])
-        pricePoints.push(slicedIndicators.sma[i])
-      if (visibleIndicators.ema && slicedIndicators.ema[i])
-        pricePoints.push(slicedIndicators.ema[i])
-      if (visibleIndicators.vwap && slicedIndicators.vwap[i])
-        pricePoints.push(slicedIndicators.vwap[i])
-      if (visibleIndicators.bb && slicedIndicators.bollingerBands[i]) {
-        pricePoints.push(
-          slicedIndicators.bollingerBands[i]!.upper,
-          slicedIndicators.bollingerBands[i]!.lower
-        )
-      }
 
+      if (visibleIndicators.sma && slicedIndicators.sma[i]) pricePoints.push(slicedIndicators.sma[i])
+      if (visibleIndicators.ema && slicedIndicators.ema[i]) pricePoints.push(slicedIndicators.ema[i])
+      if (visibleIndicators.vwap && slicedIndicators.vwap[i]) pricePoints.push(slicedIndicators.vwap[i])
+      if (visibleIndicators.bb && slicedIndicators.bollingerBands[i]) {
+        pricePoints.push(slicedIndicators.bollingerBands[i]!.upper, slicedIndicators.bollingerBands[i]!.lower)
+      }
+    
       const validPrices = pricePoints.filter(p => p !== null) as number[]
       minPrice = Math.min(minPrice, ...validPrices)
       maxPrice = Math.max(maxPrice, ...validPrices)
-    })
+    });
 
     const priceRange = maxPrice - minPrice || 1
     const pricePadding = priceRange * 0.1
