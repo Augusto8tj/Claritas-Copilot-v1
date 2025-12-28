@@ -1,5 +1,3 @@
-
-
 import { z } from 'zod';
 import type { DurationUnit } from '@/components/trading/deriv-trader-interface.types';
 
@@ -101,12 +99,6 @@ export const RobotStrategySchema = z.object({
 export type RobotStrategy = z.infer<typeof RobotStrategySchema>;
 
 export const StrategyCouncilOutputSchema = z.object({
-  council: z.array(RobotStrategySchema),
+  council: z.array(RobotStrategySchema).min(22, "O conselho deve conter no mínimo 22 robôs."),
 });
 export type StrategyCouncilOutput = z.infer<typeof StrategyCouncilOutputSchema>;
-
-
-// Schema for the smaller, focused prompt output. Does not require a min length.
-export const RobotAnalystGeneratorOutputSchema = z.object({
-    robots: z.array(RobotStrategySchema).describe("An array of the generated robot analysts for the requested strategies.")
-});

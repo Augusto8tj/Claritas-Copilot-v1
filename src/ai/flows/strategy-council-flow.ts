@@ -4,7 +4,7 @@
 /**
  * @fileOverview An AI flow that generates a "council" of trading robots by providing executable rules, not just votes.
  * This version is optimized for a single, high-value API call to respect rate limits.
- * It now acts as a "Dynamic Calibrator", optimizing robot parameters for the given time horizon.
+ * It now acts as a "Dynamic Calibrator", optimizing parameters for ALL available robots for the given time horizon.
  * 
  * - getStrategyCouncil - The main flow function that orchestrates the phased assembly.
  */
@@ -17,12 +17,12 @@ import { StrategyCouncilInputSchema, StrategyCouncilOutputSchema, type StrategyC
 const strategyCouncilArchitectPrompt = ai.definePrompt({
     name: 'strategyCouncilArchitectPrompt',
     input: { schema: StrategyCouncilInputSchema },
-    output: { schema: StrategyCouncilOutputSchema }, // Expect the full council output
-    system: `Você é um arquiteto-chefe de estratégias quantitativas. Sua missão é criar as REGRAS para um conselho completo de 10 robôs-analistas especialistas, cada um com uma filosofia de trading única, **calibrados para um horizonte de tempo específico.**
+    output: { schema: StrategyCouncilGptJson }, // Expect the full council output
+    system: `Você é um arquiteto-chefe de estratégias quantitativas. Sua missão é criar as REGRAS para um conselho completo de 22 robôs-analistas especialistas, cada um com uma filosofia de trading única, **calibrados para um horizonte de tempo específico.**
 
-Você deve escolher 10 estratégias da lista disponível para montar o conselho mais diversificado e eficaz para o contexto. A lista de estratégias disponíveis é: ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE', 'KAMA', 'VWAP', 'Z_SCORE', 'STOCH_RSI', 'MFI', 'TRIX', 'ROC', 'DONCHIAN_CHANNELS', 'RVI', 'PARABOLIC_SAR', 'CHANDELIER_EXIT', 'OBV'].
+Você deve criar um especialista para CADA UMA das 22 estratégias da lista disponível: ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE', 'KAMA', 'VWAP', 'Z_SCORE', 'STOCH_RSI', 'MFI', 'TRIX', 'ROC', 'DONCHIAN_CHANNELS', 'RVI', 'PARABOLIC_SAR', 'CHANDELIER_EXIT', 'OBV'].
 
-A sua resposta DEVE SER um único objeto JSON que valida contra o schema de saída, contendo uma chave "council" com um array de EXATAMENTE 10 objetos de robôs.
+A sua resposta DEVE SER um único objeto JSON que valida contra o schema de saída, contendo uma chave "council" com um array de EXATAMENTE 22 objetos de robôs.
 
 Para CADA robô, você deve:
 1.  **Definir um ID único**: Ex: 'RSI_BOT_1'.
@@ -35,7 +35,7 @@ Para CADA robô, você deve:
     - Defina 'suggestedStake' como 1% da banca do dia ('balance').
     - Defina 'suggestedDuration' na unidade 'durationUnit' fornecida.`,
     prompt: `
-Crie o conselho completo de 10 robôs-analistas para o ativo {{{symbol}}}, otimizados para operar em um horizonte de tempo de '{{{durationUnit}}}'.
+Crie o conselho completo de 22 robôs-analistas para o ativo {{{symbol}}}, otimizados para operar em um horizonte de tempo de '{{{durationUnit}}}'.
 
 Dados de Mercado (para análise de condição):
 \'\'\'json
@@ -57,11 +57,11 @@ const getStrategyCouncilFlow = ai.defineFlow(
   },
   async (input) => {
     
-    console.log(`[Council Flow] Iniciando a construção do conselho calibrado para '${input.durationUnit}'...`);
+    console.log(`[Council Flow] Iniciando a construção do conselho completo de 22 robôs, calibrado para '${input.durationUnit}'...`);
 
     // Correctly invoke the prompt as a function
     const { output } = await ai.generate({
-        model: 'googleai/gemini-2.5-flash-lite',
+        model: 'gemini-2.5-flash-lite',
         prompt: strategyCouncilArchitectPrompt.prompt,
         input: input,
         output: { schema: StrategyCouncilOutputSchema },
@@ -70,8 +70,8 @@ const getStrategyCouncilFlow = ai.defineFlow(
         }
     });
 
-    if (!output || !output.council) {
-        throw new Error(`A montagem do conselho falhou. A IA não retornou os robôs esperados.`);
+    if (!output || !output.council || output.council.length < 22) {
+        throw new Error(`A montagem do conselho falhou. A IA não retornou os 22 robôs esperados.`);
     }
     
     // Ensure minimum stake is respected for every robot in the council
