@@ -1,3 +1,4 @@
+
 'use client'
 
 import React, { useCallback } from 'react'
@@ -53,7 +54,7 @@ interface MarketChartProps {
     ema: (number | null)[]
     vwap: (number | null)[]
     bollingerBands: ({ upper: number; middle: number; lower: number } | null)[]
-  },
+  } | null,
   tradeAnnotations: TradeAnnotation[];
 }
 
@@ -150,6 +151,9 @@ export function MarketChart({
   )
 
   const slicedIndicators = React.useMemo(() => {
+    if (!indicators) {
+      return { sma: [], ema: [], vwap: [], bollingerBands: [] };
+    }
     return {
       sma: indicators.sma.slice(dataWindow.start, dataWindow.end),
       ema: indicators.ema.slice(dataWindow.start, dataWindow.end),
