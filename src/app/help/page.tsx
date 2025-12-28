@@ -181,6 +181,37 @@ export default function HelpPage() {
                 </AccordionContent>
             </AccordionItem>
             
+            <AccordionItem value="item-12">
+                <AccordionTrigger className="text-lg font-semibold">
+                    Ficheiros da Mesa Operacional de IA
+                </AccordionTrigger>
+                <AccordionContent className="text-base leading-relaxed space-y-4">
+                  <p>A "Mesa Operacional de IA" é um sistema composto por vários ficheiros chave que trabalham em conjunto. Aqui está um resumo das suas responsabilidades:</p>
+                  <ul className="list-disc pl-6 space-y-3">
+                    <li>
+                      <strong className="font-mono">src/hooks/use-deriv-api.tsx</strong><br/>
+                      A camada de comunicação. Estabelece a conexão WebSocket com a corretora, recebe os dados de mercado (`chartData`) e envia as ordens de negociação (`executeTrade`). É os "ouvidos" e as "mãos" do sistema.
+                    </li>
+                    <li>
+                      <strong className="font-mono">src/hooks/use-robot-council.ts</strong><br/>
+                      O cérebro da operação. Contém o motor de cálculo de todos os indicadores técnicos, a lógica de votação dos robôs, a chamada para formar o conselho via IA e o "Comité de Supervisão" para gestão de risco final.
+                    </li>
+                    <li>
+                      <strong className="font-mono">src/app/actions/ai-actions.ts</strong><br/>
+                      A ponte segura entre a aplicação (cliente) e os fluxos de IA (servidor). A função `getStrategyCouncilAction` aqui é chamada para solicitar a criação do conselho de robôs ao Genkit.
+                    </li>
+                     <li>
+                      <strong className="font-mono">src/ai/flows/strategy-council-flow.ts</strong><br/>
+                      O arquiteto da IA. Este fluxo Genkit contém o prompt detalhado que instrui o LLM sobre como criar as regras, parâmetros e justificações para cada um dos 10 robôs analistas.
+                    </li>
+                    <li>
+                      <strong className="font-mono">src/app/deriv-trader/page.tsx</strong><br/>
+                      A interface e o orquestrador. Esta página integra todos os hooks e componentes visuais, como o gráfico e o painel da Mesa Operacional, permitindo a interação do utilizador com o sistema.
+                    </li>
+                  </ul>
+                </AccordionContent>
+            </AccordionItem>
+
             <AccordionItem value="item-9">
               <AccordionTrigger className="text-lg font-semibold">
                 Teste de Estratégias (Backtesting)
