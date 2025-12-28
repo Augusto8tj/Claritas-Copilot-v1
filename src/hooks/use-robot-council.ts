@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -552,15 +551,22 @@ ${basePromptInstructions}`;
 
     // Effect to calculate indicators whenever chartData or council definition changes
     useEffect(() => {
-        if (!chartData.length || chartData.length < 2) return;
+        if (!chartData.length || chartData.length < 2 || !strategyCouncil.length) {
+            // Reset indicators if there's no data or no council
+             setIndicators({
+                rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
+                macd: { macd: null, signal: null }, ma: { short: null, long: null },
+                sma: [], ema: [], vwap: [], bollingerBands: [],
+            });
+            return;
+        };
 
         const candles = chartData.filter(d => 'close' in d) as CandleData[];
         if (candles.length < 2) return;
 
-        // Use a Set for efficiency
-        const requiredIndicators = new Set(strategyCouncil.map(r => r.strategyType));
-
         const newIndicators: typeof indicators = { ...indicators };
+
+        const requiredIndicators = new Set(strategyCouncil.map(r => r.strategyType));
 
         if (requiredIndicators.has('RSI')) {
             const rsiRobot = strategyCouncil.find(r => r.strategyType === 'RSI')!;
@@ -576,7 +582,6 @@ ${basePromptInstructions}`;
         }
         if (requiredIndicators.has('MACD_CROSS')) {
             const macdRobot = strategyCouncil.find(r => r.strategyType === 'MACD_CROSS')!;
-            // @ts-ignore
             const macdValues = calculateMACD(candles, macdRobot.fastPeriod || 12, macdRobot.slowPeriod || 26, macdRobot.signalPeriod || 9);
             newIndicators.macd = { 
                 macd: macdValues.macd[macdValues.macd.length - 1] ?? null,
@@ -659,7 +664,7 @@ ${basePromptInstructions}`;
                     if (indicators.macd?.macd && indicators.macd.signal) {
                         const candles = chartData.filter(d => 'close' in d) as CandleData[];
                         // @ts-ignore
-                        const prevMacdValues = calculateMACD(candles.slice(0,-1));
+                        const prevMacdValues = calculateMACD(candles.slice(0,-1), robot.fastPeriod || 12, robot.slowPeriod || 26, robot.signalPeriod || 9);
                         const prevMacd = prevMacdValues.macd[prevMacdValues.macd.length -1];
                         const prevSignal = prevMacdValues.signal[prevMacdValues.signal.length -1];
 
