@@ -1,11 +1,9 @@
-
-
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ChartData } from '@/hooks/types';
 import type { Indicators } from '@/services/indicator-service';
-import { Gauge, Zap } from 'lucide-react';
+import { Gauge } from 'lucide-react';
 
 interface IndicatorPanelProps {
   indicators: Indicators;
@@ -16,8 +14,7 @@ const formatValue = (value: number | null | undefined, precision = 4) => {
     return value !== null && value !== undefined ? value.toFixed(precision) : '...';
 };
 
-const isCandle = (d: ChartData): d is { open: number, high: number, low: number, close: number } => 'close' in d;
-
+const isCandle = (d: ChartData | null): d is { open: number, high: number, low: number, close: number } => d !== null && 'close' in d;
 
 export function IndicatorPanel({ indicators, latestDataPoint }: IndicatorPanelProps) {
     if (!indicators) return null;
@@ -36,7 +33,7 @@ export function IndicatorPanel({ indicators, latestDataPoint }: IndicatorPanelPr
             <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4 text-sm font-mono">
                 <div className="space-y-1">
                     <h4 className="font-bold text-muted-foreground">API (Dados Brutos)</h4>
-                    {latestDataPoint && isCandle(latestDataPoint) ? (
+                    {isCandle(latestDataPoint) ? (
                         <>
                             <p>Abertura: <span className="font-bold text-foreground">{formatValue(latestDataPoint.open)}</span></p>
                             <p>Máxima: <span className="font-bold text-foreground">{formatValue(latestDataPoint.high)}</span></p>
