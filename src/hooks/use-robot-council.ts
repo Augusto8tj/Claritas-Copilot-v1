@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -713,5 +714,6 @@ export function useRobotCouncil(
         supervisionStatus,
         processNewChartData,
         indicators,
+        // The rest of the return values were removed as they are now internal
     };
 }

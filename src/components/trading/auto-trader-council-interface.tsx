@@ -20,7 +20,7 @@ import { Badge } from "../ui/badge";
 import type { RobotStrategy } from "@/ai/flows/strategy-council-flow.types";
 import { cn } from "@/lib/utils";
 import { Input } from "../ui/input";
-import { useRobotCouncil } from "@/hooks/use-robot-council";
+import type { useRobotCouncil } from "@/hooks/use-robot-council";
 import type { Indicators } from "@/services/indicator-service";
 
 const indicatorIcons: { [key: string]: React.ReactNode } = {
