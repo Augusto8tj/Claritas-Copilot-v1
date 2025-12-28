@@ -27,8 +27,6 @@ import { ManualCouncilInterface } from "@/components/trading/manual-council-inte
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AITradeSuggestion } from "@/components/trading/ai-trade-suggestion";
 import { IndicatorPanel } from "@/components/trading/indicator-panel";
-import { calculateAllIndicators } from "@/services/indicator-service";
-import type { CandleData } from "@/hooks/types";
 
 
 /**
@@ -48,23 +46,19 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
     tradeAnnotations,
   } = useDerivApi();
   
-  // Initialize hooks that depend on the active symbol and other API data
+  // CENTRALIZED HOOKS
   const robotCouncil = useRobotCouncil(activeSymbol);
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, robotCouncil.incrementGeminiRequestCount);
-  
-  // This is now the central point for indicator calculation
-  useEffect(() => {
-      if (chartData && chartData.length > 20 && robotCouncil.strategyCouncil.length > 0) {
-        const candles = chartData.filter(d => 'close' in d) as CandleData[];
-        if (candles.length > 20) {
-            const newIndicators = calculateAllIndicators(candles, robotCouncil.strategyCouncil);
-            robotCouncil.setIndicators(newIndicators);
-        }
-      }
-  }, [chartData, robotCouncil.strategyCouncil, robotCouncil.setIndicators]);
-
-
   const autopilot = useAutopilot(activeSymbol, robotCouncil.indicators, robotCouncil.incrementGeminiRequestCount);
+
+  // Pass chart data to the main council hook for processing
+  useEffect(() => {
+    if (chartData && chartData.length > 0) {
+      robotCouncil.processNewChartData(chartData);
+    }
+  }, [chartData, robotCouncil.processNewChartData]);
+
+
   const latestDataPoint = chartData.length > 0 ? chartData[chartData.length - 1] : null;
 
   return (

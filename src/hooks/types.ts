@@ -13,6 +13,7 @@ export type CandleData = {
   high: number;
   low: number;
   close: number;
+  volume?: number;
 };
 
 export type ChartData = TickData | CandleData;

@@ -6,12 +6,13 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDerivApi } from './use-deriv-api';
 import { useToast } from './use-toast';
 import { getStrategyCouncilAction } from '@/app/actions/ai-actions';
-import type { RobotStrategy, StrategyCouncilOutput } from '@/ai/flows/strategy-council-flow.types';
+import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
 import { RobotAnalystGeneratorOutputSchema } from '@/ai/flows/strategy-council-flow.types';
 import type { RiseFallFormValues } from '@/components/trading/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
-import type { Indicators } from '@/services/indicator-service';
+import { calculateAllIndicators, type Indicators } from '@/services/indicator-service';
+import type { ChartData } from './types';
 
 
 export type RobotVote = {
@@ -67,7 +68,7 @@ export function useRobotCouncil(
 
     const councilExecutionRef = useRef({ isExecuting: false });
 
-    // The single source of truth for indicators, managed by this hook
+    // This hook is now the single source of truth for indicators
     const [indicators, setIndicators] = useState<Indicators>({
         rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
         macd: { macd: null, signal: null }, ma: { short: null, long: null },
@@ -118,7 +119,7 @@ export function useRobotCouncil(
         try {
             const { duration_unit } = form.getValues();
             
-            const historicalDataJson = "[]"; // This is a placeholder, as the data is now handled by the page component.
+            const historicalDataJson = "[]"; // This is a placeholder.
 
             if (useManualCouncilMode) {
                 const allStrategies: RobotStrategy['strategyType'][] = ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE'];
@@ -248,19 +249,9 @@ ${basePromptInstructions}`;
         if (vetoReason) return { finalStake, vetoReason };
 
         const atr = indicators.atr;
-        const lastPrice = 0; // This needs to be passed in or derived from chartData, but we simplify for now.
+        // The last price is not available here, so we skip the ATR check for now.
+        // A more robust solution would involve passing the last data point.
 
-        if (atr && lastPrice > 0) {
-            const normalizedATR = atr / lastPrice; 
-            if (normalizedATR > 0.0005) { 
-                finalStake *= 0.5;
-                toast({ title: "Supervisor de Volatilidade", description: "Mercado turbulento, risco reduzido para 50%.", variant: "default" });
-            } else if (normalizedATR < 0.0001) {
-                finalStake *= 0.75;
-                toast({ title: "Supervisor de Volatilidade", description: "Mercado parado, risco reduzido para 75%.", variant: "default" });
-            }
-        }
-    
         const adx = indicators.adx;
         if (adx) {
             if (adx < 20) {
@@ -285,6 +276,13 @@ ${basePromptInstructions}`;
         setManualPromptBatches([]);
         toast({ title: "Conselho Dissolvido", description: "A equipa de analistas foi dispensada." });
     };
+    
+    const processNewChartData = useCallback((chartData: ChartData[]) => {
+      if (strategyCouncil.length > 0 && chartData.length > 1) {
+        const calculatedIndicators = calculateAllIndicators(chartData, strategyCouncil);
+        setIndicators(calculatedIndicators);
+      }
+    }, [strategyCouncil]);
 
     useEffect(() => {
         if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || !strategyCouncil.length || !indicators.rsi) {
@@ -340,6 +338,7 @@ ${basePromptInstructions}`;
                          if (prevMacd >= prevSignal && currentMacd < currentSignal) { vote = 'FALL'; confidence = robot.strongConfidence; }
                     }
                     break;
+                // Add other strategy voting logic here...
             }
 
             newVotes[robot.id] = { vote, confidence, weight };
@@ -375,7 +374,7 @@ ${basePromptInstructions}`;
                 .finally(() => setTimeout(() => { councilExecutionRef.current.isExecuting = false; }, 10000));
         }
     }, [
-        indicators, // This is now the trigger
+        indicators, // This is now the primary trigger
         isCouncilAutopilotOn,
         strategyCouncil,
         consensusThreshold,
@@ -410,12 +409,12 @@ ${basePromptInstructions}`;
         isMeritocracyOn,
         setIsMeritocracyOn,
         indicators,
-        setIndicators, // Expose setter
         manualPromptBatches,
         processManualCouncilResponse,
         useManualCouncilMode,
         setUseManualCouncilMode,
         useSingleManualPrompt,
         setUseSingleManualPrompt,
+        processNewChartData, // Expose the function to be called from the page
     };
 }

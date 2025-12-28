@@ -7,7 +7,7 @@
  * It is designed to be used on the client-side for real-time analysis.
  */
 
-import type { CandleData } from '@/hooks/types';
+import type { CandleData, ChartData } from '@/hooks/types';
 import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
 
 export interface Indicators {
@@ -24,6 +24,8 @@ export interface Indicators {
     vwap: (number | null)[];
     bollingerBands: ({ upper: number; middle: number; lower: number } | null)[];
 }
+
+const isCandle = (d: ChartData): d is CandleData => 'close' in d;
 
 const calculateSMA = (data: CandleData[], period: number): (number | null)[] => {
     if (data.length < period) return Array(data.length).fill(null);
@@ -79,12 +81,9 @@ const calculateVWAP = (data: CandleData[]): (number | null)[] => {
 
     for (let i = 0; i < data.length; i++) {
         const d = data[i];
-        // @ts-ignore
         if (d.volume) {
             const typicalPrice = (d.high + d.low + d.close) / 3;
-             // @ts-ignore
             cumulativeTypicalPriceVolume += typicalPrice * d.volume;
-             // @ts-ignore
             cumulativeVolume += d.volume;
             vwapValues.push(cumulativeVolume > 0 ? cumulativeTypicalPriceVolume / cumulativeVolume : null);
         } else {
@@ -272,7 +271,9 @@ const calculateADX = (data: CandleData[], period = 14) => {
 };
 
 
-export function calculateAllIndicators(candles: CandleData[], strategyCouncil: RobotStrategy[]): Indicators {
+export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: RobotStrategy[]): Indicators {
+    const candles = chartData.filter(isCandle);
+
     if (candles.length < 2) {
         return {
             rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
@@ -281,57 +282,43 @@ export function calculateAllIndicators(candles: CandleData[], strategyCouncil: R
         };
     }
 
-    const requiredIndicators = new Set(strategyCouncil.map(r => r.strategyType));
-    const indicators: Indicators = {} as Indicators;
+    const indicators: Partial<Indicators> = {};
 
-    if (requiredIndicators.has('RSI')) {
-        const rsiRobot = strategyCouncil.find(r => r.strategyType === 'RSI')!;
-        const rsiValues = calculateRSI(candles, rsiRobot.period || 14);
-        indicators.rsi = rsiValues[rsiValues.length - 1] ?? null;
-    }
+    const rsiRobot = strategyCouncil.find(r => r.strategyType === 'RSI');
+    const rsiValues = calculateRSI(candles, rsiRobot?.period || 14);
+    indicators.rsi = rsiValues[rsiValues.length - 1] ?? null;
 
-    if (requiredIndicators.has('STOCHASTIC')) {
-        const stochRobot = strategyCouncil.find(r => r.strategyType === 'STOCHASTIC')!;
-        const stochValues = calculateStochastic(candles, stochRobot.period || 14);
-        indicators.stoch = stochValues[stochValues.length - 1] ?? null;
-    }
+    const stochRobot = strategyCouncil.find(r => r.strategyType === 'STOCHASTIC');
+    const stochValues = calculateStochastic(candles, stochRobot?.period || 14);
+    indicators.stoch = stochValues[stochValues.length - 1] ?? null;
     
-    if (requiredIndicators.has('MACD_CROSS')) {
-        const macdRobot = strategyCouncil.find(r => r.strategyType === 'MACD_CROSS')!;
-        const macdValues = calculateMACD(candles, macdRobot.fastPeriod || 12, macdRobot.slowPeriod || 26, macdRobot.signalPeriod || 9);
-        indicators.macd = { 
-            macd: macdValues.macd[macdValues.macd.length - 1] ?? null,
-            signal: macdValues.signal[macdValues.signal.length - 1] ?? null,
-        };
-    }
+    const macdRobot = strategyCouncil.find(r => r.strategyType === 'MACD_CROSS');
+    const macdValues = calculateMACD(candles, macdRobot?.fastPeriod || 12, macdRobot?.slowPeriod || 26, macdRobot?.signalPeriod || 9);
+    indicators.macd = { 
+        macd: macdValues.macd[macdValues.macd.length - 1] ?? null,
+        signal: macdValues.signal[macdValues.signal.length - 1] ?? null,
+    };
 
-    if (requiredIndicators.has('ADX_TREND')) {
-        const adxRobot = strategyCouncil.find(r => r.strategyType === 'ADX_TREND')!;
-        // @ts-ignore
-        const adxValues = calculateADX(candles, adxRobot.period || 14);
-        indicators.adx = adxValues.adx[adxValues.adx.length - 1] ?? null;
-        indicators.pdi = adxValues.pdi[adxValues.pdi.length - 1] ?? null;
-        indicators.ndi = adxValues.ndi[adxValues.ndi.length - 1] ?? null;
-    }
+    const adxRobot = strategyCouncil.find(r => r.strategyType === 'ADX_TREND');
+    const adxValues = calculateADX(candles, adxRobot?.period || 14);
+    indicators.adx = adxValues.adx[adxValues.adx.length - 1] ?? null;
+    indicators.pdi = adxValues.pdi[adxValues.pdi.length - 1] ?? null;
+    indicators.ndi = adxValues.ndi[adxValues.ndi.length - 1] ?? null;
 
     const atrValues = calculateATR(candles);
     indicators.atr = atrValues[atrValues.length - 1] ?? null;
 
     const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
-    if (maRobot) {
-        const smaValues = calculateSMA(candles, maRobot.longPeriod || 50);
-        const emaValues = calculateEMA(candles, maRobot.shortPeriod || 20);
-        indicators.ma = {
-            short: emaValues.length > 0 ? emaValues[emaValues.length - 1] : null,
-            long: smaValues.length > 0 ? smaValues[smaValues.length - 1] : null,
-        }
-        indicators.sma = smaValues;
-        indicators.ema = emaValues;
-    }
+    indicators.sma = maRobot ? calculateSMA(candles, maRobot.longPeriod || 50) : [];
+    indicators.ema = maRobot ? calculateEMA(candles, maRobot.shortPeriod || 20) : [];
+    indicators.ma = {
+        short: indicators.ema.length > 0 ? indicators.ema[indicators.ema.length - 1] : null,
+        long: indicators.sma.length > 0 ? indicators.sma[indicators.sma.length - 1] : null,
+    };
 
     const bbRobot = strategyCouncil.find(r => r.strategyType === 'BOLLINGER_BANDS');
     indicators.bollingerBands = bbRobot ? calculateBollingerBands(candles, bbRobot.period || 20, bbRobot.stdDev || 2) : [];
     indicators.vwap = calculateVWAP(candles);
 
-    return indicators;
+    return indicators as Indicators;
 }
