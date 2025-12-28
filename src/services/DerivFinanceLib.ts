@@ -21,13 +21,13 @@ const normalizeData = (data: InputData[]): OHLCV[] => {
   return data.map(d => {
     const isObj = typeof d === 'object' && d !== null;
     // Prioriza 'close', depois 'quote', depois o próprio valor se for numérico.
-    const price = parseFloat(String(isObj ? (d as OHLCV).close ?? (d as any).quote : d));
+    const price = parseFloat(String(isObj ? ((d as any).close ?? (d as any).price ?? (d as any).quote) : d));
     return {
-      open: parseFloat(String(isObj ? (d as OHLCV).open ?? price : d)),
-      high: parseFloat(String(isObj ? (d as OHLCV).high ?? price : d)),
-      low: parseFloat(String(isObj ? (d as OHLCV).low ?? price : d)),
+      open: parseFloat(String(isObj ? ((d as OHLCV).open ?? price) : d)),
+      high: parseFloat(String(isObj ? ((d as OHLCV).high ?? price) : d)),
+      low: parseFloat(String(isObj ? ((d as OHLCV).low ?? price) : d)),
       close: price,
-      volume: parseFloat(String(isObj ? (d as OHLCV).volume ?? 1 : 1)),
+      volume: parseFloat(String(isObj ? ((d as OHLCV).volume ?? 1) : 1)),
     };
   });
 };
@@ -42,7 +42,11 @@ export const DerivIndicators = {
     for (let i = 1; i < d.length; i++) {
       const signal = Math.abs(d[i].close - (d[i - p]?.close || d[0].close));
       let noise = 0;
-      for (let j = Math.max(1, i - p + 1); j <= i; j++) noise += Math.abs(d[j].close - d[j - 1].close);
+      for (let j = Math.max(1, i - p + 1); j <= i; j++) {
+        if(d[j] && d[j-1]) {
+           noise += Math.abs(d[j].close - d[j - 1].close);
+        }
+      }
       const er = noise === 0 ? 0 : signal / noise;
       const sc = Math.pow(er * (fast - slow) + slow, 2);
       kama.push(kama[i - 1] + sc * (d[i].close - kama[i - 1]));
@@ -62,7 +66,7 @@ export const DerivIndicators = {
       return (((avg + dev * sd) - (avg - dev * sd)) / avg) * 100;
     });
   },
-
+  
   atr: (data: InputData[], p = 14): number[] => {
     const d = normalizeData(data);
     if (d.length === 0) return [];
@@ -167,17 +171,18 @@ export const DerivIndicators = {
         losses.push(diff < 0 ? -diff : 0);
     }
     
-    const ema = (arr: number[], period: number) => {
-        let result: number[] = [];
-        let sum = arr.slice(0, period).reduce((acc, val) => acc + val, 0);
-        result.push(sum / period);
-        for (let i = period; i < arr.length; i++) {
-            result.push((arr[i] * (2 / (period + 1))) + result[result.length - 1] * (1 - (2 / (period + 1))));
-        }
-        return result;
+    const ema = (arr: number[], period: number): number[] => {
+      if (arr.length < period) return [];
+      let result: number[] = [];
+      let sum = arr.slice(0, period).reduce((acc, val) => acc + val, 0);
+      result.push(sum / period);
+      const k = 2 / (period + 1);
+      for (let i = period; i < arr.length; i++) {
+        result.push((arr[i] * k) + (result[result.length - 1] * (1 - k)));
+      }
+      return result;
     };
     
-    // Smooth gains and losses to get RSI values
     if (gains.length < p || losses.length < p) return Array(d.length).fill(0.5);
 
     const avgGain = ema(gains, p);
@@ -192,7 +197,6 @@ export const DerivIndicators = {
     const fillCount = d.length - rsi.length;
     const rsiPadded = [...Array(fillCount).fill(50), ...rsi];
     
-    // Apply stochastic formula to RSI values
     return rsiPadded.map((v, i) => {
       if (i < p) return 0.5;
       const s = rsiPadded.slice(Math.max(0, i - p + 1), i + 1);
@@ -292,7 +296,9 @@ export const DerivIndicators = {
       if (i < p) return 0;
       let sx = 0, sy = 0, sxy = 0, sx2 = 0;
       for (let j = 0; j < p; j++) {
-        const x = j, y = d[i - p + 1 + j];
+        const x = j;
+        const y = d[i - p + 1 + j];
+        if (y === undefined) continue;
         sx += x; sy += y; sxy += x * y; sx2 += x * x;
       }
       const denominator = (p * sx2 - sx * sx);
@@ -306,11 +312,18 @@ export const DerivIndicators = {
     if (d.length < s) return Array(d.length).fill(0);
     
     // Simplified MACD calculation for STC
-    const emaFast = DerivIndicators.gmma({ length: f, ...data } as any).short[0];
-    const emaSlow = DerivIndicators.gmma({ length: s, ...data } as any).long[0];
+    const ema = (arr: number[], period: number) => {
+      let res = [arr[0]];
+      const k = 2 / (period + 1);
+      for (let i = 1; i < arr.length; i++) res.push((arr[i] * k) + ((res[i-1] ?? 0) * (1-k)));
+      return res;
+    }
+    const emaFast = ema(d,f);
+    const emaSlow = ema(d,s);
+
     if(!emaFast || !emaSlow) return Array(d.length).fill(0);
 
-    const macd = emaFast.map((v, i) => v - emaSlow[i]);
+    const macd = emaFast.map((v, i) => v - (emaSlow[i] || 0));
     
     return macd.map((v, i) => {
       if (i < c) return 0;

@@ -51,25 +51,23 @@ const calculateEMA = (data: CandleData[], period: number): (number | null)[] => 
   const k = 2 / (period + 1)
   const emaValues: (number | null)[] = [];
   
-  if(data.length > 0) {
-    let sum = 0;
-    const firstPeriodData = data.slice(0, period);
-    if(firstPeriodData.length === period) {
-        sum = firstPeriodData.reduce((acc, d) => acc + d.close, 0);
-        emaValues.push(sum / period); // Start with SMA
-        for (let i = 1; i < data.length - period + 1; i++) {
-            const prevEma = emaValues[i-1];
-            if(prevEma !== null) {
-              emaValues.push(data[i + period - 1].close * k + prevEma * (1 - k));
-            } else {
-              emaValues.push(null);
-            }
+  if(data.length >= period) {
+    let sum = data.slice(0, period).reduce((acc, d) => acc + d.close, 0);
+    let firstEma = sum/period;
+    
+    const filled = Array(period-1).fill(null);
+    emaValues.push(...filled, firstEma);
+
+    for (let i = period; i < data.length; i++) {
+        const prevEma = emaValues[i-1];
+        if(prevEma !== null) {
+          emaValues.push(data[i].close * k + prevEma * (1 - k));
+        } else {
+          emaValues.push(null);
         }
     }
   }
-
-  const fillCount = data.length - emaValues.length;
-  return [...Array(fillCount).fill(null), ...emaValues];
+  return emaValues;
 }
 
 
@@ -234,6 +232,7 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
 
     let candles: CandleData[];
     if (chartData.length > 0 && !isCandle(chartData[0])) {
+        // If data is TickData, convert to simple CandleData
         candles = chartData.map(d => {
             const price = (d as { price: number }).price;
             return { epoch: d.epoch, open: price, high: price, low: price, close: price, volume: (d as any).volume || 1 };
@@ -241,6 +240,7 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
     } else {
         candles = chartData.filter(isCandle);
     }
+
 
     if (candles.length < 2) {
         return emptyIndicators;
