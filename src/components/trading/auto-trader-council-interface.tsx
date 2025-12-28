@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, Fragment } from "react";
@@ -64,9 +63,8 @@ const robotCategories: Record<string, RobotStrategy['strategyType'][]> = {
     'Especialistas em Padrões': ['PRICE_ACTION_PATTERN'],
 };
 
-interface AutoTraderCouncilInterfaceProps extends ReturnType<typeof useRobotCouncil> {
-    indicators: Indicators;
-}
+// Hook's return type is used for props
+interface AutoTraderCouncilInterfaceProps extends ReturnType<typeof useRobotCouncil> {}
 
 export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProps) {
   const { 
@@ -108,10 +106,11 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
     switch (robot.strategyType) {
         case 'RSI':
         case 'STOCHASTIC':
-        case 'STOCH_RSI':
         case 'MFI':
         case 'RVI':
             return `Sinal Forte < ${robot.strongBuyThreshold}, Sinal Fraco < ${robot.weakBuyThreshold}`;
+        case 'STOCH_RSI':
+             return `Sinal Forte < ${robot.strongBuyThreshold?.toFixed(2)}, Sinal Fraco < ${robot.weakBuyThreshold?.toFixed(2)}`;
         case 'MOVING_AVERAGE_CROSS':
             return `Cruzamento ${robot.shortPeriod}/${robot.longPeriod}`;
         case 'BOLLINGER_BANDS':
@@ -131,6 +130,11 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
             return `AF: ${robot.acceleration}, MAX: ${robot.maxAcceleration}`;
         case 'CHANDELIER_EXIT':
             return `Multiplicador ATR: ${robot.multiplier}`;
+        case 'TRIX':
+        case 'ROC':
+        case 'KAMA':
+        case 'DONCHIAN_CHANNELS':
+            return `Período: ${robot.period}`;
         default:
             return "Parâmetros não definidos";
     }
@@ -138,34 +142,51 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
 
   const renderIndicatorValue = (robot: RobotStrategy) => {
     if (!indicators) return <p>...</p>;
+    const format = (val: number | null, prec = 2) => val?.toFixed(prec) ?? "...";
+
     switch (robot.strategyType) {
         case 'RSI':
-            return <p>RSI Atual: <strong>{indicators.rsi?.toFixed(2) ?? "..."}</strong></p>;
+            return <p>RSI Atual: <strong>{format(indicators.rsi)}</strong></p>;
         case 'STOCHASTIC':
-            return <p>Estocástico Atual: <strong>{indicators.stoch?.toFixed(2) ?? "..."}</strong></p>;
+            return <p>Estocástico Atual: <strong>{format(indicators.stoch)}</strong></p>;
+        case 'MACD_CROSS':
+            const { macd, signal } = indicators.macd;
+            return <p>MACD/Sinal: <strong>{format(macd, 4)} / {format(signal, 4)}</strong></p>;
         case 'MOVING_AVERAGE_CROSS':
-            const shortMA = indicators.ma?.short?.toFixed(4) ?? "-";
-            const longMA = indicators.ma?.long?.toFixed(4) ?? "-";
-            return <p>Médias Atuais: <strong>{shortMA} / {longMA}</strong></p>;
+            const { short, long } = indicators.ma;
+            return <p>Médias Atuais: <strong>{format(short, 4)} / {format(long, 4)}</strong></p>;
         case 'BOLLINGER_BANDS':
             if (!indicators.bollingerBands || indicators.bollingerBands.length === 0) return <p>Bandas: <strong>...</strong></p>;
             const lastBand = indicators.bollingerBands[indicators.bollingerBands.length - 1];
             if (!lastBand) return <p>Bandas: <strong>...</strong></p>;
-            return <p>Bandas: <strong>{lastBand.lower.toFixed(4)} / {lastBand.upper.toFixed(4)}</strong></p>;
-        case 'MACD_CROSS':
-            if (!indicators.macd) return <p>MACD: <strong>...</strong></p>;
-            const { macd, signal } = indicators.macd;
-            return <p>MACD/Sinal: <strong>{macd?.toFixed(4) ?? '...'} / {signal?.toFixed(4) ?? '...'}</strong></p>;
+            return <p>Bandas: <strong>{format(lastBand.lower, 4)} / {format(lastBand.upper, 4)}</strong></p>;
         case 'ADX_TREND':
-            return <p>Força da Tendência (ADX): <strong>{indicators.adx?.toFixed(2) ?? "..."}</strong></p>;
+            return <p>Força da Tendência (ADX): <strong>{format(indicators.adx)}</strong></p>;
         case 'Z_SCORE':
-            return <p>Z-Score Atual: <strong>{indicators.zScore?.toFixed(2) ?? "..."}</strong></p>;
+            return <p>Z-Score Atual: <strong>{format(indicators.zScore)}</strong></p>;
         case 'KAMA':
-            return <p>KAMA Atual: <strong>{indicators.kama?.toFixed(4) ?? "..."}</strong></p>;
+            return <p>KAMA Atual: <strong>{format(indicators.kama, 4)}</strong></p>;
+        case 'STOCH_RSI':
+            return <p>StochRSI Atual: <strong>{format(indicators.stochRSI, 2)}</strong></p>;
+        case 'AWESOME_OSCILLATOR':
+            return <p>Awesome Osc: <strong>{format(indicators.awesomeOscillator, 4)}</strong></p>;
+        case 'TRIX':
+            return <p>TRIX Atual: <strong>{format(indicators.trix)}%</strong></p>;
+        case 'ROC':
+            return <p>ROC Atual: <strong>{format(indicators.roc)}%</strong></p>;
+        case 'MFI':
+             return <p>MFI Atual: <strong>{format(indicators.mfi)}</strong></p>;
+        case 'OBV':
+             return <p>OBV Atual: <strong>{format(indicators.obv, 0)}</strong></p>;
+        case 'PARABOLIC_SAR':
+            return <p>SAR Atual: <strong>{format(indicators.parabolicSAR, 4)}</strong></p>;
+        case 'RVI':
+             return <p>RVI Atual: <strong>{format(indicators.rvi)}</strong></p>;
         default:
-            return null;
+            return null; // For indicators without a direct value to display (e.g., VWAP, Patterns)
     }
   }
+
 
   const groupedRobots = strategyCouncil.reduce((acc, robot) => {
     for (const category in robotCategories) {
