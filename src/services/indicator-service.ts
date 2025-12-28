@@ -7,7 +7,7 @@
  * It is designed to be used on the client-side for real-time analysis.
  */
 
-import type { CandleData, ChartData } from '@/hooks/types';
+import type { CandleData, ChartData, TimePeriod } from '@/hooks/types';
 import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
 import { DerivIndicators } from './DerivFinanceLib';
 
@@ -228,9 +228,9 @@ const calculateADX = (data: CandleData[], period = 14) => {
 
 const calculateAwesomeOscillator = (data: CandleData[]): (number | null)[] => {
     if (data.length < 34) return Array(data.length).fill(null);
-    const midpoints = data.map(d => (d.high + d.low) / 2);
-    const sma5 = calculateSMA(midpoints.map(p => ({ close: p } as CandleData)), 5);
-    const sma34 = calculateSMA(midpoints.map(p => ({ close: p } as CandleData)), 34);
+    const midpoints = data.map(d => ({ ...d, close: (d.high + d.low) / 2 }));
+    const sma5 = calculateSMA(midpoints, 5);
+    const sma34 = calculateSMA(midpoints, 34);
     return sma5.map((s, i) => (s && sma34[i]) ? s - sma34[i]! : null);
 };
 
@@ -278,7 +278,7 @@ const calculateParabolicSAR = (data: CandleData[], af = 0.02, maxAf = 0.2): (num
 };
 
 
-export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: RobotStrategy[]): Indicators {
+export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: RobotStrategy[], timePeriod: TimePeriod): Indicators {
     
     const emptyIndicators: Indicators = {
         rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
@@ -309,33 +309,33 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
         return emptyIndicators;
     }
 
+    const getParam = (type: RobotStrategy['strategyType'], key: keyof RobotStrategy, defaultValue: any) => {
+        const robot = strategyCouncil.find(r => r.strategyType === type);
+        return robot && robot[key] ? robot[key] : defaultValue;
+    };
+
     const indicators: Partial<Indicators> = {};
 
-    const rsiRobot = strategyCouncil.find(r => r.strategyType === 'RSI');
-    const rsiValues = calculateRSI(candles, rsiRobot?.period || 14);
+    const rsiValues = calculateRSI(candles, getParam('RSI', 'period', 14));
     indicators.rsi = rsiValues.length > 0 ? rsiValues[rsiValues.length - 1] : null;
 
-    const stochRobot = strategyCouncil.find(r => r.strategyType === 'STOCHASTIC');
-    const stochValues = calculateStochastic(candles, stochRobot?.period || 14);
+    const stochValues = calculateStochastic(candles, getParam('STOCHASTIC', 'period', 14));
     indicators.stoch = stochValues.length > 0 ? stochValues[stochValues.length - 1] : null;
     
-    const macdRobot = strategyCouncil.find(r => r.strategyType === 'MACD_CROSS');
-    const macdValues = calculateMACD(candles, macdRobot?.fastPeriod || 12, macdRobot?.slowPeriod || 26, macdRobot?.signalPeriod || 9);
+    const macdValues = calculateMACD(candles, getParam('MACD_CROSS', 'fastPeriod', 12), getParam('MACD_CROSS', 'slowPeriod', 26), getParam('MACD_CROSS', 'signalPeriod', 9));
     indicators.macd = { 
         macd: macdValues.macd.length > 0 ? macdValues.macd[macdValues.macd.length - 1] : null,
         signal: macdValues.signal.length > 0 ? macdValues.signal[macdValues.signal.length - 1] : null,
         histogram: macdValues.histogram.length > 0 ? macdValues.histogram[macdValues.histogram.length - 1] : null,
     };
 
-    const adxRobot = strategyCouncil.find(r => r.strategyType === 'ADX_TREND');
-    const adxValues = calculateADX(candles, adxRobot?.period || 14);
+    const adxValues = calculateADX(candles, getParam('ADX_TREND', 'period', 14));
     indicators.adx = adxValues.adx.length > 0 ? adxValues.adx[adxValues.adx.length - 1] : null;
     indicators.pdi = adxValues.pdi.length > 0 ? adxValues.pdi[adxValues.pdi.length - 1] : null;
     indicators.ndi = adxValues.ndi.length > 0 ? adxValues.ndi[adxValues.ndi.length - 1] : null;
 
-    const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
-    const shortPeriod = maRobot?.shortPeriod || 20;
-    const longPeriod = maRobot?.longPeriod || 50;
+    const shortPeriod = getParam('MOVING_AVERAGE_CROSS', 'shortPeriod', 20);
+    const longPeriod = getParam('MOVING_AVERAGE_CROSS', 'longPeriod', 50);
     indicators.ema = calculateEMA(candles, shortPeriod);
     indicators.sma = calculateSMA(candles, longPeriod);
     indicators.ma = {
@@ -343,54 +343,44 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
         long: indicators.sma.length > 0 ? indicators.sma[indicators.sma.length - 1] : null,
     };
     
-    const bbRobot = strategyCouncil.find(r => r.strategyType === 'BOLLINGER_BANDS');
-    const bbValues = DerivIndicators.bollingerBandwidth(candles, bbRobot?.period, bbRobot?.stdDev);
-    indicators.bbw = bbValues[bbValues.length - 1] ?? null;
+    indicators.bollingerBands = DerivIndicators.donchian(candles, getParam('BOLLINGER_BANDS', 'period', 20));
 
-    const donchianRobot = strategyCouncil.find(r => r.strategyType === 'DONCHIAN_CHANNELS');
-    indicators.donchianChannels = DerivIndicators.donchian(candles, donchianRobot?.period);
+    indicators.donchianChannels = DerivIndicators.donchian(candles, getParam('DONCHIAN_CHANNELS', 'period', 20));
 
-    const chandelierRobot = strategyCouncil.find(r => r.strategyType === 'CHANDELIER_EXIT');
-    const chandelierValues = DerivIndicators.chandelierExit(candles, chandelierRobot?.period, chandelierRobot?.multiplier);
+    const chandelierValues = DerivIndicators.chandelierExit(candles, getParam('CHANDELIER_EXIT', 'period', 22), getParam('CHANDELIER_EXIT', 'multiplier', 3));
     indicators.chandelierExit = chandelierValues.length > 0 ? chandelierValues[chandelierValues.length - 1] : null;
-
-    // --- ADVANCED & NEWLY ADDED INDICATORS ---
+    
     const atrValues = DerivIndicators.atr(candles);
     indicators.atr = atrValues.length > 0 ? atrValues[atrValues.length - 1] : null;
 
     const vwapValues = DerivIndicators.vwap(candles);
     indicators.vwap = vwapValues;
 
-    const kamaValues = DerivIndicators.kama(candles);
+    const kamaValues = DerivIndicators.kama(candles, getParam('KAMA', 'period', 10));
     indicators.kama = kamaValues.length > 0 ? kamaValues[kamaValues.length - 1] : null;
     
-    const stochRSIValues = DerivIndicators.stochRSI(candles);
+    const stochRSIValues = DerivIndicators.stochRSI(candles, getParam('STOCH_RSI', 'period', 14));
     indicators.stochRSI = stochRSIValues.length > 0 ? stochRSIValues[stochRSIValues.length - 1] : null;
 
-    const zScoreValues = DerivIndicators.zScore(candles);
+    const zScoreValues = DerivIndicators.zScore(candles, getParam('Z_SCORE', 'period', 20));
     indicators.zScore = zScoreValues.length > 0 ? zScoreValues[zScoreValues.length - 1] : null;
 
     const aoValues = calculateAwesomeOscillator(candles);
     indicators.awesomeOscillator = aoValues.length > 0 ? aoValues[aoValues.length - 1] : null;
     
-    const trixRobot = strategyCouncil.find(r => r.strategyType === 'TRIX');
-    const trixValues = DerivIndicators.trix(candles, trixRobot?.period);
+    const trixValues = DerivIndicators.trix(candles, getParam('TRIX', 'period', 15));
     indicators.trix = trixValues.length > 0 ? trixValues[trixValues.length - 1] : null;
 
-    const rocRobot = strategyCouncil.find(r => r.strategyType === 'ROC');
-    const rocValues = DerivIndicators.roc(candles, rocRobot?.period);
+    const rocValues = DerivIndicators.roc(candles, getParam('ROC', 'period', 12));
     indicators.roc = rocValues.length > 0 ? rocValues[rocValues.length - 1] : null;
 
-    const sarRobot = strategyCouncil.find(r => r.strategyType === 'PARABOLIC_SAR');
-    const sarValues = calculateParabolicSAR(candles, sarRobot?.acceleration, sarRobot?.maxAcceleration);
+    const sarValues = calculateParabolicSAR(candles, getParam('PARABOLIC_SAR', 'acceleration', 0.02), getParam('PARABOLIC_SAR', 'maxAcceleration', 0.2));
     indicators.parabolicSAR = sarValues.length > 0 ? sarValues[sarValues.length - 1] : null;
 
     const ichimokuValues = DerivIndicators.ichimoku(candles);
-    const lastIchi = ichimokuValues.length > 0 ? ichimokuValues[ichimokuValues.length - 1] : { tenkan: null, kijun: null, senkouA: null, senkouB: null };
-    indicators.ichimoku = lastIchi;
+    indicators.ichimoku = ichimokuValues.length > 0 ? ichimokuValues[ichimokuValues.length - 1] : { tenkan: null, kijun: null, senkouA: null, senkouB: null };
 
-    const mfiRobot = strategyCouncil.find(r => r.strategyType === 'MFI');
-    const mfiValues = DerivIndicators.mfi(candles, mfiRobot?.period);
+    const mfiValues = DerivIndicators.mfi(candles, getParam('MFI', 'period', 14));
     indicators.mfi = mfiValues.length > 0 ? mfiValues[mfiValues.length - 1] : null;
 
     const obvValues = DerivIndicators.obv(candles);

@@ -100,7 +100,7 @@ export default function HelpPage() {
                  <p>A página <strong>Deriv Trader</strong> é um ambiente de negociação integrado que transforma o Claritas num copiloto financeiro avançado. As funcionalidades foram recentemente evoluídas para um nível profissional de estabilidade e performance.</p>
                  <ol className="list-decimal pl-6 space-y-3">
                     <li>
-                      <strong>Motor de Indicadores Centralizado:</strong> O coração do nosso sistema de trading é um motor que calcula, em tempo real, um conjunto completo de <strong>10 categorias de indicadores técnicos</strong>. Este motor alimenta tanto o gráfico que você vê quanto a lógica de decisão do Conselho de Robôs, garantindo consistência total dos dados. Os indicadores incluem RSI, Estocástico, MACD, Médias Móveis (SMA/EMA), Bandas de Bollinger, VWAP, ADX, Nuvem Ichimoku, e mais.
+                      <strong>Motor de Indicadores Centralizado:</strong> O coração do nosso sistema de trading é um motor que calcula, em tempo real, um conjunto completo de <strong>22 categorias de indicadores técnicos</strong>. Este motor alimenta tanto o gráfico que você vê quanto a lógica de decisão do Conselho de Robôs, garantindo consistência total dos dados. Os indicadores incluem RSI, Estocástico, MACD, Médias Móveis (SMA/EMA), Bandas de Bollinger, VWAP, ADX, Nuvem Ichimoku, e mais.
                     </li>
                     <li>
                       <strong>Gráfico de Trading Avançado (SVG):</strong>
@@ -128,45 +128,28 @@ export default function HelpPage() {
                 </AccordionTrigger>
                 <AccordionContent className="text-base leading-relaxed space-y-4">
                     <p>
-                        A "Mesa Operacional de IA" é o sistema mais avançado do Claritas. Em vez de um único robô, ela simula uma orquestra profissional para tomar decisões de trading mais seguras e inteligentes. A arquitetura é dividida em três camadas hierárquicas.
+                        A "Mesa Operacional" é o sistema mais avançado do Claritas. Em vez de um único robô, ela simula uma equipa profissional para tomar decisões de trading mais seguras e inteligentes. A arquitetura é dividida em três camadas hierárquicas.
                     </p>
 
                     <div>
-                        <h4 className="font-semibold text-md mb-2">Passo 1: O Fluxo de Dados e o Motor de Indicadores</h4>
-                        <p>
-                            Tudo começa com a chegada dos dados do mercado em tempo real.
+                        <h4 className="font-semibold text-md mb-2">Camada 1: Os 22 Analistas Táticos (A Equipa)</h4>
+                        <p className="text-sm">
+                           São os especialistas de linha de frente. Cada um domina uma única estratégia (RSI, MACD, etc.). Eles analisam os indicadores em tempo real e emitem um "voto" (`RISE`, `FALL`, `HOLD`) com um nível de confiança. Pense neles como 22 analistas, cada um na sua secretária, focados no seu gráfico.
                         </p>
-                        <ol className="list-decimal pl-6 mt-2 space-y-2 text-sm">
-                            <li><strong>Entrada de Dados:</strong> O hook `useDerivApi` (o "ouvido" do sistema) recebe os dados brutos do mercado (`chartData`).</li>
-                            <li><strong>Acionamento do Motor:</strong> Dentro do `use-robot-council`, um `useEffect` monitoriza o `chartData`. Qualquer novo preço funciona como a "batuta do maestro", iniciando um novo ciclo de análise.</li>
-                            <li><strong>Cálculo Centralizado:</strong> O motor de cálculo lê a configuração de todos os 22 robôs-analistas e calcula, de uma só vez, todos os indicadores necessários (RSI, MACD, ADX, etc.), transformando dados brutos em inteligência.</li>
-                            <li><strong>Atualização de Estado:</strong> Os valores calculados são armazenados no estado `indicators`, sinalizando para a próxima camada.</li>
-                        </ol>
                     </div>
                     
                     <div>
-                        <h4 className="font-semibold text-md mb-2">Passo 2: A Camada de Decisão - O Comité Tático de Especialistas</h4>
-                        <p>
-                           Com os indicadores frescos, o sistema ativa um "Comité Tático de Especialistas".
+                        <h4 className="font-semibold text-md mb-2">Camada 2: O Líder do Comité Tático (O Gestor de Turno)</h4>
+                        <p className="text-sm">
+                          Esta persona, representada pela função `committeeOfSpecialists`, não vota. Em vez disso, ele avalia as condições gerais do mercado (tendência, volatilidade) e **convoca apenas os especialistas mais qualificados** para a situação. Se o mercado está volátil, ele chama os especialistas em Bandas de Bollinger; se está em tendência, chama os de Médias Móveis. É o gestor de turno que organiza a equipa.
                         </p>
-                        <ul className="list-disc pl-6 mt-2 space-y-2 text-sm">
-                            <li><strong>Seleção Tática (`committeeOfSpecialists`):</strong> Em vez de todos os 22 robôs votarem sempre, esta função analisa os indicadores "macro" (como ADX para tendência e ATR para volatilidade) e seleciona apenas os especialistas mais relevantes para as condições atuais do mercado.</li>
-                            <li><strong>Votação Individual:</strong> Apenas os especialistas selecionados votam. Cada um verifica se os indicadores atuais satisfazem as suas regras de entrada (ex: `indicators.rsi <= robot.strongBuyThreshold`).</li>
-                            <li><strong>Consolidação:</strong> Os votos (`RISE`, `FALL`) e as confianças de cada especialista ativo são somados para determinar a direção do consenso.</li>
-                        </ul>
                     </div>
 
                     <div>
-                        <h4 className="font-semibold text-md mb-2">Passo 3: A Camada de Governança - O Comité de Supervisão</h4>
-                        <p>
-                           Se o consenso é atingido, a decisão passa por uma verificação final no `supervisionCommitteeCheck`, que é pura lógica de programação.
+                        <h4 className="font-semibold text-md mb-2">Camada 3: O Comité de Supervisão e Risco (A Direção)</h4>
+                        <p className="text-sm">
+                          Esta é a camada final e mais poderosa (`supervisionCommitteeCheck`). Este comité recebe a recomendação do consenso, mas tem **poder de veto e de ajuste**. Ele responde a perguntas cruciais: "Já atingimos o nosso limite de perda ou a nossa meta de lucro do dia?" (se sim, **VETO**), ou "O mercado está demasiado caótico?" (se sim, **reduz o valor da aposta**). É a direção de risco que dá a aprovação final.
                         </p>
-                        <ul className="list-disc pl-6 mt-2 space-y-2 text-sm">
-                            <li><strong>Analista de Risco (Veto):</strong> O "Guardião do Capital". Verifica a banca do dia e o alvo de lucro. Se algum limite for atingido, ele **veta a operação** e a bloqueia.</li>
-                            <li><strong>Analista de Volatilidade (ATR):</strong> Se o mercado estiver demasiado caótico (ATR alto), ele **reduz o valor da aposta (stake)** para diminuir o risco.</li>
-                            <li><strong>Analista de Tendência (ADX):</strong> Se o mercado estiver lateral (ADX baixo), ele também reduz o risco. Se houver uma tendência forte, pode autorizar um risco maior.</li>
-                            <li><strong>Execução Final:</strong> Apenas se não houver veto, a ordem é enviada para a API da Deriv com o `finalStake` ajustado pelo comité.</li>
-                        </ul>
                     </div>
                 </AccordionContent>
             </AccordionItem>
@@ -187,10 +170,6 @@ export default function HelpPage() {
                       O cérebro da operação. Contém o motor de cálculo de todos os indicadores técnicos, a lógica de votação dos robôs, a chamada para formar o conselho via IA e o "Comité de Supervisão" para gestão de risco final.
                     </li>
                     <li>
-                      <strong className="font-mono">src/app/actions/ai-actions.ts</strong><br/>
-                      A ponte segura entre a aplicação (cliente) e os fluxos de IA (servidor). A função `getStrategyCouncilAction` aqui é chamada para solicitar a criação do conselho de robôs ao Genkit.
-                    </li>
-                     <li>
                       <strong className="font-mono">src/ai/flows/strategy-council-flow.ts</strong><br/>
                       O arquiteto da IA. Este fluxo Genkit contém o prompt detalhado que instrui o LLM sobre como criar as regras, parâmetros e justificações para cada um dos 10 robôs analistas.
                     </li>

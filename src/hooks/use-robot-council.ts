@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -9,7 +10,7 @@ import type { RiseFallFormValues } from '@/components/trading/deriv-trader-inter
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
 import type { Indicators } from '@/services/indicator-service';
-import type { ChartData } from './types';
+import type { ChartData, TimePeriod } from './types';
 import { calculateAllIndicators } from '@/services/indicator-service';
 
 export type RobotVote = {
@@ -34,129 +35,181 @@ export type SupervisionStatus = {
     message: string;
 };
 
+type TradingStyle = 'HFT' | 'Scalping' | 'Intraday' | 'Swing';
+
+const getTradingStyle = (timePeriod: TimePeriod): TradingStyle => {
+    const hftPeriods: TimePeriod[] = ['1m', '2m'];
+    const scalpingPeriods: TimePeriod[] = ['3m', '5m', '10m', '15m'];
+    const intradayPeriods: TimePeriod[] = ['30m', '1h'];
+    if (hftPeriods.includes(timePeriod)) return 'HFT';
+    if (scalpingPeriods.includes(timePeriod)) return 'Scalping';
+    if (intradayPeriods.includes(timePeriod)) return 'Intraday';
+    return 'Swing'; // for 8h, 1d
+};
 
 /**
- * Builds a statically defined, locally calibrated council of all 22 trading robots.
- * @param durationUnit The time horizon ('t', 'm', etc.) to calibrate parameters for.
+ * Builds a dynamically calibrated council of all 22 trading robots based on trading style.
+ * @param timePeriod The chart time period to calibrate for.
  * @param dailyBalance The daily balance for risk management.
  * @returns An array of 22 configured RobotStrategy objects.
  */
-const buildStaticCouncil = (durationUnit: RiseFallFormValues['duration_unit'], dailyBalance: number): RobotStrategy[] => {
-    const isTickTrading = durationUnit === 't';
+const buildStaticCouncil = (timePeriod: TimePeriod, dailyBalance: number): RobotStrategy[] => {
+    const style = getTradingStyle(timePeriod);
+    const isTickTrading = timePeriod === '1m'; // Simplified for duration unit
+    const durationUnit = isTickTrading ? 't' : 'm';
     const suggestedStake = Math.max(0.35, dailyBalance * 0.01);
-    const suggestedDuration = isTickTrading ? 5 : 1;
+    
+    // Default calibrations
+    let rsiParams = { period: 14, strongBuy: 30, weakBuy: 40, strongSell: 70, weakSell: 60, justification: 'padrão (14) para seguir tendência.' };
+    let stochParams = { period: 14, strongBuy: 20, weakBuy: 30, strongSell: 80, weakSell: 70, justification: 'padrão (14) para reversão.' };
+    let macdParams = { fast: 12, slow: 26, signal: 9, justification: 'padrão (12/26/9) para capturar tendências.'};
+    let maParams = { short: 20, long: 50, justification: 'padrão (20/50) para cruzamentos de tendência.'};
+    let bbParams = { period: 20, stdDev: 2.0, justification: 'padrão (20/2.0) para "andar nas bandas".' };
+    let adxThreshold = 25;
+    let kamaPeriod = 10;
+    let donchianPeriod = 20;
+    let trixPeriod = 15;
+    let rocPeriod = 12;
+    let chandelierMultiplier = 3.0;
+
+    switch (style) {
+        case 'HFT':
+            rsiParams = { period: 7, strongBuy: 20, weakBuy: 30, strongSell: 80, weakSell: 70, justification: 'rápidos (7) para reversão extrema.' };
+            stochParams = { period: 10, strongBuy: 15, weakBuy: 25, strongSell: 85, weakSell: 75, justification: 'sensível (10) para picos.' };
+            macdParams = { fast: 8, slow: 17, signal: 6, justification: 'rápidos (8/17/6) para momentum imediato.' };
+            maParams = { short: 5, long: 10, justification: 'curtos (5/10) para cruzamentos rápidos.' };
+            bbParams = { period: 20, stdDev: 1.8, justification: 'curto (20/1.8) para rompimentos.'};
+            adxThreshold = 30;
+            kamaPeriod = 5;
+            donchianPeriod = 10;
+            trixPeriod = 9;
+            rocPeriod = 9;
+            chandelierMultiplier = 2.5;
+            break;
+        case 'Scalping':
+            rsiParams = { period: 10, strongBuy: 25, weakBuy: 35, strongSell: 75, weakSell: 65, justification: 'médios (10) para divergências.' };
+            stochParams = { period: 14, strongBuy: 20, weakBuy: 30, strongSell: 80, weakSell: 70, justification: 'padrão (14) para zonas de sobrecompra/venda.' };
+            maParams = { short: 10, long: 20, justification: 'médios (10/20) para suporte dinâmico.' };
+            bbParams = { period: 20, stdDev: 2.0, justification: 'padrão (20/2.0) para "squeezes".' };
+            chandelierMultiplier = 3.0;
+            break;
+        case 'Swing':
+            rsiParams = { period: 20, strongBuy: 20, weakBuy: 30, strongSell: 80, weakSell: 70, justification: 'longos (20) para ciclos de mercado.' };
+            macdParams = { fast: 50, slow: 100, signal: 25, justification: 'longos (50/100/25) para ciclos macro.'};
+            maParams = { short: 50, long: 200, justification: 'clássicos (50/200) para "Golden/Death Crosses".'};
+            bbParams = { period: 50, stdDev: 2.5, justification: 'longo (50/2.5) para topos/fundos de mercado.'};
+            adxThreshold = 20;
+            donchianPeriod = 50;
+            chandelierMultiplier = 4.0;
+            break;
+    }
 
     const strategies: RobotStrategy[] = [
-        // --- Momentum & Trend ---
         {
-            id: 'RSI_BOT_1', strategyType: 'RSI', justification: `Parâmetros de RSI ${isTickTrading ? 'rápidos (7)' : 'padrão (14)'} para o horizonte de tempo.`,
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 90, weakConfidence: 65,
-            period: isTickTrading ? 7 : 14, strongBuyThreshold: 25, weakBuyThreshold: 35, strongSellThreshold: 75, weakSellThreshold: 65,
+            id: 'RSI_BOT_1', strategyType: 'RSI', justification: `Parâmetros de RSI ${rsiParams.justification}`,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 90, weakConfidence: 65,
+            period: rsiParams.period, strongBuyThreshold: rsiParams.strongBuy, weakBuyThreshold: rsiParams.weakBuy, strongSellThreshold: rsiParams.strongSell, weakSellThreshold: rsiParams.weakSell,
         },
         {
-            id: 'STOCH_BOT_1', strategyType: 'STOCHASTIC', justification: `Estocástico ${isTickTrading ? 'sensível (10)' : 'padrão (14)'} para detectar reversões rápidas.`,
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 90, weakConfidence: 65,
-            period: isTickTrading ? 10 : 14, strongBuyThreshold: 20, weakBuyThreshold: 30, strongSellThreshold: 80, weakSellThreshold: 70,
+            id: 'STOCH_BOT_1', strategyType: 'STOCHASTIC', justification: `Estocástico ${stochParams.justification}`,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 90, weakConfidence: 65,
+            period: stochParams.period, strongBuyThreshold: stochParams.strongBuy, weakBuyThreshold: stochParams.weakBuy, strongSellThreshold: stochParams.strongSell, weakSellThreshold: stochParams.weakSell,
         },
         {
-            id: 'MACD_BOT_1', strategyType: 'MACD_CROSS', justification: `MACD ${isTickTrading ? 'rápido (8/17/6)' : 'padrão (12/26/9)'} para capturar cruzamentos de momentum.`,
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 95, weakConfidence: 70,
-            fastPeriod: isTickTrading ? 8 : 12, slowPeriod: isTickTrading ? 17 : 26, signalPeriod: isTickTrading ? 6 : 9,
+            id: 'MACD_BOT_1', strategyType: 'MACD_CROSS', justification: `MACD ${macdParams.justification}`,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 95, weakConfidence: 70,
+            fastPeriod: macdParams.fast, slowPeriod: macdParams.slow, signalPeriod: macdParams.signal,
         },
         {
             id: 'ADX_BOT_1', strategyType: 'ADX_TREND', justification: 'Usa o ADX para confirmar a força da tendência antes de entrar.',
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 60,
-            period: 14, trendStrengthThreshold: 25,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 60,
+            period: 14, trendStrengthThreshold: adxThreshold,
         },
         {
             id: 'AWESOME_OSC_BOT_1', strategyType: 'AWESOME_OSCILLATOR', justification: 'Busca "pires" e cruzamentos de linha zero para sinais de momentum.',
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 80, weakConfidence: 60,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 80, weakConfidence: 60,
         },
         {
             id: 'TRIX_BOT_1', strategyType: 'TRIX', justification: 'Usa a inclinação do TRIX para um sinal de momentum suave.',
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 60,
-            period: isTickTrading ? 9 : 15,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 60,
+            period: trixPeriod,
         },
         {
             id: 'ROC_BOT_1', strategyType: 'ROC', justification: 'Mede a velocidade da mudança de preço para sinais de aceleração.',
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 80, weakConfidence: 55,
-            period: isTickTrading ? 9 : 12,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 80, weakConfidence: 55,
+            period: rocPeriod,
         },
         {
             id: 'RVI_BOT_1', strategyType: 'RVI', justification: 'Mede a convicção da tendência com base no vigor relativo.',
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 65,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 65,
             period: 10, strongBuyThreshold: 40, weakBuyThreshold: 50, strongSellThreshold: 60, weakSellThreshold: 50,
         },
         {
             id: 'PSAR_BOT_1', strategyType: 'PARABOLIC_SAR', justification: 'Identifica reversões de tendência com pontos SAR.',
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 90, weakConfidence: 0,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 90, weakConfidence: 0,
             acceleration: 0.02, maxAcceleration: 0.2,
         },
         {
-            id: 'MA_CROSS_BOT_1', strategyType: 'MOVING_AVERAGE_CROSS', justification: `Cruzamento de médias ${isTickTrading ? 'curtas (5/10)' : 'padrão (10/20)'}.`,
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 90, weakConfidence: 0,
-            shortPeriod: isTickTrading ? 5 : 10, longPeriod: isTickTrading ? 10 : 20,
+            id: 'MA_CROSS_BOT_1', strategyType: 'MOVING_AVERAGE_CROSS', justification: `Cruzamento de médias ${maParams.justification}`,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 90, weakConfidence: 0,
+            shortPeriod: maParams.short, longPeriod: maParams.long,
         },
-        // --- Volatility & Structure ---
         {
-            id: 'BB_BOT_1', strategyType: 'BOLLINGER_BANDS', justification: `Negocia reversões nas bandas com desvio padrão ${isTickTrading ? '1.8' : '2.0'}.`,
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 60,
-            period: 20, stdDev: isTickTrading ? 1.8 : 2.0,
+            id: 'BB_BOT_1', strategyType: 'BOLLINGER_BANDS', justification: `Negocia com base em Bandas de Bollinger ${bbParams.justification}`,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 60,
+            period: bbParams.period, stdDev: bbParams.stdDev,
         },
         {
             id: 'ICHIMOKU_BOT_1', strategyType: 'ICHIMOKU_CLOUD', justification: 'Analisa a nuvem Kumo como suporte/resistência dinâmica.',
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 88, weakConfidence: 60,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 88, weakConfidence: 60,
         },
         {
             id: 'KAMA_BOT_1', strategyType: 'KAMA', justification: 'Usa a média móvel adaptativa para seguir a tendência suavemente.',
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 65,
-            period: 10, fastEnd: 2, slowEnd: 30
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 65,
+            period: kamaPeriod, fastEnd: 2, slowEnd: 30
         },
         {
-            id: 'DONCHIAN_BOT_1', strategyType: 'DONCHIAN_CHANNELS', justification: 'Busca rompimentos dos canais de Donchian de 20 períodos.',
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 0,
-            period: 20,
+            id: 'DONCHIAN_BOT_1', strategyType: 'DONCHIAN_CHANNELS', justification: `Busca rompimentos dos canais de Donchian de ${donchianPeriod} períodos.`,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 0,
+            period: donchianPeriod,
         },
         {
             id: 'CHANDELIER_BOT_1', strategyType: 'CHANDELIER_EXIT', justification: 'Usa o Chandelier Exit para seguir a tendência.',
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 90, weakConfidence: 0,
-            period: 22, multiplier: 3.0,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 90, weakConfidence: 0,
+            period: 22, multiplier: chandelierMultiplier,
         },
-        // --- Volume & Order Flow ---
         {
             id: 'VP_BOT_1', strategyType: 'VOLUME_PROFILE', justification: 'Identifica suporte/resistência em zonas de alto volume (POC).',
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 75, weakConfidence: 55,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 75, weakConfidence: 55,
             profileBars: 100,
         },
         {
             id: 'VWAP_BOT_1', strategyType: 'VWAP', justification: 'Usa o VWAP como um nível de preço médio dinâmico.',
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 80, weakConfidence: 60,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 80, weakConfidence: 60,
         },
         {
             id: 'MFI_BOT_1', strategyType: 'MFI', justification: 'RSI ponderado por volume para medir a pressão do dinheiro.',
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 65,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 65,
             period: 14, strongBuyThreshold: 20, weakBuyThreshold: 30, strongSellThreshold: 80, weakSellThreshold: 70,
         },
         {
             id: 'OBV_BOT_1', strategyType: 'OBV', justification: 'Confirma a força da tendência com base no volume acumulado.',
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 75, weakConfidence: 50,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 75, weakConfidence: 50,
         },
-        // --- Statistical & Mean Reversion ---
         {
             id: 'ZSCORE_BOT_1', strategyType: 'Z_SCORE', justification: 'Negocia reversão à média com base em desvios padrão (Z-Score).',
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 60,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 60,
             period: 20, zScoreThreshold: 2.0
         },
         {
             id: 'STOCH_RSI_BOT_1', strategyType: 'STOCH_RSI', justification: 'Indicador de indicador para sinais rápidos de sobrecompra/venda.',
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 88, weakConfidence: 68,
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 88, weakConfidence: 68,
             period: 14, strongBuyThreshold: 0.2, weakBuyThreshold: 0.3, strongSellThreshold: 0.8, weakSellThreshold: 0.7,
         },
-        // --- Patterns ---
         {
             id: 'PA_BOT_1', strategyType: 'PRICE_ACTION_PATTERN', justification: 'Identifica padrões de velas de reversão como Martelo/Estrela Cadente.',
-            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 80, weakConfidence: 0,
-            pattern: 'hammer', // Default, logic will check for both
+            suggestedStake, suggestedDuration: 5, suggestedDurationUnit: durationUnit, strongConfidence: 80, weakConfidence: 0,
+            pattern: 'hammer',
         },
     ];
 
@@ -165,9 +218,10 @@ const buildStaticCouncil = (durationUnit: RiseFallFormValues['duration_unit'], d
 
 
 export function useRobotCouncil(
-    activeSymbol: string | null
+    activeSymbol: string | null,
+    indicators: Indicators
 ) {
-    const { operationsLog, executeTrade, chartData } = useDerivApi();
+    const { operationsLog, executeTrade, chartData, timePeriod } = useDerivApi();
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
@@ -191,8 +245,6 @@ export function useRobotCouncil(
     const previousMacdRef = useRef<{ macd: number | null; signal: number | null }>({ macd: null, signal: null });
     const previousObvRef = useRef<number | null>(null);
     
-    const [indicators, setIndicators] = useState<Indicators>(calculateAllIndicators([], []));
-
     // Empty callback for compatibility, no AI calls needed anymore
     const incrementGeminiRequestCount = useCallback(() => {}, []);
     
@@ -208,16 +260,15 @@ export function useRobotCouncil(
         setIsFetchingCouncil(true);
         await new Promise(resolve => setTimeout(resolve, 500));
         try {
-            const { duration_unit } = form.getValues();
-            const council = buildStaticCouncil(duration_unit, dailyBalance);
+            const council = buildStaticCouncil(timePeriod, dailyBalance);
             setStrategyCouncil(council);
-            toast({ title: "Conselho de IA Montado!", description: `Os ${council.length} analistas-robôs estão prontos e calibrados.` });
+            toast({ title: `Conselho de IA ${style} Montado!`, description: `${council.length} analistas prontos e calibrados.` });
         } catch (e: any) {
             toast({ variant: "destructive", title: "Erro ao Montar o Conselho", description: e.message });
         } finally {
             setIsFetchingCouncil(false);
         }
-    }, [activeSymbol, dailyBalance, form, toast]);
+    }, [activeSymbol, dailyBalance, timePeriod, toast]);
 
     const supervisionCommitteeCheck = useCallback((stake: number, direction: 'RISE' | 'FALL') => {
         let finalStake = stake;
@@ -277,22 +328,30 @@ export function useRobotCouncil(
 
     const committeeOfSpecialists = useCallback(() => {
         const { adx, atr, bbw } = indicators;
+        const style = getTradingStyle(timePeriod);
         
         let committeeName = "Comité Padrão";
         let activeSpecialists: RobotStrategy[] = [];
 
-        const isVolatile = (bbw && bbw > 0.04) || (atr && chartData.length > 0 && atr > ((chartData[chartData.length - 1] as any).close || 1) * 0.0005);
-        const isTrending = adx && adx > 25;
-
-        if (isVolatile) {
-            committeeName = "Especialistas em Volatilidade";
-            activeSpecialists = strategyCouncil.filter(r => ['BOLLINGER_BANDS', 'KAMA', 'ADX_TREND', 'CHANDELIER_EXIT'].includes(r.strategyType));
-        } else if (isTrending) {
-            committeeName = "Especialistas em Tendência";
-            activeSpecialists = strategyCouncil.filter(r => ['MOVING_AVERAGE_CROSS', 'MACD_CROSS', 'ICHIMOKU_CLOUD', 'PARABOLIC_SAR'].includes(r.strategyType));
-        } else {
-            committeeName = "Especialistas em Mercado Lateral";
-            activeSpecialists = strategyCouncil.filter(r => ['RSI', 'STOCHASTIC', 'Z_SCORE', 'STOCH_RSI', 'RVI'].includes(r.strategyType));
+        switch(style) {
+            case 'HFT':
+                committeeName = "Especialistas em Reversão Rápida";
+                activeSpecialists = strategyCouncil.filter(r => ['RSI', 'STOCHASTIC', 'BOLLINGER_BANDS'].includes(r.strategyType));
+                break;
+            case 'Scalping':
+                 committeeName = "Especialistas em Padrões e Momentum";
+                 activeSpecialists = strategyCouncil.filter(r => ['MACD_CROSS', 'PRICE_ACTION_PATTERN', 'MFI', 'STOCH_RSI'].includes(r.strategyType));
+                break;
+            case 'Intraday':
+                 committeeName = "Especialistas em Tendência Diária";
+                 activeSpecialists = strategyCouncil.filter(r => ['MOVING_AVERAGE_CROSS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'KAMA'].includes(r.strategyType));
+                break;
+            case 'Swing':
+                 committeeName = "Especialistas Macro";
+                 activeSpecialists = strategyCouncil.filter(r => ['MOVING_AVERAGE_CROSS', 'ICHIMOKU_CLOUD', 'DONCHIAN_CHANNELS'].includes(r.strategyType));
+                break;
+            default:
+                 activeSpecialists = strategyCouncil.filter(r => ['RSI', 'MOVING_AVERAGE_CROSS'].includes(r.strategyType));
         }
 
         if (activeSpecialists.length === 0) {
@@ -303,14 +362,7 @@ export function useRobotCouncil(
         setActiveCommittee(committeeName);
         return [...new Map(activeSpecialists.map(item => [item.id, item])).values()];
 
-    }, [indicators, strategyCouncil, chartData]);
-
-    useEffect(() => {
-        if (isCouncilAutopilotOn) {
-            const calculated = calculateAllIndicators(chartData, strategyCouncil);
-            setIndicators(calculated);
-        }
-    }, [chartData, isCouncilAutopilotOn, strategyCouncil]);
+    }, [indicators, strategyCouncil, timePeriod]);
 
 
     useEffect(() => {
@@ -541,6 +593,9 @@ export function useRobotCouncil(
         chartData,
     ]);
 
+    // Expose the raw indicators for the panel
+    const exposedIndicators = indicators;
+
     return {
         isCouncilAutopilotOn,
         setIsCouncilAutopilotOn,
@@ -559,8 +614,9 @@ export function useRobotCouncil(
         setIsDynamicConsensusOn,
         isMeritocracyOn,
         setIsMeritocracyOn,
-        indicators,
+        indicators: exposedIndicators,
         activeCommittee,
         supervisionStatus,
+        incrementGeminiRequestCount
     };
 }

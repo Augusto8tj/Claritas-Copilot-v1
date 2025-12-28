@@ -49,9 +49,12 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   
   const [indicators, setIndicators] = useState<Indicators>({
     rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
-    macd: { macd: null, signal: null }, ma: { short: null, long: null },
-    sma: [], ema: [], vwap: [], bollingerBands: [],
+    macd: { macd: null, signal: null, histogram: null }, ma: { short: null, long: null },
+    sma: [], ema: [], vwap: [], bollingerBands: [], donchianChannels: [],
     kama: null, bbw: null, stochRSI: null, zScore: null,
+    awesomeOscillator: null, trix: null, roc: null, parabolicSAR: null,
+    ichimoku: { tenkan: null, kijun: null, senkouA: null, senkouB: null },
+    mfi: null, obv: null, chandelierExit: null,
   });
   
   // CENTRALIZED HOOKS
@@ -62,10 +65,16 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   // This is now the true INDICATOR ENGINE TRIGGER
   useEffect(() => {
     if (chartData && chartData.length > 0) {
-      const calculatedIndicators = calculateAllIndicators(chartData, robotCouncil.strategyCouncil);
+      // Pass the timePeriod to the calculation engine so it can be used for calibration
+      const calculatedIndicators = calculateAllIndicators(chartData, robotCouncil.strategyCouncil, timePeriod);
       setIndicators(calculatedIndicators);
     }
-  }, [chartData, robotCouncil.strategyCouncil]);
+  }, [chartData, robotCouncil.strategyCouncil, timePeriod]);
+
+  // When time period changes, the council must be rebuilt with new calibrations
+  useEffect(() => {
+    robotCouncil.fetchStrategyCouncil();
+  }, [timePeriod, robotCouncil.fetchStrategyCouncil]);
 
 
   const latestDataPoint = chartData.length > 0 ? chartData[chartData.length - 1] : null;
