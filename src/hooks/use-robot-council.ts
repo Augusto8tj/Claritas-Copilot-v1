@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -550,9 +551,9 @@ ${basePromptInstructions}`;
         toast({ title: "Conselho Dissolvido", description: "A equipa de analistas foi dispensada." });
     };
 
-    // 🔧 UNIFIED useEffect for indicator calculation and voting
+    // 🔧 New useEffect for INDICATOR CALCULATION
     useEffect(() => {
-        if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || !strategyCouncil.length || !chartData.length) {
+        if (!strategyCouncil.length || !chartData.length) {
             return;
         }
 
@@ -590,31 +591,44 @@ ${basePromptInstructions}`;
             // @ts-ignore
             const adxValues = calculateADX(candles, adxRobot.period || 14);
             newIndicators.adx = adxValues.adx[adxValues.adx.length - 1] ?? null;
+            newIndicators.pdi = adxValues.pdi[adxValues.pdi.length - 1] ?? null;
+            newIndicators.ndi = adxValues.ndi[adxValues.ndi.length - 1] ?? null;
         }
         const atrValues = calculateATR(candles);
         newIndicators.atr = atrValues[atrValues.length - 1] ?? null;
 
         const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
-        newIndicators.sma = maRobot ? calculateSMA(candles, maRobot.longPeriod || 50) : [];
-        newIndicators.ema = maRobot ? calculateEMA(candles, maRobot.shortPeriod || 20) : [];
-        newIndicators.ma = {
-            short: newIndicators.ema.length > 0 ? newIndicators.ema[newIndicators.ema.length - 1] : null,
-            long: newIndicators.sma.length > 0 ? newIndicators.sma[newIndicators.sma.length - 1] : null,
+        if (maRobot) {
+            const smaValues = calculateSMA(candles, maRobot.longPeriod || 50);
+            const emaValues = calculateEMA(candles, maRobot.shortPeriod || 20);
+            newIndicators.ma = {
+                short: emaValues.length > 0 ? emaValues[emaValues.length - 1] : null,
+                long: smaValues.length > 0 ? smaValues[smaValues.length - 1] : null,
+            }
         }
         
         const bbRobot = strategyCouncil.find(r => r.strategyType === 'BOLLINGER_BANDS');
         newIndicators.bollingerBands = bbRobot ? calculateBollingerBands(candles, bbRobot.period || 20, bbRobot.stdDev || 2) : [];
         newIndicators.vwap = calculateVWAP(candles);
-
+        
+        // Update state with all new indicators
         setIndicators(newIndicators);
 
+    }, [chartData, strategyCouncil]);
+
+    // 🔧 UNIFIED useEffect for Votting and Execution
+    useEffect(() => {
+        if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || !strategyCouncil.length) {
+            return;
+        }
+        
         // ========================================================
-        // 2. EXECUTE VOTE (with fresh indicators)
+        // 2. EXECUTE VOTE (with fresh indicators from state)
         // ========================================================
         let currentThreshold = consensusThreshold;
-        if (isDynamicConsensusOn && newIndicators.atr) {
+        if (isDynamicConsensusOn && indicators.atr) {
             const baseThreshold = 250;
-            const volatilityFactor = newIndicators.atr * 1000;
+            const volatilityFactor = indicators.atr * 1000;
             const dynamicThreshold = Math.round(baseThreshold + volatilityFactor);
             currentThreshold = Math.max(150, Math.min(700, dynamicThreshold));
             setDynamicConsensus(currentThreshold);
@@ -636,23 +650,23 @@ ${basePromptInstructions}`;
 
             switch(robot.strategyType) {
                  case 'RSI':
-                    if (newIndicators.rsi) {
-                        if (robot.strongBuyThreshold && newIndicators.rsi <= robot.strongBuyThreshold) { vote = 'RISE'; confidence = robot.strongConfidence; }
-                        else if (robot.weakBuyThreshold && newIndicators.rsi <= robot.weakBuyThreshold) { vote = 'RISE'; confidence = robot.weakConfidence; }
-                        else if (robot.strongSellThreshold && newIndicators.rsi >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
-                        else if (robot.weakSellThreshold && newIndicators.rsi >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    if (indicators.rsi) {
+                        if (robot.strongBuyThreshold && indicators.rsi <= robot.strongBuyThreshold) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                        else if (robot.weakBuyThreshold && indicators.rsi <= robot.weakBuyThreshold) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        else if (robot.strongSellThreshold && indicators.rsi >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                        else if (robot.weakSellThreshold && indicators.rsi >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
                     }
                     break;
                 case 'STOCHASTIC':
-                    if (newIndicators.stoch) {
-                        if (robot.strongBuyThreshold && newIndicators.stoch <= robot.strongBuyThreshold) { vote = 'RISE'; confidence = robot.strongConfidence; }
-                        else if (robot.weakBuyThreshold && newIndicators.stoch <= robot.weakBuyThreshold) { vote = 'RISE'; confidence = robot.weakConfidence; }
-                        else if (robot.strongSellThreshold && newIndicators.stoch >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
-                        else if (robot.weakSellThreshold && newIndicators.stoch >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    if (indicators.stoch) {
+                        if (robot.strongBuyThreshold && indicators.stoch <= robot.strongBuyThreshold) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                        else if (robot.weakBuyThreshold && indicators.stoch <= robot.weakBuyThreshold) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        else if (robot.strongSellThreshold && indicators.stoch >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                        else if (robot.weakSellThreshold && indicators.stoch >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
                     }
                     break;
                  case 'MACD_CROSS':
-                    const { macd: currentMacd, signal: currentSignal } = newIndicators.macd;
+                    const { macd: currentMacd, signal: currentSignal } = indicators.macd;
                     const { macd: prevMacd, signal: prevSignal } = previousMacdRef.current;
 
                     if (currentMacd !== null && currentSignal !== null && prevMacd !== null && prevSignal !== null) {
@@ -667,7 +681,7 @@ ${basePromptInstructions}`;
             if (vote === 'FALL') fallConfidenceSum += confidence * weight;
         });
         
-        previousMacdRef.current = newIndicators.macd;
+        previousMacdRef.current = indicators.macd;
         setCouncilVotes(newVotes);
 
         // ========================================================
@@ -698,9 +712,9 @@ ${basePromptInstructions}`;
                 .finally(() => setTimeout(() => { councilExecutionRef.current.isExecuting = false; }, 10000));
         }
     }, [
-        chartData, 
-        strategyCouncil,
+        indicators, // This is now the trigger
         isCouncilAutopilotOn,
+        strategyCouncil,
         consensusThreshold,
         isDynamicConsensusOn,
         isMeritocracyOn,
