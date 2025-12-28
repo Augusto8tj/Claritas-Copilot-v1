@@ -27,6 +27,8 @@ interface ManualCouncilInterfaceProps {
   onProcessResponse: (batchId: string, response: string) => void;
 }
 
+// THIS COMPONENT IS NO LONGER USED AS THE COUNCIL IS BUILT LOCALLY.
+// It is kept for historical purposes but can be removed in a future cleanup.
 export function ManualCouncilInterface({ batches, onProcessResponse }: ManualCouncilInterfaceProps) {
   const [responses, setResponses] = useState<Record<string, string>>({});
   const { toast } = useToast();
@@ -73,15 +75,19 @@ export function ManualCouncilInterface({ batches, onProcessResponse }: ManualCou
   // Determine qual o primeiro lote não concluído para abrir por defeito
   const firstIncompleteBatchId = batches.find(b => !b.isCompleted)?.id;
 
+  if (batches.length === 0) {
+    return null;
+  }
+
   return (
     <Card className="border-primary/50 bg-primary/5">
       <CardHeader>
         <CardTitle className="font-headline flex items-center gap-2 text-primary">
           <Wand className="h-5 w-5" />
-          Linha de Montagem Manual da Mesa Operacional
+          Linha de Montagem Manual (Descontinuado)
         </CardTitle>
         <CardDescription className="text-primary/90">
-          Siga os passos para construir o conselho de IA. Copie cada prompt, obtenha a resposta da sua IA externa e cole-a para processar.
+          Este componente era usado para construir o conselho manualmente via IA. Agora o processo é automático e local.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

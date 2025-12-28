@@ -1,17 +1,16 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDerivApi } from './use-deriv-api';
 import { useToast } from './use-toast';
-import { getStrategyCouncil } from '@/ai/flows/strategy-council-flow';
-import type { StrategyCouncilInput, RobotStrategy, StrategyCouncilOutput } from '@/ai/flows/strategy-council-flow.types';
+import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
 import type { RiseFallFormValues } from '@/components/trading/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import type { Indicators } from '@/services/indicator-service';
 import { calculateAllIndicators } from '@/services/indicator-service';
 import type { ChartData } from './types';
-import type { Operation, OperationInitiator } from '@/components/trading/operations-log.types';
+import type { Operation } from '@/components/trading/operations-log.types';
+import { initialCouncilStrategies } from '@/services/council-strategies';
 
 
 export type RobotVote = {
@@ -52,7 +51,6 @@ export function useRobotCouncil(
     const [isFetchingCouncil, setIsFetchingCouncil] = useState(false);
     const [councilVotes, setCouncilVotes] = useState<CouncilVotes>({});
     const [dailyBalance, setDailyBalance] = useState(100);
-    const [manualPromptBatches, setManualPromptBatches] = useState<ManualPromptBatch[]>([]);
     const [geminiRequestCount, setGeminiRequestCount] = useState(0);
 
     const [dailyTarget, setDailyTarget] = useState(50);
@@ -126,58 +124,34 @@ export function useRobotCouncil(
 
 
     const fetchStrategyCouncil = useCallback(async () => {
-        if (!activeSymbol || !chartData || chartData.length < 50) {
-            toast({ variant: "destructive", title: "Dados Insuficientes", description: "Necessário mais dados de mercado para construir o conselho." });
+        if (!activeSymbol) {
+            toast({ variant: "destructive", title: "Nenhum Ativo", description: "Selecione um ativo para construir o conselho." });
             return;
         }
         setIsFetchingCouncil(true);
-        setManualPromptBatches([]);
-        const historicalDataJson = JSON.stringify(chartData.map(d => ({
-            epoch: d.epoch,
-            price: 'price' in d ? d.price : d.close
-        })));
         
-        incrementGeminiRequestCount();
+        // Simula uma pequena latência para feedback do usuário
+        await new Promise(resolve => setTimeout(resolve, 500));
 
-        const input: StrategyCouncilInput = {
-            symbol: activeSymbol,
-            balance: dailyBalance,
-            currency: "USD",
-            historicalDataJson,
-            durationUnit: form.getValues('duration_unit'),
-            timePeriod: timePeriod
-        };
+        // A lógica de construção agora é local, usando uma configuração pré-definida
+        const durationUnit = form.getValues('duration_unit');
+        const council = initialCouncilStrategies.map(strategy => ({
+            ...strategy,
+            suggestedStake: Math.max(0.35, dailyBalance * 0.01), // 1% da banca
+            suggestedDuration: 5, // Duração padrão de 5 ticks para HFT
+            suggestedDurationUnit: durationUnit,
+            justification: strategy.justification.replace('{{timePeriod}}', timePeriod)
+        }));
         
-        try {
-            const result: StrategyCouncilOutput = await getStrategyCouncil(input);
-            setStrategyCouncil(result.council);
-            toast({ title: "Conselho de IA Montado!", description: `${result.council.length} analistas foram calibrados e estão prontos.` });
-        } catch (e: any) {
-            toast({ variant: "destructive", title: "Erro ao Montar Conselho", description: e.message || "Ocorreu um erro desconhecido." });
-        } finally {
-            setIsFetchingCouncil(false);
-        }
+        setStrategyCouncil(council);
+        toast({ title: "Conselho de IA Montado!", description: `${council.length} analistas locais foram instanciados.` });
 
-    }, [activeSymbol, chartData, dailyBalance, form, toast, incrementGeminiRequestCount, timePeriod]);
+        setIsFetchingCouncil(false);
+    }, [activeSymbol, dailyBalance, form, timePeriod, toast]);
     
-    const processManualCouncilResponse = (batchId: string, responseText: string) => {
-        try {
-            const responseJson = JSON.parse(responseText);
-            if (!responseJson.council || !Array.isArray(responseJson.council)) {
-                throw new Error("O JSON de resposta não contém uma propriedade 'council' do tipo array.");
-            }
-            setStrategyCouncil(prev => [...prev, ...responseJson.council]);
-            setManualPromptBatches(prev => prev.map(b => b.id === batchId ? { ...b, isCompleted: true } : b));
-            toast({ title: `Lote ${batchId} Processado!`, description: `${responseJson.council.length} analistas adicionados ao conselho.` });
-        } catch (e: any) {
-            toast({ variant: 'destructive', title: "Erro ao Processar Resposta", description: `JSON inválido ou formato incorreto. ${e.message}` });
-        }
-    };
-
     const dissolveCouncil = () => {
         setStrategyCouncil([]);
         setCouncilVotes({});
-        setManualPromptBatches([]);
         setIsCouncilAutopilotOn(false);
     };
 
@@ -364,8 +338,6 @@ export function useRobotCouncil(
         setIsDynamicConsensusOn,
         isMeritocracyOn,
         setIsMeritocracyOn,
-        manualPromptBatches,
-        processManualCouncilResponse,
         geminiRequestCount,
         incrementGeminiRequestCount,
         processNewChartData,
