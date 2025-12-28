@@ -22,6 +22,7 @@ import type { RobotStrategy } from "@/ai/flows/strategy-council-flow.types";
 import { cn } from "@/lib/utils";
 import { Input } from "../ui/input";
 import { useRobotCouncil } from "@/hooks/use-robot-council";
+import type { Indicators } from "@/services/indicator-service";
 
 const indicatorIcons: { [key: string]: React.ReactNode } = {
     RSI: <BrainCircuit className="h-4 w-4" />,
@@ -63,7 +64,11 @@ const robotCategories: Record<string, RobotStrategy['strategyType'][]> = {
     'Especialistas em Padrões': ['PRICE_ACTION_PATTERN'],
 };
 
-export function AutoTraderCouncilInterface(props: ReturnType<typeof useRobotCouncil>) {
+interface AutoTraderCouncilInterfaceProps extends ReturnType<typeof useRobotCouncil> {
+    indicators: Indicators;
+}
+
+export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProps) {
   const { 
     isCouncilAutopilotOn,
     setIsCouncilAutopilotOn,

@@ -160,7 +160,8 @@ const buildStaticCouncil = (durationUnit: RiseFallFormValues['duration_unit'], d
 
 
 export function useRobotCouncil(
-    activeSymbol: string | null
+    activeSymbol: string | null,
+    indicators: Indicators
 ) {
     const { operationsLog, executeTrade, chartData } = useDerivApi();
     const { toast } = useToast();
@@ -178,12 +179,6 @@ export function useRobotCouncil(
     const [isDynamicConsensusOn, setIsDynamicConsensusOn] = useState(true);
     const [isMeritocracyOn, setIsMeritocracyOn] = useState(true);
     const [robotPerformance, setRobotPerformance] = useState<RobotPerformance[]>([]);
-    const [indicators, setIndicators] = useState<Indicators>({
-        rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
-        macd: { macd: null, signal: null }, ma: { short: null, long: null },
-        sma: [], ema: [], vwap: [], bollingerBands: [],
-        kama: null, bbw: null, stochRSI: null, zScore: null,
-    });
     
     const councilExecutionRef = useRef({ isExecuting: false });
     const previousMacdRef = useRef<{ macd: number | null; signal: number | null }>({ macd: null, signal: null });
@@ -191,13 +186,6 @@ export function useRobotCouncil(
     const incrementGeminiRequestCount = useCallback(() => {}, []);
 
     const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, incrementGeminiRequestCount);
-    
-    const processNewChartData = useCallback((newChartData: any[]) => {
-        if (newChartData.length > 0) {
-            const calculated = calculateAllIndicators(newChartData, strategyCouncil);
-            setIndicators(calculated);
-        }
-    }, [strategyCouncil]);
 
     useEffect(() => {
         try {
@@ -471,7 +459,5 @@ export function useRobotCouncil(
         setIsDynamicConsensusOn,
         isMeritocracyOn,
         setIsMeritocracyOn,
-        indicators,
-        processNewChartData,
     };
 }
