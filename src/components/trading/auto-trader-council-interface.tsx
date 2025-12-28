@@ -58,9 +58,9 @@ const robotCategories: Record<string, RobotStrategy['strategyType'][]> = {
     'Especialistas em Momentum': ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'AWESOME_OSCILLATOR', 'TRIX', 'ROC', 'RVI'],
     'Especialistas em Tendência': ['MOVING_AVERAGE_CROSS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'PARABOLIC_SAR'],
     'Especialistas em Volatilidade e Estrutura': ['BOLLINGER_BANDS', 'DONCHIAN_CHANNELS', 'KAMA', 'CHANDELIER_EXIT'],
+    'Especialistas em Padrões': ['PRICE_ACTION_PATTERN'],
     'Especialistas em Volume e Fluxo': ['VOLUME_PROFILE', 'VWAP', 'MFI', 'OBV'],
     'Especialistas Estatísticos': ['Z_SCORE', 'STOCH_RSI'],
-    'Especialistas em Padrões': ['PRICE_ACTION_PATTERN'],
 };
 
 // Hook's return type is used for props
@@ -140,51 +140,64 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
     }
   }
 
-  const renderIndicatorValue = (robot: RobotStrategy) => {
-    if (!indicators) return <p>...</p>;
-    const format = (val: number | null, prec = 2) => val?.toFixed(prec) ?? "...";
+    const renderIndicatorValue = (robot: RobotStrategy) => {
+        if (!indicators) return <p>...</p>;
+        const format = (val: number | null | undefined, prec = 2) => val?.toFixed(prec) ?? "...";
 
-    switch (robot.strategyType) {
-        case 'RSI':
-            return <p>RSI Atual: <strong>{format(indicators.rsi)}</strong></p>;
-        case 'STOCHASTIC':
-            return <p>Estocástico Atual: <strong>{format(indicators.stoch)}</strong></p>;
-        case 'MACD_CROSS':
-            const { macd, signal } = indicators.macd;
-            return <p>MACD/Sinal: <strong>{format(macd, 4)} / {format(signal, 4)}</strong></p>;
-        case 'MOVING_AVERAGE_CROSS':
-            const { short, long } = indicators.ma;
-            return <p>Médias Atuais: <strong>{format(short, 4)} / {format(long, 4)}</strong></p>;
-        case 'BOLLINGER_BANDS':
-            if (!indicators.bollingerBands || indicators.bollingerBands.length === 0) return <p>Bandas: <strong>...</strong></p>;
-            const lastBand = indicators.bollingerBands[indicators.bollingerBands.length - 1];
-            if (!lastBand) return <p>Bandas: <strong>...</strong></p>;
-            return <p>Bandas: <strong>{format(lastBand.lower, 4)} / {format(lastBand.upper, 4)}</strong></p>;
-        case 'ADX_TREND':
-            return <p>Força da Tendência (ADX): <strong>{format(indicators.adx)}</strong></p>;
-        case 'Z_SCORE':
-            return <p>Z-Score Atual: <strong>{format(indicators.zScore)}</strong></p>;
-        case 'KAMA':
-            return <p>KAMA Atual: <strong>{format(indicators.kama, 4)}</strong></p>;
-        case 'STOCH_RSI':
-            return <p>StochRSI Atual: <strong>{format(indicators.stochRSI, 2)}</strong></p>;
-        case 'AWESOME_OSCILLATOR':
-            return <p>Awesome Osc: <strong>{format(indicators.awesomeOscillator, 4)}</strong></p>;
-        case 'TRIX':
-            return <p>TRIX Atual: <strong>{format(indicators.trix)}%</strong></p>;
-        case 'ROC':
-            return <p>ROC Atual: <strong>{format(indicators.roc)}%</strong></p>;
-        case 'MFI':
-             return <p>MFI Atual: <strong>{format(indicators.mfi)}</strong></p>;
-        case 'OBV':
-             return <p>OBV Atual: <strong>{format(indicators.obv, 0)}</strong></p>;
-        case 'PARABOLIC_SAR':
-            return <p>SAR Atual: <strong>{format(indicators.parabolicSAR, 4)}</strong></p>;
-        case 'RVI':
-             return <p>RVI Atual: <strong>{format(indicators.rvi)}</strong></p>;
-        default:
-            return null; // For indicators without a direct value to display (e.g., VWAP, Patterns)
-    }
+        switch (robot.strategyType) {
+            case 'RSI':
+                return <p>RSI Atual: <strong>{format(indicators.rsi)}</strong></p>;
+            case 'STOCHASTIC':
+                return <p>Estocástico Atual: <strong>{format(indicators.stoch)}</strong></p>;
+            case 'MACD_CROSS':
+                const { macd, signal } = indicators.macd;
+                return <p>MACD/Sinal: <strong>{format(macd, 4)} / {format(signal, 4)}</strong></p>;
+            case 'MOVING_AVERAGE_CROSS':
+                const { short, long } = indicators.ma;
+                return <p>Médias Atuais: <strong>{format(short)} / {format(long)}</strong></p>;
+            case 'BOLLINGER_BANDS':
+                if (!indicators.bollingerBands || indicators.bollingerBands.length === 0) return <p>Bandas: <strong>...</strong></p>;
+                const lastBand = indicators.bollingerBands[indicators.bollingerBands.length - 1];
+                if (!lastBand) return <p>Bandas: <strong>...</strong></p>;
+                return <p>Bandas: <strong>{format(lastBand.lower)} / {format(lastBand.upper)}</strong></p>;
+            case 'ADX_TREND':
+                return <p>Força da Tendência (ADX): <strong>{format(indicators.adx)}</strong></p>;
+            case 'Z_SCORE':
+                return <p>Z-Score Atual: <strong>{format(indicators.zScore)}</strong></p>;
+            case 'KAMA':
+                return <p>KAMA Atual: <strong>{format(indicators.kama)}</strong></p>;
+            case 'STOCH_RSI':
+                return <p>StochRSI Atual: <strong>{format(indicators.stochRSI, 2)}</strong></p>;
+            case 'AWESOME_OSCILLATOR':
+                return <p>Awesome Osc: <strong>{format(indicators.awesomeOscillator, 2)}</strong></p>;
+            case 'TRIX':
+                return <p>TRIX Atual: <strong>{format(indicators.trix)}%</strong></p>;
+            case 'ROC':
+                return <p>ROC Atual: <strong>{format(indicators.roc)}%</strong></p>;
+            case 'MFI':
+                 return <p>MFI Atual: <strong>{format(indicators.mfi)}</strong></p>;
+            case 'OBV':
+                 return <p>OBV Atual: <strong>{format(indicators.obv, 0)}</strong></p>;
+            case 'PARABOLIC_SAR':
+                return <p>SAR Atual: <strong>{format(indicators.parabolicSAR)}</strong></p>;
+            case 'RVI':
+                 return <p>RVI Atual: <strong>{format(indicators.rvi)}</strong></p>;
+            case 'VWAP':
+                const lastVWAP = indicators.vwap && indicators.vwap.length > 0 ? indicators.vwap[indicators.vwap.length - 1] : null;
+                return <p>VWAP Atual: <strong>{format(lastVWAP)}</strong></p>;
+            case 'DONCHIAN_CHANNELS':
+                if (!indicators.donchianChannels || indicators.donchianChannels.length === 0) return <p>Canais: <strong>...</strong></p>;
+                const lastChannel = indicators.donchianChannels[indicators.donchianChannels.length - 1];
+                if (!lastChannel) return <p>Canais: <strong>...</strong></p>;
+                return <p>Canais: <strong>{format(lastChannel.lower)} / {format(lastChannel.upper)}</strong></p>;
+            case 'CHANDELIER_EXIT':
+                return <p>Saída Chandelier: <strong>{format(indicators.chandelierExit)}</strong></p>;
+            case 'ICHIMOKU_CLOUD':
+                if (!indicators.ichimoku) return <p>Nuvem: <strong>...</strong></p>;
+                return <p>Nuvem A/B: <strong>{format(indicators.ichimoku.senkouA)} / {format(indicators.ichimoku.senkouB)}</strong></p>;
+            default:
+                return null;
+        }
   }
 
 

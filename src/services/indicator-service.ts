@@ -24,6 +24,7 @@ export interface Indicators {
     ema: (number | null)[];
     vwap: (number | null)[];
     bollingerBands: ({ upper: number; middle: number; lower: number } | null)[];
+    donchianChannels: ({ upper: number; middle: number; lower: number } | null)[];
     // New Advanced Indicators
     kama: number | null;
     bbw: number | null; // Bollinger Bandwidth
@@ -34,9 +35,10 @@ export interface Indicators {
     trix: number | null;
     roc: number | null;
     parabolicSAR: number | null;
-    ichimoku: { tenkan: number | null; kijun: number | null; senkouA: number | null; senkouB: number | null };
+    ichimoku: { tenkan: number | null; kijun: number | null; senkouA: number | null; senkouB: number | null } | null;
     mfi: number | null;
     obv: number | null;
+    chandelierExit: number | null;
 }
 
 const isCandle = (d: ChartData): d is CandleData => 'close' in d;
@@ -281,11 +283,11 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
     const emptyIndicators: Indicators = {
         rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
         macd: { macd: null, signal: null, histogram: null }, ma: { short: null, long: null },
-        sma: [], ema: [], vwap: [], bollingerBands: [],
+        sma: [], ema: [], vwap: [], bollingerBands: [], donchianChannels: [],
         kama: null, bbw: null, stochRSI: null, zScore: null,
         awesomeOscillator: null, trix: null, roc: null, parabolicSAR: null,
         ichimoku: { tenkan: null, kijun: null, senkouA: null, senkouB: null },
-        mfi: null, obv: null,
+        mfi: null, obv: null, chandelierExit: null,
     };
     
     if (chartData.length < 2) {
@@ -346,8 +348,11 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
     indicators.bbw = bbValues[bbValues.length - 1] ?? null;
 
     const donchianRobot = strategyCouncil.find(r => r.strategyType === 'DONCHIAN_CHANNELS');
-    const bbSeries = DerivIndicators.donchian(candles, donchianRobot?.period);
-    indicators.bollingerBands = bbSeries.map(v => v ? { upper: v.upper, lower: v.lower, middle: v.middle } : null);
+    indicators.donchianChannels = DerivIndicators.donchian(candles, donchianRobot?.period);
+
+    const chandelierRobot = strategyCouncil.find(r => r.strategyType === 'CHANDELIER_EXIT');
+    const chandelierValues = DerivIndicators.chandelierExit(candles, chandelierRobot?.period, chandelierRobot?.multiplier);
+    indicators.chandelierExit = chandelierValues.length > 0 ? chandelierValues[chandelierValues.length - 1] : null;
 
     // --- ADVANCED & NEWLY ADDED INDICATORS ---
     const atrValues = DerivIndicators.atr(candles);
