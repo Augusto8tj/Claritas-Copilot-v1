@@ -40,6 +40,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
     setChartType,
     timePeriod,
     setTimePeriod,
+    tradeAnnotations,
   } = useDerivApi();
   
   // Initialize hooks that depend on the active symbol and other API data
@@ -75,6 +76,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                 setTimePeriod={setTimePeriod}
                 operations={operationsLog}
                 indicators={indicators}
+                tradeAnnotations={tradeAnnotations}
             />
         </CardContent>
       </Card>

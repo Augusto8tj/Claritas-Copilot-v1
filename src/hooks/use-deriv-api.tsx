@@ -50,6 +50,20 @@ export type ApiHistoricalData = {
     close?: number;
 };
 
+export interface TradeAnnotation {
+  id: string;
+  contractId: string;
+  entryTime: number; // epoch timestamp
+  entryPrice: number;
+  exitTime?: number;
+  exitPrice?: number;
+  direction: 'rise' | 'fall';
+  status: 'pending' | 'won' | 'lost';
+  stake: number;
+  profit?: number;
+  symbol: string;
+}
+
 interface DerivApiContextType {
   ws: WebSocket | null;
   isConnected: boolean;
@@ -89,6 +103,7 @@ interface DerivApiContextType {
     initiator: OperationInitiator,
   ) => Promise<TradeResult>;
   clearActiveContracts: () => void;
+  tradeAnnotations: TradeAnnotation[];
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
@@ -121,6 +136,10 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
 const MAX_DATA_POINTS = 1000;
 const addDataPoint = (prevData: ChartData[], newPoint: ChartData): ChartData[] => {
     const data = [...prevData];
+    if (data.length > 0 && data[data.length - 1].epoch === newPoint.epoch) {
+        data[data.length - 1] = newPoint;
+        return data;
+    }
     if (data.length >= MAX_DATA_POINTS) {
         data.shift();
     }
@@ -147,6 +166,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [chartType, setChartType] = useState<ChartType>('Area');
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('5m');
   const activeSubscriptionIdRef = useRef<string | null>(null);
+  const [tradeAnnotations, setTradeAnnotations] = useState<TradeAnnotation[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -208,6 +228,20 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     });
   }, []);
   
+    const addTradeAnnotation = useCallback((annotation: Omit<TradeAnnotation, 'id'>) => {
+      const newAnnotation: TradeAnnotation = {
+        ...annotation,
+        id: `annotation-${annotation.contractId}`,
+      };
+      setTradeAnnotations(prev => [...prev, newAnnotation]);
+    }, []);
+
+    const updateTradeAnnotation = useCallback((contractId: string, updates: Partial<TradeAnnotation>) => {
+      setTradeAnnotations(prev => prev.map(ann => 
+        ann.contractId === contractId ? { ...ann, ...updates } : ann
+      ));
+    }, []);
+
   const getHistoricalData = useCallback(async (symbol: string, style: 'ticks' | 'candles', count: number, period?: TimePeriod): Promise<ApiHistoricalData[]> => {
       const request: any = {
           ticks_history: symbol,
@@ -242,72 +276,83 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       return [];
   }, [makeRequest]);
 
-  const executeTrade = useCallback(async (
-    contractType: string,
-    stake: number,
-    symbol: string,
-    tradeDirection: 'rise' | 'fall',
-    duration: number,
-    durationUnit: DurationUnit,
-    initiator: OperationInitiator
-  ): Promise<TradeResult> => {
-      if (!wsRef.current || !isConnected) {
-        throw new Error("A conexão com a API da Deriv não está ativa.");
-      }
+    const executeTrade = useCallback(async (
+        contractType: string,
+        stake: number,
+        symbol: string,
+        tradeDirection: 'rise' | 'fall',
+        duration: number,
+        durationUnit: DurationUnit,
+        initiator: OperationInitiator
+      ): Promise<TradeResult> => {
+          if (!wsRef.current || !isConnected) {
+            throw new Error("A conexão com a API da Deriv não está ativa.");
+          }
 
-      try {
-        const proposalResponse: any = await makeRequest({ 
-            "proposal": 1,
-            "amount": stake,
-            "basis": "stake",
-            "contract_type": contractType,
-            "currency": "USD",
-            "duration": duration,
-            "duration_unit": durationUnit,
-            "symbol": symbol,
-        });
+          try {
+            const proposalResponse: any = await makeRequest({ 
+                "proposal": 1,
+                "amount": stake,
+                "basis": "stake",
+                "contract_type": contractType,
+                "currency": "USD",
+                "duration": duration,
+                "duration_unit": durationUnit,
+                "symbol": symbol,
+            });
 
-        const proposal = proposalResponse.proposal;
-        if (!proposal || !proposal.id) {
-          throw new Error("Falha ao obter uma proposta de negociação da API.");
-        }
-        
-        const buyResponse: any = await makeRequest({ "buy": proposal.id, "price": proposal.ask_price });
-        const buyResult = buyResponse.buy;
-        
-        const newOperation: Operation = {
-            id: buyResult.contract_id,
-            asset: symbol,
-            direction: tradeDirection,
-            stake: stake,
-            status: 'pending',
-            timestamp: new Date().toISOString(),
-            duration: duration,
-            durationUnit: durationUnit,
-            initiator,
-            entryPrice: buyResult.entry_tick_display_value ? parseFloat(buyResult.entry_tick_display_value) : undefined,
-        };
-        setOperationsLog(prevLog => [newOperation, ...prevLog]);
+            const proposal = proposalResponse.proposal;
+            if (!proposal || !proposal.id) {
+              throw new Error("Falha ao obter uma proposta de negociação da API.");
+            }
+            
+            const buyResponse: any = await makeRequest({ "buy": proposal.id, "price": proposal.ask_price });
+            const buyResult = buyResponse.buy;
+            
+            const entryPrice = buyResult.entry_tick_display_value ? parseFloat(buyResult.entry_tick_display_value) : buyResult.buy_price;
 
-        return {
-          success: true,
-          message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${stake} USD executada com sucesso.`,
-          contractId: buyResult.contract_id,
-        };
-      } catch (error) {
-         console.error("[Deriv Hook] Erro durante a negociação:", error);
-         const message = error instanceof Error ? error.message : "Um erro desconhecido ocorreu.";
-         return { success: false, message };
-      }
-  }, [isConnected, makeRequest]);
+            const newOperation: Operation = {
+                id: buyResult.contract_id,
+                asset: symbol,
+                direction: tradeDirection,
+                stake: stake,
+                status: 'pending',
+                timestamp: new Date().toISOString(),
+                duration: duration,
+                durationUnit: durationUnit,
+                initiator,
+                entryPrice: entryPrice,
+            };
+            setOperationsLog(prevLog => [newOperation, ...prevLog]);
+
+            addTradeAnnotation({
+                contractId: String(buyResult.contract_id),
+                entryTime: Math.floor(buyResult.start_time),
+                entryPrice,
+                direction: tradeDirection,
+                status: 'pending',
+                stake,
+                symbol,
+            });
+
+            return {
+              success: true,
+              message: `Ordem do tipo "${contractType}" para ${symbol} no valor de ${stake} USD executada com sucesso.`,
+              contractId: buyResult.contract_id,
+            };
+          } catch (error) {
+             console.error("[Deriv Hook] Erro durante a negociação:", error);
+             const message = error instanceof Error ? error.message : "Um erro desconhecido ocorreu.";
+             return { success: false, message };
+          }
+      }, [isConnected, makeRequest, addTradeAnnotation]);
 
   const subscribeToMarketData = useCallback(async (symbol: string) => {
-    // Cancela subscrição anterior se existir
     if (activeSubscriptionIdRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
         try { 
             await makeRequest({ forget: activeSubscriptionIdRef.current }); 
         } catch (e) { 
-            console.log('[Market Data] Previous subscription cancelled'); 
+            console.warn('[Market Data] Could not forget previous subscription'); 
         }
         activeSubscriptionIdRef.current = null;
     }
@@ -317,16 +362,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     setChartData([]);
 
     try {
-        // 1. Buscar histórico inicial
         const historyStyle = chartType === 'Candle' ? 'candles' : 'ticks';
         const history = await getHistoricalData(symbol, historyStyle, 1000, timePeriod);
         setChartData(history as ChartData[]);
 
-        // 2. Criar subscrição adequada ao tipo de gráfico
         let subRequest: any;
-        
         if (chartType === 'Candle') {
-            // Para velas, subscribe em ticks_history com style candles
             subRequest = { 
                 ticks_history: symbol, 
                 style: 'candles', 
@@ -337,7 +378,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 adjust_start_time: 1
             };
         } else {
-            // Para linha, subscribe em ticks simples
             subRequest = { 
                 ticks: symbol, 
                 subscribe: 1 
@@ -346,19 +386,17 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         
         const subResponse: any = await makeRequest(subRequest);
         
-        // Armazena o subscription_id correto
         if (subResponse.subscription?.id) {
             activeSubscriptionIdRef.current = subResponse.subscription.id;
             console.log(`[Market Data] Subscribed to ${symbol} (${chartType}) - ID: ${subResponse.subscription.id}`);
         }
-
     } catch (error: any) {
         console.error(`[Market Data] Error for ${symbol}:`, error);
         setChartError(error.message || 'Falha ao carregar dados do mercado.');
     } finally {
         setIsChartLoading(false);
     }
-  }, [getHistoricalData, makeRequest, chartType, timePeriod]);
+}, [getHistoricalData, makeRequest, chartType, timePeriod]);
 
 
   // Main Connection and Data Subscription Effect
@@ -423,6 +461,13 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                         ? { ...op, status: profit >= 0 ? 'won' : 'lost', result: profit, exitPrice: parseFloat(contract.exit_tick_display_value) } 
                         : op
                     ));
+
+                    updateTradeAnnotation(String(contract.contract_id), {
+                        exitTime: contract.sell_time || Math.floor(Date.now() / 1000),
+                        exitPrice: parseFloat(contract.exit_tick_display_value),
+                        status: profit >= 0 ? 'won' : 'lost',
+                        profit,
+                    });
                     
                     if (wsRef.current?.readyState === WebSocket.OPEN) {
                         wsRef.current.send(JSON.stringify({"balance": 1, "req_id": Date.now()}));
@@ -445,15 +490,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                             close: parseFloat(ohlc.close),
                             price: parseFloat(ohlc.close),
                         };
-                        
-                        setChartData(prev => {
-                            if (prev.length === 0) return [newCandle];
-                            const lastCandle = prev[prev.length - 1] as CandleData;
-                            if (lastCandle.epoch === newCandle.epoch) {
-                                return [...prev.slice(0, -1), newCandle];
-                            }
-                            return addDataPoint(prev, newCandle);
-                        });
+                        setChartData(prev => addDataPoint(prev, newCandle));
                     }
                     break;
                 case 'candles':
@@ -468,15 +505,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                                 close: parseFloat(candle.close),
                                 price: parseFloat(candle.close),
                             };
-                            
-                            setChartData(prev => {
-                                if (prev.length === 0) return [newCandle];
-                                const lastCandle = prev[prev.length - 1] as CandleData;
-                                if (lastCandle.epoch === newCandle.epoch) {
-                                    return [...prev.slice(0, -1), newCandle];
-                                }
-                                return addDataPoint(prev, newCandle);
-                            });
+                            setChartData(prev => addDataPoint(prev, newCandle));
                         }
                     }
                     break;
@@ -618,6 +647,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
   const clearActiveContracts = () => {
     setOperationsLog([]);
+    setTradeAnnotations([]);
   };
 
   const contextValue: DerivApiContextType = {
@@ -648,10 +678,11 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     setTimePeriod,
     executeTrade,
     clearActiveContracts,
+    tradeAnnotations,
   };
 
   return (
-    <DerivApiContext.Provider value={contextValue}>
+    <DerivApiContext.Provider value={contextValue as any}>
       {children}
     </DerivApiContext.Provider>
   );

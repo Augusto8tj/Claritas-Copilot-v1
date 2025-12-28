@@ -21,6 +21,7 @@ import type {
   CandleData,
   TimePeriod,
   ChartType,
+  TradeAnnotation,
 } from '@/hooks/use-deriv-api'
 import { THEMES } from './chart-parts/themes'
 import type { Operation } from '@/components/trading/operations-log.types'
@@ -52,7 +53,8 @@ interface MarketChartProps {
     ema: (number | null)[]
     vwap: (number | null)[]
     bollingerBands: ({ upper: number; middle: number; lower: number } | null)[]
-  }
+  },
+  tradeAnnotations: TradeAnnotation[];
 }
 
 const Y_AXIS_WIDTH = 80
@@ -79,6 +81,7 @@ export function MarketChart({
   setTimePeriod,
   operations,
   indicators,
+  tradeAnnotations,
 }: MarketChartProps) {
   const { theme: appTheme } = useAppTheme()
   const mainCanvasRef = React.useRef<HTMLCanvasElement>(null)
@@ -450,105 +453,114 @@ export function MarketChart({
     if (visibleIndicators.vwap)
       drawLineIndicator(ctx, slicedIndicators.vwap, colors.vwap, getY, getX)
 
-    operations.forEach(op => {
-      if (op.entryPrice == null) return
+    tradeAnnotations.forEach(ann => {
+        if (ann.symbol !== activeSymbol) return;
 
-      const entryEpoch =
-        typeof op.timestamp === 'number'
-          ? op.timestamp > 1e12
-            ? op.timestamp / 1000
-            : op.timestamp
-          : new Date(op.timestamp).getTime() / 1000
+        const firstVisibleEpoch = visibleData[0]?.epoch;
+        const lastVisibleEpoch = visibleData[visibleData.length - 1]?.epoch;
+        if (ann.entryTime < firstVisibleEpoch || ann.entryTime > lastVisibleEpoch) return;
 
-      if (
-        visibleData.length > 0 &&
-        (entryEpoch < visibleData[0]?.epoch ||
-          entryEpoch > visibleData[visibleData.length - 1]?.epoch)
-      ) {
-        return
-      }
-
-      let entryDataIndex = -1
-      let minDiff = Infinity
-      visibleData.forEach((d, i) => {
-        const diff = Math.abs(d.epoch - entryEpoch)
-        if (diff < minDiff) {
-          minDiff = diff
-          entryDataIndex = i
-        }
-      })
-
-      if (entryDataIndex === -1) return
-
-      const entryX = getX(entryDataIndex)
-      const entryY = getY(op.entryPrice)
-
-      let statusColor = '#3b82f6'
-      if (op.status === 'won') statusColor = colors.bull
-      else if (op.status === 'lost') statusColor = colors.bear
-
-      ctx.beginPath()
-      ctx.arc(entryX, entryY, 6, 0, 2 * Math.PI)
-      ctx.fillStyle = statusColor
-      ctx.fill()
-      ctx.strokeStyle = colors.bg
-      ctx.lineWidth = 2
-      ctx.stroke()
-
-      if (op.exitPrice && op.status !== 'pending') {
-        let durationInSeconds = 0
-        switch (op.durationUnit) {
-          case 't':
-            durationInSeconds = op.duration * 2
-            break
-          case 's':
-            durationInSeconds = op.duration
-            break
-          case 'm':
-            durationInSeconds = op.duration * 60
-            break
-          case 'h':
-            durationInSeconds = op.duration * 3600
-            break
-          case 'd':
-            durationInSeconds = op.duration * 86400
-            break
-        }
-        const exitEpoch = entryEpoch + durationInSeconds
-
-        let exitDataIndex = -1
-        let minExitDiff = Infinity
+        let entryDataIndex = -1, minDiff = Infinity;
         visibleData.forEach((d, i) => {
-          const diff = Math.abs(d.epoch - exitEpoch)
-          if (diff < minExitDiff) {
-            minExitDiff = diff
-            exitDataIndex = i
-          }
-        })
+            const diff = Math.abs(d.epoch - ann.entryTime);
+            if (diff < minDiff) { minDiff = diff; entryDataIndex = i; }
+        });
+        
+        if (entryDataIndex === -1) return;
+        
+        const entryX = getX(entryDataIndex);
+        const entryY = getY(ann.entryPrice);
+        
+        const annColor = ann.status === 'won' ? colors.bull : ann.status === 'lost' ? colors.bear : colors.line;
 
-        if (exitDataIndex !== -1 && exitDataIndex < visibleData.length) {
-          const exitX = getX(exitDataIndex)
-          const exitY = getY(op.exitPrice)
+        // Draw Entry Dot
+        ctx.beginPath();
+        ctx.arc(entryX, entryY, 6, 0, 2 * Math.PI);
+        ctx.fillStyle = annColor;
+        ctx.fill();
+        ctx.strokeStyle = colors.bg;
+        ctx.lineWidth = 2;
+        ctx.stroke();
 
-          ctx.beginPath()
-          ctx.moveTo(entryX, entryY)
-          ctx.lineTo(exitX, exitY)
-          ctx.strokeStyle = statusColor
-          ctx.lineWidth = 2
-          ctx.setLineDash([5, 5])
-          ctx.stroke()
-          ctx.setLineDash([])
-
-          ctx.beginPath()
-          ctx.arc(exitX, exitY, 4, 0, 2 * Math.PI)
-          ctx.fillStyle = statusColor
-          ctx.fill()
-          ctx.strokeStyle = colors.bg
-          ctx.lineWidth = 2
-          ctx.stroke()
+        // Draw direction arrow inside dot
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        if (ann.direction === 'rise') {
+            ctx.moveTo(entryX - 3, entryY + 1);
+            ctx.lineTo(entryX, entryY - 2);
+            ctx.lineTo(entryX + 3, entryY + 1);
+        } else {
+            ctx.moveTo(entryX - 3, entryY - 1);
+            ctx.lineTo(entryX, entryY + 2);
+            ctx.lineTo(entryX + 3, entryY - 1);
         }
-      }
-    })
+        ctx.stroke();
+
+        if (ann.exitTime && ann.exitPrice) {
+             let exitDataIndex = -1, minExitDiff = Infinity;
+             visibleData.forEach((d, i) => {
+                 const diff = Math.abs(d.epoch - ann.exitTime!);
+                 if (diff < minExitDiff) { minExitDiff = diff; exitDataIndex = i; }
+             });
+
+            if (exitDataIndex !== -1) {
+                const exitX = getX(exitDataIndex);
+                const exitY = getY(ann.exitPrice);
+
+                // Draw connecting line
+                ctx.beginPath();
+                ctx.moveTo(entryX, entryY);
+                ctx.lineTo(exitX, exitY);
+                ctx.strokeStyle = annColor;
+                ctx.lineWidth = 2;
+                ctx.setLineDash([4, 4]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // Draw Exit Flag
+                ctx.save();
+                ctx.translate(exitX, exitY);
+
+                ctx.strokeStyle = annColor;
+                ctx.fillStyle = annColor;
+                ctx.lineWidth = 2;
+                
+                // Pole
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(0, -25);
+                ctx.stroke();
+
+                // Flag
+                ctx.beginPath();
+                ctx.moveTo(0, -25);
+                ctx.lineTo(25, -20);
+                ctx.lineTo(25, -10);
+                ctx.lineTo(0, -15);
+                ctx.closePath();
+                ctx.fill();
+
+                // Flag text
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(ann.status === 'won' ? '✓' : '✗', 12.5, -15);
+                
+                // Profit text
+                ctx.fillStyle = annColor;
+                ctx.font = '600 11px sans-serif';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                const profitText = `${ann.profit! >= 0 ? '+' : ''}${ann.profit?.toFixed(2)}`;
+                ctx.fillText(profitText, 30, -15);
+                
+                ctx.restore();
+            }
+        }
+    });
+
     
     if (mousePosition) {
         const { x, y } = mousePosition;
@@ -633,7 +645,8 @@ export function MarketChart({
     visibleData,
     colors,
     chartType,
-    operations,
+    tradeAnnotations,
+    activeSymbol,
     drawLineIndicator,
     drawBollingerBands,
     slicedIndicators,
