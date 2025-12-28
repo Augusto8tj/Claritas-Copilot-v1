@@ -20,13 +20,14 @@ const normalizeData = (data: InputData[]): OHLCV[] => {
   if (!Array.isArray(data)) return [];
   return data.map(d => {
     const isObj = typeof d === 'object' && d !== null;
-    const price = parseFloat(String(isObj ? (d as any).quote || (d as OHLCV).close : d));
+    // Prioriza 'close', depois 'quote', depois o próprio valor se for numérico.
+    const price = parseFloat(String(isObj ? (d as OHLCV).close ?? (d as any).quote : d));
     return {
-      open: parseFloat(String(isObj ? (d as OHLCV).open || price : d)),
-      high: parseFloat(String(isObj ? (d as OHLCV).high || price : d)),
-      low: parseFloat(String(isObj ? (d as OHLCV).low || price : d)),
+      open: parseFloat(String(isObj ? (d as OHLCV).open ?? price : d)),
+      high: parseFloat(String(isObj ? (d as OHLCV).high ?? price : d)),
+      low: parseFloat(String(isObj ? (d as OHLCV).low ?? price : d)),
       close: price,
-      volume: parseFloat(String(isObj ? (d as OHLCV).volume || 1 : 1)),
+      volume: parseFloat(String(isObj ? (d as OHLCV).volume ?? 1 : 1)),
     };
   });
 };
@@ -53,10 +54,10 @@ export const DerivIndicators = {
     const d = normalizeData(data).map(x => x.close);
     if (d.length < p) return Array(d.length).fill(0);
     return d.map((_, i) => {
-      if (i < p) return 0;
-      const slice = d.slice(i - p, i);
-      const avg = slice.reduce((a, b) => a + b) / p;
-      const dev = Math.sqrt(slice.map(x => Math.pow(x - avg, 2)).reduce((a, b) => a + b) / p);
+      if (i < p - 1) return 0;
+      const slice = d.slice(i - p + 1, i + 1);
+      const avg = slice.reduce((a, b) => a + b, 0) / p;
+      const dev = Math.sqrt(slice.map(x => Math.pow(x - avg, 2)).reduce((a, b) => a + b, 0) / p);
       if (avg === 0) return 0;
       return (((avg + dev * sd) - (avg - dev * sd)) / avg) * 100;
     });
@@ -87,7 +88,7 @@ export const DerivIndicators = {
     if (d.length < p) return d.map(() => null);
     const atrValues = DerivIndicators.atr(d, p);
     return d.map((_, i) => {
-        if (i < p) return null;
+        if (i < p -1) return null;
         const maxH = Math.max(...d.slice(i - p + 1, i + 1).map(x => x.high));
         return maxH - (atrValues[i] * m);
     });
@@ -158,6 +159,7 @@ export const DerivIndicators = {
   stochRSI: (data: InputData[], p = 14): number[] => {
     const d = normalizeData(data).map(x => x.close);
     if (d.length < p + 1) return Array(d.length).fill(0.5);
+    
     let gains: number[] = [], losses: number[] = [];
     for (let i = 1; i < d.length; i++) {
         const diff = d[i] - d[i - 1];
@@ -175,17 +177,25 @@ export const DerivIndicators = {
         return result;
     };
     
+    // Smooth gains and losses to get RSI values
+    if (gains.length < p || losses.length < p) return Array(d.length).fill(0.5);
+
     const avgGain = ema(gains, p);
     const avgLoss = ema(losses, p);
     
     const rsi = avgGain.map((g, i) => {
         const l = avgLoss[i];
+        if (l === undefined) return 50;
         return 100 - (100 / (1 + (g / (l || 1))));
     });
+
+    const fillCount = d.length - rsi.length;
+    const rsiPadded = [...Array(fillCount).fill(50), ...rsi];
     
-    return rsi.map((v, i) => {
+    // Apply stochastic formula to RSI values
+    return rsiPadded.map((v, i) => {
       if (i < p) return 0.5;
-      const s = rsi.slice(Math.max(0, i - p + 1), i + 1);
+      const s = rsiPadded.slice(Math.max(0, i - p + 1), i + 1);
       const minRsi = Math.min(...s);
       const maxRsi = Math.max(...s);
       const denominator = maxRsi - minRsi;
@@ -204,7 +214,7 @@ export const DerivIndicators = {
       let v = 0.33 * 2 * (((prices[prices.length - 1] - mn) / (mx - mn || 1)) - 0.5) + 0.67 * (val[i - 1] || 0);
       v = Math.max(-0.999, Math.min(0.999, v));
       val.push(v);
-      fish.push(0.5 * Math.log((1 + v) / (1 - v)) + 0.5 * (fish[i - 1] || 0));
+      fish.push(0.5 * Math.log((1 + v) / (1 - v || 1e-9)) + 0.5 * (fish[i - 1] || 0));
     }
     return fish;
   },
@@ -294,9 +304,13 @@ export const DerivIndicators = {
   stc: (data: InputData[], f = 23, s = 50, c = 10): number[] => {
     const d = normalizeData(data).map(x => x.close);
     if (d.length < s) return Array(d.length).fill(0);
-    const emaFast = DerivIndicators.gmma({ ...data, length: s }).short[0];
-    const emaSlow = DerivIndicators.gmma({ ...data, length: s }).long[0];
-    const macd = emaFast.map((v,i) => v - emaSlow[i]);
+    
+    // Simplified MACD calculation for STC
+    const emaFast = DerivIndicators.gmma({ length: f, ...data } as any).short[0];
+    const emaSlow = DerivIndicators.gmma({ length: s, ...data } as any).long[0];
+    if(!emaFast || !emaSlow) return Array(d.length).fill(0);
+
+    const macd = emaFast.map((v, i) => v - emaSlow[i]);
     
     return macd.map((v, i) => {
       if (i < c) return 0;
@@ -310,10 +324,10 @@ export const DerivIndicators = {
   zScore: (data: InputData[], p = 20): number[] => {
     const d = normalizeData(data).map(x => x.close);
     return d.map((v, i) => {
-      if (i < p) return 0;
+      if (i < p - 1) return 0;
       const sl = d.slice(i - p + 1, i + 1);
-      const m = sl.reduce((a, b) => a + b) / p;
-      const sd = Math.sqrt(sl.map(x => Math.pow(x - m, 2)).reduce((a, b) => a + b) / p);
+      const m = sl.reduce((a, b) => a + b, 0) / p;
+      const sd = Math.sqrt(sl.map(x => Math.pow(x - m, 2)).reduce((a, b) => a + b, 0) / p);
       return (v - m) / (sd || 1);
     });
   },
