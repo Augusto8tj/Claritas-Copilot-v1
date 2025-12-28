@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect } from "react";
@@ -68,33 +69,37 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
 
   return (
     <>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <div>
-                <CardTitle className="font-headline text-lg">
-                    Gráfico ({activeSymbol})
-                </CardTitle>
-                <CardDescription className="text-xs">
-                    Desempenho em tempo real do ativo.
-                </CardDescription>
-            </div>
-        </CardHeader>
-        <CardContent>
-            <MarketChart 
-                activeSymbol={activeSymbol || ''}
-                chartData={chartData}
-                isChartLoading={isChartLoading}
-                chartError={chartError}
-                chartType={chartType}
-                setChartType={setChartType}
-                timePeriod={timePeriod}
-                setTimePeriod={setTimePeriod}
-                operations={operationsLog}
-                indicators={robotCouncil.indicators}
-                tradeAnnotations={tradeAnnotations}
-            />
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <IndicatorPanel indicators={robotCouncil.indicators} latestDataPoint={latestDataPoint} />
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div>
+                  <CardTitle className="font-headline text-lg">
+                      Gráfico ({activeSymbol})
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                      Desempenho em tempo real do ativo.
+                  </CardDescription>
+              </div>
+          </CardHeader>
+          <CardContent>
+              <MarketChart 
+                  activeSymbol={activeSymbol || ''}
+                  chartData={chartData}
+                  isChartLoading={isChartLoading}
+                  chartError={chartError}
+                  chartType={chartType}
+                  setChartType={setChartType}
+                  timePeriod={timePeriod}
+                  setTimePeriod={setTimePeriod}
+                  operations={operationsLog}
+                  indicators={robotCouncil.indicators}
+                  tradeAnnotations={tradeAnnotations}
+              />
+          </CardContent>
+        </Card>
+      </div>
       
        {/* Layout para telas maiores */}
        <div className="hidden lg:grid lg:grid-cols-3 gap-6 mt-6">
@@ -110,7 +115,6 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
             </div>
              <div className="space-y-6">
                 <AutoTraderCouncilInterface {...robotCouncil} />
-                <IndicatorPanel indicators={robotCouncil.indicators} latestDataPoint={latestDataPoint} />
                 <AutoTraderInterface {...autopilot} />
             </div>
        </div>
@@ -131,7 +135,6 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
 
                 <TabsContent value="autopilot" className="mt-4 space-y-6">
                     <AutoTraderCouncilInterface {...robotCouncil} />
-                    <IndicatorPanel indicators={robotCouncil.indicators} latestDataPoint={latestDataPoint} />
                     <AutoTraderInterface {...autopilot} />
                 </TabsContent>
 
