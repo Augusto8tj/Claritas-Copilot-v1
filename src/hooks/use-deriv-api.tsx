@@ -302,8 +302,13 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   }, [isConnected, makeRequest]);
 
   const subscribeToMarketData = useCallback(async (symbol: string) => {
+    // Cancela subscrição anterior se existir
     if (activeSubscriptionIdRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
-        try { await makeRequest({ forget: activeSubscriptionIdRef.current }); } catch (e) { /* ignore */ }
+        try { 
+            await makeRequest({ forget: activeSubscriptionIdRef.current }); 
+        } catch (e) { 
+            console.log('[Market Data] Previous subscription cancelled'); 
+        }
         activeSubscriptionIdRef.current = null;
     }
 
@@ -312,16 +317,40 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     setChartData([]);
 
     try {
+        // 1. Buscar histórico inicial
         const historyStyle = chartType === 'Candle' ? 'candles' : 'ticks';
         const history = await getHistoricalData(symbol, historyStyle, 1000, timePeriod);
         setChartData(history as ChartData[]);
 
-        const subRequest = chartType === 'Candle'
-            ? { ticks_history: symbol, style: 'candles', granularity: getGranularityForTimePeriod(timePeriod), subscribe: 1, end: "latest", count: 1 }
-            : { ticks: symbol, subscribe: 1 };
+        // 2. Criar subscrição adequada ao tipo de gráfico
+        let subRequest: any;
+        
+        if (chartType === 'Candle') {
+            // Para velas, subscribe em ticks_history com style candles
+            subRequest = { 
+                ticks_history: symbol, 
+                style: 'candles', 
+                granularity: getGranularityForTimePeriod(timePeriod), 
+                subscribe: 1,
+                end: "latest",
+                count: 1,
+                adjust_start_time: 1
+            };
+        } else {
+            // Para linha, subscribe em ticks simples
+            subRequest = { 
+                ticks: symbol, 
+                subscribe: 1 
+            };
+        }
         
         const subResponse: any = await makeRequest(subRequest);
-        activeSubscriptionIdRef.current = subResponse.subscription.id;
+        
+        // Armazena o subscription_id correto
+        if (subResponse.subscription?.id) {
+            activeSubscriptionIdRef.current = subResponse.subscription.id;
+            console.log(`[Market Data] Subscribed to ${symbol} (${chartType}) - ID: ${subResponse.subscription.id}`);
+        }
 
     } catch (error: any) {
         console.error(`[Market Data] Error for ${symbol}:`, error);
@@ -352,9 +381,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         try {
             const response = JSON.parse(event.data);
 
-             if (response.error && response.error.message) {
+            if (response.error && response.error.message) {
                 if (response.error.code !== 'AlreadySubscribed') {
-                  console.error(`[Deriv WS] Error:`, response.error);
+                  console.error(`[Deriv WS] Error:`, response.error.message);
                 }
             }
             
@@ -400,13 +429,13 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                     }
                     break;
                 case 'tick':
-                    if (chartType === 'Area' && response.tick.symbol === activeSymbol) {
+                    if (chartType === 'Area' && response.tick?.symbol === activeSymbol) {
                         const tick = response.tick;
                         setChartData(prev => addDataPoint(prev, { epoch: tick.epoch, price: tick.quote }));
                     }
                     break;
                 case 'ohlc':
-                     if (chartType === 'Candle' && response.ohlc.symbol === activeSymbol) {
+                    if (chartType === 'Candle' && response.ohlc?.symbol === activeSymbol) {
                         const ohlc = response.ohlc;
                         const newCandle: CandleData = {
                             epoch: ohlc.open_time,
@@ -416,13 +445,39 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                             close: parseFloat(ohlc.close),
                             price: parseFloat(ohlc.close),
                         };
+                        
                         setChartData(prev => {
-                            const lastCandle = prev.length > 0 ? prev[prev.length - 1] as CandleData : null;
-                            if (lastCandle && lastCandle.epoch === newCandle.epoch) {
+                            if (prev.length === 0) return [newCandle];
+                            const lastCandle = prev[prev.length - 1] as CandleData;
+                            if (lastCandle.epoch === newCandle.epoch) {
                                 return [...prev.slice(0, -1), newCandle];
                             }
                             return addDataPoint(prev, newCandle);
                         });
+                    }
+                    break;
+                case 'candles':
+                    if (chartType === 'Candle' && response.candles?.length > 0) {
+                        const candle = response.candles[0];
+                        if (candle && (!activeSymbol || response.echo_req?.ticks_history === activeSymbol)) {
+                            const newCandle: CandleData = {
+                                epoch: candle.epoch,
+                                open: parseFloat(candle.open),
+                                high: parseFloat(candle.high),
+                                low: parseFloat(candle.low),
+                                close: parseFloat(candle.close),
+                                price: parseFloat(candle.close),
+                            };
+                            
+                            setChartData(prev => {
+                                if (prev.length === 0) return [newCandle];
+                                const lastCandle = prev[prev.length - 1] as CandleData;
+                                if (lastCandle.epoch === newCandle.epoch) {
+                                    return [...prev.slice(0, -1), newCandle];
+                                }
+                                return addDataPoint(prev, newCandle);
+                            });
+                        }
                     }
                     break;
             }
