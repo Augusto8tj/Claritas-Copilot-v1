@@ -50,6 +50,7 @@ export function OperationsLog({ operations }: OperationsLogProps) {
 
   return (
     <Card className="h-full flex flex-col">
+      {/* O código que controla aqui */}
       <CardHeader>
         <div className="flex justify-between items-start">
             <div>
