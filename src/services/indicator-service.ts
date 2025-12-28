@@ -49,20 +49,30 @@ const calculateSMA = (data: CandleData[], period: number): (number | null)[] => 
 const calculateEMA = (data: CandleData[], period: number): (number | null)[] => {
   if (data.length < period) return Array(data.length).fill(null);
   const k = 2 / (period + 1)
-  const emaValues: (number | null)[] = Array(period - 1).fill(null);
-  let sum = data.slice(0, period).reduce((acc, d) => acc + d.close, 0);
-  emaValues.push(sum / period);
-
-  for (let i = period; i < data.length; i++) {
-    const prevEma = emaValues[i - 1];
-    if(prevEma !== null) {
-      emaValues.push(data[i].close * k + prevEma * (1 - k));
-    } else {
-      emaValues.push(null);
+  const emaValues: (number | null)[] = [];
+  
+  if(data.length > 0) {
+    let sum = 0;
+    const firstPeriodData = data.slice(0, period);
+    if(firstPeriodData.length === period) {
+        sum = firstPeriodData.reduce((acc, d) => acc + d.close, 0);
+        emaValues.push(sum / period);
+        for (let i = period; i < data.length; i++) {
+            const prevEma = emaValues[i - period];
+            if(prevEma !== null) {
+              emaValues.push(data[i].close * k + prevEma * (1 - k));
+            } else {
+              emaValues.push(null);
+            }
+        }
     }
   }
-  return emaValues;
+
+  // Fill initial values with null
+  const fillCount = data.length - emaValues.length;
+  return [...Array(fillCount).fill(null), ...emaValues];
 }
+
 
 const calculateRSI = (data: CandleData[], period = 14): (number | null)[] => {
     if (data.length < period + 1) return Array(data.length).fill(null);
@@ -141,38 +151,6 @@ const calculateMACD = (data: CandleData[], fastPeriod = 12, slowPeriod = 26, sig
     const histogram = macdLine.map((m, i) => (m && signalLine[i]) ? m - signalLine[i]! : null);
 
     return { macd: macdLine, signal: signalLine, histogram };
-};
-
-const calculateATR = (data: CandleData[], period = 14): (number | null)[] => {
-    if (data.length < period) return Array(data.length).fill(null);
-    
-    const trueRanges: (number | null)[] = [];
-    for (let i = 1; i < data.length; i++) {
-        const highLow = data[i].high - data[i].low;
-        const highPrevClose = Math.abs(data[i].high - data[i-1].close);
-        const lowPrevClose = Math.abs(data[i].low - data[i-1].close);
-        trueRanges.push(Math.max(highLow, highPrevClose, lowPrevClose));
-    }
-    
-    const atrValues: (number | null)[] = Array(period).fill(null);
-    
-    if (trueRanges.length < period -1) return Array(data.length).fill(null);
-
-    let firstAtrSum = trueRanges.slice(0, period - 1).reduce((sum, val) => sum + (val || 0), 0);
-    atrValues.push(firstAtrSum / period);
-    
-    for (let i = period; i < trueRanges.length; i++) {
-        const prevAtr = atrValues[i-1];
-        const tr = trueRanges[i-1];
-        if (tr === null || prevAtr === null) {
-            atrValues.push(null);
-            continue;
-        }
-        const currentAtr = (prevAtr * (period - 1) + tr) / period;
-        atrValues.push(currentAtr);
-    }
-    
-    return [null, ...atrValues];
 };
 
 const calculateADX = (data: CandleData[], period = 14) => {
@@ -293,13 +271,9 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
     indicators.pdi = adxValues.pdi[adxValues.pdi.length - 1] ?? null;
     indicators.ndi = adxValues.ndi[adxValues.ndi.length - 1] ?? null;
 
-    const atrSeries = calculateATR(candles);
-    indicators.atr = atrSeries[atrSeries.length - 1] ?? null;
-
     const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
     const shortPeriod = maRobot?.shortPeriod || 20;
     const longPeriod = maRobot?.longPeriod || 50;
-
     indicators.ema = calculateEMA(candles, shortPeriod);
     indicators.sma = calculateSMA(candles, longPeriod);
     indicators.ma = {
@@ -308,6 +282,9 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
     };
 
     // --- ADVANCED INDICATORS (from DerivFinanceLib) ---
+    const atrValues = DerivIndicators.atr(candles);
+    indicators.atr = atrValues.length > 0 ? atrValues[atrValues.length - 1] : null;
+
     const vwapValues = DerivIndicators.vwap(candles);
     indicators.vwap = vwapValues;
 

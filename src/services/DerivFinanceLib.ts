@@ -1,4 +1,5 @@
 
+
 /**
  * BIBLIOTECA FINANCEIRA AVANÇADA PARA DERIV API (2025)
  * Suporta Gráficos de Linha (Ticks) e Velas (OHLC)
@@ -50,6 +51,7 @@ export const DerivIndicators = {
 
   bollingerBandwidth: (data: InputData[], p = 20, sd = 2): number[] => {
     const d = normalizeData(data).map(x => x.close);
+    if (d.length < p) return Array(d.length).fill(0);
     return d.map((_, i) => {
       if (i < p) return 0;
       const slice = d.slice(i - p, i);
@@ -60,27 +62,34 @@ export const DerivIndicators = {
     });
   },
 
-  atrTrailingStop: (data: InputData[], p = 14, m = 3): number[] => {
+  atr: (data: InputData[], p = 14): number[] => {
     const d = normalizeData(data);
     if (d.length === 0) return [];
+    let atrValues: number[] = [];
     let atr = 0;
-    const stops: number[] = [];
     d.forEach((c, i) => {
       const tr = i === 0 ? c.high - c.low : Math.max(c.high - c.low, Math.abs(c.high - d[i - 1].close), Math.abs(c.low - d[i - 1].close));
       atr = i === 0 ? tr : (atr * (p - 1) + tr) / p;
-      stops.push(c.close - (atr * m));
+      atrValues.push(atr);
     });
-    return stops;
+    return atrValues;
+  },
+
+  atrTrailingStop: (data: InputData[], p = 14, m = 3): number[] => {
+    const d = normalizeData(data);
+    if (d.length === 0) return [];
+    const atrValues = DerivIndicators.atr(d, p);
+    return d.map((c, i) => c.close - (atrValues[i] * m));
   },
 
   chandelierExit: (data: InputData[], p = 22, m = 3): (number | null)[] => {
     const d = normalizeData(data);
-    if (d.length === 0) return [];
-    return d.map((c, i) => {
-      if (i < p || i === 0) return null;
-      const maxH = Math.max(...d.slice(i - p, i).map(x => x.high));
-      const tr = Math.max(c.high - c.low, Math.abs(c.high - d[i - 1].close));
-      return maxH - (tr * m);
+    if (d.length < p) return d.map(() => null);
+    const atrValues = DerivIndicators.atr(d, p);
+    return d.map((_, i) => {
+        if (i < p) return null;
+        const maxH = Math.max(...d.slice(i - p + 1, i + 1).map(x => x.high));
+        return maxH - (atrValues[i] * m);
     });
   },
 
@@ -118,6 +127,7 @@ export const DerivIndicators = {
 
   mfi: (data: InputData[], p = 14): number[] => {
     const d = normalizeData(data);
+    if (d.length < p) return Array(d.length).fill(50);
     return d.map((_, i) => {
       if (i < p) return 50;
       let pmf = 0, nmf = 0;
@@ -147,20 +157,35 @@ export const DerivIndicators = {
   // --- OSCILADORES ---
   stochRSI: (data: InputData[], p = 14): number[] => {
     const d = normalizeData(data).map(x => x.close);
-    if (d.length < p) return Array(d.length).fill(0.5);
-    const rsi = d.map((_, i) => {
-      if (i < p) return 50;
-      let g = 0, l = 0;
-      for (let j = i - p + 1; j <= i; j++) {
-        const diff = d[j] - d[j - 1];
-        diff > 0 ? g += diff : l += Math.abs(diff);
-      }
-      const lSafe = l || 1;
-      return 100 - (100 / (1 + (g / lSafe)));
+    if (d.length < p + 1) return Array(d.length).fill(0.5);
+    let gains: number[] = [], losses: number[] = [];
+    for (let i = 1; i < d.length; i++) {
+        const diff = d[i] - d[i - 1];
+        gains.push(diff > 0 ? diff : 0);
+        losses.push(diff < 0 ? -diff : 0);
+    }
+    
+    const ema = (arr: number[], period: number) => {
+        let result: number[] = [];
+        let sum = arr.slice(0, period).reduce((acc, val) => acc + val, 0);
+        result.push(sum / period);
+        for (let i = period; i < arr.length; i++) {
+            result.push((arr[i] * (2 / (period + 1))) + result[result.length - 1] * (1 - (2 / (period + 1))));
+        }
+        return result;
+    };
+    
+    const avgGain = ema(gains, p);
+    const avgLoss = ema(losses, p);
+    
+    const rsi = avgGain.map((g, i) => {
+        const l = avgLoss[i];
+        return 100 - (100 / (1 + (g / (l || 1))));
     });
+    
     return rsi.map((v, i) => {
       if (i < p) return 0.5;
-      const s = rsi.slice(i - p + 1, i + 1);
+      const s = rsi.slice(Math.max(0, i - p + 1), i + 1);
       const minRsi = Math.min(...s);
       const maxRsi = Math.max(...s);
       const denominator = maxRsi - minRsi;
@@ -169,13 +194,14 @@ export const DerivIndicators = {
   },
 
   fisher: (data: InputData[], p = 9): number[] => {
-    const d = normalizeData(data).map(x => x.close);
+    const d = normalizeData(data);
     if (d.length === 0) return [];
     let fish = [0], val = [0];
     for (let i = 1; i < d.length; i++) {
-      const s = d.slice(Math.max(0, i - p), i + 1);
-      const mn = Math.min(...s), mx = Math.max(...s);
-      let v = 0.66 * ((d[i] - mn) / (mx - mn || 1) - 0.5) + 0.67 * (val[i - 1] || 0);
+      const s = d.slice(Math.max(0, i - p + 1), i + 1);
+      const prices = s.map(x => (x.high + x.low) / 2);
+      const mn = Math.min(...prices), mx = Math.max(...prices);
+      let v = 0.33 * 2 * (((prices[prices.length - 1] - mn) / (mx - mn || 1)) - 0.5) + 0.67 * (val[i - 1] || 0);
       v = Math.max(-0.999, Math.min(0.999, v));
       val.push(v);
       fish.push(0.5 * Math.log((1 + v) / (1 - v)) + 0.5 * (fish[i - 1] || 0));
@@ -236,8 +262,12 @@ export const DerivIndicators = {
     const d = normalizeData(data).map(x => x.close);
     if (d.length === 0) return { short: [], long: [] };
     const ema = (p: number) => {
-      let r = [d[0]], k = 2 / (p + 1);
-      for (let i = 1; i < d.length; i++) r.push(d[i] * k + (r[i - 1] || 0) * (1 - k));
+      let r: number[] = [];
+      if (d.length > 0) {
+        r.push(d[0]);
+        const k = 2 / (p + 1);
+        for (let i = 1; i < d.length; i++) r.push(d[i] * k + (r[i - 1] || 0) * (1 - k));
+      }
       return r;
     };
     return {
@@ -263,7 +293,11 @@ export const DerivIndicators = {
   // --- CICLO E ESTATÍSTICA ---
   stc: (data: InputData[], f = 23, s = 50, c = 10): number[] => {
     const d = normalizeData(data).map(x => x.close);
-    const macd = d.map((v, i) => i < s ? 0 : v * (2 / (f + 1)) - v * (2 / (s + 1)));
+    if (d.length < s) return Array(d.length).fill(0);
+    const emaFast = DerivIndicators.gmma({ ...data, length: s }).short[0];
+    const emaSlow = DerivIndicators.gmma({ ...data, length: s }).long[0];
+    const macd = emaFast.map((v,i) => v - emaSlow[i]);
+    
     return macd.map((v, i) => {
       if (i < c) return 0;
       const sl = macd.slice(Math.max(0, i - c + 1), i + 1);
@@ -277,7 +311,7 @@ export const DerivIndicators = {
     const d = normalizeData(data).map(x => x.close);
     return d.map((v, i) => {
       if (i < p) return 0;
-      const sl = d.slice(i - p, i);
+      const sl = d.slice(i - p + 1, i + 1);
       const m = sl.reduce((a, b) => a + b) / p;
       const sd = Math.sqrt(sl.map(x => Math.pow(x - m, 2)).reduce((a, b) => a + b) / p);
       return (v - m) / (sd || 1);
@@ -290,16 +324,20 @@ export const DerivIndicators = {
     const roc14 = d.map((v, i) => i < 14 || d[i-14] === 0 ? 0 : ((v - d[i - 14]) / d[i - 14]) * 100);
     const roc11 = d.map((v, i) => i < 11 || d[i-11] === 0 ? 0 : ((v - d[i - 11]) / d[i - 11]) * 100);
     const sum = roc14.map((v, i) => v + roc11[i]);
-    let wma = [0], p = 10;
-    for (let i = 1; i < sum.length; i++) {
-      let weight = 0, total = 0;
-      for (let j = 0; j < p; j++) {
-        if (i - j < 0) continue;
-        const val = sum[i - j] || 0;
-        weight += val * (p - j);
-        total += (p - j);
+    let wma: number[] = [];
+    if (sum.length > 0) {
+      wma.push(0);
+      const p = 10;
+      for (let i = 1; i < sum.length; i++) {
+        let weight = 0, total = 0;
+        for (let j = 0; j < p; j++) {
+          if (i - j < 0) continue;
+          const val = sum[i - j] || 0;
+          weight += val * (p - j);
+          total += (p - j);
+        }
+        wma.push(total === 0 ? 0 : weight / total);
       }
-      wma.push(total === 0 ? 0 : weight / total);
     }
     return wma;
   }
