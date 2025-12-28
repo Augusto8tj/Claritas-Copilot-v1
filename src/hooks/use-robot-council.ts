@@ -127,9 +127,9 @@ export function useRobotCouncil(
             const historicalDataJson = JSON.stringify(chartData.slice(-200));
 
             if (useManualCouncilMode) {
-                const allStrategies: RobotStrategy['strategyType'][] = ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE'];
+                const allStrategies: RobotStrategy['strategyType'][] = ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE', 'KAMA', 'VWAP', 'Z_SCORE', 'STOCH_RSI', 'MFI', 'TRIX', 'ROC', 'DONCHIAN_CHANNELS', 'RVI', 'PARABOLIC_SAR', 'CHANDELIER_EXIT', 'OBV'];
                 
-                const basePromptInstructions = `Sua resposta DEVE SER um objeto JSON contendo uma chave "robots" que é um array com objetos de robôs.
+                const basePromptInstructions = `Sua resposta DEVE SER um objeto JSON contendo uma chave "council" que é um array com objetos de robôs.
 Regras para cada robô:
 1. ID único (ex: 'RSI_BOT_1').
 2. Preencha OBRIGATORIAMENTE os seguintes campos para cada robô: 'id', 'strategyType', 'justification', 'suggestedStake', 'suggestedDuration', 'suggestedDurationUnit', 'strongConfidence', 'weakConfidence', e os limiares e parâmetros específicos da estratégia (como 'strongBuyThreshold', 'period', 'shortPeriod', 'longPeriod').
@@ -158,9 +158,10 @@ ${basePromptInstructions}`;
 
                 } else {
                      const strategyBatchesConfig: { theme: string; strategies: RobotStrategy['strategyType'][] }[] = [
-                        { theme: "Analistas de Momentum", strategies: ['RSI', 'STOCHASTIC', 'MACD_CROSS'] },
-                        { theme: "Analistas de Tendência e Volatilidade", strategies: ['MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND'] },
-                        { theme: "Analistas de Padrões e Volume", strategies: ['ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE'] },
+                        { theme: "Analistas de Momentum", strategies: ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'STOCH_RSI', 'RVI'] },
+                        { theme: "Analistas de Tendência", strategies: ['MOVING_AVERAGE_CROSS', 'ADX_TREND', 'PARABOLIC_SAR'] },
+                        { theme: "Analistas de Volatilidade e Estrutura", strategies: ['BOLLINGER_BANDS', 'DONCHIAN_CHANNELS', 'KAMA'] },
+                        { theme: "Analistas de Volume e Fluxo", strategies: ['VWAP', 'MFI', 'OBV'] },
                     ];
 
                     batches = strategyBatchesConfig.map((batch, index) => {
@@ -198,7 +199,7 @@ ${basePromptInstructions}`;
                 const result = await getStrategyCouncilAction(councilInput);
                 if (result.success) {
                     setStrategyCouncil(result.success.council);
-                    toast({ title: "Conselho de IA Montado!", description: "Os 10 analistas-robôs estão prontos para a sessão." });
+                    toast({ title: "Conselho de IA Montado!", description: `Os ${result.success.council.length} analistas-robôs estão prontos.` });
                 } else {
                     throw new Error(result.error || "Ocorreu um erro inesperado ao gerar o conselho.");
                 }
@@ -237,16 +238,10 @@ ${basePromptInstructions}`;
         }
     };
     
-    /**
-     * O Comité de Supervisão.
-     * Esta função atua como uma camada final de governança sobre as decisões do Conselho de Votação.
-     * Ela não vota na direção, mas tem poder de veto e de ajuste de risco.
-     */
     const supervisionCommitteeCheck = useCallback((stake: number, direction: 'RISE' | 'FALL') => {
         let finalStake = stake;
         let vetoReason: string | null = null;
     
-        // --- 1. Analista de Risco (Guardião do Capital) ---
         const dailyPnL = operationsLog
             .filter(op => op.initiator === 'Conselho' && op.status !== 'pending' && new Date(op.timestamp).toDateString() === new Date().toDateString())
             .reduce((sum, op) => sum + (op.result || 0), 0);
@@ -259,30 +254,27 @@ ${basePromptInstructions}`;
     
         if (vetoReason) return { finalStake, vetoReason };
 
-        // --- 2. Analista de Volatilidade (Especialista em Turbulência) ---
         const atr = indicators.atr;
         const lastClose = chartData.length > 0 ? (chartData[chartData.length - 1] as any).close : null;
         if (atr && lastClose) {
             const atrPercentage = (atr / lastClose) * 100;
-            if (atrPercentage > 0.05) { // Ex: 0.05% do preço do ativo é alta volatilidade
+            if (atrPercentage > 0.05) { 
                 finalStake *= 0.75;
                 toast({ title: "Supervisor de Volatilidade", description: "ATR alto. Risco reduzido para 75%.", variant: "default" });
             }
         }
         
-        // --- 3. Analista de Tendência (Especialista em Clareza) ---
         const adx = indicators.adx;
         if (adx) {
-            if (adx < 20) { // Mercado sem tendência clara
+            if (adx < 20) { 
                 finalStake *= 0.75;
-                toast({ title: "Supervisor de Tendência", description: "ADX baixo (mercado lateral). Risco reduzido para 75%.", variant: "default" });
-            } else if (adx > 35) { // Tendência forte
+                toast({ title: "Supervisor de Tendência", description: "ADX baixo (mercado lateral). Risco reduzido.", variant: "default" });
+            } else if (adx > 35) { 
                 finalStake *= 1.25; 
-                toast({ title: "Supervisor de Tendência", description: "ADX alto (tendência forte). Risco aumentado em 25%.", variant: "default" });
+                toast({ title: "Supervisor de Tendência", description: "ADX alto (tendência forte). Risco aumentado.", variant: "default" });
             }
         }
 
-        // Garante que o stake final não seja menor que o mínimo permitido pela corretora
         if (finalStake < 0.35) finalStake = 0.35;
         
         return { finalStake, vetoReason };
@@ -297,41 +289,32 @@ ${basePromptInstructions}`;
         toast({ title: "Conselho Dissolvido", description: "A equipa de analistas foi dispensada." });
     };
 
-    /**
-     * The new Tactical Committee. This function determines which specialists are active
-     * based on current market conditions calculated by the indicator engine.
-     */
     const committeeOfSpecialists = useCallback(() => {
         const activeSpecialists: RobotStrategy[] = [];
         const { adx, atr, bbw } = indicators;
 
-        // Condition 1: High Volatility (Market in "Squeeze Breakout" mode)
         const isVolatile = (bbw && bbw > 0.04) || (atr && chartData.length > 0 && atr > ((chartData[chartData.length - 1] as any).close || 1) * 0.0005);
         if (isVolatile) {
-            const volatilityBots = strategyCouncil.filter(r => ['BOLLINGER_BANDS', 'KAMA', 'ADX_TREND'].includes(r.strategyType));
+            const volatilityBots = strategyCouncil.filter(r => ['BOLLINGER_BANDS', 'KAMA', 'ADX_TREND', 'CHANDELIER_EXIT'].includes(r.strategyType));
             activeSpecialists.push(...volatilityBots);
         }
 
-        // Condition 2: Strong Trend
         const isTrending = adx && adx > 25;
         if (isTrending) {
-            const trendBots = strategyCouncil.filter(r => ['MOVING_AVERAGE_CROSS', 'MACD_CROSS', 'ICHIMOKU_CLOUD'].includes(r.strategyType));
+            const trendBots = strategyCouncil.filter(r => ['MOVING_AVERAGE_CROSS', 'MACD_CROSS', 'ICHIMOKU_CLOUD', 'PARABOLIC_SAR'].includes(r.strategyType));
             activeSpecialists.push(...trendBots);
         }
 
-        // Condition 3: Ranging Market (Low Trend, Mean Reversion)
         if (!isTrending) {
-             const rangeBots = strategyCouncil.filter(r => ['RSI', 'STOCHASTIC', 'Z_SCORE', 'STOCH_RSI'].includes(r.strategyType));
+             const rangeBots = strategyCouncil.filter(r => ['RSI', 'STOCHASTIC', 'Z_SCORE', 'STOCH_RSI', 'RVI'].includes(r.strategyType));
             activeSpecialists.push(...rangeBots);
         }
 
-        // Always include some baseline specialists if the list is empty
         if (activeSpecialists.length === 0) {
             const defaultBots = strategyCouncil.filter(r => ['RSI', 'MOVING_AVERAGE_CROSS'].includes(r.strategyType));
             activeSpecialists.push(...defaultBots);
         }
 
-        // Return a unique list of specialists
         return [...new Map(activeSpecialists.map(item => [item.id, item])).values()];
 
     }, [indicators, strategyCouncil, chartData]);
@@ -353,7 +336,6 @@ ${basePromptInstructions}`;
         const newVotes: CouncilVotes = {};
         let riseConfidenceSum = 0, fallConfidenceSum = 0;
         
-        // Use the tactical committee to get the active specialists for this tick
         const activeSpecialists = committeeOfSpecialists();
 
         activeSpecialists.forEach(robot => {
@@ -393,7 +375,6 @@ ${basePromptInstructions}`;
                          if (prevMacd >= prevSignal && currentMacd < currentSignal) { vote = 'FALL'; confidence = robot.strongConfidence; }
                     }
                     break;
-                // Add other strategy voting logic here...
             }
 
             newVotes[robot.id] = { vote, confidence, weight };
@@ -408,7 +389,7 @@ ${basePromptInstructions}`;
         if (consensusReached && activeSymbol) {
             councilExecutionRef.current.isExecuting = true;
             const direction = riseConfidenceSum > fallConfidenceSum ? 'RISE' : 'FALL';
-            const baseStake = strategyCouncil[0].suggestedStake;
+            const baseStake = strategyCouncil[0]?.suggestedStake || form.getValues('stake');
 
             const { finalStake, vetoReason } = supervisionCommitteeCheck(baseStake, direction);
 
@@ -429,7 +410,7 @@ ${basePromptInstructions}`;
                 .finally(() => setTimeout(() => { councilExecutionRef.current.isExecuting = false; }, 10000));
         }
     }, [
-        indicators, // This is now the primary trigger
+        indicators,
         isCouncilAutopilotOn,
         strategyCouncil,
         consensusThreshold,
@@ -441,7 +422,7 @@ ${basePromptInstructions}`;
         toast,
         form,
         supervisionCommitteeCheck,
-        committeeOfSpecialists // Add the new committee function as a dependency
+        committeeOfSpecialists
     ]);
 
     return {

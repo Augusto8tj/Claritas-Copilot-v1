@@ -20,7 +20,7 @@ const strategyCouncilArchitectPrompt = ai.definePrompt({
     output: { schema: StrategyCouncilOutputSchema }, // Expect the full council output
     system: `Você é um arquiteto-chefe de estratégias quantitativas. Sua missão é criar as REGRAS para um conselho completo de 10 robôs-analistas especialistas, cada um com uma filosofia de trading única, **calibrados para um horizonte de tempo específico.**
 
-Você deve escolher 10 estratégias da lista disponível para montar o conselho mais diversificado e eficaz para o contexto. A lista de estratégias disponíveis é: 'RSI', 'STOCHASTIC', 'MACD_CROSS', 'MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE', 'KAMA', 'VWAP', 'Z_SCORE', 'STOCH_RSI', 'MFI', 'TRIX', 'ROC', 'DONCHIAN_CHANNELS'.
+Você deve escolher 10 estratégias da lista disponível para montar o conselho mais diversificado e eficaz para o contexto. A lista de estratégias disponíveis é: ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE', 'KAMA', 'VWAP', 'Z_SCORE', 'STOCH_RSI', 'MFI', 'TRIX', 'ROC', 'DONCHIAN_CHANNELS', 'RVI', 'PARABOLIC_SAR', 'CHANDELIER_EXIT', 'OBV'].
 
 A sua resposta DEVE SER um único objeto JSON que valida contra o schema de saída, contendo uma chave "council" com um array de EXATAMENTE 10 objetos de robôs.
 
@@ -70,8 +70,8 @@ const getStrategyCouncilFlow = ai.defineFlow(
         }
     });
 
-    if (!output || !output.council || output.council.length < 10) {
-        throw new Error(`A montagem do conselho falhou. A IA não retornou os 10 robôs esperados.`);
+    if (!output || !output.council) {
+        throw new Error(`A montagem do conselho falhou. A IA não retornou os robôs esperados.`);
     }
     
     // Ensure minimum stake is respected for every robot in the council
@@ -81,7 +81,7 @@ const getStrategyCouncilFlow = ai.defineFlow(
         }
     });
 
-    console.log('[Council Flow] Conselho de 10 robôs calibrado e montado com sucesso!');
+    console.log(`[Council Flow] Conselho de ${output.council.length} robôs calibrado e montado com sucesso!`);
     return output;
   }
 );

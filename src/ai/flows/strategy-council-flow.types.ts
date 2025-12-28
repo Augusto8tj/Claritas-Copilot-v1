@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 import type { DurationUnit } from '@/components/trading/deriv-trader-interface.types';
 
@@ -22,20 +23,24 @@ export const RobotStrategySchema = z.object({
       'MACD_CROSS',
       'ADX_TREND',
       'AWESOME_OSCILLATOR',
-      'TRIX', // Novo
-      'ROC', // Novo
+      'TRIX', // Advanced
+      'ROC', // Advanced
+      'RVI', // Advanced
+      'PARABOLIC_SAR', // Advanced
       // Volatility & Structure
       'BOLLINGER_BANDS',
       'ICHIMOKU_CLOUD',
-      'KAMA', // Novo
-      'DONCHIAN_CHANNELS', // Novo
+      'KAMA', // Advanced
+      'DONCHIAN_CHANNELS', // Advanced
+      'CHANDELIER_EXIT', // Advanced
       // Volume & Order Flow
       'VOLUME_PROFILE',
-      'VWAP', // Novo
-      'MFI', // Novo
+      'VWAP', // Advanced
+      'MFI', // Advanced
+      'OBV', // Advanced
       // Statistical & Mean Reversion
-      'Z_SCORE', // Novo
-      'STOCH_RSI', // Novo
+      'Z_SCORE', // Advanced
+      'STOCH_RSI', // Advanced
       // Patterns
       'PRICE_ACTION_PATTERN',
   ]).describe("The type of strategy the robot uses."),
@@ -48,12 +53,12 @@ export const RobotStrategySchema = z.object({
   strongConfidence: z.number().min(0).max(100).describe("The confidence score (e.g., 90) for a strong signal."),
   weakConfidence: z.number().min(0).max(100).describe("The confidence score (e.g., 60) for a weak signal."),
 
-  // --- RSI, STOCHASTIC, STOCH_RSI ---
-  period: z.number().optional().describe("The period for RSI, Stochastic or StochRSI calculation, calibrated for the time horizon."),
-  strongBuyThreshold: z.number().optional().describe("The RSI/Stochastic/StochRSI value below which a STRONG 'RISE' vote is cast."),
-  weakBuyThreshold: z.number().optional().describe("The RSI/Stochastic/StochRSI value below which a WEAK 'RISE' vote is cast."),
-  strongSellThreshold: z.number().optional().describe("The RSI/Stochastic/StochRSI value above which a STRONG 'FALL' vote is cast."),
-  weakSellThreshold: z.number().optional().describe("The RSI/Stochastic/StochRSI value above which a WEAK 'FALL' vote is cast."),
+  // --- RSI, STOCHASTIC, STOCH_RSI, RVI, MFI ---
+  period: z.number().optional().describe("The period for RSI, Stochastic or other oscillators, calibrated for the time horizon."),
+  strongBuyThreshold: z.number().optional().describe("The oscillator value below which a STRONG 'RISE' vote is cast."),
+  weakBuyThreshold: z.number().optional().describe("The oscillator value below which a WEAK 'RISE' vote is cast."),
+  strongSellThreshold: z.number().optional().describe("The oscillator value above which a STRONG 'FALL' vote is cast."),
+  weakSellThreshold: z.number().optional().describe("The oscillator value above which a WEAK 'FALL' vote is cast."),
 
   // --- MOVING_AVERAGE_CROSS, GMMA ---
   shortPeriod: z.number().optional().describe("The period for the short-term moving average."),
@@ -83,9 +88,14 @@ export const RobotStrategySchema = z.object({
   profileBars: z.number().optional().describe("Number of recent bars to use for calculating the volume profile Point of Control (POC)."),
 
   // --- Z_SCORE ---
-  zScoreThreshold: z.number().optional().describe("The Z-Score value (positive or negative) to trigger a mean reversion trade.")
+  zScoreThreshold: z.number().optional().describe("The Z-Score value (positive or negative) to trigger a mean reversion trade."),
 
-  // ICHIMOKU_CLOUD, AWESOME_OSCILLATOR, MFI, ROC have no extra parameters that need to be defined by the AI
+  // --- PARABOLIC SAR & CHANDELIER_EXIT ---
+  acceleration: z.number().optional().describe("The acceleration factor for Parabolic SAR."),
+  maxAcceleration: z.number().optional().describe("The maximum acceleration factor."),
+  multiplier: z.number().optional().describe("The ATR multiplier for Chandelier Exit.")
+  
+  // ICHIMOKU_CLOUD, AWESOME_OSCILLATOR, OBV, ROC have no extra parameters that need to be defined by the AI
 });
 
 export type RobotStrategy = z.infer<typeof RobotStrategySchema>;

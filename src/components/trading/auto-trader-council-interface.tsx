@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, Fragment } from "react";
@@ -19,9 +20,7 @@ import { Badge } from "../ui/badge";
 import type { RobotStrategy } from "@/ai/flows/strategy-council-flow.types";
 import { cn } from "@/lib/utils";
 import { Input } from "../ui/input";
-import { useFormContext } from "react-hook-form";
-import type { RiseFallFormValues } from "./deriv-trader-interface.types";
-import { useRobotCouncil, type CouncilVotes, type RobotVote } from "@/hooks/use-robot-council";
+import { useRobotCouncil } from "@/hooks/use-robot-council";
 
 const indicatorIcons: { [key: string]: React.ReactNode } = {
     RSI: <BrainCircuit className="h-4 w-4" />,
@@ -43,11 +42,12 @@ const voteIcons: { [key: string]: React.ReactNode } = {
 }
 
 const robotCategories: Record<string, RobotStrategy['strategyType'][]> = {
-    'Especialistas em Momentum': ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'AWESOME_OSCILLATOR'],
-    'Especialistas em Tendência': ['MOVING_AVERAGE_CROSS', 'ADX_TREND', 'ICHIMOKU_CLOUD'],
-    'Especialistas em Volatilidade': ['BOLLINGER_BANDS'],
+    'Especialistas em Momentum': ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'AWESOME_OSCILLATOR', 'TRIX', 'ROC', 'RVI'],
+    'Especialistas em Tendência': ['MOVING_AVERAGE_CROSS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'PARABOLIC_SAR'],
+    'Especialistas em Volatilidade e Estrutura': ['BOLLINGER_BANDS', 'DONCHIAN_CHANNELS', 'KAMA', 'CHANDELIER_EXIT'],
+    'Especialistas em Volume e Fluxo': ['VOLUME_PROFILE', 'VWAP', 'MFI', 'OBV'],
+    'Especialistas Estatísticos': ['Z_SCORE', 'STOCH_RSI'],
     'Especialistas em Padrões': ['PRICE_ACTION_PATTERN'],
-    'Especialistas em Volume': ['VOLUME_PROFILE'],
 };
 
 export function AutoTraderCouncilInterface(props: ReturnType<typeof useRobotCouncil>) {
@@ -79,11 +79,11 @@ export function AutoTraderCouncilInterface(props: ReturnType<typeof useRobotCoun
   const { toast } = useToast();
   
   const handleToggleAutopilot = (isOn: boolean) => {
-    if (isOn && strategyCouncil.length < 10) {
+    if (isOn && strategyCouncil.length < 1) {
         toast({
             variant: "destructive",
-            title: "Conselho Incompleto",
-            description: "Você deve primeiro construir o conselho de 10 analistas antes de ativar o piloto automático.",
+            title: "Conselho Vazio",
+            description: "Você deve primeiro construir o conselho de analistas antes de ativar o piloto automático.",
         });
         return;
     }
@@ -93,8 +93,10 @@ export function AutoTraderCouncilInterface(props: ReturnType<typeof useRobotCoun
   const renderStrategyParams = (robot: RobotStrategy) => {
     switch (robot.strategyType) {
         case 'RSI':
-            return `Sinal Forte < ${robot.strongBuyThreshold}, Sinal Fraco < ${robot.weakBuyThreshold}`;
         case 'STOCHASTIC':
+        case 'STOCH_RSI':
+        case 'MFI':
+        case 'RVI':
             return `Sinal Forte < ${robot.strongBuyThreshold}, Sinal Fraco < ${robot.weakBuyThreshold}`;
         case 'MOVING_AVERAGE_CROSS':
             return `Cruzamento ${robot.shortPeriod}/${robot.longPeriod}`;
@@ -108,12 +110,13 @@ export function AutoTraderCouncilInterface(props: ReturnType<typeof useRobotCoun
         case 'ADX_TREND':
             return `Limiar de Tendência > ${robot.trendStrengthThreshold}`;
         case 'VOLUME_PROFILE':
-             // @ts-ignore
             return `POC de ${robot.profileBars} barras`;
-        case 'ICHIMOKU_CLOUD':
-            return "Análise da Nuvem";
-        case 'AWESOME_OSCILLATOR':
-            return "Cruzamento de Zero";
+        case 'Z_SCORE':
+            return `Limiar Z-Score: ${robot.zScoreThreshold}`;
+        case 'PARABOLIC_SAR':
+            return `AF: ${robot.acceleration}, MAX: ${robot.maxAcceleration}`;
+        case 'CHANDELIER_EXIT':
+            return `Multiplicador ATR: ${robot.multiplier}`;
         default:
             return "Parâmetros não definidos";
     }
@@ -141,6 +144,10 @@ export function AutoTraderCouncilInterface(props: ReturnType<typeof useRobotCoun
             return <p>MACD/Sinal: <strong>{macd?.toFixed(4) ?? '...'} / {signal?.toFixed(4) ?? '...'}</strong></p>;
         case 'ADX_TREND':
             return <p>Força da Tendência (ADX): <strong>{indicators.adx?.toFixed(2) ?? "..."}</strong></p>;
+        case 'Z_SCORE':
+            return <p>Z-Score Atual: <strong>{indicators.zScore?.toFixed(2) ?? "..."}</strong></p>;
+        case 'KAMA':
+            return <p>KAMA Atual: <strong>{indicators.kama?.toFixed(4) ?? "..."}</strong></p>;
         default:
             return null;
     }
@@ -174,7 +181,7 @@ export function AutoTraderCouncilInterface(props: ReturnType<typeof useRobotCoun
             </div>
         </div>
         <CardDescription>
-          10 analistas votam e 3 supervisores de risco aprovam cada trade.
+          Analistas votam taticamente e supervisores de risco aprovam cada trade.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -237,7 +244,7 @@ export function AutoTraderCouncilInterface(props: ReturnType<typeof useRobotCoun
          <div className="space-y-2">
             <Label htmlFor="council-consensus">
                 Limiar de Consenso
-                {isDynamicConsensusOn && <span className="text-muted-foreground text-xs"> (Automático)</span>}
+                {isDynamicConsensusOn && <span className="text-muted-foreground text-xs"> (Automático: {consensusThreshold})</span>}
             </Label>
             <Input 
                 id="council-consensus"
@@ -275,7 +282,7 @@ export function AutoTraderCouncilInterface(props: ReturnType<typeof useRobotCoun
 
          <div className="flex justify-between items-center text-xs text-muted-foreground pt-2">
             <span>Analistas Montados</span>
-            <Badge variant="outline">{strategyCouncil.length} / 10</Badge>
+            <Badge variant="outline">{strategyCouncil.length}</Badge>
         </div>
          <div className="flex justify-between items-center text-xs text-muted-foreground">
             <span>Requisições à IA (sessão)</span>
@@ -343,14 +350,14 @@ export function AutoTraderCouncilInterface(props: ReturnType<typeof useRobotCoun
                 </div>
             )
         )}
-        {!isCouncilAutopilotOn && strategyCouncil.length < 10 && (
+        {!isCouncilAutopilotOn && strategyCouncil.length < 1 && (
             <div className="text-center text-muted-foreground p-4 border rounded-md bg-muted/50">
                 <Info className="h-5 w-5 mx-auto mb-2" />
                 <p className="text-sm">O Conselho de IA está aguardando a construção.</p>
                 <p className="text-xs">Use o botão acima para iniciar.</p>
             </div>
         )}
-        {!isCouncilAutopilotOn && strategyCouncil.length === 10 && (
+        {!isCouncilAutopilotOn && strategyCouncil.length > 0 && (
              <div className="text-center text-muted-foreground p-4 border rounded-md bg-muted/50">
                 <Info className="h-5 w-5 mx-auto mb-2" />
                 <p className="text-sm">O Conselho está pronto. Ative o piloto automático para começar.</p>
