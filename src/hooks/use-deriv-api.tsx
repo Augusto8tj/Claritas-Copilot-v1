@@ -122,11 +122,9 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
 const addDataPoint = (prevData: ChartData[], newPoint: ChartData): ChartData[] => {
     const data = [...prevData];
     if (data.length > 0 && data[data.length - 1].epoch === newPoint.epoch) {
-        // Se é o mesmo timestamp, substitui o último ponto (útil para atualizações de vela)
         data[data.length - 1] = newPoint;
         return data;
     }
-    // Adiciona o novo ponto e remove o mais antigo se o limite for atingido
     if (data.length >= MAX_DATA_POINTS) {
         data.shift();
     }
@@ -148,7 +146,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [isAssetsLoading, setIsAssetsLoading] = useState(true);
   const { toast } = useToast();
 
-  // Chart state now lives here
   const [activeSymbol, setActiveSymbol] = useState<string | null>('1HZ10V');
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [isChartLoading, setIsChartLoading] = useState(true);
@@ -353,12 +350,11 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       }, [isConnected, makeRequest, addTradeAnnotation]);
 
  const subscribeToMarketData = useCallback(async (symbol: string) => {
-    // Cancela subscrição anterior se existir
     if (activeSubscriptionIdRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
         try { 
             await makeRequest({ forget: activeSubscriptionIdRef.current }); 
         } catch (e) { 
-            console.log('[Market Data] Previous subscription cancelled'); 
+            console.log('[Market Data] Previous subscription could not be cancelled.'); 
         }
         activeSubscriptionIdRef.current = null;
     }
@@ -379,16 +375,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 ticks_history: symbol, 
                 style: 'candles', 
                 granularity: getGranularityForTimePeriod(timePeriod), 
-                subscribe: 1,
-                end: "latest",
-                count: 1,
-                adjust_start_time: 1
-            };
-        } else {
-            subRequest = { 
-                ticks: symbol, 
                 subscribe: 1 
             };
+        } else {
+            subRequest = { ticks: symbol, subscribe: 1 };
         }
         
         const subResponse: any = await makeRequest(subRequest);
@@ -407,7 +397,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 }, [getHistoricalData, makeRequest, chartType, timePeriod]);
 
 
-  // Main Connection and Data Subscription Effect
   useEffect(() => {
     if (!activeToken || isLoading) {
       if (wsRef.current) wsRef.current.close();
@@ -588,12 +577,10 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   }, [activeToken, isLoading, makeRequest, toast, triggerReconnect]);
 
   
-  // Effect to manage market data subscription
   useEffect(() => {
     if (isConnected && activeSymbol) {
         subscribeToMarketData(activeSymbol);
     }
-    // Cleanup function to unsubscribe when component unmounts or deps change
     return () => {
         if (activeSubscriptionIdRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
             try {

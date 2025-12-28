@@ -161,7 +161,7 @@ export function MarketChart({
     }
   }, [indicators, dataWindow])
 
-  const drawLineIndicator = React.useCallback(
+  const drawLineIndicator = useCallback(
     (
       ctx: CanvasRenderingContext2D,
       indicatorData: (number | null)[],
@@ -189,7 +189,7 @@ export function MarketChart({
     []
   )
 
-  const drawBollingerBands = React.useCallback(
+  const drawBollingerBands = useCallback(
     (
       ctx: CanvasRenderingContext2D,
       bbData: ({ upper: number; middle: number; lower: number } | null)[],
@@ -274,7 +274,7 @@ export function MarketChart({
     [colors.bbFill]
   )
 
-  const drawMainChart = React.useCallback(() => {
+  const drawMainChart = useCallback(() => {
     const canvas = mainCanvasRef.current
     const container = containerRef.current
     if (!canvas || !container || visibleData.length === 0) return
@@ -473,7 +473,6 @@ export function MarketChart({
         
         const annColor = ann.status === 'won' ? colors.bull : ann.status === 'lost' ? colors.bear : colors.line;
 
-        // Draw Entry Dot
         ctx.beginPath();
         ctx.arc(entryX, entryY, 6, 0, 2 * Math.PI);
         ctx.fillStyle = annColor;
@@ -482,7 +481,6 @@ export function MarketChart({
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Draw direction arrow inside dot
         ctx.strokeStyle = 'white';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -508,7 +506,6 @@ export function MarketChart({
                 const exitX = getX(exitDataIndex);
                 const exitY = getY(ann.exitPrice);
 
-                // Draw connecting line
                 ctx.beginPath();
                 ctx.moveTo(entryX, entryY);
                 ctx.lineTo(exitX, exitY);
@@ -518,7 +515,6 @@ export function MarketChart({
                 ctx.stroke();
                 ctx.setLineDash([]);
                 
-                // Draw Exit Flag
                 ctx.save();
                 ctx.translate(exitX, exitY);
 
@@ -526,13 +522,11 @@ export function MarketChart({
                 ctx.fillStyle = annColor;
                 ctx.lineWidth = 2;
                 
-                // Pole
                 ctx.beginPath();
                 ctx.moveTo(0, 0);
                 ctx.lineTo(0, -25);
                 ctx.stroke();
 
-                // Flag
                 ctx.beginPath();
                 ctx.moveTo(0, -25);
                 ctx.lineTo(25, -20);
@@ -541,14 +535,12 @@ export function MarketChart({
                 ctx.closePath();
                 ctx.fill();
 
-                // Flag text
                 ctx.fillStyle = 'white';
                 ctx.font = 'bold 10px sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(ann.status === 'won' ? '✓' : '✗', 12.5, -15);
                 
-                // Profit text
                 ctx.fillStyle = annColor;
                 ctx.font = '600 11px sans-serif';
                 ctx.textAlign = 'left';
@@ -565,7 +557,6 @@ export function MarketChart({
     if (mousePosition) {
         const { x, y } = mousePosition;
 
-        // Draw Crosshair
         ctx.strokeStyle = colors.crosshair;
         ctx.lineWidth = 0.5;
         ctx.setLineDash([3, 3]);
@@ -582,14 +573,12 @@ export function MarketChart({
 
         ctx.setLineDash([]);
 
-        // Draw Price Label on Y-Axis
         const price = getPrice(y);
         ctx.fillStyle = colors.priceBg;
         ctx.fillRect(width - PADDING.right, y - 10, Y_AXIS_WIDTH, 20);
         ctx.fillStyle = colors.text;
         ctx.fillText(price.toFixed(4), width - PADDING.right + 5, y + 4);
 
-        // Draw Time Label on X-Axis
         const chartWidth = width - PADDING.left - PADDING.right;
         const percentX = (x - PADDING.left) / chartWidth;
         const dataIndex = Math.round(percentX * (visibleData.length - 1));
@@ -605,7 +594,6 @@ export function MarketChart({
             ctx.fillStyle = colors.text;
             ctx.fillText(timeString, x - textWidth / 2, height - PADDING.bottom + 14);
 
-            // Draw Tooltip
             if (isCandle(dataPoint)) {
                 let tooltipX = x + 15;
                 let tooltipY = y + 15;
@@ -615,7 +603,7 @@ export function MarketChart({
                 if (tooltipX + tooltipWidth > width) tooltipX = x - tooltipWidth - 15;
                 if (tooltipY + tooltipHeight > height) tooltipY = y - tooltipHeight - 15;
 
-                ctx.fillStyle = `${colors.priceBg}E6`; // Add alpha
+                ctx.fillStyle = `${colors.priceBg}E6`;
                 ctx.strokeStyle = colors.grid;
                 ctx.lineWidth = 1;
                 ctx.fillRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
@@ -654,7 +642,7 @@ export function MarketChart({
     mousePosition,
   ])
 
-  const drawBrushChart = React.useCallback(() => {
+  const drawBrushChart = useCallback(() => {
     const canvas = brushCanvasRef.current
     if (!canvas || rawData.length === 0) return
 
