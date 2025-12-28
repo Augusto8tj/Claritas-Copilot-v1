@@ -1,7 +1,7 @@
 
 'use client';
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DerivTraderInterface } from "@/components/trading/deriv-trader-interface";
@@ -26,6 +26,8 @@ import { ManualCouncilInterface } from "@/components/trading/manual-council-inte
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AITradeSuggestion } from "@/components/trading/ai-trade-suggestion";
 import { IndicatorDebugPanel } from "@/components/trading/indicator-debug-panel";
+import { calculateAllIndicators } from "@/services/indicator-service";
+import type { CandleData } from "@/hooks/types";
 
 
 /**
@@ -49,9 +51,19 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   const robotCouncil = useRobotCouncil(activeSymbol);
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, robotCouncil.incrementGeminiRequestCount);
   
-  // The `indicators` are calculated and managed inside useRobotCouncil.
-  const { indicators } = robotCouncil;
-  const autopilot = useAutopilot(activeSymbol, indicators, robotCouncil.incrementGeminiRequestCount);
+  // This is now the central point for indicator calculation
+  useEffect(() => {
+      if (chartData && chartData.length > 20 && robotCouncil.strategyCouncil.length > 0) {
+        const candles = chartData.filter(d => 'close' in d) as CandleData[];
+        if (candles.length > 20) {
+            const newIndicators = calculateAllIndicators(candles, robotCouncil.strategyCouncil);
+            robotCouncil.setIndicators(newIndicators);
+        }
+      }
+  }, [chartData, robotCouncil.strategyCouncil, robotCouncil.setIndicators]);
+
+
+  const autopilot = useAutopilot(activeSymbol, robotCouncil.indicators, robotCouncil.incrementGeminiRequestCount);
   const latestDataPoint = chartData.length > 0 ? chartData[chartData.length - 1] : null;
 
   return (
@@ -78,7 +90,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                 timePeriod={timePeriod}
                 setTimePeriod={setTimePeriod}
                 operations={operationsLog}
-                indicators={indicators}
+                indicators={robotCouncil.indicators}
                 tradeAnnotations={tradeAnnotations}
             />
         </CardContent>
@@ -138,7 +150,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
         </div>
       )}
       {/* Painel de Depuração */}
-      <IndicatorDebugPanel indicators={indicators} latestDataPoint={latestDataPoint} />
+      <IndicatorDebugPanel indicators={robotCouncil.indicators} latestDataPoint={latestDataPoint} />
     </>
   );
 }

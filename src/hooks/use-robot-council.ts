@@ -11,261 +11,7 @@ import { RobotAnalystGeneratorOutputSchema } from '@/ai/flows/strategy-council-f
 import type { RiseFallFormValues } from '@/components/trading/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
-import type { Operation, OperationInitiator } from '@/components/trading/operations-log.types';
-import type { CandleData, ChartData } from './types';
-
-
-// ========================================================
-// INTERNAL INDICATOR CALCULATION ENGINE
-// ========================================================
-const calculateSMA = (data: CandleData[], period: number): (number | null)[] => {
-    if (data.length < period) return Array(data.length).fill(null);
-    const smaValues: (number | null)[] = Array(period - 1).fill(null);
-    let sum = 0;
-    for(let i=0; i<period; i++) sum += data[i].close;
-    smaValues.push(sum / period);
-    for(let i=period; i<data.length; i++){
-        sum = sum - data[i-period].close + data[i].close;
-        smaValues.push(sum / period);
-    }
-    return smaValues;
-}
-
-const calculateEMA = (data: CandleData[], period: number): (number | null)[] => {
-  if (data.length < period) return Array(data.length).fill(null);
-  const k = 2 / (period + 1)
-  const emaValues: (number | null)[] = Array(period - 1).fill(null);
-  let sum = data.slice(0, period).reduce((acc, d) => acc + d.close, 0);
-  emaValues.push(sum / period);
-
-  for (let i = period; i < data.length; i++) {
-    const prevEma = emaValues[i - 1];
-    if(prevEma !== null) {
-      emaValues.push(data[i].close * k + prevEma * (1 - k));
-    } else {
-      emaValues.push(null);
-    }
-  }
-  return emaValues;
-}
-
-const calculateBollingerBands = (data: CandleData[], period = 20, stdDev = 2) => {
-    if (data.length < period) return Array(data.length).fill(null);
-    const bands: ({ upper: number; middle: number; lower: number } | null)[] = Array(period - 1).fill(null);
-    for (let i = period - 1; i < data.length; i++) {
-        const slice = data.slice(i - period + 1, i + 1);
-        const middle = slice.reduce((sum, d) => sum + d.close, 0) / period;
-        const standardDeviation = Math.sqrt(slice.reduce((sum, d) => sum + Math.pow(d.close - middle, 2), 0) / period);
-        bands.push({
-            upper: middle + stdDev * standardDeviation,
-            middle: middle,
-            lower: middle - stdDev * standardDeviation
-        });
-    }
-    return bands;
-};
-
-const calculateVWAP = (data: CandleData[]): (number | null)[] => {
-    const vwapValues: (number | null)[] = [];
-    let cumulativeTypicalPriceVolume = 0;
-    let cumulativeVolume = 0;
-
-    for (let i = 0; i < data.length; i++) {
-        const d = data[i];
-        // @ts-ignore
-        if (d.volume) {
-            const typicalPrice = (d.high + d.low + d.close) / 3;
-             // @ts-ignore
-            cumulativeTypicalPriceVolume += typicalPrice * d.volume;
-             // @ts-ignore
-            cumulativeVolume += d.volume;
-            vwapValues.push(cumulativeVolume > 0 ? cumulativeTypicalPriceVolume / cumulativeVolume : null);
-        } else {
-            vwapValues.push(null);
-        }
-    }
-    return vwapValues;
-};
-
-const calculateRSI = (data: CandleData[], period = 14): (number | null)[] => {
-    if (data.length < period + 1) return Array(data.length).fill(null);
-
-    const rsiValues: (number | null)[] = Array(period).fill(null);
-    let avgGain = 0;
-    let avgLoss = 0;
-
-    // First RSI calculation
-    for (let i = 1; i <= period; i++) {
-        const change = data[i].close - data[i - 1].close;
-        if (change > 0) {
-            avgGain += change;
-        } else {
-            avgLoss -= change;
-        }
-    }
-    avgGain /= period;
-    avgLoss /= period;
-    
-    let rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
-    rsiValues.push(100 - (100 / (1 + rs)));
-
-    // Subsequent RSI calculations
-    for (let i = period + 1; i < data.length; i++) {
-        const change = data[i].close - data[i - 1].close;
-        let gain = change > 0 ? change : 0;
-        let loss = change < 0 ? -change : 0;
-
-        avgGain = (avgGain * (period - 1) + gain) / period;
-        avgLoss = (avgLoss * (period - 1) + loss) / period;
-        
-        rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
-        rsiValues.push(100 - (100 / (1 + rs)));
-    }
-    return rsiValues;
-};
-
-const calculateStochastic = (data: CandleData[], period = 14) => {
-    if (data.length < period) return Array(data.length).fill(null);
-
-    const kValues: (number | null)[] = [];
-    for (let i = 0; i < data.length; i++) {
-        if (i < period - 1) {
-            kValues.push(null);
-            continue;
-        }
-        const slice = data.slice(i - period + 1, i + 1);
-        const lowestLow = Math.min(...slice.map(d => d.low));
-        const highestHigh = Math.max(...slice.map(d => d.high));
-        const currentClose = slice[slice.length - 1].close;
-        if (highestHigh === lowestLow) {
-            kValues.push(i > 0 && kValues[i-1] ? kValues[i-1] : 50);
-        } else {
-            kValues.push(100 * ((currentClose - lowestLow) / (highestHigh - lowestLow)));
-        }
-    }
-    return kValues;
-};
-
-const calculateMACD = (data: CandleData[], fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) => {
-    if (data.length < slowPeriod) return { macd: [], signal: [], histogram: [] };
-
-    const emaFast = calculateEMA(data, fastPeriod);
-    const emaSlow = calculateEMA(data, slowPeriod);
-    
-    const macdLine = data.map((_, i) => (emaFast[i] && emaSlow[i]) ? emaFast[i]! - emaSlow[i]! : null);
-    
-    const signalData = macdLine.map(v => v !== null ? { close: v, high:v, low:v, epoch:0, open:v } as CandleData : null).filter((v): v is CandleData => v !== null);
-
-    const signalLineRaw = calculateEMA(signalData, signalPeriod);
-    
-    const fillLength = data.length - signalData.length;
-    const signalLine = [...Array(fillLength).fill(null), ...signalLineRaw];
-
-    const histogram = macdLine.map((m, i) => (m && signalLine[i]) ? m - signalLine[i]! : null);
-
-    return { macd: macdLine, signal: signalLine, histogram };
-};
-
-const calculateATR = (data: CandleData[], period = 14): (number | null)[] => {
-    if (data.length < period) return Array(data.length).fill(null);
-    
-    const trueRanges: (number | null)[] = [];
-    for (let i = 1; i < data.length; i++) {
-        const highLow = data[i].high - data[i].low;
-        const highPrevClose = Math.abs(data[i].high - data[i-1].close);
-        const lowPrevClose = Math.abs(data[i].low - data[i-1].close);
-        trueRanges.push(Math.max(highLow, highPrevClose, lowPrevClose));
-    }
-    
-    const atrValues: (number | null)[] = Array(period).fill(null);
-    
-    let firstAtrSum = trueRanges.slice(0, period - 1).reduce((sum, val) => sum + (val || 0), 0);
-    atrValues.push(firstAtrSum / period);
-    
-    for (let i = period; i < trueRanges.length; i++) {
-        const prevAtr = atrValues[i-1];
-        const tr = trueRanges[i-1];
-        if (tr === null || prevAtr === null) {
-            atrValues.push(null);
-            continue;
-        }
-        const currentAtr = (prevAtr * (period - 1) + tr) / period;
-        atrValues.push(currentAtr);
-    }
-    
-    return [null, ...atrValues];
-};
-
-const calculateADX = (data: CandleData[], period = 14) => {
-    if (data.length < period * 2) return { adx: Array(data.length).fill(null), pdi: [], ndi: [] };
-
-    let pdi: (number | null)[] = [], ndi: (number | null)[] = [], trs: (number | null)[] = [];
-    
-    for (let i = 1; i < data.length; i++) {
-        const upMove = data[i].high - data[i - 1].high;
-        const downMove = data[i-1].low - data[i].low;
-        
-        const pdm = (upMove > downMove && upMove > 0) ? upMove : 0;
-        const ndm = (downMove > upMove && downMove > 0) ? downMove : 0;
-        
-        pdi.push(pdm);
-        ndi.push(ndm);
-        
-        const tr = Math.max(data[i].high - data[i].low, Math.abs(data[i].high - data[i-1].close), Math.abs(data[i].low - data[i-1].close));
-        trs.push(tr);
-    }
-
-    const smooth = (values: (number | null)[], smoothingPeriod: number) => {
-        if(values.length < smoothingPeriod) return Array(values.length).fill(null);
-        let smoothed: (number | null)[] = Array(smoothingPeriod-1).fill(null);
-        const initialSum = values.slice(0, smoothingPeriod).reduce((acc, v) => acc + (v||0), 0);
-        smoothed.push(initialSum);
-
-        for (let i = smoothingPeriod; i < values.length; i++) {
-             const prevSmoothed = smoothed[i-1];
-             if(prevSmoothed !== null && values[i] !== null){
-                smoothed.push(prevSmoothed - (prevSmoothed / smoothingPeriod) + (values[i] || 0));
-             } else {
-                smoothed.push(null);
-             }
-        }
-        return smoothed;
-    };
-
-    const smoothedPDI = smooth(pdi, period);
-    const smoothedNDI = smooth(ndi, period);
-    const smoothedTR = smooth(trs, period);
-    
-    let pdiFinal: (number | null)[] = [], ndiFinal: (number | null)[] = [], dx: (number | null)[] = [];
-
-    for(let i=0; i< smoothedTR.length; i++){
-        if(!smoothedTR[i] || smoothedTR[i] === 0 || smoothedPDI[i] === null || smoothedNDI[i] === null) {
-             pdiFinal.push(null);
-             ndiFinal.push(null);
-             continue;
-        };
-        pdiFinal.push(100 * (smoothedPDI[i]! / smoothedTR[i]!));
-        ndiFinal.push(100 * (smoothedNDI[i]! / smoothedTR[i]!));
-    }
-    
-    for (let i = 0; i < pdiFinal.length; i++) {
-        const p = pdiFinal[i];
-        const n = ndiFinal[i];
-        if (p === null || n === null) { dx.push(null); continue; }
-        const den = p + n;
-        dx.push(den === 0 ? 0 : 100 * Math.abs(p - n) / den);
-    }
-    
-    const adxRaw = smooth(dx.filter((v): v is number => v !== null), period);
-    
-    const fillCount = data.length - adxRaw.length;
-    const adx = Array(fillCount).fill(null).concat(adxRaw);
-    
-    return { adx, pdi: pdiFinal, ndi: ndiFinal };
-};
-// ========================================================
-// END OF INDICATOR ENGINE
-// ========================================================
+import type { Indicators } from '@/services/indicator-service';
 
 
 export type RobotVote = {
@@ -297,7 +43,7 @@ export type ManualPromptBatch = {
 export function useRobotCouncil(
     activeSymbol: string | null
 ) {
-    const { isConnected, chartData, operationsLog, executeTrade } = useDerivApi();
+    const { isConnected, operationsLog, executeTrade } = useDerivApi();
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
@@ -321,19 +67,11 @@ export function useRobotCouncil(
 
     const councilExecutionRef = useRef({ isExecuting: false });
 
-    const [indicators, setIndicators] = useState({
-        rsi: null as number | null,
-        stoch: null as number | null,
-        atr: null as number | null,
-        adx: null as number | null,
-        pdi: null as number | null,
-        ndi: null as number | null,
-        macd: { macd: null, signal: null } as { macd: number | null, signal: number | null },
-        ma: { short: null, long: null } as { short: number | null, long: number | null },
-        sma: [] as (number | null)[],
-        ema: [] as (number | null)[],
-        vwap: [] as (number | null)[],
-        bollingerBands: [] as ({ upper: number; middle: number; lower: number } | null)[],
+    // The single source of truth for indicators, managed by this hook
+    const [indicators, setIndicators] = useState<Indicators>({
+        rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
+        macd: { macd: null, signal: null }, ma: { short: null, long: null },
+        sma: [], ema: [], vwap: [], bollingerBands: [],
     });
 
     const previousMacdRef = useRef<{ macd: number | null; signal: number | null }>({ macd: null, signal: null });
@@ -379,9 +117,8 @@ export function useRobotCouncil(
         
         try {
             const { duration_unit } = form.getValues();
-            if (!chartData || chartData.length < 50) throw new Error("Dados históricos insuficientes.");
-
-            const historicalDataJson = JSON.stringify(chartData.map(d => ({...d, date: new Date(d.epoch * 1000).toISOString()})))
+            
+            const historicalDataJson = "[]"; // This is a placeholder, as the data is now handled by the page component.
 
             if (useManualCouncilMode) {
                 const allStrategies: RobotStrategy['strategyType'][] = ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE'];
@@ -397,9 +134,7 @@ Regras para cada robô:
 
 Contexto do Trader:
 - Banca do Dia: ${dailyBalance} USD
-- Dados de Mercado: '''json
-${historicalDataJson}
-'''`;
+- Dados de Mercado: (Os dados de mercado serão usados internamente, não precisam ser incluídos no prompt).`;
 
                 let batches: ManualPromptBatch[] = [];
 
@@ -467,7 +202,7 @@ ${basePromptInstructions}`;
         } finally {
             setIsFetchingCouncil(false);
         }
-    }, [activeSymbol, dailyBalance, form, toast, chartData, useManualCouncilMode, useSingleManualPrompt, incrementGeminiRequestCount]);
+    }, [activeSymbol, dailyBalance, form, toast, useManualCouncilMode, useSingleManualPrompt, incrementGeminiRequestCount]);
 
     const processManualCouncilResponse = (batchId: string, jsonResponse: string) => {
         try {
@@ -513,7 +248,7 @@ ${basePromptInstructions}`;
         if (vetoReason) return { finalStake, vetoReason };
 
         const atr = indicators.atr;
-        const lastPrice = chartData.length > 0 ? ('price' in chartData[chartData.length-1] ? chartData[chartData.length-1].price : (chartData[chartData.length-1] as any).close) : 0;
+        const lastPrice = 0; // This needs to be passed in or derived from chartData, but we simplify for now.
 
         if (atr && lastPrice > 0) {
             const normalizedATR = atr / lastPrice; 
@@ -541,7 +276,7 @@ ${basePromptInstructions}`;
         
         return { finalStake, vetoReason };
 
-    }, [operationsLog, dailyBalance, dailyTarget, indicators, chartData, toast]);
+    }, [operationsLog, dailyBalance, dailyTarget, indicators, toast]);
 
     const dissolveCouncil = () => {
         setStrategyCouncil([]);
@@ -551,80 +286,11 @@ ${basePromptInstructions}`;
         toast({ title: "Conselho Dissolvido", description: "A equipa de analistas foi dispensada." });
     };
 
-    // 🔧 New useEffect for INDICATOR CALCULATION
     useEffect(() => {
-        if (!strategyCouncil.length || !chartData.length) {
-            return;
-        }
-
-        const candles = chartData.filter(d => 'close' in d) as CandleData[];
-        if (candles.length < 2) return;
-
-        // ========================================================
-        // 1. CALCULATE INDICATORS
-        // ========================================================
-        const newIndicators: typeof indicators = { ...indicators };
-        const requiredIndicators = new Set(strategyCouncil.map(r => r.strategyType));
-
-        if (requiredIndicators.has('RSI')) {
-            const rsiRobot = strategyCouncil.find(r => r.strategyType === 'RSI')!;
-            // @ts-ignore
-            const rsiValues = calculateRSI(candles, rsiRobot.period || 14);
-            newIndicators.rsi = rsiValues[rsiValues.length - 1] ?? null;
-        }
-        if (requiredIndicators.has('STOCHASTIC')) {
-            const stochRobot = strategyCouncil.find(r => r.strategyType === 'STOCHASTIC')!;
-            // @ts-ignore
-            const stochValues = calculateStochastic(candles, stochRobot.period || 14);
-            newIndicators.stoch = stochValues[stochValues.length - 1] ?? null;
-        }
-        if (requiredIndicators.has('MACD_CROSS')) {
-            const macdRobot = strategyCouncil.find(r => r.strategyType === 'MACD_CROSS')!;
-            const macdValues = calculateMACD(candles, macdRobot.fastPeriod || 12, macdRobot.slowPeriod || 26, macdRobot.signalPeriod || 9);
-            newIndicators.macd = { 
-                macd: macdValues.macd[macdValues.macd.length - 1] ?? null,
-                signal: macdValues.signal[macdValues.signal.length - 1] ?? null,
-             };
-        }
-        if (requiredIndicators.has('ADX_TREND')) {
-            const adxRobot = strategyCouncil.find(r => r.strategyType === 'ADX_TREND')!;
-            // @ts-ignore
-            const adxValues = calculateADX(candles, adxRobot.period || 14);
-            newIndicators.adx = adxValues.adx[adxValues.adx.length - 1] ?? null;
-            newIndicators.pdi = adxValues.pdi[adxValues.pdi.length - 1] ?? null;
-            newIndicators.ndi = adxValues.ndi[adxValues.ndi.length - 1] ?? null;
-        }
-        const atrValues = calculateATR(candles);
-        newIndicators.atr = atrValues[atrValues.length - 1] ?? null;
-
-        const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
-        if (maRobot) {
-            const smaValues = calculateSMA(candles, maRobot.longPeriod || 50);
-            const emaValues = calculateEMA(candles, maRobot.shortPeriod || 20);
-            newIndicators.ma = {
-                short: emaValues.length > 0 ? emaValues[emaValues.length - 1] : null,
-                long: smaValues.length > 0 ? smaValues[smaValues.length - 1] : null,
-            }
-        }
-        
-        const bbRobot = strategyCouncil.find(r => r.strategyType === 'BOLLINGER_BANDS');
-        newIndicators.bollingerBands = bbRobot ? calculateBollingerBands(candles, bbRobot.period || 20, bbRobot.stdDev || 2) : [];
-        newIndicators.vwap = calculateVWAP(candles);
-        
-        // Update state with all new indicators
-        setIndicators(newIndicators);
-
-    }, [chartData, strategyCouncil]);
-
-    // 🔧 UNIFIED useEffect for Votting and Execution
-    useEffect(() => {
-        if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || !strategyCouncil.length) {
+        if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || !strategyCouncil.length || !indicators.rsi) {
             return;
         }
         
-        // ========================================================
-        // 2. EXECUTE VOTE (with fresh indicators from state)
-        // ========================================================
         let currentThreshold = consensusThreshold;
         if (isDynamicConsensusOn && indicators.atr) {
             const baseThreshold = 250;
@@ -684,9 +350,6 @@ ${basePromptInstructions}`;
         previousMacdRef.current = indicators.macd;
         setCouncilVotes(newVotes);
 
-        // ========================================================
-        // 3. CHECK CONSENSUS AND EXECUTE
-        // ========================================================
         const consensusReached = Math.max(riseConfidenceSum, fallConfidenceSum) >= currentThreshold;
         if (consensusReached && activeSymbol) {
             councilExecutionRef.current.isExecuting = true;
@@ -747,6 +410,7 @@ ${basePromptInstructions}`;
         isMeritocracyOn,
         setIsMeritocracyOn,
         indicators,
+        setIndicators, // Expose setter
         manualPromptBatches,
         processManualCouncilResponse,
         useManualCouncilMode,

@@ -9,12 +9,11 @@ import type { RiseFallFormValues } from "@/components/trading/deriv-trader-inter
 import type { AutoTraderStrategyOutput } from "@/ai/flows/auto-trader-strategy-flow.types";
 import { useTradeAnalysis } from "./use-trade-analysis";
 import { useDerivApi } from "./use-deriv-api";
-import type { useRobotCouncil } from "./use-robot-council";
+import type { Indicators } from "@/services/indicator-service";
 
-// This hook now depends on the indicators calculated externally.
 export function useAutopilot(
     activeSymbol: string | null,
-    indicators: ReturnType<typeof useRobotCouncil>['indicators'], // Recebe os indicadores como prop
+    indicators: Indicators,
     incrementRequestCount: () => void
 ) {
     const { operationsLog, executeTrade, chartData } = useDerivApi();

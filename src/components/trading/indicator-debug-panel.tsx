@@ -3,11 +3,11 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ChartData } from '@/hooks/types';
-import type { useRobotCouncil } from '@/hooks/use-robot-council';
+import type { Indicators } from '@/services/indicator-service';
 import { ServerCrash } from 'lucide-react';
 
 interface IndicatorDebugPanelProps {
-  indicators: ReturnType<typeof useRobotCouncil>['indicators'];
+  indicators: Indicators;
   latestDataPoint: ChartData | null;
 }
 
