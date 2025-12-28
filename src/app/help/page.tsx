@@ -145,7 +145,7 @@ export default function HelpPage() {
                     </div>
                     
                     <div>
-                        <h4 className="font-semibold text-md mb-2">Passo 2: A Camada de Decisão - O Conselho de Votação Tático</h4>
+                        <h4 className="font-semibold text-md mb-2">Passo 2: A Camada de Decisão - O Comité Tático de Especialistas</h4>
                         <p>
                            Com os indicadores frescos, o sistema ativa um "Comité Tático de Especialistas".
                         </p>
