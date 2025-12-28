@@ -32,7 +32,7 @@ export interface RobotPerformance {
 }
 
 export type ManualPromptBatch = {
-    id: string;
+    id:string;
     theme: string;
     prompt: string;
     isCompleted: boolean;
@@ -282,6 +282,45 @@ ${basePromptInstructions}`;
         toast({ title: "Conselho Dissolvido", description: "A equipa de analistas foi dispensada." });
     };
 
+    /**
+     * The new Tactical Committee. This function determines which specialists are active
+     * based on current market conditions calculated by the indicator engine.
+     */
+    const committeeOfSpecialists = useCallback(() => {
+        const activeSpecialists: RobotStrategy[] = [];
+        const { adx, atr, bbw } = indicators;
+
+        // Condition 1: High Volatility (Market in "Squeeze Breakout" mode)
+        const isVolatile = (bbw && bbw > 0.04) || (atr && atr > (chartData.slice(-1)[0]?.close || 1) * 0.0005);
+        if (isVolatile) {
+            const volatilityBots = strategyCouncil.filter(r => ['BOLLINGER_BANDS', 'KAMA', 'ADX_TREND'].includes(r.strategyType));
+            activeSpecialists.push(...volatilityBots);
+        }
+
+        // Condition 2: Strong Trend
+        const isTrending = adx && adx > 25;
+        if (isTrending) {
+            const trendBots = strategyCouncil.filter(r => ['MOVING_AVERAGE_CROSS', 'MACD_CROSS', 'ICHIMOKU_CLOUD'].includes(r.strategyType));
+            activeSpecialists.push(...trendBots);
+        }
+
+        // Condition 3: Ranging Market (Low Trend, Mean Reversion)
+        if (!isTrending) {
+             const rangeBots = strategyCouncil.filter(r => ['RSI', 'STOCHASTIC', 'Z_SCORE', 'STOCH_RSI'].includes(r.strategyType));
+            activeSpecialists.push(...rangeBots);
+        }
+
+        // Always include some baseline specialists if the list is empty
+        if (activeSpecialists.length === 0) {
+            const defaultBots = strategyCouncil.filter(r => ['RSI', 'MOVING_AVERAGE_CROSS'].includes(r.strategyType));
+            activeSpecialists.push(...defaultBots);
+        }
+
+        // Return a unique list of specialists
+        return [...new Map(activeSpecialists.map(item => [item.id, item])).values()];
+
+    }, [indicators, strategyCouncil, chartData]);
+
     useEffect(() => {
         if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || strategyCouncil.length === 0 || !indicators.rsi) {
             return;
@@ -298,8 +337,11 @@ ${basePromptInstructions}`;
 
         const newVotes: CouncilVotes = {};
         let riseConfidenceSum = 0, fallConfidenceSum = 0;
+        
+        // Use the tactical committee to get the active specialists for this tick
+        const activeSpecialists = committeeOfSpecialists();
 
-        strategyCouncil.forEach(robot => {
+        activeSpecialists.forEach(robot => {
             let vote: RobotVote['vote'] = 'HOLD', confidence = 0;
             let weight = 1.0;
             if (isMeritocracyOn) {
@@ -383,7 +425,8 @@ ${basePromptInstructions}`;
         activeSymbol,
         toast,
         form,
-        supervisionCommitteeCheck
+        supervisionCommitteeCheck,
+        committeeOfSpecialists // Add the new committee function as a dependency
     ]);
 
     return {
