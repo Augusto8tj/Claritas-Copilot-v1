@@ -211,6 +211,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const getHistoricalData = useCallback(async (symbol: string, style: 'ticks' | 'candles', count: number, period?: TimePeriod): Promise<ApiHistoricalData[]> => {
       const request: any = {
           ticks_history: symbol,
+          end: "latest",
           count,
           adjust_start_time: 1,
           style: style,
@@ -316,7 +317,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         setChartData(history as ChartData[]);
 
         const subRequest = chartType === 'Candle'
-            ? { ticks_history: symbol, style: 'candles', granularity: getGranularityForTimePeriod(timePeriod), subscribe: 1 }
+            ? { ticks_history: symbol, style: 'candles', granularity: getGranularityForTimePeriod(timePeriod), subscribe: 1, end: "latest", count: 1 }
             : { ticks: symbol, subscribe: 1 };
         
         const subResponse: any = await makeRequest(subRequest);
