@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useMemo } from 'react';
@@ -140,5 +139,3 @@ export const TradeLegend: React.FC<TradeLegendProps> = ({
     </div>
   );
 };
-
-    
