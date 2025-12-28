@@ -41,8 +41,9 @@ export interface RobotPerformance {
 
 export function useRobotCouncil(
     activeSymbol: string | null,
+    chartData: ChartData[]
 ) {
-    const { operationsLog, executeTrade, chartData, timePeriod } = useDerivApi();
+    const { operationsLog, executeTrade, timePeriod } = useDerivApi();
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
     
@@ -56,6 +57,7 @@ export function useRobotCouncil(
 
     const [dailyTarget, setDailyTarget] = useState(50);
     const [consensusThreshold, setConsensusThreshold] = useState(300);
+    const [isDynamicConsensusOn, setIsDynamicConsensusOn] = useState(true);
     const [isMeritocracyOn, setIsMeritocracyOn] = useState(true);
     const [robotPerformance, setRobotPerformance] = useState<RobotPerformance[]>([]);
 
@@ -179,14 +181,25 @@ export function useRobotCouncil(
         setIsCouncilAutopilotOn(false);
     };
 
-    const committeeOfSpecialists = useCallback((indicators: Indicators, timePeriod: TimePeriod): string => {
+    const committeeOfSpecialists = useCallback((indicators: Indicators, timePeriod: string): string => {
         if (!indicators.adx || !indicators.bbw) return "Comité Indefinido";
-
-        if (indicators.adx > 25) return "Especialistas em Tendência";
-        if (indicators.bbw < 0.05) return "Especialistas em Volatilidade (Squeeze)";
-        if (indicators.stoch && (indicators.stoch < 20 || indicators.stoch > 80)) return "Especialistas em Reversão";
-
-        return "Comité Geral";
+    
+        if (timePeriod.endsWith('h') || timePeriod.endsWith('d')) {
+            if (indicators.adx > 25) return "Gestão de Tendência Macro";
+            return "Análise de Ciclo Macro";
+        }
+    
+        if (timePeriod.includes('m') && (parseInt(timePeriod) >= 10)) {
+             if (indicators.adx > 25) return "Especialistas em Tendência Intraday";
+             if (indicators.bbw < 0.05) return "Caçadores de Rompimento (Squeeze)";
+             return "Comité Geral Intraday";
+        }
+    
+        // HFT / Scalping
+        if (indicators.stoch && (indicators.stoch < 20 || indicators.stoch > 80)) return "Especialistas em Reversão Rápida";
+        if (indicators.bbw > 0.1) return "Jogadores de Volatilidade";
+        return "Equipa de Scalping Padrão";
+    
     }, []);
 
     const supervisionCommitteeCheck = useCallback((
@@ -195,45 +208,77 @@ export function useRobotCouncil(
         consensusThreshold: number,
         indicators: Indicators,
         dailyPnl: number
-    ): { finalStake: number, finalDuration: number, status: 'approved' | 'veto', message: string, analysis?: string } => {
+    ): { finalStake: number, finalDuration: number, status: 'approved' | 'veto' | 'inactive', message: string, analysis?: string } => {
         
         const { stake, duration } = form.getValues();
+        let finalStake = stake;
+        let finalDuration = duration;
 
         // Rule 1: P&L Management (Hard Veto)
         if (dailyPnl <= -dailyBalance) {
-            return { status: 'veto', message: 'Veto: Limite de perda diário atingido.', finalStake: stake, finalDuration: duration };
+            setIsCouncilAutopilotOn(false);
+            return { status: 'veto', message: 'VETO: Limite de perda diário atingido.', finalStake, finalDuration };
         }
         if (dailyPnl >= dailyTarget) {
-            return { status: 'veto', message: 'Veto: Meta de lucro diária atingida.', finalStake: stake, finalDuration: duration };
+             setIsCouncilAutopilotOn(false);
+            return { status: 'veto', message: 'VETO: Meta de lucro diária atingida.', finalStake, finalDuration };
         }
 
         const consensusReached = Math.max(riseSum, fallSum) >= consensusThreshold;
         if (!consensusReached) {
-            return { status: 'inactive', message: 'Aguardando consenso tático.', finalStake: stake, finalDuration: duration };
+            return { status: 'inactive', message: 'Aguardando consenso tático.', finalStake, finalDuration };
         }
 
         // Rule 2: Risk Adjustment
-        let finalStake = stake;
-        let finalDuration = duration;
         let analysis = "Risco padrão.";
-
-        if (indicators.adx && indicators.adx < 20) {
-            finalStake *= 0.75; // Reduce risk in non-trending market
-            analysis = "Risco reduzido: mercado sem tendência clara (ADX baixo).";
-        }
-        if (indicators.atr && indicators.atr > (chartData[chartData.length-1]?.close * 0.0001)) { // ATR is 0.01% of price
-            finalStake *= 0.75; // Reduce risk in high volatility
-            finalDuration = Math.max(duration + 2, 7); // Increase duration to survive noise
-            analysis = "Risco e duração ajustados: alta volatilidade (ATR alto).";
-        }
-
-        if(riseSum > fallSum && indicators.stoch && indicators.stoch < 20 && indicators.rsi && indicators.rsi < 30) {
-            analysis = "Setup de reversão de alta confiança detetado (sobrevenda).";
+        const direction = riseSum > fallSum ? 'RISE' : 'FALL';
+        
+        // Em HFT, o ajuste é rápido e brutal.
+        const isHFT = timePeriod.includes('t') || timePeriod.endsWith('s') || parseInt(timePeriod) <= 5;
+        
+        if (isHFT) {
+            // Se operamos reversão (Stoch extremo), mas VWAP está longe, reduzimos o risco.
+            if (indicators.stoch && ((direction === 'RISE' && indicators.stoch < 20) || (direction === 'FALL' && indicators.stoch > 80))) {
+                analysis = "Setup de reversão de HFT detetado."
+                const currentPrice = chartData[chartData.length - 1]?.close;
+                const vwap = indicators.vwap?.[indicators.vwap.length -1];
+                if (currentPrice && vwap && Math.abs(currentPrice - vwap) / vwap > 0.0005) { // 0.05% de distância
+                    finalStake *= 0.7;
+                    analysis += " Risco reduzido: operando longe da VWAP."
+                }
+            }
+        } else { // Para períodos mais longos
+            if (indicators.adx && indicators.adx < 20) {
+                finalStake *= 0.75;
+                analysis = "Risco reduzido: mercado sem tendência clara (ADX baixo).";
+            }
+            if (indicators.atr && indicators.atr > (chartData[chartData.length-1]?.close * 0.0001)) {
+                finalStake *= 0.75;
+                finalDuration = Math.max(duration + 2, 7);
+                analysis = "Risco e duração ajustados: alta volatilidade (ATR alto).";
+            }
         }
 
         return { status: 'approved', message: 'Aprovado. Risco avaliado.', analysis, finalStake: Math.max(0.35, finalStake), finalDuration };
 
-    }, [form, dailyBalance, dailyTarget, chartData]);
+    }, [form, dailyBalance, dailyTarget, chartData, timePeriod]);
+
+
+    const processNewChartData = useCallback((data: ChartData[]) => {
+        if (data.length > 0) {
+            const calculatedIndicators = calculateAllIndicators(data, strategyCouncil, timePeriod);
+            setIndicators(calculatedIndicators);
+            setActiveCommittee(committeeOfSpecialists(calculatedIndicators, timePeriod));
+        }
+    }, [strategyCouncil, timePeriod, committeeOfSpecialists]);
+    
+    // Recalculate indicators whenever chartData changes
+    useEffect(() => {
+        if(chartData.length > 0) {
+           processNewChartData(chartData);
+        }
+    }, [chartData, processNewChartData]);
+
 
     useEffect(() => {
         if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || strategyCouncil.length === 0 || !indicators || !activeSymbol) return;
@@ -242,7 +287,6 @@ export function useRobotCouncil(
         let fallConfidenceSum = 0;
         const newVotes: CouncilVotes = {};
         
-        // --- TACTICAL COMMITTEE (ANALYSTS) ---
         strategyCouncil.forEach(robot => {
             let vote: RobotVote['vote'] = 'HOLD', confidence = 0;
             let weight = 1.0;
@@ -254,22 +298,27 @@ export function useRobotCouncil(
                      weight = 0.75 + winRate; 
                 }
             }
-
+            
+            // Lógica de Voto Simplificada (Exemplos)
             if (robot.strategyType === 'RSI' && indicators.rsi) {
+                if (indicators.rsi <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                if (indicators.rsi <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                if (indicators.rsi >= robot.weakSellThreshold!) { vote = 'FALL'; confidence = robot.weakConfidence; }
                 if (indicators.rsi >= robot.strongSellThreshold!) { vote = 'FALL'; confidence = robot.strongConfidence; }
-                else if (indicators.rsi >= robot.weakSellThreshold!) { vote = 'FALL'; confidence = robot.weakConfidence; }
-                else if (indicators.rsi <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
-                else if (indicators.rsi <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
             }
             if (robot.strategyType === 'STOCHASTIC' && indicators.stoch) {
+                if (indicators.stoch <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                if (indicators.stoch <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                if (indicators.stoch >= robot.weakSellThreshold!) { vote = 'FALL'; confidence = robot.weakConfidence; }
                 if (indicators.stoch >= robot.strongSellThreshold!) { vote = 'FALL'; confidence = robot.strongConfidence; }
-                else if (indicators.stoch >= robot.weakSellThreshold!) { vote = 'FALL'; confidence = robot.weakConfidence; }
-                else if (indicators.stoch <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
-                else if (indicators.stoch <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
             }
-            if (robot.strategyType === 'MACD_CROSS' && indicators.macd.macd && indicators.macd.signal) {
-                 if(indicators.macd.macd > indicators.macd.signal && (indicators.macd.macd - indicators.macd.signal) > (indicators.macd.signal * 0.0001)) { vote = 'RISE'; confidence = robot.weakConfidence; }
-                 if(indicators.macd.signal > indicators.macd.macd && (indicators.macd.signal - indicators.macd.macd) > (indicators.macd.signal * 0.0001)) { vote = 'FALL'; confidence = robot.weakConfidence; }
+            if (robot.strategyType === 'MOVING_AVERAGE_CROSS' && indicators.ma.short && indicators.ma.long) {
+                if(indicators.ma.short > indicators.ma.long) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                if(indicators.ma.long > indicators.ma.short) { vote = 'FALL'; confidence = robot.weakConfidence; }
+            }
+             if (robot.strategyType === 'MACD_CROSS' && indicators.macd.macd && indicators.macd.signal) {
+                 if(indicators.macd.macd > indicators.macd.signal) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                 if(indicators.macd.signal > indicators.macd.macd) { vote = 'FALL'; confidence = robot.weakConfidence; }
             }
 
             newVotes[robot.id] = { vote, confidence, weight };
@@ -279,8 +328,7 @@ export function useRobotCouncil(
         setCouncilVotes(newVotes);
         setConsensusSum({ rise: riseConfidenceSum, fall: fallConfidenceSum });
 
-        // --- SUPERVISION COMMITTEE (RISK MANAGEMENT) ---
-        const dailyPnl = operationsLog.filter(op => new Date(op.timestamp).toDateString() === new Date().toDateString()).reduce((sum, op) => sum + (op.result || 0), 0);
+        const dailyPnl = operationsLog.filter(op => new Date(op.timestamp).toDateString() === new Date().toDateString() && op.initiator === 'Conselho').reduce((sum, op) => sum + (op.result || 0), 0);
         const supervisionDecision = supervisionCommitteeCheck(riseConfidenceSum, fallConfidenceSum, consensusThreshold, indicators, dailyPnl);
         setSupervisionStatus(supervisionDecision);
 
@@ -296,20 +344,7 @@ export function useRobotCouncil(
         }
 
     }, [indicators, isCouncilAutopilotOn, strategyCouncil, consensusThreshold, isMeritocracyOn, robotPerformance, executeTrade, activeSymbol, toast, form, operationsLog, supervisionCommitteeCheck]);
-
-    const processNewChartData = useCallback((data: ChartData[]) => {
-        if (data.length > 0) {
-            const calculatedIndicators = calculateAllIndicators(data, strategyCouncil, timePeriod);
-            setIndicators(calculatedIndicators);
-            setActiveCommittee(committeeOfSpecialists(calculatedIndicators, timePeriod));
-        }
-    }, [strategyCouncil, timePeriod, committeeOfSpecialists]);
     
-    // Recalculate indicators whenever chartData changes
-    useEffect(() => {
-        processNewChartData(chartData);
-    }, [chartData, processNewChartData]);
-
 
     return {
         isCouncilAutopilotOn,
@@ -325,6 +360,8 @@ export function useRobotCouncil(
         setDailyTarget,
         consensusThreshold,
         setConsensusThreshold,
+        isDynamicConsensusOn,
+        setIsDynamicConsensusOn,
         isMeritocracyOn,
         setIsMeritocracyOn,
         manualPromptBatches,

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from "react";
@@ -21,6 +22,7 @@ import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
 import { useAutopilot } from "@/hooks/use-autopilot";
 import { useRobotCouncil } from "@/hooks/use-robot-council";
 import { SystemStatusSummary } from "@/components/trading/system-status-summary";
+import { ManualCouncilInterface } from "@/components/trading/manual-council-interface";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AITradeSuggestion } from "@/components/trading/ai-trade-suggestion";
 import { IndicatorPanel } from "@/components/trading/indicator-panel";
@@ -44,7 +46,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   } = useDerivApi();
   
   // CENTRALIZED HOOKS
-  const robotCouncil = useRobotCouncil(activeSymbol);
+  const robotCouncil = useRobotCouncil(activeSymbol, chartData);
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, robotCouncil.incrementGeminiRequestCount);
   const autopilot = useAutopilot(activeSymbol, robotCouncil.indicators, robotCouncil.incrementGeminiRequestCount);
 
@@ -85,7 +87,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                   timePeriod={timePeriod}
                   setTimePeriod={setTimePeriod}
                   operations={operationsLog}
-                  indicators={robotCouncil.indicators}
+                  indicators={robotCouncil.indicators!}
                   tradeAnnotations={tradeAnnotations}
               />
           </CardContent>
@@ -135,6 +137,16 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                 </TabsContent>
            </Tabs>
        </div>
+
+       {/* Manual Council Prompt Interface */}
+      {robotCouncil.manualPromptBatches.length > 0 && (
+        <div className="mt-6">
+            <ManualCouncilInterface
+                batches={robotCouncil.manualPromptBatches}
+                onProcessResponse={robotCouncil.processManualCouncilResponse}
+            />
+        </div>
+      )}
     </>
   );
 }
