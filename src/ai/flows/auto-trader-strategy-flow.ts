@@ -7,7 +7,7 @@
  * - getAutotraderStrategy - The main flow function.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai } from '@/lib/genkit';
 import { AutoTraderStrategyInputSchema, AutoTraderStrategyOutputSchema, type AutoTraderStrategyInput, type AutoTraderStrategyOutput } from './auto-trader-strategy-flow.types';
 
 

@@ -6,7 +6,7 @@
  * - getAssetAnalysis - The main flow function.
  */
 
-import { ai, flash } from '@/ai/genkit';
+import { ai } from '@/lib/genkit';
 import { z } from 'zod';
 import { AssetAnalysisInputSchema, AssetAnalysisOutputSchema, type AssetAnalysisInput, type AssetAnalysisOutput } from './asset-analysis-flow.types';
 
@@ -49,7 +49,7 @@ const getAssetAnalysisFlow = ai.defineFlow(
     
     // Usando ai.generate para ter controlo explícito sobre o modelo
     const { output } = await ai.generate({
-      model: flash, // Garante que o modelo rápido é usado
+      model: 'gemini-2.5-flash', // Garante que o modelo rápido é usado
       prompt: ANALYSIS_PROMPT,
       input: {
           ...input,

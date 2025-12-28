@@ -7,7 +7,7 @@
  * This file is now simplified, as most logic has been moved to the central use-deriv-api hook.
  * The getHistoricalDataTool is removed from here as it's no longer a separate tool but part of the main hook.
  */
-import { ai } from '@/ai/genkit';
+import { ai } from '@/lib/genkit';
 import { z } from 'zod';
 
 

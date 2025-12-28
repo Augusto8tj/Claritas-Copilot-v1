@@ -6,7 +6,7 @@
  * - analyzeTradeLoss - The main flow function.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai } from '@/lib/genkit';
 import { TradeLossAnalyzerInputSchema, TradeLossAnalyzerOutputSchema, type TradeLossAnalyzerInput, type TradeLossAnalyzerOutput } from './trade-loss-analyzer-flow.types';
 
 

@@ -6,7 +6,7 @@
  * - analyzeOperations - The main flow function.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai } from '@/lib/genkit';
 import { z } from 'zod';
 import { OperationAnalysisInputSchema, OperationAnalysisOutputSchema, type OperationAnalysisInput } from './operation-analysis-flow.types';
 

@@ -6,7 +6,7 @@
  * - generateGoalImage - A function that generates an image based on a goal name.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai } from '@/lib/genkit';
 import { GenerateGoalImageInputSchema, GenerateGoalImageOutputSchema, type GenerateGoalImageInput } from './goal-image-generation.types';
 
 

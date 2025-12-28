@@ -6,7 +6,7 @@
  * - financialChatbotInsights - A function that handles the chatbot interaction.
  */
 
-import {ai} from '@/ai/genkit';
+import {ai} from '@/lib/genkit';
 // Ferramentas para acessar dados internos do aplicativo (orçamento, transações, etc.)
 import { getFinancialInsightsTool, getFinancialSummaryTool, addTransactionTool, addGoalTool, getBudgetStatusTool } from '../tools/financial-tools';
 // Ferramentas para acessar dados externos do mercado financeiro (cotações de ações, etc.)

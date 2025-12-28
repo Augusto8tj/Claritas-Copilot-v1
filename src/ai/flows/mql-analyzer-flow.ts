@@ -6,7 +6,7 @@
  * - analyzeMqlCode - The main flow function.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai } from '@/lib/genkit';
 import { MqlAnalyzerInputSchema, MqlAnalyzerOutputSchema, type MqlAnalyzerInput } from './mql-analyzer-flow.types';
 import { z } from 'zod';
 

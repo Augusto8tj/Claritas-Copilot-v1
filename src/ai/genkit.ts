@@ -1,8 +1,11 @@
+'use server';
 import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
 
-// Define model names for consistency. We'll use flash as the primary model.
-export const flash = 'googleai/gemini-2.5-flash-lite';
+// Define model names for consistency. 
+const flash = 'googleai/gemini-2.5-flash';
+const flashLite = 'googleai/gemini-2.5-flash-lite';
+
 
 export const ai = genkit({
   plugins: [
@@ -11,3 +14,6 @@ export const ai = genkit({
   // Set the default, fast model
   model: flash,
 });
+
+// Re-exporting for use in other server components, though direct usage is preferred.
+export { flash, flashLite };

@@ -3,7 +3,7 @@
  * @fileOverview Defines the tools available to the financial AI chatbot.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai } from '@/lib/genkit';
 import { addGoal, addTransaction, getFinancialSummary, getBudgetData } from '@/services/financial-data-service';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';

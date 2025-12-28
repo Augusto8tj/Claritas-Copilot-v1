@@ -3,33 +3,26 @@
 
 /**
  * @fileOverview An AI flow that generates a "council" of trading robots by providing executable rules, not just votes.
+ * This version is optimized for a single, high-value API call to respect rate limits.
  * 
  * - getStrategyCouncil - The main flow function that orchestrates the phased assembly.
  */
 
-import { ai, flash } from '@/ai/genkit';
+import { ai } from '@/lib/genkit';
 import { z } from 'zod';
-import { StrategyCouncilInputSchema, StrategyCouncilOutputSchema, RobotStrategySchema, type StrategyCouncilInput, type StrategyCouncilOutput, type RobotStrategy } from './strategy-council-flow.types';
+import { StrategyCouncilInputSchema, StrategyCouncilOutputSchema, type StrategyCouncilInput, type StrategyCouncilOutput } from './strategy-council-flow.types';
 
-// Schema for the smaller, focused prompt
-const RobotAnalystGeneratorInputSchema = StrategyCouncilInputSchema.extend({
-    strategiesToBuild: z.array(z.string()).describe("The specific list of strategy types to build in this batch.")
-});
+// This new, single prompt builds the ENTIRE council at once.
+const strategyCouncilArchitectPrompt = ai.definePrompt({
+    name: 'strategyCouncilArchitectPrompt',
+    model: 'googleai/gemini-2.5-flash-lite', // Use the model with a higher RPM limit.
+    input: { schema: StrategyCouncilInputSchema },
+    output: { schema: StrategyCouncilOutputSchema }, // Expect the full council output
+    system: `Você é um arquiteto-chefe de estratégias quantitativas. Sua missão é criar as REGRAS para um conselho completo de 10 robôs-analistas especialistas, cada um com uma filosofia de trading única.
 
-const RobotAnalystGeneratorOutputSchema = z.object({
-    robots: z.array(RobotStrategySchema).describe("An array of the generated robot analysts for the requested strategies.")
-});
+Você deve criar um robô para CADA UMA das 10 estratégias a seguir: 'RSI', 'STOCHASTIC', 'MACD_CROSS', 'MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE'.
 
-
-// This new, more focused prompt builds a SUBSET of robots at a time.
-const robotAnalystGeneratorPrompt = ai.definePrompt({
-    name: 'robotAnalystGeneratorPrompt',
-    model: flash, // Explicitly use the 'flash' model for this complex task
-    input: { schema: RobotAnalystGeneratorInputSchema },
-    output: { schema: RobotAnalystGeneratorOutputSchema },
-    system: `Você é um arquiteto-chefe de estratégias quantitativas. Sua missão é criar as REGRAS para um grupo de robôs-analistas especialistas.
-
-Você deve criar um robô para CADA UMA das estratégias solicitadas em 'strategiesToBuild', otimizando seus parâmetros para o ativo ('{{{symbol}}}') e o horizonte de tempo ('{{{durationUnit}}}').
+A sua resposta DEVE SER um único objeto JSON que valida contra o schema de saída, contendo uma chave "council" com um array de EXATAMENTE 10 objetos de robôs.
 
 Para CADA robô, você deve:
 1.  **Definir um ID único**: Ex: 'RSI_BOT_1'.
@@ -37,14 +30,12 @@ Para CADA robô, você deve:
     - Exemplo para RSI: 'strongBuyThreshold': 20 (RSI muito sobrevendido), 'weakBuyThreshold': 30 (RSI sobrevendido). 'strongSellThreshold': 80, 'weakSellThreshold': 70.
     - Aplique esta lógica de duplo limiar para todas as estratégias aplicáveis. É OBRIGATÓRIO fornecer estes 4 valores para RSI e Stochastic.
 3.  **Definir Níveis de Confiança Numéricos**: Atribua um valor numérico para a confiança. 'strongConfidence' deve ser alto (ex: 90-100). 'weakConfidence' deve ser moderado (ex: 60-75).
-4.  **Justificar a Escolha**: Forneça uma justificativa muito breve (1 frase) para a escolha dos parâmetros de cada robô.
+4.  **Justificar a Escolha**: Forneça uma justificativa muito breve (1 frase) para a escolha dos parâmetros de cada robô, considerando o ativo ('{{{symbol}}}') e o horizonte de tempo ('{{{durationUnit}}}').
 5.  **Gestão de Risco**:
     - Defina 'suggestedStake' como 1% da banca do dia ('balance').
     - Defina 'suggestedDuration' na unidade 'durationUnit' fornecida.`,
     prompt: `
-Crie um grupo de robôs-analistas para o ativo {{{symbol}}}, otimizados para operar em '{{{durationUnit}}}'.
-
-Estratégias para construir nesta etapa: {{json strategiesToBuild}}
+Crie o conselho completo de 10 robôs-analistas para o ativo {{{symbol}}}, otimizados para operar em '{{{durationUnit}}}'.
 
 Dados de Mercado (para análise de condição):
 \'\'\'json
@@ -57,7 +48,7 @@ Contexto do Trader:
 });
 
 
-// The main flow now orchestrates the progressive assembly of the council.
+// The main flow now orchestrates the single, powerful call.
 const getStrategyCouncilFlow = ai.defineFlow(
   {
     name: 'getStrategyCouncilFlow',
@@ -66,49 +57,24 @@ const getStrategyCouncilFlow = ai.defineFlow(
   },
   async (input) => {
     
-    console.log('[Council Flow] Iniciando a montagem progressiva do conselho...');
-    const allRobots: RobotStrategy[] = [];
+    console.log('[Council Flow] Iniciando a construção do conselho com um único pedido à IA...');
 
-    // Define the batches of strategies to build
-    const strategyBatches = [
-        ['RSI', 'STOCHASTIC', 'MACD_CROSS'],
-        ['MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND'],
-        ['ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE']
-    ];
+    // Correctly invoke the prompt as a function
+    const { output } = await strategyCouncilArchitectPrompt(input);
 
-    for (const batch of strategyBatches) {
-        console.log(`[Council Flow] Construindo o lote de analistas: ${batch.join(', ')}`);
-        
-        const batchInput = { ...input, strategiesToBuild: batch };
-
-        // Correctly invoke the prompt as a function
-        const { output } = await robotAnalystGeneratorPrompt(batchInput);
-
-        if (!output || !output.robots || output.robots.length === 0) {
-            throw new Error(`A IA falhou em gerar o lote de robôs: ${batch.join(', ')}.`);
-        }
-        
-        allRobots.push(...output.robots);
-        console.log(`[Council Flow] Lote concluído. Total de robôs montados: ${allRobots.length}`);
-        
-        // Strategic pause to respect API rate limits (e.g. 60 RPM for Gemini 1.5 Pro)
-        await new Promise(resolve => setTimeout(resolve, 3000));
-    }
-
-
-    if (allRobots.length < 10) {
-        throw new Error(`A montagem do conselho falhou. Apenas ${allRobots.length} de 10 robôs foram criados.`);
+    if (!output || !output.council || output.council.length < 10) {
+        throw new Error(`A montagem do conselho falhou. A IA não retornou os 10 robôs esperados.`);
     }
     
     // Ensure minimum stake is respected for every robot in the council
-    allRobots.forEach(robot => {
+    output.council.forEach(robot => {
         if (robot.suggestedStake < 0.35) {
             robot.suggestedStake = 0.35;
         }
     });
 
-    console.log('[Council Flow] Conselho de 10 robôs montado com sucesso!');
-    return { council: allRobots };
+    console.log('[Council Flow] Conselho de 10 robôs montado com sucesso numa única chamada!');
+    return output;
   }
 );
 
