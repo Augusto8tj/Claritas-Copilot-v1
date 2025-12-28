@@ -279,7 +279,7 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
     if (chartData.length > 0 && !isCandle(chartData[0])) {
         candles = chartData.map(d => {
             const price = (d as { price: number }).price;
-            return { epoch: d.epoch, open: price, high: price, low: price, close: price };
+            return { epoch: d.epoch, open: price, high: price, low: price, close: price, volume: (d as any).volume || 1 };
         });
     } else {
         candles = chartData.filter(isCandle);
