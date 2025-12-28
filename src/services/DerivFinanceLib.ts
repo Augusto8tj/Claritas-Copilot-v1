@@ -1,0 +1,306 @@
+
+/**
+ * BIBLIOTECA FINANCEIRA AVANÇADA PARA DERIV API (2025)
+ * Suporta Gráficos de Linha (Ticks) e Velas (OHLC)
+ * Convertido para TypeScript para maior robustez.
+ */
+
+interface OHLCV {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+type InputData = number | Partial<OHLCV> | { quote: number };
+
+const normalizeData = (data: InputData[]): OHLCV[] => {
+  if (!Array.isArray(data)) return [];
+  return data.map(d => {
+    const isObj = typeof d === 'object' && d !== null;
+    const price = parseFloat(String(isObj ? (d as any).quote || (d as OHLCV).close : d));
+    return {
+      open: parseFloat(String(isObj ? (d as OHLCV).open || price : d)),
+      high: parseFloat(String(isObj ? (d as OHLCV).high || price : d)),
+      low: parseFloat(String(isObj ? (d as OHLCV).low || price : d)),
+      close: price,
+      volume: parseFloat(String(isObj ? (d as OHLCV).volume || 1 : 1)),
+    };
+  });
+};
+
+export const DerivIndicators = {
+  // --- VOLATILIDADE E ADAPTATIVIDADE ---
+  kama: (data: InputData[], p = 10, f = 2, s = 30): number[] => {
+    const d = normalizeData(data);
+    if(d.length < p) return Array(d.length).fill(0);
+    const kama = [d[0].close];
+    const fast = 2 / (f + 1), slow = 2 / (s + 1);
+    for (let i = 1; i < d.length; i++) {
+      const signal = Math.abs(d[i].close - (d[i - p]?.close || d[0].close));
+      let noise = 0;
+      for (let j = Math.max(1, i - p + 1); j <= i; j++) noise += Math.abs(d[j].close - d[j - 1].close);
+      const er = noise === 0 ? 0 : signal / noise;
+      const sc = Math.pow(er * (fast - slow) + slow, 2);
+      kama.push(kama[i - 1] + sc * (d[i].close - kama[i - 1]));
+    }
+    return kama;
+  },
+
+  bollingerBandwidth: (data: InputData[], p = 20, sd = 2): number[] => {
+    const d = normalizeData(data).map(x => x.close);
+    return d.map((_, i) => {
+      if (i < p) return 0;
+      const slice = d.slice(i - p, i);
+      const avg = slice.reduce((a, b) => a + b) / p;
+      const dev = Math.sqrt(slice.map(x => Math.pow(x - avg, 2)).reduce((a, b) => a + b) / p);
+      if (avg === 0) return 0;
+      return (((avg + dev * sd) - (avg - dev * sd)) / avg) * 100;
+    });
+  },
+
+  atrTrailingStop: (data: InputData[], p = 14, m = 3): number[] => {
+    const d = normalizeData(data);
+    if (d.length === 0) return [];
+    let atr = 0;
+    const stops: number[] = [];
+    d.forEach((c, i) => {
+      const tr = i === 0 ? c.high - c.low : Math.max(c.high - c.low, Math.abs(c.high - d[i - 1].close), Math.abs(c.low - d[i - 1].close));
+      atr = i === 0 ? tr : (atr * (p - 1) + tr) / p;
+      stops.push(c.close - (atr * m));
+    });
+    return stops;
+  },
+
+  chandelierExit: (data: InputData[], p = 22, m = 3): (number | null)[] => {
+    const d = normalizeData(data);
+    if (d.length === 0) return [];
+    return d.map((c, i) => {
+      if (i < p || i === 0) return null;
+      const maxH = Math.max(...d.slice(i - p, i).map(x => x.high));
+      const tr = Math.max(c.high - c.low, Math.abs(c.high - d[i - 1].close));
+      return maxH - (tr * m);
+    });
+  },
+
+  // --- VOLUME E FLUXO ---
+  vwap: (data: InputData[]): number[] => {
+    const d = normalizeData(data);
+    let svp = 0, sv = 0;
+    return d.map(c => {
+      const tp = (c.high + c.low + c.close) / 3;
+      svp += tp * c.volume; sv += c.volume;
+      return sv > 0 ? svp / sv : 0;
+    });
+  },
+
+  cumulativeDelta: (data: InputData[]): number[] => {
+    const d = normalizeData(data);
+    if (d.length === 0) return [];
+    let delta = 0;
+    return d.map((c, i) => {
+      if (i === 0) return 0;
+      delta += c.close > d[i - 1].close ? c.volume : -c.volume;
+      return delta;
+    });
+  },
+
+  obv: (data: InputData[]): number[] => {
+    const d = normalizeData(data);
+    if (d.length === 0) return [];
+    let v = 0;
+    return d.map((c, i) => {
+      if (i > 0) v += c.close > d[i - 1].close ? c.volume : (c.close < d[i - 1].close ? -c.volume : 0);
+      return v;
+    });
+  },
+
+  mfi: (data: InputData[], p = 14): number[] => {
+    const d = normalizeData(data);
+    return d.map((_, i) => {
+      if (i < p) return 50;
+      let pmf = 0, nmf = 0;
+      for (let j = i - p + 1; j <= i; j++) {
+        const tp = (d[j].high + d[j].low + d[j].close) / 3;
+        const prevTp = (d[j - 1].high + d[j - 1].low + d[j - 1].close) / 3;
+        tp > prevTp ? pmf += tp * d[j].volume : nmf += tp * d[j].volume;
+      }
+      return 100 - (100 / (1 + (pmf / (nmf || 1))));
+    });
+  },
+
+  volumeProfile: (data: InputData[], bins = 20) => {
+    const d = normalizeData(data);
+    if (d.length === 0) return { profile: [], min: 0, step: 0 };
+    const prices = d.map(x => x.close);
+    const min = Math.min(...prices), max = Math.max(...prices);
+    const step = (max - min) / bins;
+    const profile = Array(bins).fill(0);
+    d.forEach(c => {
+      const binIdx = step > 0 ? Math.min(bins - 1, Math.floor((c.close - min) / step)) : 0;
+      profile[binIdx] += c.volume;
+    });
+    return { profile, min, step };
+  },
+
+  // --- OSCILADORES ---
+  stochRSI: (data: InputData[], p = 14): number[] => {
+    const d = normalizeData(data).map(x => x.close);
+    if (d.length < p) return Array(d.length).fill(0.5);
+    const rsi = d.map((_, i) => {
+      if (i < p) return 50;
+      let g = 0, l = 0;
+      for (let j = i - p + 1; j <= i; j++) {
+        const diff = d[j] - d[j - 1];
+        diff > 0 ? g += diff : l += Math.abs(diff);
+      }
+      const lSafe = l || 1;
+      return 100 - (100 / (1 + (g / lSafe)));
+    });
+    return rsi.map((v, i) => {
+      if (i < p) return 0.5;
+      const s = rsi.slice(i - p + 1, i + 1);
+      const minRsi = Math.min(...s);
+      const maxRsi = Math.max(...s);
+      const denominator = maxRsi - minRsi;
+      return denominator === 0 ? 0.5 : (v - minRsi) / denominator;
+    });
+  },
+
+  fisher: (data: InputData[], p = 9): number[] => {
+    const d = normalizeData(data).map(x => x.close);
+    if (d.length === 0) return [];
+    let fish = [0], val = [0];
+    for (let i = 1; i < d.length; i++) {
+      const s = d.slice(Math.max(0, i - p), i + 1);
+      const mn = Math.min(...s), mx = Math.max(...s);
+      let v = 0.66 * ((d[i] - mn) / (mx - mn || 1) - 0.5) + 0.67 * (val[i - 1] || 0);
+      v = Math.max(-0.999, Math.min(0.999, v));
+      val.push(v);
+      fish.push(0.5 * Math.log((1 + v) / (1 - v)) + 0.5 * (fish[i - 1] || 0));
+    }
+    return fish;
+  },
+
+  roc: (data: InputData[], p = 12): number[] => {
+    const d = normalizeData(data).map(x => x.close);
+    return d.map((v, i) => {
+      if (i < p || d[i - p] === 0) return 0;
+      return ((v - d[i - p]) / d[i - p]) * 100;
+    });
+  },
+
+  trix: (data: InputData[], p = 15): number[] => {
+    const ema = (arr: number[], period: number) => {
+      let res = [arr[0]];
+      const k = 2 / (period + 1);
+      for (let i = 1; i < arr.length; i++) res.push(arr[i] * k + (res[i - 1] || 0) * (1 - k));
+      return res;
+    };
+    const d = normalizeData(data).map(x => x.close);
+    if (d.length === 0) return [];
+    const e1 = ema(d, p), e2 = ema(e1, p), e3 = ema(e2, p);
+    return e3.map((v, i) => {
+      if (i === 0 || e3[i - 1] === 0) return 0;
+      return ((v - e3[i - 1]) / e3[i - 1]) * 100;
+    });
+  },
+
+  // --- TENDÊNCIA E ESTRUTURA ---
+  ichimoku: (data: InputData[]) => {
+    const d = normalizeData(data);
+    const f = (sz: number, i: number) => {
+      const s = d.slice(Math.max(0, i - sz + 1), i + 1);
+      if (s.length === 0) return 0;
+      return (Math.max(...s.map(x => x.high)) + Math.min(...s.map(x => x.low))) / 2;
+    };
+    return d.map((_, i) => ({
+      tenkan: f(9, i), kijun: f(26, i),
+      senkouA: (f(9, i) + f(26, i)) / 2,
+      senkouB: f(52, i)
+    }));
+  },
+
+  donchian: (data: InputData[], p = 20) => {
+    const d = normalizeData(data);
+    return d.map((_, i) => {
+      if (i < p -1) return { upper: 0, lower: 0, middle: 0};
+      const s = d.slice(i - p + 1, i + 1);
+      const h = Math.max(...s.map(x => x.high)), l = Math.min(...s.map(x => x.low));
+      return { upper: h, lower: l, middle: (h + l) / 2 };
+    });
+  },
+
+  gmma: (data: InputData[]) => {
+    const d = normalizeData(data).map(x => x.close);
+    if (d.length === 0) return { short: [], long: [] };
+    const ema = (p: number) => {
+      let r = [d[0]], k = 2 / (p + 1);
+      for (let i = 1; i < d.length; i++) r.push(d[i] * k + (r[i - 1] || 0) * (1 - k));
+      return r;
+    };
+    return {
+      short: [3, 5, 8, 10, 12, 15].map(p => ema(p)),
+      long: [30, 35, 40, 45, 50, 60].map(p => ema(p))
+    };
+  },
+
+  linearRegressionSlope: (data: InputData[], p = 14): number[] => {
+    const d = normalizeData(data).map(x => x.close);
+    return d.map((_, i) => {
+      if (i < p) return 0;
+      let sx = 0, sy = 0, sxy = 0, sx2 = 0;
+      for (let j = 0; j < p; j++) {
+        const x = j, y = d[i - p + 1 + j];
+        sx += x; sy += y; sxy += x * y; sx2 += x * x;
+      }
+      const denominator = (p * sx2 - sx * sx);
+      return denominator === 0 ? 0 : (p * sxy - sx * sy) / denominator;
+    });
+  },
+
+  // --- CICLO E ESTATÍSTICA ---
+  stc: (data: InputData[], f = 23, s = 50, c = 10): number[] => {
+    const d = normalizeData(data).map(x => x.close);
+    const macd = d.map((v, i) => i < s ? 0 : v * (2 / (f + 1)) - v * (2 / (s + 1)));
+    return macd.map((v, i) => {
+      if (i < c) return 0;
+      const sl = macd.slice(Math.max(0, i - c + 1), i + 1);
+      const minV = Math.min(...sl), maxV = Math.max(...sl);
+      const denominator = maxV - minV;
+      return denominator === 0 ? 0 : ((v - minV) / denominator) * 100;
+    });
+  },
+
+  zScore: (data: InputData[], p = 20): number[] => {
+    const d = normalizeData(data).map(x => x.close);
+    return d.map((v, i) => {
+      if (i < p) return 0;
+      const sl = d.slice(i - p, i);
+      const m = sl.reduce((a, b) => a + b) / p;
+      const sd = Math.sqrt(sl.map(x => Math.pow(x - m, 2)).reduce((a, b) => a + b) / p);
+      return (v - m) / (sd || 1);
+    });
+  },
+
+  coppock: (data: InputData[]): number[] => {
+    const d = normalizeData(data).map(x => x.close);
+    if (d.length < 15) return Array(d.length).fill(0);
+    const roc14 = d.map((v, i) => i < 14 || d[i-14] === 0 ? 0 : ((v - d[i - 14]) / d[i - 14]) * 100);
+    const roc11 = d.map((v, i) => i < 11 || d[i-11] === 0 ? 0 : ((v - d[i - 11]) / d[i - 11]) * 100);
+    const sum = roc14.map((v, i) => v + roc11[i]);
+    let wma = [0], p = 10;
+    for (let i = 1; i < sum.length; i++) {
+      let weight = 0, total = 0;
+      for (let j = 0; j < p; j++) {
+        if (i - j < 0) continue;
+        const val = sum[i - j] || 0;
+        weight += val * (p - j);
+        total += (p - j);
+      }
+      wma.push(total === 0 ? 0 : weight / total);
+    }
+    return wma;
+  }
+};

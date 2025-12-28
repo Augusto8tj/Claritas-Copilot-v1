@@ -1,10 +1,11 @@
 
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ChartData } from '@/hooks/types';
 import type { Indicators } from '@/services/indicator-service';
-import { Gauge, ServerCrash } from 'lucide-react';
+import { Gauge, Zap } from 'lucide-react';
 
 interface IndicatorPanelProps {
   indicators: Indicators;
@@ -32,7 +33,7 @@ export function IndicatorPanel({ indicators, latestDataPoint }: IndicatorPanelPr
                     Valores em tempo real calculados pelo motor da Mesa Operacional.
                 </CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 text-sm font-mono">
+            <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4 text-sm font-mono">
                 <div className="space-y-1">
                     <h4 className="font-bold text-muted-foreground">API (Dados Brutos)</h4>
                     {latestDataPoint && isCandle(latestDataPoint) ? (
@@ -52,6 +53,7 @@ export function IndicatorPanel({ indicators, latestDataPoint }: IndicatorPanelPr
                     <h4 className="font-bold text-muted-foreground">Momentum</h4>
                     <p>RSI: <span className="font-bold text-foreground">{formatValue(indicators.rsi)}</span></p>
                     <p>Stochastic: <span className="font-bold text-foreground">{formatValue(indicators.stoch)}</span></p>
+                    <p>StochRSI: <span className="font-bold text-foreground">{formatValue(indicators.stochRSI, 2)}</span></p>
                 </div>
                  <div className="space-y-1">
                     <h4 className="font-bold text-muted-foreground">Tendência</h4>
@@ -62,6 +64,8 @@ export function IndicatorPanel({ indicators, latestDataPoint }: IndicatorPanelPr
                  <div className="space-y-1">
                     <h4 className="font-bold text-muted-foreground">Volatilidade</h4>
                     <p>ATR: <span className="font-bold text-foreground">{formatValue(indicators.atr)}</span></p>
+                    <p>BBW: <span className="font-bold text-foreground">{formatValue(indicators.bbw, 2)}%</span></p>
+                    <p>Z-Score: <span className="font-bold text-foreground">{formatValue(indicators.zScore, 2)}</span></p>
                 </div>
                  <div className="space-y-1">
                     <h4 className="font-bold text-muted-foreground">MACD</h4>
@@ -72,6 +76,11 @@ export function IndicatorPanel({ indicators, latestDataPoint }: IndicatorPanelPr
                     <h4 className="font-bold text-muted-foreground">Médias Móveis</h4>
                      <p>Curta: <span className="font-bold text-foreground">{formatValue(indicators.ma?.short)}</span></p>
                     <p>Longa: <span className="font-bold text-foreground">{formatValue(indicators.ma?.long)}</span></p>
+                </div>
+                <div className="space-y-1">
+                    <h4 className="font-bold text-muted-foreground">Adaptativas/Volume</h4>
+                     <p>KAMA: <span className="font-bold text-foreground">{formatValue(indicators.kama)}</span></p>
+                     <p>VWAP: <span className="font-bold text-foreground">{formatValue(indicators.vwap[indicators.vwap.length - 1])}</span></p>
                 </div>
             </CardContent>
         </Card>

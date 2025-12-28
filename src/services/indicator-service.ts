@@ -1,5 +1,6 @@
 
 
+
 'use client';
 
 /**
@@ -9,6 +10,7 @@
 
 import type { CandleData, ChartData } from '@/hooks/types';
 import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
+import { DerivIndicators } from './DerivFinanceLib';
 
 export interface Indicators {
     rsi: number | null;
@@ -23,6 +25,11 @@ export interface Indicators {
     ema: (number | null)[];
     vwap: (number | null)[];
     bollingerBands: ({ upper: number; middle: number; lower: number } | null)[];
+    // New Advanced Indicators
+    kama: number | null;
+    bbw: number | null; // Bollinger Bandwidth
+    stochRSI: number | null;
+    zScore: number | null;
 }
 
 const isCandle = (d: ChartData): d is CandleData => 'close' in d;
@@ -57,41 +64,6 @@ const calculateEMA = (data: CandleData[], period: number): (number | null)[] => 
   }
   return emaValues;
 }
-
-const calculateBollingerBands = (data: CandleData[], period = 20, stdDev = 2) => {
-    if (data.length < period) return Array(data.length).fill(null);
-    const bands: ({ upper: number; middle: number; lower: number } | null)[] = Array(period - 1).fill(null);
-    for (let i = period - 1; i < data.length; i++) {
-        const slice = data.slice(i - period + 1, i + 1);
-        const middle = slice.reduce((sum, d) => sum + d.close, 0) / period;
-        const standardDeviation = Math.sqrt(slice.reduce((sum, d) => sum + Math.pow(d.close - middle, 2), 0) / period);
-        bands.push({
-            upper: middle + stdDev * standardDeviation,
-            middle: middle,
-            lower: middle - stdDev * standardDeviation
-        });
-    }
-    return bands;
-};
-
-const calculateVWAP = (data: CandleData[]): (number | null)[] => {
-    const vwapValues: (number | null)[] = [];
-    let cumulativeTypicalPriceVolume = 0;
-    let cumulativeVolume = 0;
-
-    for (let i = 0; i < data.length; i++) {
-        const d = data[i];
-        if (d.volume) {
-            const typicalPrice = (d.high + d.low + d.close) / 3;
-            cumulativeTypicalPriceVolume += typicalPrice * d.volume;
-            cumulativeVolume += d.volume;
-            vwapValues.push(cumulativeVolume > 0 ? cumulativeTypicalPriceVolume / cumulativeVolume : null);
-        } else {
-            vwapValues.push(null);
-        }
-    }
-    return vwapValues;
-};
 
 const calculateRSI = (data: CandleData[], period = 14): (number | null)[] => {
     if (data.length < period + 1) return Array(data.length).fill(null);
@@ -160,7 +132,7 @@ const calculateMACD = (data: CandleData[], fastPeriod = 12, slowPeriod = 26, sig
     
     const macdLine = data.map((_, i) => (emaFast[i] && emaSlow[i]) ? emaFast[i]! - emaSlow[i]! : null);
     
-    const signalData = macdLine.map(v => v !== null ? { close: v, high:v, low:v, epoch:0, open:v } as CandleData : null).filter((v): v is CandleData => v !== null);
+    const signalData = macdLine.map(v => v !== null ? { close: v, high:v, low:v, epoch:0, open:v, volume: 1 } as CandleData : null).filter((v): v is CandleData => v !== null);
 
     const signalLineRaw = calculateEMA(signalData, signalPeriod);
     
@@ -185,6 +157,8 @@ const calculateATR = (data: CandleData[], period = 14): (number | null)[] => {
     
     const atrValues: (number | null)[] = Array(period).fill(null);
     
+    if (trueRanges.length < period -1) return Array(data.length).fill(null);
+
     let firstAtrSum = trueRanges.slice(0, period - 1).reduce((sum, val) => sum + (val || 0), 0);
     atrValues.push(firstAtrSum / period);
     
@@ -257,7 +231,7 @@ const calculateADX = (data: CandleData[], period = 14) => {
     for (let i = 0; i < pdiFinal.length; i++) {
         const p = pdiFinal[i];
         const n = ndiFinal[i];
-        if (p === null || n === null) { dx.push(null); continue; }
+        if (p === null || n === null || (p+n) === 0) { dx.push(null); continue; }
         const den = p + n;
         dx.push(den === 0 ? 0 : 100 * Math.abs(p - n) / den);
     }
@@ -275,7 +249,7 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
     
     let candles: CandleData[];
 
-    // Convert Tick data to Candle data if needed
+    // Universal pre-processor for both tick and candle data
     if (chartData.length > 0 && !isCandle(chartData[0])) {
         candles = chartData.map(d => {
             const price = (d as { price: number }).price;
@@ -285,16 +259,20 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
         candles = chartData.filter(isCandle);
     }
 
+    const emptyIndicators: Indicators = {
+        rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
+        macd: { macd: null, signal: null }, ma: { short: null, long: null },
+        sma: [], ema: [], vwap: [], bollingerBands: [],
+        kama: null, bbw: null, stochRSI: null, zScore: null,
+    };
+
     if (candles.length < 2) {
-        return {
-            rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
-            macd: { macd: null, signal: null }, ma: { short: null, long: null },
-            sma: [], ema: [], vwap: [], bollingerBands: [],
-        };
+        return emptyIndicators;
     }
 
     const indicators: Partial<Indicators> = {};
 
+    // --- LEGACY INDICATORS ---
     const rsiRobot = strategyCouncil.find(r => r.strategyType === 'RSI');
     const rsiValues = calculateRSI(candles, rsiRobot?.period || 14);
     indicators.rsi = rsiValues[rsiValues.length - 1] ?? null;
@@ -320,20 +298,35 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
     indicators.atr = atrValues[atrValues.length - 1] ?? null;
 
     const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
-    const emaValues = calculateEMA(candles, maRobot?.shortPeriod || 20);
-    const smaValues = calculateSMA(candles, maRobot?.longPeriod || 50);
+    const shortPeriod = maRobot?.shortPeriod || 20;
+    const longPeriod = maRobot?.longPeriod || 50;
 
-    indicators.ema = emaValues;
-    indicators.sma = smaValues;
-
+    indicators.ema = calculateEMA(candles, shortPeriod);
+    indicators.sma = calculateSMA(candles, longPeriod);
     indicators.ma = {
-        short: emaValues.length > 0 ? emaValues[emaValues.length - 1] : null,
-        long: smaValues.length > 0 ? smaValues[smaValues.length - 1] : null,
+        short: indicators.ema.length > 0 ? indicators.ema[indicators.ema.length - 1] : null,
+        long: indicators.sma.length > 0 ? indicators.sma[indicators.sma.length - 1] : null,
     };
 
-    const bbRobot = strategyCouncil.find(r => r.strategyType === 'BOLLINGER_BANDS');
-    indicators.bollingerBands = bbRobot ? calculateBollingerBands(candles, bbRobot.period || 20, bbRobot.stdDev || 2) : [];
-    indicators.vwap = calculateVWAP(candles);
+    // --- ADVANCED INDICATORS (from DerivFinanceLib) ---
+    const vwapValues = DerivIndicators.vwap(candles);
+    indicators.vwap = vwapValues; // The whole series for the chart
 
-    return indicators as Indicators;
+    const bbRobot = strategyCouncil.find(r => r.strategyType === 'BOLLINGER_BANDS');
+    const bbValues = DerivIndicators.bollingerBandwidth(candles, bbRobot?.period, bbRobot?.stdDev);
+    indicators.bbw = bbValues[bbValues.length - 1] ?? null;
+
+    const bbSeries = DerivIndicators.donchian(candles, bbRobot?.period); // Using Donchian as a proxy for simple BB structure
+    indicators.bollingerBands = bbSeries.map(v => v ? { upper: v.upper, lower: v.lower, middle: v.middle } : null);
+
+    const kamaValues = DerivIndicators.kama(candles);
+    indicators.kama = kamaValues[kamaValues.length - 1] ?? null;
+    
+    const stochRSIValues = DerivIndicators.stochRSI(candles);
+    indicators.stochRSI = stochRSIValues[stochRSIValues.length - 1] ?? null;
+
+    const zScoreValues = DerivIndicators.zScore(candles);
+    indicators.zScore = zScoreValues[zScoreValues.length - 1] ?? null;
+    
+    return { ...emptyIndicators, ...indicators };
 }
