@@ -1,6 +1,5 @@
 
 
-
 'use client';
 
 /**
@@ -294,8 +293,8 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
     indicators.pdi = adxValues.pdi[adxValues.pdi.length - 1] ?? null;
     indicators.ndi = adxValues.ndi[adxValues.ndi.length - 1] ?? null;
 
-    const atrValues = calculateATR(candles);
-    indicators.atr = atrValues[atrValues.length - 1] ?? null;
+    const atrSeries = calculateATR(candles);
+    indicators.atr = atrSeries[atrSeries.length - 1] ?? null;
 
     const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
     const shortPeriod = maRobot?.shortPeriod || 20;
@@ -310,7 +309,7 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
 
     // --- ADVANCED INDICATORS (from DerivFinanceLib) ---
     const vwapValues = DerivIndicators.vwap(candles);
-    indicators.vwap = vwapValues; // The whole series for the chart
+    indicators.vwap = vwapValues;
 
     const bbRobot = strategyCouncil.find(r => r.strategyType === 'BOLLINGER_BANDS');
     const bbValues = DerivIndicators.bollingerBandwidth(candles, bbRobot?.period, bbRobot?.stdDev);

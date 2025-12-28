@@ -51,19 +51,19 @@ export function IndicatorPanel({ indicators, latestDataPoint }: IndicatorPanelPr
                 </div>
                  <div className="space-y-1">
                     <h4 className="font-bold text-muted-foreground">Momentum</h4>
-                    <p>RSI: <span className="font-bold text-foreground">{formatValue(indicators.rsi)}</span></p>
-                    <p>Stochastic: <span className="font-bold text-foreground">{formatValue(indicators.stoch)}</span></p>
+                    <p>RSI: <span className="font-bold text-foreground">{formatValue(indicators.rsi, 2)}</span></p>
+                    <p>Stochastic: <span className="font-bold text-foreground">{formatValue(indicators.stoch, 2)}</span></p>
                     <p>StochRSI: <span className="font-bold text-foreground">{formatValue(indicators.stochRSI, 2)}</span></p>
                 </div>
                  <div className="space-y-1">
                     <h4 className="font-bold text-muted-foreground">Tendência</h4>
-                    <p>ADX: <span className="font-bold text-foreground">{formatValue(indicators.adx)}</span></p>
-                    <p>+DI: <span className="font-bold text-foreground">{formatValue(indicators.pdi)}</span></p>
-                    <p>-DI: <span className="font-bold text-foreground">{formatValue(indicators.ndi)}</span></p>
+                    <p>ADX: <span className="font-bold text-foreground">{formatValue(indicators.adx, 2)}</span></p>
+                    <p>+DI: <span className="font-bold text-foreground">{formatValue(indicators.pdi, 2)}</span></p>
+                    <p>-DI: <span className="font-bold text-foreground">{formatValue(indicators.ndi, 2)}</span></p>
                 </div>
                  <div className="space-y-1">
                     <h4 className="font-bold text-muted-foreground">Volatilidade</h4>
-                    <p>ATR: <span className="font-bold text-foreground">{formatValue(indicators.atr)}</span></p>
+                    <p>ATR: <span className="font-bold text-foreground">{formatValue(indicators.atr, 4)}</span></p>
                     <p>BBW: <span className="font-bold text-foreground">{formatValue(indicators.bbw, 2)}%</span></p>
                     <p>Z-Score: <span className="font-bold text-foreground">{formatValue(indicators.zScore, 2)}</span></p>
                 </div>
@@ -80,7 +80,7 @@ export function IndicatorPanel({ indicators, latestDataPoint }: IndicatorPanelPr
                 <div className="space-y-1">
                     <h4 className="font-bold text-muted-foreground">Adaptativas/Volume</h4>
                      <p>KAMA: <span className="font-bold text-foreground">{formatValue(indicators.kama)}</span></p>
-                     <p>VWAP: <span className="font-bold text-foreground">{formatValue(indicators.vwap[indicators.vwap.length - 1])}</span></p>
+                     <p>VWAP: <span className="font-bold text-foreground">{indicators.vwap.length > 0 ? formatValue(indicators.vwap[indicators.vwap.length - 1]) : '...'}</span></p>
                 </div>
             </CardContent>
         </Card>
