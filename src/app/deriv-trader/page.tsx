@@ -1,8 +1,6 @@
-
-
 'use client';
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DerivTraderInterface } from "@/components/trading/deriv-trader-interface";
@@ -26,8 +24,6 @@ import { SystemStatusSummary } from "@/components/trading/system-status-summary"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AITradeSuggestion } from "@/components/trading/ai-trade-suggestion";
 import { IndicatorPanel } from "@/components/trading/indicator-panel";
-import type { Indicators } from "@/services/indicator-service";
-import { calculateAllIndicators } from "@/services/indicator-service";
 
 
 /**
@@ -47,33 +43,17 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
     tradeAnnotations,
   } = useDerivApi();
   
-  const [indicators, setIndicators] = useState<Indicators>({
-    rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
-    macd: { macd: null, signal: null, histogram: null }, ma: { short: null, long: null },
-    sma: [], ema: [], vwap: [], bollingerBands: [], donchianChannels: [],
-    kama: null, bbw: null, stochRSI: null, zScore: null,
-    awesomeOscillator: null, trix: null, roc: null, parabolicSAR: null,
-    ichimoku: { tenkan: null, kijun: null, senkouA: null, senkouB: null },
-    mfi: null, obv: null, chandelierExit: null,
-  });
-  
   // CENTRALIZED HOOKS
-  const robotCouncil = useRobotCouncil(activeSymbol, indicators, () => {});
-  const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, () => {});
-  const autopilot = useAutopilot(activeSymbol, indicators, () => {});
+  const robotCouncil = useRobotCouncil(activeSymbol);
+  const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, robotCouncil.incrementGeminiRequestCount);
+  const autopilot = useAutopilot(activeSymbol, robotCouncil.indicators, robotCouncil.incrementGeminiRequestCount);
 
-  // This is now the true INDICATOR ENGINE TRIGGER
+  // Pass chart data to the main council hook for processing
   useEffect(() => {
     if (chartData && chartData.length > 0) {
-      const calculatedIndicators = calculateAllIndicators(chartData, robotCouncil.strategyCouncil, timePeriod);
-      setIndicators(calculatedIndicators);
+      robotCouncil.processNewChartData(chartData);
     }
-  }, [chartData, robotCouncil.strategyCouncil, timePeriod]);
-  
-  // Rebuild council when time period changes
-  useEffect(() => {
-      robotCouncil.fetchStrategyCouncil();
-  }, [timePeriod, robotCouncil.fetchStrategyCouncil]);
+  }, [chartData, robotCouncil.processNewChartData]);
 
 
   const latestDataPoint = chartData.length > 0 ? chartData[chartData.length - 1] : null;
@@ -81,7 +61,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   return (
     <>
       <div className="space-y-6">
-        <IndicatorPanel indicators={indicators} latestDataPoint={latestDataPoint} />
+        <IndicatorPanel indicators={robotCouncil.indicators} latestDataPoint={latestDataPoint} />
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -105,7 +85,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                   timePeriod={timePeriod}
                   setTimePeriod={setTimePeriod}
                   operations={operationsLog}
-                  indicators={indicators}
+                  indicators={robotCouncil.indicators}
                   tradeAnnotations={tradeAnnotations}
               />
           </CardContent>
@@ -118,7 +98,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <DerivTraderInterface symbol={activeSymbol || ""} />
                     <div className="space-y-6">
-                        <AITradeSuggestion symbol={activeSymbol || ''} incrementRequestCount={() => {}} />
+                        <AITradeSuggestion symbol={activeSymbol || ''} incrementRequestCount={robotCouncil.incrementGeminiRequestCount} />
                         <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
                         <OperationsLog operations={operationsLog} />
                     </div>
@@ -141,7 +121,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
 
                 <TabsContent value="trade" className="mt-4 space-y-6">
                     <DerivTraderInterface symbol={activeSymbol || ""} />
-                    <AITradeSuggestion symbol={activeSymbol || ''} incrementRequestCount={() => {}} />
+                    <AITradeSuggestion symbol={activeSymbol || ''} incrementRequestCount={robotCouncil.incrementGeminiRequestCount} />
                 </TabsContent>
 
                 <TabsContent value="autopilot" className="mt-4 space-y-6">

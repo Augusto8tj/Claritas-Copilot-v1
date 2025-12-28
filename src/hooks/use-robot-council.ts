@@ -9,6 +9,7 @@ import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
 import type { RiseFallFormValues } from '@/components/trading/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import type { Indicators } from '@/services/indicator-service';
+import { calculateAllIndicators } from '@/services/indicator-service';
 import type { ChartData, TimePeriod } from './types';
 
 export type RobotVote = {
@@ -53,7 +54,7 @@ const getTradingStyle = (timePeriod: TimePeriod): TradingStyle => {
  */
 const buildStaticCouncil = (timePeriod: TimePeriod, dailyBalance: number): RobotStrategy[] => {
     const style = getTradingStyle(timePeriod);
-    const isTickTrading = timePeriod === '1m'; 
+    const isTickTrading = ['1m', '2m', '3m', '5m'].includes(timePeriod); 
     const durationUnit = isTickTrading ? 't' : 'm';
     const suggestedStake = Math.max(0.35, dailyBalance * 0.01);
     
@@ -75,7 +76,7 @@ const buildStaticCouncil = (timePeriod: TimePeriod, dailyBalance: number): Robot
             rsiParams = { period: 7, strongBuy: 20, weakBuy: 30, strongSell: 80, weakSell: 70, justification: 'rápidos (7) para reversão extrema.' };
             stochParams = { period: 10, strongBuy: 15, weakBuy: 25, strongSell: 85, weakSell: 75, justification: 'sensível (10) para picos.' };
             macdParams = { fast: 8, slow: 17, signal: 6, justification: 'rápidos (8/17/6) para momentum imediato.' };
-            maParams = { short: 5, long: 10, justification: 'curtos (5/10) para cruzamentos rápidos.' };
+            maParams = { short: 5, long: 10, justification: 'inúteis (muito atraso).' };
             bbParams = { period: 20, stdDev: 1.8, justification: 'curto (20/1.8) para rompimentos.'};
             adxThreshold = 30;
             kamaPeriod = 5;
@@ -214,15 +215,23 @@ const buildStaticCouncil = (timePeriod: TimePeriod, dailyBalance: number): Robot
     return strategies;
 };
 
+const EMPTY_INDICATORS: Indicators = {
+    rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
+    macd: { macd: null, signal: null, histogram: null }, ma: { short: null, long: null },
+    sma: [], ema: [], vwap: [], bollingerBands: [], donchianChannels: [],
+    kama: null, bbw: null, stochRSI: null, zScore: null,
+    awesomeOscillator: null, trix: null, roc: null, parabolicSAR: null,
+    ichimoku: { tenkan: null, kijun: null, senkouA: null, senkouB: null },
+    mfi: null, obv: null, chandelierExit: null,
+};
 
 export function useRobotCouncil(
     activeSymbol: string | null,
-    indicators: Indicators,
-    incrementRequestCount: () => void
 ) {
-    const { operationsLog, executeTrade, chartData, timePeriod } = useDerivApi();
+    const { operationsLog, executeTrade, timePeriod } = useDerivApi();
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
+    const [geminiRequestCount, setGeminiRequestCount] = useState(0);
 
     const [isCouncilAutopilotOn, setIsCouncilAutopilotOn] = useState(false);
     const [strategyCouncil, setStrategyCouncil] = useState<RobotStrategy[]>([]);
@@ -243,6 +252,8 @@ export function useRobotCouncil(
     const councilExecutionRef = useRef({ isExecuting: false });
     const previousMacdRef = useRef<{ macd: number | null; signal: number | null }>({ macd: null, signal: null });
     const previousObvRef = useRef<number | null>(null);
+
+    const [indicators, setIndicators] = useState<Indicators>(EMPTY_INDICATORS);
     
     
     useEffect(() => {
@@ -288,9 +299,9 @@ export function useRobotCouncil(
         };
 
         const atr = indicators.atr;
-        const lastClose = chartData.length > 0 ? (chartData[chartData.length - 1] as any).close : null;
-        if (atr && lastClose) {
-            const atrPercentage = (atr / lastClose) * 100;
+        const currentPrice = indicators.ma.long;
+        if (atr && currentPrice) {
+            const atrPercentage = (atr / currentPrice) * 100;
             if (atrPercentage > 0.05) { 
                 finalStake *= 0.75;
                 setSupervisionStatus({ status: 'approved', message: "Risco ajustado (ATR alto)." });
@@ -316,7 +327,7 @@ export function useRobotCouncil(
 
         return { finalStake, vetoReason };
 
-    }, [operationsLog, dailyBalance, dailyTarget, indicators, chartData, supervisionStatus.status]);
+    }, [operationsLog, dailyBalance, dailyTarget, indicators, supervisionStatus.status]);
 
     const dissolveCouncil = () => {
         setStrategyCouncil([]);
@@ -363,7 +374,7 @@ export function useRobotCouncil(
 
 
     useEffect(() => {
-        if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || strategyCouncil.length === 0 || !indicators.rsi || !chartData.length) {
+        if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || strategyCouncil.length === 0 || !indicators.rsi) {
             return;
         }
         
@@ -380,7 +391,7 @@ export function useRobotCouncil(
         let riseConfidenceSum = 0, fallConfidenceSum = 0;
         
         const activeSpecialists = committeeOfSpecialists();
-        const currentPrice = (chartData[chartData.length-1] as any)?.close;
+        const currentPrice = indicators.ma.long;
         if (!currentPrice) return;
 
         activeSpecialists.forEach(robot => {
@@ -587,8 +598,18 @@ export function useRobotCouncil(
         form,
         supervisionCommitteeCheck,
         committeeOfSpecialists,
-        chartData,
     ]);
+
+    const incrementGeminiRequestCount = useCallback(() => {
+        setGeminiRequestCount(c => c + 1);
+    }, []);
+
+    const processNewChartData = useCallback((chartData: ChartData[]) => {
+        if (chartData.length > 0) {
+            const calculatedIndicators = calculateAllIndicators(chartData, strategyCouncil, timePeriod);
+            setIndicators(calculatedIndicators);
+        }
+    }, [strategyCouncil, timePeriod]);
     
 
     return {
@@ -611,6 +632,8 @@ export function useRobotCouncil(
         setIsMeritocracyOn,
         activeCommittee,
         supervisionStatus,
-        incrementRequestCount,
+        incrementGeminiRequestCount,
+        processNewChartData,
+        indicators,
     };
 }
