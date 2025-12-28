@@ -52,12 +52,13 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
     rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
     macd: { macd: null, signal: null }, ma: { short: null, long: null },
     sma: [], ema: [], vwap: [], bollingerBands: [],
+    kama: null, bbw: null, stochRSI: null, zScore: null,
   });
   
   // CENTRALIZED HOOKS
-  const robotCouncil = useRobotCouncil(activeSymbol, indicators);
+  const robotCouncil = useRobotCouncil(activeSymbol, indicators); // Pass indicators in
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, robotCouncil.incrementGeminiRequestCount);
-  const autopilot = useAutopilot(activeSymbol, indicators, robotCouncil.incrementGeminiRequestCount);
+  const autopilot = useAutopilot(activeSymbol, indicators, robotCouncil.incrementGeminiRequestCount); // Pass indicators in
 
   // This is now the true INDICATOR ENGINE TRIGGER
   useEffect(() => {

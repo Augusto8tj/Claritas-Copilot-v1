@@ -12,7 +12,7 @@ import type { RiseFallFormValues } from '@/components/trading/deriv-trader-inter
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
 import type { Indicators } from '@/services/indicator-service';
-import type { ChartData } from './types';
+import { calculateAllIndicators } from '@/services/indicator-service';
 
 
 export type RobotVote = {
@@ -45,7 +45,7 @@ export function useRobotCouncil(
     activeSymbol: string | null,
     indicators: Indicators // Receive indicators as a prop
 ) {
-    const { operationsLog, executeTrade } = useDerivApi();
+    const { operationsLog, executeTrade, chartData } = useDerivApi(); // chartData for manual prompt generation
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
@@ -113,7 +113,7 @@ export function useRobotCouncil(
         try {
             const { duration_unit } = form.getValues();
             
-            const historicalDataJson = "[]"; // This is a placeholder.
+            const historicalDataJson = JSON.stringify(chartData);
 
             if (useManualCouncilMode) {
                 const allStrategies: RobotStrategy['strategyType'][] = ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE'];
@@ -197,7 +197,7 @@ ${basePromptInstructions}`;
         } finally {
             setIsFetchingCouncil(false);
         }
-    }, [activeSymbol, dailyBalance, form, toast, useManualCouncilMode, useSingleManualPrompt, incrementGeminiRequestCount]);
+    }, [activeSymbol, dailyBalance, form, toast, useManualCouncilMode, useSingleManualPrompt, incrementGeminiRequestCount, chartData]);
 
     const processManualCouncilResponse = (batchId: string, jsonResponse: string) => {
         try {
