@@ -237,10 +237,16 @@ ${basePromptInstructions}`;
         }
     };
     
+    /**
+     * O Comité de Supervisão.
+     * Esta função atua como uma camada final de governança sobre as decisões do Conselho de Votação.
+     * Ela não vota na direção, mas tem poder de veto e de ajuste de risco.
+     */
     const supervisionCommitteeCheck = useCallback((stake: number, direction: 'RISE' | 'FALL') => {
         let finalStake = stake;
         let vetoReason: string | null = null;
     
+        // --- 1. Analista de Risco (Guardião do Capital) ---
         const dailyPnL = operationsLog
             .filter(op => op.initiator === 'Conselho' && op.status !== 'pending' && new Date(op.timestamp).toDateString() === new Date().toDateString())
             .reduce((sum, op) => sum + (op.result || 0), 0);
@@ -253,26 +259,35 @@ ${basePromptInstructions}`;
     
         if (vetoReason) return { finalStake, vetoReason };
 
+        // --- 2. Analista de Volatilidade (Especialista em Turbulência) ---
         const atr = indicators.atr;
-        // The last price is not available here, so we skip the ATR check for now.
-        // A more robust solution would involve passing the last data point.
-
+        const lastClose = chartData.length > 0 ? (chartData[chartData.length - 1] as any).close : null;
+        if (atr && lastClose) {
+            const atrPercentage = (atr / lastClose) * 100;
+            if (atrPercentage > 0.05) { // Ex: 0.05% do preço do ativo é alta volatilidade
+                finalStake *= 0.75;
+                toast({ title: "Supervisor de Volatilidade", description: "ATR alto. Risco reduzido para 75%.", variant: "default" });
+            }
+        }
+        
+        // --- 3. Analista de Tendência (Especialista em Clareza) ---
         const adx = indicators.adx;
         if (adx) {
-            if (adx < 20) {
+            if (adx < 20) { // Mercado sem tendência clara
                 finalStake *= 0.75;
-                toast({ title: "Supervisor de Tendência", description: "Mercado lateral, risco reduzido para 75%.", variant: "default" });
-            } else if (adx > 35) {
+                toast({ title: "Supervisor de Tendência", description: "ADX baixo (mercado lateral). Risco reduzido para 75%.", variant: "default" });
+            } else if (adx > 35) { // Tendência forte
                 finalStake *= 1.25; 
-                toast({ title: "Supervisor de Tendência", description: "Tendência forte confirmada, risco aumentado em 25%.", variant: "default" });
+                toast({ title: "Supervisor de Tendência", description: "ADX alto (tendência forte). Risco aumentado em 25%.", variant: "default" });
             }
         }
 
+        // Garante que o stake final não seja menor que o mínimo permitido pela corretora
         if (finalStake < 0.35) finalStake = 0.35;
         
         return { finalStake, vetoReason };
 
-    }, [operationsLog, dailyBalance, dailyTarget, indicators, toast]);
+    }, [operationsLog, dailyBalance, dailyTarget, indicators, chartData, toast]);
 
     const dissolveCouncil = () => {
         setStrategyCouncil([]);
@@ -291,7 +306,7 @@ ${basePromptInstructions}`;
         const { adx, atr, bbw } = indicators;
 
         // Condition 1: High Volatility (Market in "Squeeze Breakout" mode)
-        const isVolatile = (bbw && bbw > 0.04) || (atr && atr > (chartData.slice(-1)[0]?.close || 1) * 0.0005);
+        const isVolatile = (bbw && bbw > 0.04) || (atr && chartData.length > 0 && atr > ((chartData[chartData.length - 1] as any).close || 1) * 0.0005);
         if (isVolatile) {
             const volatilityBots = strategyCouncil.filter(r => ['BOLLINGER_BANDS', 'KAMA', 'ADX_TREND'].includes(r.strategyType));
             activeSpecialists.push(...volatilityBots);
