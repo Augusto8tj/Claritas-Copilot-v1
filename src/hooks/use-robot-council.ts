@@ -106,7 +106,7 @@ const calculateRSI = (data: CandleData[], period = 14): (number | null)[] => {
     avgLoss /= period;
     
     let rs = avgLoss === 0 ? Infinity : avgGain / avgLoss;
-    rsiValues[period] = 100 - (100 / (1 + rs));
+    rsiValues.push(100 - (100 / (1 + rs)));
 
     // Subsequent RSI calculations
     for (let i = period + 1; i < data.length; i++) {
@@ -179,9 +179,9 @@ const calculateATR = (data: CandleData[], period = 14): (number | null)[] => {
     const atrValues: (number | null)[] = Array(period).fill(null);
     
     let firstAtrSum = trueRanges.slice(0, period - 1).reduce((sum, val) => sum + (val || 0), 0);
-    atrValues[period - 1] = firstAtrSum / period;
+    atrValues.push(firstAtrSum / period);
     
-    for (let i = period; i < trueRanges.length + 1; i++) {
+    for (let i = period; i < trueRanges.length; i++) {
         const prevAtr = atrValues[i-1];
         const tr = trueRanges[i-1];
         if (tr === null || prevAtr === null) {
@@ -550,15 +550,17 @@ ${basePromptInstructions}`;
         toast({ title: "Conselho Dissolvido", description: "A equipa de analistas foi dispensada." });
     };
 
+    // 🔧 UNIFIED useEffect for indicator calculation and voting
     useEffect(() => {
-        if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting) return;
-        if (!strategyCouncil.length || !chartData.length) return;
+        if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || !strategyCouncil.length || !chartData.length) {
+            return;
+        }
 
         const candles = chartData.filter(d => 'close' in d) as CandleData[];
         if (candles.length < 2) return;
 
         // ========================================================
-        // 1. CALCULAR INDICADORES
+        // 1. CALCULATE INDICATORS
         // ========================================================
         const newIndicators: typeof indicators = { ...indicators };
         const requiredIndicators = new Set(strategyCouncil.map(r => r.strategyType));
@@ -607,7 +609,7 @@ ${basePromptInstructions}`;
         setIndicators(newIndicators);
 
         // ========================================================
-        // 2. EXECUTAR VOTAÇÃO (COM OS INDICADORES FRESCOS)
+        // 2. EXECUTE VOTE (with fresh indicators)
         // ========================================================
         let currentThreshold = consensusThreshold;
         if (isDynamicConsensusOn && newIndicators.atr) {
@@ -669,7 +671,7 @@ ${basePromptInstructions}`;
         setCouncilVotes(newVotes);
 
         // ========================================================
-        // 3. VERIFICAR CONSENSO E EXECUTAR
+        // 3. CHECK CONSENSUS AND EXECUTE
         // ========================================================
         const consensusReached = Math.max(riseConfidenceSum, fallConfidenceSum) >= currentThreshold;
         if (consensusReached && activeSymbol) {
@@ -695,7 +697,6 @@ ${basePromptInstructions}`;
             executeTrade(direction === 'RISE' ? 'CALL' : 'PUT', finalStake, activeSymbol, direction.toLowerCase() as 'rise' | 'fall', duration, duration_unit, 'Conselho')
                 .finally(() => setTimeout(() => { councilExecutionRef.current.isExecuting = false; }, 10000));
         }
-
     }, [
         chartData, 
         strategyCouncil,
