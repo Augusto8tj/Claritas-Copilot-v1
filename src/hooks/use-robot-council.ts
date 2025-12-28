@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -10,6 +9,8 @@ import { useFormContext } from 'react-hook-form';
 import type { Indicators } from '@/services/indicator-service';
 import { calculateAllIndicators } from '@/services/indicator-service';
 import type { ChartData, TimePeriod } from './types';
+import type { Operation } from '@/components/trading/operations-log.types';
+
 
 export type RobotVote = {
     vote: 'RISE' | 'FALL' | 'HOLD';
@@ -250,7 +251,7 @@ export function useRobotCouncil(
     const [activeCommittee, setActiveCommittee] = useState<string | null>(null);
     const [supervisionStatus, setSupervisionStatus] = useState<SupervisionStatus>({ status: 'inactive', message: 'Aguardando consenso.' });
     
-    const councilExecutionRef = useRef({ isExecuting: false });
+    const councilExecutionRef = useRef({ isExecuting: false, lastVoteDirection: '' });
     const previousMacdRef = useRef<{ macd: number | null; signal: number | null }>({ macd: null, signal: null });
     const previousObvRef = useRef<number | null>(null);
 
@@ -263,6 +264,54 @@ export function useRobotCouncil(
             if (stored) setRobotPerformance(JSON.parse(stored));
         } catch (e) { console.error("Failed to load robot performance from localStorage", e); }
     }, []);
+
+    const updateRobotPerformance = useCallback((operation: Operation) => {
+        if (operation.initiator !== 'Conselho') return;
+        
+        // Find the robots that voted for this direction
+        const winningDirection = operation.status === 'won' ? operation.direction.toUpperCase() : (operation.direction === 'rise' ? 'FALL' : 'RISE');
+        
+        const contributingRobots = Object.entries(councilVotes)
+            .filter(([_, voteData]) => voteData.vote === winningDirection)
+            .map(([robotId, _]) => robotId);
+
+        if (contributingRobots.length === 0) return;
+
+        let updatedPerformance = [...robotPerformance];
+
+        contributingRobots.forEach(robotId => {
+            const robotStrategy = strategyCouncil.find(s => s.id === robotId);
+            if (!robotStrategy) return;
+
+            let perf = updatedPerformance.find(p => p.id === robotId);
+            if (!perf) {
+                perf = { id: robotId, strategy: robotStrategy, strategyType: robotStrategy.strategyType, wins: 0, losses: 0, totalProfit: 0 };
+                updatedPerformance.push(perf);
+            }
+
+            if (operation.status === 'won') {
+                perf.wins++;
+            } else {
+                perf.losses++;
+            }
+            perf.totalProfit += operation.result || 0;
+        });
+
+        localStorage.setItem(ROBOT_PERFORMANCE_KEY, JSON.stringify(updatedPerformance));
+        setRobotPerformance(updatedPerformance);
+
+    }, [councilVotes, robotPerformance, strategyCouncil]);
+
+     useEffect(() => {
+        const lastOp = operationsLog[0];
+        if (lastOp && lastOp.status !== 'pending' && lastOp.initiator === 'Conselho') {
+            const alreadyProcessed = robotPerformance.some(p => p.totalProfit !== 0); // simplificação
+            if(!alreadyProcessed || operationsLog.length > robotPerformance.reduce((acc, p) => acc + p.wins + p.losses, 0)) {
+               updateRobotPerformance(lastOp);
+            }
+        }
+    }, [operationsLog, updateRobotPerformance, robotPerformance]);
+
 
     const fetchStrategyCouncil = useCallback(async () => {
         if (!activeSymbol) return;
@@ -283,7 +332,6 @@ export function useRobotCouncil(
     const committeeOfSpecialists = useCallback(() => {
         if (!indicators.rsi) return []; // Guard clause
         let committeeName: MarketCondition = 'Lateral';
-        let activeSpecialists: RobotStrategy[] = [];
 
         // Determine Market Condition
         const isUpTrend = (indicators.ma.short ?? 0) > (indicators.ma.long ?? 0) && (indicators.adx ?? 0) > 20;
@@ -571,8 +619,13 @@ export function useRobotCouncil(
 
         const consensusReached = Math.max(riseConfidenceSum, fallConfidenceSum) >= currentThreshold;
         if (consensusReached && activeSymbol) {
-            councilExecutionRef.current.isExecuting = true;
             const direction = riseConfidenceSum > fallConfidenceSum ? 'RISE' : 'FALL';
+
+            // Evitar execuções repetidas para o mesmo sinal
+            if(councilExecutionRef.current.lastVoteDirection === direction) return;
+            councilExecutionRef.current.lastVoteDirection = direction;
+            
+            councilExecutionRef.current.isExecuting = true;
             const baseStake = strategyCouncil[0]?.suggestedStake || form.getValues('stake');
 
             const { finalStake, vetoReason } = supervisionCommitteeCheck(baseStake, direction);
@@ -591,9 +644,13 @@ export function useRobotCouncil(
             const { duration, duration_unit } = form.getValues();
 
             executeTrade(direction === 'RISE' ? 'CALL' : 'PUT', finalStake, activeSymbol, direction.toLowerCase() as 'rise' | 'fall', duration, duration_unit, 'Conselho')
-                .finally(() => setTimeout(() => { councilExecutionRef.current.isExecuting = false; }, 10000));
+                .finally(() => setTimeout(() => { 
+                    councilExecutionRef.current.isExecuting = false; 
+                    councilExecutionRef.current.lastVoteDirection = ''; // Reset after cooldown
+                }, 10000));
         } else if (supervisionStatus.status !== 'veto') {
             setSupervisionStatus({ status: 'inactive', message: 'Aguardando consenso...' });
+            councilExecutionRef.current.lastVoteDirection = ''; // Reset if no consensus
         }
     }, [
         indicators,
