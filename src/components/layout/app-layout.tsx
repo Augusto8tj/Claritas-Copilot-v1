@@ -49,6 +49,7 @@ import { cn } from "@/lib/utils";
 import React from "react";
 import Link from "next/link";
 import { Button } from "../ui/button";
+import packageJson from '../../../package.json';
 
 
 const navItems = [
@@ -240,6 +241,9 @@ function DesktopSidebar() {
             </SidebarHeader>
             <MainNav />
              <SidebarFooter>
+                <div className="text-xs text-muted-foreground text-center p-2 group-data-[collapsible=icon]:hidden">
+                    Versão {packageJson.version}
+                </div>
                 <Button variant="ghost" onClick={toggleSidebar} className="w-full justify-start">
                     {state === 'expanded' ? <PanelLeftClose /> : <PanelRightClose />}
                     <span className="group-data-[collapsible=icon]:hidden">{state === 'expanded' ? 'Recolher' : 'Expandir'}</span>
