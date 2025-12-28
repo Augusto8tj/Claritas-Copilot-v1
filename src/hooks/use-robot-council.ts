@@ -1,12 +1,11 @@
 
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDerivApi } from './use-deriv-api';
 import { useToast } from './use-toast';
-import { getStrategyCouncilAction } from '@/app/actions/ai-actions';
 import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
-import { StrategyCouncilOutputSchema } from '@/ai/flows/strategy-council-flow.types';
 import type { RiseFallFormValues } from '@/components/trading/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
@@ -31,12 +30,132 @@ export interface RobotPerformance {
     totalProfit: number;
 }
 
-export type ManualPromptBatch = {
-    id:string;
-    theme: string;
-    prompt: string;
-    isCompleted: boolean;
-    strategies: RobotStrategy['strategyType'][];
+/**
+ * Builds a statically defined, locally calibrated council of all 22 trading robots.
+ * @param durationUnit The time horizon ('t', 'm', etc.) to calibrate parameters for.
+ * @param dailyBalance The daily balance for risk management.
+ * @returns An array of 22 configured RobotStrategy objects.
+ */
+const buildStaticCouncil = (durationUnit: RiseFallFormValues['duration_unit'], dailyBalance: number): RobotStrategy[] => {
+    const isTickTrading = durationUnit === 't';
+    const suggestedStake = Math.max(0.35, dailyBalance * 0.01);
+    const suggestedDuration = isTickTrading ? 5 : 1;
+
+    const strategies: RobotStrategy[] = [
+        // --- Momentum & Trend ---
+        {
+            id: 'RSI_BOT_1', strategyType: 'RSI', justification: `Parâmetros de RSI ${isTickTrading ? 'rápidos (7)' : 'padrão (14)'} para o horizonte de tempo.`,
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 90, weakConfidence: 65,
+            period: isTickTrading ? 7 : 14, strongBuyThreshold: 25, weakBuyThreshold: 35, strongSellThreshold: 75, weakSellThreshold: 65,
+        },
+        {
+            id: 'STOCH_BOT_1', strategyType: 'STOCHASTIC', justification: `Estocástico ${isTickTrading ? 'sensível (10)' : 'padrão (14)'} para detectar reversões rápidas.`,
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 90, weakConfidence: 65,
+            period: isTickTrading ? 10 : 14, strongBuyThreshold: 20, weakBuyThreshold: 30, strongSellThreshold: 80, weakSellThreshold: 70,
+        },
+        {
+            id: 'MACD_BOT_1', strategyType: 'MACD_CROSS', justification: `MACD ${isTickTrading ? 'rápido (8/17/6)' : 'padrão (12/26/9)'} para capturar cruzamentos de momentum.`,
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 95, weakConfidence: 70,
+            fastPeriod: isTickTrading ? 8 : 12, slowPeriod: isTickTrading ? 17 : 26, signalPeriod: isTickTrading ? 6 : 9,
+        },
+        {
+            id: 'ADX_BOT_1', strategyType: 'ADX_TREND', justification: 'Usa o ADX para confirmar a força da tendência antes de entrar.',
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 60,
+            period: 14, trendStrengthThreshold: 25,
+        },
+        {
+            id: 'AWESOME_OSC_BOT_1', strategyType: 'AWESOME_OSCILLATOR', justification: 'Busca "pires" e cruzamentos de linha zero para sinais de momentum.',
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 80, weakConfidence: 60,
+        },
+        {
+            id: 'TRIX_BOT_1', strategyType: 'TRIX', justification: 'Usa a inclinação do TRIX para um sinal de momentum suave.',
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 60,
+            period: isTickTrading ? 9 : 15,
+        },
+        {
+            id: 'ROC_BOT_1', strategyType: 'ROC', justification: 'Mede a velocidade da mudança de preço para sinais de aceleração.',
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 80, weakConfidence: 55,
+            period: isTickTrading ? 9 : 12,
+        },
+        {
+            id: 'RVI_BOT_1', strategyType: 'RVI', justification: 'Mede a convicção da tendência com base no vigor relativo.',
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 65,
+            period: 10, strongBuyThreshold: 40, weakBuyThreshold: 50, strongSellThreshold: 60, weakSellThreshold: 50,
+        },
+        {
+            id: 'PSAR_BOT_1', strategyType: 'PARABOLIC_SAR', justification: 'Identifica reversões de tendência com pontos SAR.',
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 90, weakConfidence: 0,
+            acceleration: 0.02, maxAcceleration: 0.2,
+        },
+        {
+            id: 'MA_CROSS_BOT_1', strategyType: 'MOVING_AVERAGE_CROSS', justification: `Cruzamento de médias ${isTickTrading ? 'curtas (5/10)' : 'padrão (10/20)'}.`,
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 90, weakConfidence: 0,
+            shortPeriod: isTickTrading ? 5 : 10, longPeriod: isTickTrading ? 10 : 20,
+        },
+        // --- Volatility & Structure ---
+        {
+            id: 'BB_BOT_1', strategyType: 'BOLLINGER_BANDS', justification: `Negocia reversões nas bandas com desvio padrão ${isTickTrading ? '1.8' : '2.0'}.`,
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 60,
+            period: 20, stdDev: isTickTrading ? 1.8 : 2.0,
+        },
+        {
+            id: 'ICHIMOKU_BOT_1', strategyType: 'ICHIMOKU_CLOUD', justification: 'Analisa a nuvem Kumo como suporte/resistência dinâmica.',
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 88, weakConfidence: 60,
+        },
+        {
+            id: 'KAMA_BOT_1', strategyType: 'KAMA', justification: 'Usa a média móvel adaptativa para seguir a tendência suavemente.',
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 65,
+            period: 10, fastEnd: 2, slowEnd: 30
+        },
+        {
+            id: 'DONCHIAN_BOT_1', strategyType: 'DONCHIAN_CHANNELS', justification: 'Busca rompimentos dos canais de Donchian de 20 períodos.',
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 0,
+            period: 20,
+        },
+        {
+            id: 'CHANDELIER_BOT_1', strategyType: 'CHANDELIER_EXIT', justification: 'Usa o Chandelier Exit para seguir a tendência.',
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 90, weakConfidence: 0,
+            period: 22, multiplier: 3.0,
+        },
+        // --- Volume & Order Flow ---
+        {
+            id: 'VP_BOT_1', strategyType: 'VOLUME_PROFILE', justification: 'Identifica suporte/resistência em zonas de alto volume (POC).',
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 75, weakConfidence: 55,
+            profileBars: 100,
+        },
+        {
+            id: 'VWAP_BOT_1', strategyType: 'VWAP', justification: 'Usa o VWAP como um nível de preço médio dinâmico.',
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 80, weakConfidence: 60,
+        },
+        {
+            id: 'MFI_BOT_1', strategyType: 'MFI', justification: 'RSI ponderado por volume para medir a pressão do dinheiro.',
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 65,
+            period: 14, strongBuyThreshold: 20, weakBuyThreshold: 30, strongSellThreshold: 80, weakSellThreshold: 70,
+        },
+        {
+            id: 'OBV_BOT_1', strategyType: 'OBV', justification: 'Confirma a força da tendência com base no volume acumulado.',
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 75, weakConfidence: 50,
+        },
+        // --- Statistical & Mean Reversion ---
+        {
+            id: 'ZSCORE_BOT_1', strategyType: 'Z_SCORE', justification: 'Negocia reversão à média com base em desvios padrão (Z-Score).',
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 85, weakConfidence: 60,
+            period: 20, zScoreThreshold: 2.0
+        },
+        {
+            id: 'STOCH_RSI_BOT_1', strategyType: 'STOCH_RSI', justification: 'Indicador de indicador para sinais rápidos de sobrecompra/venda.',
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 88, weakConfidence: 68,
+            period: 14, strongBuyThreshold: 0.2, weakBuyThreshold: 0.3, strongSellThreshold: 0.8, weakSellThreshold: 0.7,
+        },
+        // --- Patterns ---
+        {
+            id: 'PA_BOT_1', strategyType: 'PRICE_ACTION_PATTERN', justification: 'Identifica padrões de velas de reversão como Martelo/Estrela Cadente.',
+            suggestedStake, suggestedDuration, suggestedDurationUnit: durationUnit, strongConfidence: 80, weakConfidence: 0,
+            pattern: 'hammer', // Default, logic will check for both
+        },
+    ];
+
+    return strategies;
 };
 
 
@@ -51,7 +170,7 @@ export function useRobotCouncil(
     const [strategyCouncil, setStrategyCouncil] = useState<RobotStrategy[]>([]);
     const [isFetchingCouncil, setIsFetchingCouncil] = useState(false);
     const [councilVotes, setCouncilVotes] = useState<CouncilVotes>({});
-    const [geminiRequestCount, setGeminiRequestCount] = useState(0);
+    const [geminiRequestCount, setGeminiRequestCount] = useState(0); // Kept for UI, but AI calls are removed
     const [dailyBalance, setDailyBalance] = useState(100);
     const [dailyTarget, setDailyTarget] = useState(50);
     const [consensusThreshold, setConsensusThreshold] = useState(300);
@@ -59,9 +178,6 @@ export function useRobotCouncil(
     const [isDynamicConsensusOn, setIsDynamicConsensusOn] = useState(true);
     const [isMeritocracyOn, setIsMeritocracyOn] = useState(true);
     const [robotPerformance, setRobotPerformance] = useState<RobotPerformance[]>([]);
-    const [lastCouncilLossSuggestion, setLastCouncilLossSuggestion] = useState<string | null>(null);
-    const [useManualCouncilMode, setUseManualCouncilMode] = useState(true);
-    const [useSingleManualPrompt, setUseSingleManualPrompt] = useState(true);
     const [indicators, setIndicators] = useState<Indicators>({
         rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
         macd: { macd: null, signal: null }, ma: { short: null, long: null },
@@ -69,15 +185,15 @@ export function useRobotCouncil(
         kama: null, bbw: null, stochRSI: null, zScore: null,
     });
     
-    const [manualPromptBatches, setManualPromptBatches] = useState<ManualPromptBatch[]>([]);
+    // Manual/AI mode states are no longer needed
+    const [useManualCouncilMode] = useState(false);
+    const [manualPromptBatches, setManualPromptBatches] = useState<any[]>([]);
 
     const councilExecutionRef = useRef({ isExecuting: false });
-
     const previousMacdRef = useRef<{ macd: number | null; signal: number | null }>({ macd: null, signal: null });
 
-
     const incrementGeminiRequestCount = useCallback(() => {
-        setGeminiRequestCount(prev => prev + 1);
+        // This function is now a no-op but kept for compatibility if other components call it.
     }, []);
 
     const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, incrementGeminiRequestCount);
@@ -95,148 +211,29 @@ export function useRobotCouncil(
             if (stored) setRobotPerformance(JSON.parse(stored));
         } catch (e) { console.error("Failed to load robot performance from localStorage", e); }
     }, []);
-    
-    useEffect(() => {
-        if (!operationsLog || operationsLog.length === 0) return;
-        const lastOp = operationsLog[0];
-        if (lastOp && lastOp.status === 'lost' && lastOp.initiator === 'Conselho') {
-            tradeAnalysis.analyzeLosingTrade(lastOp, null).then(suggestion => {
-                if (suggestion) {
-                    setLastCouncilLossSuggestion(suggestion);
-                    toast({
-                        title: "Feedback do Analista de Perdas",
-                        description: `Nova diretriz para o conselho: ${suggestion}`,
-                        duration: 8000,
-                    });
-                }
-            });
-        }
-    }, [operationsLog, tradeAnalysis, toast]);
 
-
+    // This function now builds the council locally instead of calling an AI
     const fetchStrategyCouncil = useCallback(async () => {
         if (!activeSymbol) return;
         
         setIsFetchingCouncil(true);
-        setManualPromptBatches([]);
-        setStrategyCouncil([]);
         
+        // Simulate a brief delay for better UX, as this is now instantaneous
+        await new Promise(resolve => setTimeout(resolve, 500));
+
         try {
             const { duration_unit } = form.getValues();
+            const council = buildStaticCouncil(duration_unit, dailyBalance);
+            setStrategyCouncil(council);
+            toast({ title: "Conselho de IA Montado!", description: `Os ${council.length} analistas-robôs estão prontos e calibrados.` });
             
-            const historicalDataJson = JSON.stringify(chartData.slice(-200));
-
-            if (useManualCouncilMode) {
-                const allStrategies: RobotStrategy['strategyType'][] = ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE', 'KAMA', 'VWAP', 'Z_SCORE', 'STOCH_RSI', 'MFI', 'TRIX', 'ROC', 'DONCHIAN_CHANNELS', 'RVI', 'PARABOLIC_SAR', 'CHANDELIER_EXIT', 'OBV'];
-                
-                const basePromptInstructions = `Sua resposta DEVE SER um único objeto JSON que valida contra o schema de saída, contendo uma chave "council" com um array de EXATAMENTE 22 objetos de robôs.
-Regras para cada robô:
-1. ID único (ex: 'RSI_BOT_1').
-2. Preencha OBRIGATORIAMENTE os seguintes campos para cada robô: 'id', 'strategyType', 'justification', 'suggestedStake', 'suggestedDuration', 'suggestedDurationUnit', 'strongConfidence', 'weakConfidence', e os limiares e parâmetros específicos da estratégia (como 'strongBuyThreshold', 'period', 'shortPeriod', 'longPeriod').
-3. Parâmetros e DOIS limiares (um para sinal FORTE, um para FRACO). Ex: 'strongBuyThreshold': 20, 'weakBuyThreshold': 30.
-4. Confiança numérica: 'strongConfidence': 90-100, 'weakConfidence': 60-75.
-5. Justificativa breve (1 frase).
-6. Gestão de Risco: 'suggestedStake' como 1% da banca, 'suggestedDuration' na unidade fornecida.
-
-Contexto do Trader:
-- Banca do Dia: ${dailyBalance} USD
-- Dados de Mercado: (Os dados de mercado serão usados internamente, não precisam ser incluídos no prompt).`;
-
-                let batches: ManualPromptBatch[] = [];
-
-                if (useSingleManualPrompt) {
-                    const promptText = `Crie o conselho completo de 22 robôs-analistas para o ativo ${activeSymbol}, otimizados para operar em um horizonte de tempo de '${duration_unit}'.
-Você deve criar um especialista para CADA UMA das 22 estratégias da lista disponível: ${JSON.stringify(allStrategies)}.
-${basePromptInstructions}`;
-                    batches = [{
-                        id: 'batch_single',
-                        theme: 'Prompt Único para Conselho Completo',
-                        strategies: allStrategies,
-                        prompt: promptText,
-                        isCompleted: false,
-                    }];
-
-                } else {
-                     const strategyBatchesConfig: { theme: string; strategies: RobotStrategy['strategyType'][] }[] = [
-                        { theme: "Analistas de Momentum", strategies: ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'STOCH_RSI', 'RVI'] },
-                        { theme: "Analistas de Tendência", strategies: ['MOVING_AVERAGE_CROSS', 'ADX_TREND', 'PARABOLIC_SAR'] },
-                        { theme: "Analistas de Volatilidade e Estrutura", strategies: ['BOLLINGER_BANDS', 'DONCHIAN_CHANNELS', 'KAMA'] },
-                        { theme: "Analistas de Volume e Fluxo", strategies: ['VWAP', 'MFI', 'OBV'] },
-                    ];
-
-                    batches = strategyBatchesConfig.map((batch, index) => {
-                        const promptText = `Crie um grupo de robôs-analistas para o ativo ${activeSymbol}, otimizados para operar em '${duration_unit}'.
-Estratégias para construir nesta etapa: ${JSON.stringify(batch.strategies)}.
-A resposta DEVE ser um objeto JSON contendo uma chave "council" com EXATAMENTE ${batch.strategies.length} objetos.
-${basePromptInstructions}`;
-                        return {
-                            id: `batch_${index + 1}`,
-                            theme: batch.theme,
-                            strategies: batch.strategies,
-                            prompt: promptText,
-                            isCompleted: false,
-                        };
-                    });
-                }
-                
-                setManualPromptBatches(batches);
-                toast({
-                    title: "Modo Manual Ativado",
-                    description: "Siga as etapas na interface para montar o conselho.",
-                    duration: 8000,
-                });
-
-            } else {
-                incrementGeminiRequestCount();
-                const councilInput = {
-                    symbol: activeSymbol,
-                    balance: dailyBalance,
-                    currency: 'USD',
-                    historicalDataJson: historicalDataJson,
-                    durationUnit: duration_unit,
-                };
-                
-                const result = await getStrategyCouncilAction(councilInput);
-                if (result.success) {
-                    setStrategyCouncil(result.success.council);
-                    toast({ title: "Conselho de IA Montado!", description: `Os ${result.success.council.length} analistas-robôs estão prontos.` });
-                } else {
-                    throw new Error(result.error || "Ocorreu um erro inesperado ao gerar o conselho.");
-                }
-            }
         } catch (e: any) {
             toast({ variant: "destructive", title: "Erro ao Montar o Conselho", description: e.message });
         } finally {
             setIsFetchingCouncil(false);
         }
-    }, [activeSymbol, dailyBalance, form, toast, useManualCouncilMode, useSingleManualPrompt, incrementGeminiRequestCount, chartData]);
+    }, [activeSymbol, dailyBalance, form, toast]);
 
-    const processManualCouncilResponse = (batchId: string, jsonResponse: string) => {
-        try {
-            const parsed = JSON.parse(jsonResponse);
-            
-            const validated = StrategyCouncilOutputSchema.safeParse(parsed);
-
-            if (!validated.success) {
-                console.error("Validation error:", validated.error);
-                throw new Error(`O JSON fornecido não corresponde ao formato esperado para o conselho. Erros: ${validated.error.errors.map(e => e.message).join(', ')}`);
-            }
-            
-            setStrategyCouncil(prev => [...prev, ...validated.data.council]);
-            setManualPromptBatches(prev => prev.map(b => b.id === batchId ? { ...b, isCompleted: true } : b));
-
-            const isAllCompleted = manualPromptBatches.every(b => b.id === batchId ? true : b.isCompleted);
-            if (isAllCompleted) {
-                toast({ title: "Conselho Montado com Sucesso!", description: "Todos os lotes de analistas foram processados." });
-            } else {
-                 toast({ title: "Lote Processado!", description: "Analistas adicionados ao conselho. Avance para o próximo lote." });
-            }
-
-        } catch (e: any) {
-             toast({ variant: "destructive", title: "Erro ao Processar Resposta", description: `Verifique se o texto colado é um JSON válido. Detalhe: ${e.message}` });
-        }
-    };
-    
     const supervisionCommitteeCheck = useCallback((stake: number, direction: 'RISE' | 'FALL') => {
         let finalStake = stake;
         let vetoReason: string | null = null;
@@ -284,8 +281,6 @@ ${basePromptInstructions}`;
         setStrategyCouncil([]);
         setCouncilVotes({});
         setIsCouncilAutopilotOn(false);
-        setManualPromptBatches([]);
-        toast({ title: "Conselho Dissolvido", description: "A equipa de analistas foi dispensada." });
     };
 
     const committeeOfSpecialists = useCallback(() => {
@@ -329,7 +324,7 @@ ${basePromptInstructions}`;
             const volatilityFactor = indicators.atr * 1000;
             const dynamicThreshold = Math.round(baseThreshold + volatilityFactor);
             currentThreshold = Math.max(150, Math.min(700, dynamicThreshold));
-            setDynamicConsensus(currentThreshold);
+            setDynamicConsensus(dynamicThreshold);
         }
 
         const newVotes: CouncilVotes = {};
@@ -444,13 +439,14 @@ ${basePromptInstructions}`;
         setIsDynamicConsensusOn,
         isMeritocracyOn,
         setIsMeritocracyOn,
-        manualPromptBatches,
-        processManualCouncilResponse,
-        useManualCouncilMode,
-        setUseManualCouncilMode,
-        useSingleManualPrompt,
-        setUseSingleManualPrompt,
         indicators,
-        processNewChartData
+        processNewChartData,
+        // Manual mode is now obsolete, but we keep the props for UI compatibility to avoid crashes
+        manualPromptBatches,
+        processManualCouncilResponse: () => {},
+        useManualCouncilMode,
+        setUseManualCouncilMode: () => {},
+        useSingleManualPrompt: false,
+        setUseSingleManualPrompt: () => {},
     };
 }

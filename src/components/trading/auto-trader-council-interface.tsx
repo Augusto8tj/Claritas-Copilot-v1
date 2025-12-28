@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, Fragment } from "react";
@@ -68,10 +69,6 @@ export function AutoTraderCouncilInterface(props: ReturnType<typeof useRobotCoun
     setIsDynamicConsensusOn,
     isMeritocracyOn,
     setIsMeritocracyOn,
-    useManualCouncilMode,
-    setUseManualCouncilMode,
-    useSingleManualPrompt,
-    setUseSingleManualPrompt,
     indicators,
     fetchStrategyCouncil,
     dissolveCouncil,
@@ -173,7 +170,7 @@ export function AutoTraderCouncilInterface(props: ReturnType<typeof useRobotCoun
         <div className="flex justify-between items-center">
             <CardTitle className="font-headline flex items-center gap-2">
                 <Users className="h-5 w-5 text-primary" />
-                Mesa Operacional de IA
+                Mesa Operacional (Local)
             </CardTitle>
             <div className="flex items-center space-x-2">
                 <Switch id="council-autopilot-switch" checked={isCouncilAutopilotOn} onCheckedChange={handleToggleAutopilot}/>
@@ -181,7 +178,7 @@ export function AutoTraderCouncilInterface(props: ReturnType<typeof useRobotCoun
             </div>
         </div>
         <CardDescription>
-          Analistas votam taticamente e supervisores de risco aprovam cada trade.
+          Analistas lógicos votam taticamente e supervisores de risco aprovam cada trade.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -215,21 +212,6 @@ export function AutoTraderCouncilInterface(props: ReturnType<typeof useRobotCoun
         <Separator />
         
         <div className="space-y-4">
-             <div className="flex items-center justify-between">
-                <Label htmlFor="manual-mode-switch" className="flex-1 flex items-center gap-2">
-                    <Laptop className="h-4 w-4" /> Modo Manual (Interface Humana)
-                </Label>
-                <Switch id="manual-mode-switch" checked={useManualCouncilMode} onCheckedChange={setUseManualCouncilMode} disabled={isCouncilAutopilotOn} />
-            </div>
-
-            {useManualCouncilMode && (
-                <div className="flex items-center justify-between pl-6">
-                    <Label htmlFor="single-prompt-switch" className="flex-1 text-muted-foreground">Prompt Único (Contexto Grande)</Label>
-                    <Switch id="single-prompt-switch" checked={useSingleManualPrompt} onCheckedChange={setUseSingleManualPrompt} disabled={isCouncilAutopilotOn} />
-                </div>
-            )}
-
-
             <div className="flex items-center justify-between">
                 <Label htmlFor="dynamic-consensus-switch" className="flex-1">Consenso Dinâmico</Label>
                 <Switch id="dynamic-consensus-switch" checked={isDynamicConsensusOn} onCheckedChange={setIsDynamicConsensusOn} disabled={isCouncilAutopilotOn} />
@@ -353,7 +335,7 @@ export function AutoTraderCouncilInterface(props: ReturnType<typeof useRobotCoun
         {!isCouncilAutopilotOn && strategyCouncil.length < 1 && (
             <div className="text-center text-muted-foreground p-4 border rounded-md bg-muted/50">
                 <Info className="h-5 w-5 mx-auto mb-2" />
-                <p className="text-sm">O Conselho de IA está aguardando a construção.</p>
+                <p className="text-sm">O Conselho está aguardando a construção.</p>
                 <p className="text-xs">Use o botão acima para iniciar.</p>
             </div>
         )}
