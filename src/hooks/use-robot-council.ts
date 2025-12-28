@@ -6,7 +6,7 @@ import { useDerivApi } from './use-deriv-api';
 import { useToast } from './use-toast';
 import { getStrategyCouncilAction } from '@/app/actions/ai-actions';
 import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
-import { RobotAnalystGeneratorOutputSchema } from '@/ai/flows/strategy-council-flow.types';
+import { StrategyCouncilOutputSchema } from '@/ai/flows/strategy-council-flow.types';
 import type { RiseFallFormValues } from '@/components/trading/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
@@ -129,7 +129,7 @@ export function useRobotCouncil(
             if (useManualCouncilMode) {
                 const allStrategies: RobotStrategy['strategyType'][] = ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE', 'KAMA', 'VWAP', 'Z_SCORE', 'STOCH_RSI', 'MFI', 'TRIX', 'ROC', 'DONCHIAN_CHANNELS', 'RVI', 'PARABOLIC_SAR', 'CHANDELIER_EXIT', 'OBV'];
                 
-                const basePromptInstructions = `Sua resposta DEVE SER um objeto JSON contendo uma chave "council" que é um array com objetos de robôs.
+                const basePromptInstructions = `Sua resposta DEVE SER um único objeto JSON que valida contra o schema de saída, contendo uma chave "council" com um array de EXATAMENTE 22 objetos de robôs.
 Regras para cada robô:
 1. ID único (ex: 'RSI_BOT_1').
 2. Preencha OBRIGATORIAMENTE os seguintes campos para cada robô: 'id', 'strategyType', 'justification', 'suggestedStake', 'suggestedDuration', 'suggestedDurationUnit', 'strongConfidence', 'weakConfidence', e os limiares e parâmetros específicos da estratégia (como 'strongBuyThreshold', 'period', 'shortPeriod', 'longPeriod').
@@ -145,8 +145,8 @@ Contexto do Trader:
                 let batches: ManualPromptBatch[] = [];
 
                 if (useSingleManualPrompt) {
-                    const promptText = `Crie um conselho completo de 10 robôs-analistas para o ativo ${activeSymbol}, otimizados para operar em '${duration_unit}'.
-As estratégias a serem criadas são: ${JSON.stringify(allStrategies)}.
+                    const promptText = `Crie o conselho completo de 22 robôs-analistas para o ativo ${activeSymbol}, otimizados para operar em um horizonte de tempo de '${duration_unit}'.
+Você deve criar um especialista para CADA UMA das 22 estratégias da lista disponível: ${JSON.stringify(allStrategies)}.
 ${basePromptInstructions}`;
                     batches = [{
                         id: 'batch_single',
@@ -167,7 +167,7 @@ ${basePromptInstructions}`;
                     batches = strategyBatchesConfig.map((batch, index) => {
                         const promptText = `Crie um grupo de robôs-analistas para o ativo ${activeSymbol}, otimizados para operar em '${duration_unit}'.
 Estratégias para construir nesta etapa: ${JSON.stringify(batch.strategies)}.
-A resposta DEVE ser um objeto JSON contendo uma chave "robots" com EXATAMENTE ${batch.strategies.length} objetos.
+A resposta DEVE ser um objeto JSON contendo uma chave "council" com EXATAMENTE ${batch.strategies.length} objetos.
 ${basePromptInstructions}`;
                         return {
                             id: `batch_${index + 1}`,
@@ -214,16 +214,15 @@ ${basePromptInstructions}`;
     const processManualCouncilResponse = (batchId: string, jsonResponse: string) => {
         try {
             const parsed = JSON.parse(jsonResponse);
-            const dataToValidate = parsed.robots || parsed.council || [];
             
-            const validated = RobotAnalystGeneratorOutputSchema.safeParse({ robots: dataToValidate });
+            const validated = StrategyCouncilOutputSchema.safeParse(parsed);
 
             if (!validated.success) {
                 console.error("Validation error:", validated.error);
-                throw new Error(`O JSON fornecido não corresponde ao formato esperado para os robôs. Erros: ${validated.error.errors.map(e => e.message).join(', ')}`);
+                throw new Error(`O JSON fornecido não corresponde ao formato esperado para o conselho. Erros: ${validated.error.errors.map(e => e.message).join(', ')}`);
             }
             
-            setStrategyCouncil(prev => [...prev, ...validated.data.robots]);
+            setStrategyCouncil(prev => [...prev, ...validated.data.council]);
             setManualPromptBatches(prev => prev.map(b => b.id === batchId ? { ...b, isCompleted: true } : b));
 
             const isAllCompleted = manualPromptBatches.every(b => b.id === batchId ? true : b.isCompleted);
