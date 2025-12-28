@@ -24,6 +24,7 @@ import {
   Trophy,
   PanelLeftClose,
   PanelRightClose,
+  LayoutGrid, // Novo ícone
 } from "lucide-react";
 import {
   Sidebar,
@@ -74,14 +75,19 @@ const navItems = [
     label: "Metas",
   },
   {
-    href: "/backtesting",
-    icon: TestTube,
-    label: "Backtesting",
+    href: "/trading-desk", // Nova página
+    icon: LayoutGrid,
+    label: "Mesa de Operações",
   },
   {
     href: "/hall-of-fame",
     icon: Trophy,
     label: "Hall da Fama",
+  },
+  {
+    href: "/backtesting",
+    icon: TestTube,
+    label: "Backtesting",
   },
   {
     href: "/chat-insights",
