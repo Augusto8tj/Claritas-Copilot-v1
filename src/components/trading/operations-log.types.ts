@@ -22,6 +22,7 @@ export interface Operation {
 
 export interface RobotPerformance {
     id: string;
+    strategyType: RobotStrategy['strategyType'];
     strategy: RobotStrategy;
     wins: number;
     losses: number;
