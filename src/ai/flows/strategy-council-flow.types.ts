@@ -7,7 +7,7 @@ export const StrategyCouncilInputSchema = z.object({
   balance: z.number().describe("The user's designated trading balance for the day for risk management."),
   currency: z.string().describe("The currency of the account balance."),
   historicalDataJson: z.string().describe("A JSON string of recent historical price data for market analysis."),
-  durationUnit: z.string().describe("The unit for the trade duration (e.g., 't' for ticks, 's' for seconds, 'm' for minutes). The council's strategy should be optimized for this time horizon."),
+  durationUnit: z.string().describe("The unit for the trade duration (e.g., 't' for ticks, 'm' for minutes). The council's strategy MUST be calibrated and optimized for this time horizon."),
 });
 export type StrategyCouncilInput = z.infer<typeof StrategyCouncilInputSchema>;
 
@@ -26,7 +26,7 @@ export const RobotStrategySchema = z.object({
       'AWESOME_OSCILLATOR',
       'VOLUME_PROFILE'
   ]).describe("The type of strategy the robot uses."),
-  justification: z.string().describe("A brief justification for why this robot and its parameters were chosen for the current market conditions."),
+  justification: z.string().describe("A brief justification for why this robot and its parameters were chosen, explicitly mentioning the time horizon calibration."),
   suggestedStake: z.number().describe("The suggested stake for trades, calculated based on the provided daily balance."),
   suggestedDuration: z.number().describe("The suggested trade duration in the specified 'durationUnit'."),
   suggestedDurationUnit: z.custom<DurationUnit>().describe("The unit for the suggested trade duration, matching the input 'durationUnit'."),
@@ -36,6 +36,7 @@ export const RobotStrategySchema = z.object({
   weakConfidence: z.number().min(0).max(100).describe("The confidence score (e.g., 60) for a weak signal."),
 
   // --- RSI & STOCHASTIC ---
+  period: z.number().optional().describe("The period for RSI or Stochastic calculation, calibrated for the time horizon."),
   strongBuyThreshold: z.number().optional().describe("The RSI/Stochastic value below which a STRONG 'RISE' vote is cast."),
   weakBuyThreshold: z.number().optional().describe("The RSI/Stochastic value below which a WEAK 'RISE' vote is cast."),
   strongSellThreshold: z.number().optional().describe("The RSI/Stochastic value above which a STRONG 'FALL' vote is cast."),
@@ -46,7 +47,7 @@ export const RobotStrategySchema = z.object({
   longPeriod: z.number().optional().describe("The period for the long-term moving average."),
 
   // --- BOLLINGER_BANDS ---
-  period: z.number().optional().describe("The period for the Bollinger Bands calculation."),
+  // Period is already defined above, can be reused
   stdDev: z.number().optional().describe("The number of standard deviations for the bands."),
 
   // --- MACD_CROSS ---
@@ -58,6 +59,7 @@ export const RobotStrategySchema = z.object({
   pattern: z.enum(['hammer', 'shooting_star']).optional().describe("The candlestick pattern to watch for ('hammer' for RISE, 'shooting_star' for FALL)."),
 
   // --- ADX_TREND ---
+  // Period is already defined above, can be reused
   trendStrengthThreshold: z.number().optional().describe("The ADX value above which a trend is considered strong enough to trade."),
   
   // --- VOLUME_PROFILE ---

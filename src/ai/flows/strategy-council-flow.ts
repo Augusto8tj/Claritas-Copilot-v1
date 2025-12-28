@@ -4,6 +4,7 @@
 /**
  * @fileOverview An AI flow that generates a "council" of trading robots by providing executable rules, not just votes.
  * This version is optimized for a single, high-value API call to respect rate limits.
+ * It now acts as a "Dynamic Calibrator", optimizing robot parameters for the given time horizon.
  * 
  * - getStrategyCouncil - The main flow function that orchestrates the phased assembly.
  */
@@ -12,13 +13,12 @@ import { ai } from '@/lib/genkit';
 import { z } from 'zod';
 import { StrategyCouncilInputSchema, StrategyCouncilOutputSchema, type StrategyCouncilInput, type StrategyCouncilOutput } from './strategy-council-flow.types';
 
-// This new, single prompt builds the ENTIRE council at once.
+// This new, single prompt builds the ENTIRE council at once and calibrates it for the time horizon.
 const strategyCouncilArchitectPrompt = ai.definePrompt({
     name: 'strategyCouncilArchitectPrompt',
-    model: 'googleai/gemini-2.5-flash-lite', // Use the model with a higher RPM limit.
     input: { schema: StrategyCouncilInputSchema },
     output: { schema: StrategyCouncilOutputSchema }, // Expect the full council output
-    system: `Você é um arquiteto-chefe de estratégias quantitativas. Sua missão é criar as REGRAS para um conselho completo de 10 robôs-analistas especialistas, cada um com uma filosofia de trading única.
+    system: `Você é um arquiteto-chefe de estratégias quantitativas. Sua missão é criar as REGRAS para um conselho completo de 10 robôs-analistas especialistas, cada um com uma filosofia de trading única, **calibrados para um horizonte de tempo específico.**
 
 Você deve criar um robô para CADA UMA das 10 estratégias a seguir: 'RSI', 'STOCHASTIC', 'MACD_CROSS', 'MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE'.
 
@@ -26,16 +26,16 @@ A sua resposta DEVE SER um único objeto JSON que valida contra o schema de saí
 
 Para CADA robô, você deve:
 1.  **Definir um ID único**: Ex: 'RSI_BOT_1'.
-2.  **Definir Parâmetros e Múltiplos Limiares de Confiança**: Preencha os parâmetros relevantes (ex: períodos de médias móveis) e defina DOIS níveis de limiar para compra e venda: um para um sinal FORTE e um para um sinal FRACO.
-    - Exemplo para RSI: 'strongBuyThreshold': 20 (RSI muito sobrevendido), 'weakBuyThreshold': 30 (RSI sobrevendido). 'strongSellThreshold': 80, 'weakSellThreshold': 70.
-    - Aplique esta lógica de duplo limiar para todas as estratégias aplicáveis. É OBRIGATÓRIO fornecer estes 4 valores para RSI e Stochastic.
-3.  **Definir Níveis de Confiança Numéricos**: Atribua um valor numérico para a confiança. 'strongConfidence' deve ser alto (ex: 90-100). 'weakConfidence' deve ser moderado (ex: 60-75).
-4.  **Justificar a Escolha**: Forneça uma justificativa muito breve (1 frase) para a escolha dos parâmetros de cada robô, considerando o ativo ('{{{symbol}}}') e o horizonte de tempo ('{{{durationUnit}}}').
+2.  **Calibrar Parâmetros e Limiares para o Horizonte de Tempo**: Com base no 'durationUnit' fornecido (ex: 't' para ticks, 'm' para minutos), ajuste os parâmetros. Para 'ticks', use períodos mais curtos e agressivos. Para 'minutos' ou 'horas', use períodos mais longos e conservadores. Defina DOIS níveis de limiar (FORTE e FRACO).
+    - Exemplo para RSI em 'ticks': 'strongBuyThreshold': 25, 'weakBuyThreshold': 35. 'period': 10.
+    - Exemplo para RSI em 'minutos': 'strongBuyThreshold': 20, 'weakBuyThreshold': 30. 'period': 14.
+3.  **Definir Níveis de Confiança Numéricos**: 'strongConfidence' deve ser alto (ex: 90-100). 'weakConfidence' deve ser moderado (ex: 60-75).
+4.  **Justificar a Calibração**: Forneça uma justificativa muito breve (1 frase) para a escolha dos parâmetros de cada robô, mencionando o horizonte de tempo ('{{{durationUnit}}}'). Ex: "Parâmetros de RSI mais longos (14) para filtrar o ruído em operações de minutos."
 5.  **Gestão de Risco**:
     - Defina 'suggestedStake' como 1% da banca do dia ('balance').
     - Defina 'suggestedDuration' na unidade 'durationUnit' fornecida.`,
     prompt: `
-Crie o conselho completo de 10 robôs-analistas para o ativo {{{symbol}}}, otimizados para operar em '{{{durationUnit}}}'.
+Crie o conselho completo de 10 robôs-analistas para o ativo {{{symbol}}}, otimizados para operar em um horizonte de tempo de '{{{durationUnit}}}'.
 
 Dados de Mercado (para análise de condição):
 \'\'\'json
@@ -57,7 +57,7 @@ const getStrategyCouncilFlow = ai.defineFlow(
   },
   async (input) => {
     
-    console.log('[Council Flow] Iniciando a construção do conselho com um único pedido à IA...');
+    console.log(`[Council Flow] Iniciando a construção do conselho calibrado para '${input.durationUnit}'...`);
 
     // Correctly invoke the prompt as a function
     const { output } = await strategyCouncilArchitectPrompt(input);
@@ -73,7 +73,7 @@ const getStrategyCouncilFlow = ai.defineFlow(
         }
     });
 
-    console.log('[Council Flow] Conselho de 10 robôs montado com sucesso numa única chamada!');
+    console.log('[Council Flow] Conselho de 10 robôs calibrado e montado com sucesso!');
     return output;
   }
 );
