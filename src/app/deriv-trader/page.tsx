@@ -1,6 +1,7 @@
+
 'use client';
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DerivTraderInterface } from "@/components/trading/deriv-trader-interface";
@@ -8,7 +9,7 @@ import { AssetSelector } from "@/components/trading/asset-selector";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MarketChart } from "@/components/trading/market-chart";
 import { Button } from "@/components/ui/button";
-import { Trash2, Bot, Users, NotepadText } from "lucide-react";
+import { Trash2, Bot, NotepadText } from "lucide-react";
 import { useDerivApi } from "@/hooks/use-deriv-api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OperationsLog } from "@/components/trading/operations-log";
@@ -24,6 +25,7 @@ import { SystemStatusSummary } from "@/components/trading/system-status-summary"
 import { ManualCouncilInterface } from "@/components/trading/manual-council-interface";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AITradeSuggestion } from "@/components/trading/ai-trade-suggestion";
+import { IndicatorDebugPanel } from "@/components/trading/indicator-debug-panel";
 
 
 /**
@@ -50,6 +52,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   // The `indicators` are calculated and managed inside useRobotCouncil.
   const { indicators } = robotCouncil;
   const autopilot = useAutopilot(activeSymbol, indicators, robotCouncil.incrementGeminiRequestCount);
+  const latestDataPoint = chartData.length > 0 ? chartData[chartData.length - 1] : null;
 
   return (
     <>
@@ -134,6 +137,8 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
             />
         </div>
       )}
+      {/* Painel de Depuração */}
+      <IndicatorDebugPanel indicators={indicators} latestDataPoint={latestDataPoint} />
     </>
   );
 }
