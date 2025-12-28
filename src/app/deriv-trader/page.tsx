@@ -27,6 +27,8 @@ import { ManualCouncilInterface } from "@/components/trading/manual-council-inte
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AITradeSuggestion } from "@/components/trading/ai-trade-suggestion";
 import { IndicatorPanel } from "@/components/trading/indicator-panel";
+import type { Indicators } from "@/services/indicator-service";
+import { calculateAllIndicators } from "@/services/indicator-service";
 
 
 /**
@@ -46,17 +48,24 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
     tradeAnnotations,
   } = useDerivApi();
   
-  // CENTRALIZED HOOKS
-  const robotCouncil = useRobotCouncil(activeSymbol);
-  const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, robotCouncil.incrementGeminiRequestCount);
-  const autopilot = useAutopilot(activeSymbol, robotCouncil.indicators, robotCouncil.incrementGeminiRequestCount);
+  const [indicators, setIndicators] = useState<Indicators>({
+    rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
+    macd: { macd: null, signal: null }, ma: { short: null, long: null },
+    sma: [], ema: [], vwap: [], bollingerBands: [],
+  });
 
-  // Pass chart data to the main council hook for processing
+  // CENTRALIZED HOOKS
+  const robotCouncil = useRobotCouncil(activeSymbol, indicators);
+  const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, robotCouncil.incrementGeminiRequestCount);
+  const autopilot = useAutopilot(activeSymbol, indicators, robotCouncil.incrementGeminiRequestCount);
+
+  // This is now the true INDICATOR ENGINE TRIGGER
   useEffect(() => {
     if (chartData && chartData.length > 0) {
-      robotCouncil.processNewChartData(chartData);
+      const calculatedIndicators = calculateAllIndicators(chartData, robotCouncil.strategyCouncil);
+      setIndicators(calculatedIndicators);
     }
-  }, [chartData, robotCouncil.processNewChartData]);
+  }, [chartData, robotCouncil.strategyCouncil]);
 
 
   const latestDataPoint = chartData.length > 0 ? chartData[chartData.length - 1] : null;
@@ -64,7 +73,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   return (
     <>
       <div className="space-y-6">
-        <IndicatorPanel indicators={robotCouncil.indicators} latestDataPoint={latestDataPoint} />
+        <IndicatorPanel indicators={indicators} latestDataPoint={latestDataPoint} />
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -88,7 +97,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                   timePeriod={timePeriod}
                   setTimePeriod={setTimePeriod}
                   operations={operationsLog}
-                  indicators={robotCouncil.indicators}
+                  indicators={indicators}
                   tradeAnnotations={tradeAnnotations}
               />
           </CardContent>

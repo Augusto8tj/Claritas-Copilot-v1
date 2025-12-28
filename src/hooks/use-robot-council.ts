@@ -11,7 +11,7 @@ import { RobotAnalystGeneratorOutputSchema } from '@/ai/flows/strategy-council-f
 import type { RiseFallFormValues } from '@/components/trading/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
-import { calculateAllIndicators, type Indicators } from '@/services/indicator-service';
+import type { Indicators } from '@/services/indicator-service';
 import type { ChartData } from './types';
 
 
@@ -42,9 +42,10 @@ export type ManualPromptBatch = {
 
 
 export function useRobotCouncil(
-    activeSymbol: string | null
+    activeSymbol: string | null,
+    indicators: Indicators // Receive indicators as a prop
 ) {
-    const { isConnected, operationsLog, executeTrade } = useDerivApi();
+    const { operationsLog, executeTrade } = useDerivApi();
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
@@ -67,13 +68,6 @@ export function useRobotCouncil(
     const [manualPromptBatches, setManualPromptBatches] = useState<ManualPromptBatch[]>([]);
 
     const councilExecutionRef = useRef({ isExecuting: false });
-
-    // This hook is now the single source of truth for indicators
-    const [indicators, setIndicators] = useState<Indicators>({
-        rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
-        macd: { macd: null, signal: null }, ma: { short: null, long: null },
-        sma: [], ema: [], vwap: [], bollingerBands: [],
-    });
 
     const previousMacdRef = useRef<{ macd: number | null; signal: number | null }>({ macd: null, signal: null });
 
@@ -276,15 +270,6 @@ ${basePromptInstructions}`;
         setManualPromptBatches([]);
         toast({ title: "Conselho Dissolvido", description: "A equipa de analistas foi dispensada." });
     };
-    
-    const processNewChartData = useCallback((chartData: ChartData[]) => {
-      // Condition removed: `strategyCouncil.length > 0`
-      // Now it will calculate indicators regardless of the council being built.
-      if (chartData.length > 1) {
-        const calculatedIndicators = calculateAllIndicators(chartData, strategyCouncil);
-        setIndicators(calculatedIndicators);
-      }
-    }, [strategyCouncil]);
 
     useEffect(() => {
         if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || !strategyCouncil.length || !indicators.rsi) {
@@ -417,6 +402,5 @@ ${basePromptInstructions}`;
         setUseManualCouncilMode,
         useSingleManualPrompt,
         setUseSingleManualPrompt,
-        processNewChartData, // Expose the function to be called from the page
     };
 }
