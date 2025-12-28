@@ -277,7 +277,7 @@ const ROBOT_PERFORMANCE_KEY = 'derivRobotPerformance';
 export interface RobotPerformance {
     id: string;
     strategyType: RobotStrategy['strategyType'];
-    strategy: RobotStrategy; // Adicionado para renderização
+    strategy: RobotStrategy;
     wins: number;
     losses: number;
     totalProfit: number;
@@ -319,7 +319,6 @@ export function useRobotCouncil(
 
     const councilExecutionRef = useRef({ isExecuting: false });
 
-    // This state now lives inside the hook and is calculated here
     const [indicators, setIndicators] = useState({
         rsi: null as number | null,
         stoch: null as number | null,
@@ -334,6 +333,8 @@ export function useRobotCouncil(
         vwap: [] as (number | null)[],
         bollingerBands: [] as ({ upper: number; middle: number; lower: number } | null)[],
     });
+
+    const previousMacdRef = useRef<{ macd: number | null; signal: number | null }>({ macd: null, signal: null });
 
 
     const incrementGeminiRequestCount = useCallback(() => {
@@ -394,9 +395,9 @@ Regras para cada robô:
 
 Contexto do Trader:
 - Banca do Dia: ${dailyBalance} USD
-- Dados de Mercado: \'\'\'json
+- Dados de Mercado: '''json
 ${historicalDataJson}
-\'\'\'`;
+'''`;
 
                 let batches: ManualPromptBatch[] = [];
 
@@ -469,7 +470,6 @@ ${basePromptInstructions}`;
     const processManualCouncilResponse = (batchId: string, jsonResponse: string) => {
         try {
             const parsed = JSON.parse(jsonResponse);
-            // Be flexible: accept "robots" or "council" as the key
             const dataToValidate = parsed.robots || parsed.council || [];
             
             const validated = RobotAnalystGeneratorOutputSchema.safeParse({ robots: dataToValidate });
@@ -549,23 +549,17 @@ ${basePromptInstructions}`;
         toast({ title: "Conselho Dissolvido", description: "A equipa de analistas foi dispensada." });
     };
 
-    // Effect to calculate indicators whenever chartData or council definition changes
     useEffect(() => {
-        if (!chartData.length || chartData.length < 2 || !strategyCouncil.length) {
-            // Reset indicators if there's no data or no council
-             setIndicators({
-                rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
-                macd: { macd: null, signal: null }, ma: { short: null, long: null },
-                sma: [], ema: [], vwap: [], bollingerBands: [],
-            });
-            return;
-        };
+        if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting) return;
+        if (!strategyCouncil.length || !chartData.length) return;
 
         const candles = chartData.filter(d => 'close' in d) as CandleData[];
         if (candles.length < 2) return;
 
+        // ========================================================
+        // 1. CALCULAR INDICADORES
+        // ========================================================
         const newIndicators: typeof indicators = { ...indicators };
-
         const requiredIndicators = new Set(strategyCouncil.map(r => r.strategyType));
 
         if (requiredIndicators.has('RSI')) {
@@ -588,42 +582,36 @@ ${basePromptInstructions}`;
                 signal: macdValues.signal[macdValues.signal.length - 1] ?? null,
              };
         }
-         if (requiredIndicators.has('ADX_TREND')) {
+        if (requiredIndicators.has('ADX_TREND')) {
             const adxRobot = strategyCouncil.find(r => r.strategyType === 'ADX_TREND')!;
             // @ts-ignore
             const adxValues = calculateADX(candles, adxRobot.period || 14);
             newIndicators.adx = adxValues.adx[adxValues.adx.length - 1] ?? null;
-         }
-        
-        // ATR is always useful for supervision
+        }
         const atrValues = calculateATR(candles);
         newIndicators.atr = atrValues[atrValues.length - 1] ?? null;
 
-        // For chart display
         const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
-        const bbRobot = strategyCouncil.find(r => r.strategyType === 'BOLLINGER_BANDS');
         newIndicators.sma = maRobot ? calculateSMA(candles, maRobot.longPeriod || 50) : [];
         newIndicators.ema = maRobot ? calculateEMA(candles, maRobot.shortPeriod || 20) : [];
-        newIndicators.vwap = calculateVWAP(candles);
-        newIndicators.bollingerBands = bbRobot ? calculateBollingerBands(candles, bbRobot.period || 20, bbRobot.stdDev || 2) : [];
         newIndicators.ma = {
             short: newIndicators.ema.length > 0 ? newIndicators.ema[newIndicators.ema.length - 1] : null,
             long: newIndicators.sma.length > 0 ? newIndicators.sma[newIndicators.sma.length - 1] : null,
         }
+        
+        const bbRobot = strategyCouncil.find(r => r.strategyType === 'BOLLINGER_BANDS');
+        newIndicators.bollingerBands = bbRobot ? calculateBollingerBands(candles, bbRobot.period || 20, bbRobot.stdDev || 2) : [];
+        newIndicators.vwap = calculateVWAP(candles);
 
         setIndicators(newIndicators);
 
-    }, [chartData, strategyCouncil]);
-
-
-    // Effect for council voting and execution logic
-    useEffect(() => {
-        if (!isCouncilAutopilotOn || !strategyCouncil.length || councilExecutionRef.current.isExecuting || !indicators) return;
-
+        // ========================================================
+        // 2. EXECUTAR VOTAÇÃO (COM OS INDICADORES FRESCOS)
+        // ========================================================
         let currentThreshold = consensusThreshold;
-        if (isDynamicConsensusOn && indicators.atr) {
+        if (isDynamicConsensusOn && newIndicators.atr) {
             const baseThreshold = 250;
-            const volatilityFactor = indicators.atr * 1000;
+            const volatilityFactor = newIndicators.atr * 1000;
             const dynamicThreshold = Math.round(baseThreshold + volatilityFactor);
             currentThreshold = Math.max(150, Math.min(700, dynamicThreshold));
             setDynamicConsensus(currentThreshold);
@@ -645,33 +633,28 @@ ${basePromptInstructions}`;
 
             switch(robot.strategyType) {
                  case 'RSI':
-                    if (indicators.rsi) {
-                        if (robot.strongBuyThreshold && indicators.rsi <= robot.strongBuyThreshold) { vote = 'RISE'; confidence = robot.strongConfidence; }
-                        else if (robot.weakBuyThreshold && indicators.rsi <= robot.weakBuyThreshold) { vote = 'RISE'; confidence = robot.weakConfidence; }
-                        else if (robot.strongSellThreshold && indicators.rsi >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
-                        else if (robot.weakSellThreshold && indicators.rsi >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    if (newIndicators.rsi) {
+                        if (robot.strongBuyThreshold && newIndicators.rsi <= robot.strongBuyThreshold) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                        else if (robot.weakBuyThreshold && newIndicators.rsi <= robot.weakBuyThreshold) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        else if (robot.strongSellThreshold && newIndicators.rsi >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                        else if (robot.weakSellThreshold && newIndicators.rsi >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
                     }
                     break;
                 case 'STOCHASTIC':
-                    if (indicators.stoch) {
-                        if (robot.strongBuyThreshold && indicators.stoch <= robot.strongBuyThreshold) { vote = 'RISE'; confidence = robot.strongConfidence; }
-                        else if (robot.weakBuyThreshold && indicators.stoch <= robot.weakBuyThreshold) { vote = 'RISE'; confidence = robot.weakConfidence; }
-                        else if (robot.strongSellThreshold && indicators.stoch >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
-                        else if (robot.weakSellThreshold && indicators.stoch >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    if (newIndicators.stoch) {
+                        if (robot.strongBuyThreshold && newIndicators.stoch <= robot.strongBuyThreshold) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                        else if (robot.weakBuyThreshold && newIndicators.stoch <= robot.weakBuyThreshold) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        else if (robot.strongSellThreshold && newIndicators.stoch >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                        else if (robot.weakSellThreshold && newIndicators.stoch >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
                     }
                     break;
                  case 'MACD_CROSS':
-                    if (indicators.macd?.macd && indicators.macd.signal) {
-                        const candles = chartData.filter(d => 'close' in d) as CandleData[];
-                        // @ts-ignore
-                        const prevMacdValues = calculateMACD(candles.slice(0,-1), robot.fastPeriod || 12, robot.slowPeriod || 26, robot.signalPeriod || 9);
-                        const prevMacd = prevMacdValues.macd[prevMacdValues.macd.length -1];
-                        const prevSignal = prevMacdValues.signal[prevMacdValues.signal.length -1];
+                    const { macd: currentMacd, signal: currentSignal } = newIndicators.macd;
+                    const { macd: prevMacd, signal: prevSignal } = previousMacdRef.current;
 
-                        if(prevMacd !== null && prevSignal !== null) {
-                             if(prevMacd <= prevSignal && indicators.macd.macd > indicators.macd.signal) { vote = 'RISE'; confidence = robot.strongConfidence; }
-                             if(prevMacd >= prevSignal && indicators.macd.macd < indicators.macd.signal) { vote = 'FALL'; confidence = robot.strongConfidence; }
-                        }
+                    if (currentMacd !== null && currentSignal !== null && prevMacd !== null && prevSignal !== null) {
+                         if (prevMacd <= prevSignal && currentMacd > currentSignal) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                         if (prevMacd >= prevSignal && currentMacd < currentSignal) { vote = 'FALL'; confidence = robot.strongConfidence; }
                     }
                     break;
             }
@@ -680,8 +663,13 @@ ${basePromptInstructions}`;
             if (vote === 'RISE') riseConfidenceSum += confidence * weight;
             if (vote === 'FALL') fallConfidenceSum += confidence * weight;
         });
+        
+        previousMacdRef.current = newIndicators.macd;
         setCouncilVotes(newVotes);
 
+        // ========================================================
+        // 3. VERIFICAR CONSENSO E EXECUTAR
+        // ========================================================
         const consensusReached = Math.max(riseConfidenceSum, fallConfidenceSum) >= currentThreshold;
         if (consensusReached && activeSymbol) {
             councilExecutionRef.current.isExecuting = true;
@@ -708,19 +696,18 @@ ${basePromptInstructions}`;
         }
 
     }, [
-        isCouncilAutopilotOn, 
-        indicators,
-        strategyCouncil, 
-        consensusThreshold, 
-        isDynamicConsensusOn, 
-        isMeritocracyOn, 
-        robotPerformance, 
-        executeTrade, 
-        activeSymbol, 
-        toast, 
-        form, 
-        supervisionCommitteeCheck,
-        chartData
+        chartData, 
+        strategyCouncil,
+        isCouncilAutopilotOn,
+        consensusThreshold,
+        isDynamicConsensusOn,
+        isMeritocracyOn,
+        robotPerformance,
+        executeTrade,
+        activeSymbol,
+        toast,
+        form,
+        supervisionCommitteeCheck
     ]);
 
     return {
