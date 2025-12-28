@@ -272,7 +272,18 @@ const calculateADX = (data: CandleData[], period = 14) => {
 
 
 export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: RobotStrategy[]): Indicators {
-    const candles = chartData.filter(isCandle);
+    
+    let candles: CandleData[];
+
+    // Convert Tick data to Candle data if needed
+    if (chartData.length > 0 && !isCandle(chartData[0])) {
+        candles = chartData.map(d => {
+            const price = (d as { price: number }).price;
+            return { epoch: d.epoch, open: price, high: price, low: price, close: price };
+        });
+    } else {
+        candles = chartData.filter(isCandle);
+    }
 
     if (candles.length < 2) {
         return {
