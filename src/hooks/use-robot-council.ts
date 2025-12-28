@@ -278,7 +278,9 @@ ${basePromptInstructions}`;
     };
     
     const processNewChartData = useCallback((chartData: ChartData[]) => {
-      if (strategyCouncil.length > 0 && chartData.length > 1) {
+      // Condition removed: `strategyCouncil.length > 0`
+      // Now it will calculate indicators regardless of the council being built.
+      if (chartData.length > 1) {
         const calculatedIndicators = calculateAllIndicators(chartData, strategyCouncil);
         setIndicators(calculatedIndicators);
       }
