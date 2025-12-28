@@ -94,7 +94,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                 </div>
             </div>
              <div className="space-y-6">
-                <AutoTraderCouncilInterface {...robotCouncil} indicators={indicators} />
+                <AutoTraderCouncilInterface {...robotCouncil} />
                 <AutoTraderInterface {...autopilot} />
             </div>
        </div>
@@ -114,7 +114,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                 </TabsContent>
 
                 <TabsContent value="autopilot" className="mt-4 space-y-6">
-                    <AutoTraderCouncilInterface {...robotCouncil} indicators={indicators} />
+                    <AutoTraderCouncilInterface {...robotCouncil} />
                     <AutoTraderInterface {...autopilot} />
                 </TabsContent>
 

@@ -50,13 +50,8 @@ const robotCategories: Record<string, RobotStrategy['strategyType'][]> = {
     'Especialistas em Volume': ['VOLUME_PROFILE'],
 };
 
-// Extracted the props type from ReturnType for clarity and added 'indicators'
-type AutoTraderCouncilInterfaceProps = ReturnType<typeof useRobotCouncil> & {
-    indicators: ReturnType<typeof useRobotCouncil>['indicators'];
-};
-
-
-export function AutoTraderCouncilInterface({ 
+export function AutoTraderCouncilInterface(props: ReturnType<typeof useRobotCouncil>) {
+  const { 
     isCouncilAutopilotOn,
     setIsCouncilAutopilotOn,
     strategyCouncil,
@@ -77,10 +72,10 @@ export function AutoTraderCouncilInterface({
     setUseManualCouncilMode,
     useSingleManualPrompt,
     setUseSingleManualPrompt,
-    indicators, // Now received as a prop
+    indicators,
     fetchStrategyCouncil,
     dissolveCouncil,
- }: AutoTraderCouncilInterfaceProps) {
+ } = props;
   const { toast } = useToast();
   
   const handleToggleAutopilot = (isOn: boolean) => {
