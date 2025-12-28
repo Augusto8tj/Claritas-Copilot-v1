@@ -26,12 +26,11 @@ A sua resposta DEVE SER um único objeto JSON que valida contra o schema de saí
 
 Para CADA robô, você deve:
 1.  **Definir um ID único**: Ex: 'RSI_BOT_1'.
-2.  **Calibrar Parâmetros e Limiares para o Horizonte de Tempo**: Com base no 'durationUnit' fornecido (ex: 't' para ticks, 'm' para minutos), ajuste os parâmetros. Para 'ticks', use períodos mais curtos e agressivos. Para 'minutos' ou 'horas', use períodos mais longos e conservadores. Defina DOIS níveis de limiar (FORTE e FRACO).
-    - Exemplo para RSI em 'ticks': 'strongBuyThreshold': 25, 'weakBuyThreshold': 35. 'period': 10.
-    - Exemplo para RSI em 'minutos': 'strongBuyThreshold': 20, 'weakBuyThreshold': 30. 'period': 14.
-3.  **Definir Níveis de Confiança Numéricos**: 'strongConfidence' deve ser alto (ex: 90-100). 'weakConfidence' deve ser moderado (ex: 60-75).
-4.  **Justificar a Calibração**: Forneça uma justificativa muito breve (1 frase) para a escolha dos parâmetros de cada robô, mencionando o horizonte de tempo ('{{{durationUnit}}}'). Ex: "Parâmetros de RSI mais longos (14) para filtrar o ruído em operações de minutos."
-5.  **Gestão de Risco**:
+2.  **Preencher OBRIGATORIAMENTE os Parâmetros Específicos**: Calibre e preencha TODOS os parâmetros numéricos relevantes para a estratégia do robô (ex: 'period', 'strongBuyThreshold', 'shortPeriod', 'longPeriod', 'stdDev', 'acceleration', etc.). Para 'ticks', use períodos mais curtos e agressivos. Para 'minutos' ou 'horas', use períodos mais longos e conservadores.
+3.  **Definir Limiares (Forte e Fraco)**: Para osciladores (RSI, Stoch, etc.), defina DOIS níveis de limiar (FORTE e FRACO). Ex: 'strongBuyThreshold': 25, 'weakBuyThreshold': 35.
+4.  **Definir Níveis de Confiança Numéricos**: 'strongConfidence' deve ser alto (ex: 90-100). 'weakConfidence' deve ser moderado (ex: 60-75).
+5.  **Justificar a Calibração**: Forneça uma justificativa muito breve (1 frase) para a escolha dos parâmetros de cada robô, mencionando o horizonte de tempo ('{{{durationUnit}}}'). Ex: "Parâmetros de RSI mais longos (14) para filtrar o ruído em operações de minutos."
+6.  **Gestão de Risco**:
     - Defina 'suggestedStake' como 1% da banca do dia ('balance').
     - Defina 'suggestedDuration' na unidade 'durationUnit' fornecida.`,
     prompt: `
@@ -59,12 +58,12 @@ const getStrategyCouncilFlow = ai.defineFlow(
     
     console.log(`[Council Flow] Iniciando a construção do conselho completo de 22 robôs, calibrado para '${input.durationUnit}'...`);
 
-    // Correctly invoke the prompt as a function
+    // Correctly invoke the prompt as a function, enforcing the output schema
     const { output } = await ai.generate({
         model: 'gemini-2.5-flash-lite',
         prompt: strategyCouncilArchitectPrompt.prompt,
         input: input,
-        output: { schema: StrategyCouncilOutputSchema },
+        output: { schema: StrategyCouncilOutputSchema }, // This enforces the schema on the AI's output
         config: {
             temperature: 0.8, // Aumenta a criatividade para a IA escolher e calibrar
         }
