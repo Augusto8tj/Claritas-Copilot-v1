@@ -243,38 +243,107 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       ));
     }, []);
 
-  const getHistoricalData = useCallback(async (symbol: string, style: 'ticks' | 'candles', count: number, period?: TimePeriod): Promise<ApiHistoricalData[]> => {
+const getHistoricalData = useCallback(async (symbol: string, style: 'ticks' | 'candles', count: number, period?: TimePeriod): Promise<ApiHistoricalData[]> => {
     const request: any = {
-      ticks_history: symbol,
-      end: "latest",
-      count,
-      adjust_start_time: 1,
-      style,
+        ticks_history: symbol,
+        end: "latest",
+        count,
+        adjust_start_time: 1,
+        style: style,
     };
-    if (style === 'candles') {
-      request.granularity = getGranularityForTimePeriod(period!);
+    
+    if (style === 'candles' && period) {
+        request.granularity = getGranularityForTimePeriod(period);
     }
     
-    const response: any = await makeRequest(request);
+    try {
+        const response: any = await makeRequest(request);
 
-    if (response.history) {
-        return response.history.times.map((time: number, index: number) => ({
-            epoch: time,
-            price: response.history.prices[index],
-        }));
+        if (response.history) {
+            return response.history.times.map((time: number, index: number) => ({
+                epoch: time,
+                price: response.history.prices[index],
+            }));
+        }
+      
+        if (response.candles) {
+            return response.candles.map((candle: any) => ({
+                epoch: candle.epoch,
+                open: candle.open,
+                high: candle.high,
+                low: candle.low,
+                close: candle.close,
+                price: candle.close,
+            }));
+        }
+        
+        return [];
+    } catch (error: any) {
+        console.error('[getHistoricalData] Error:', error);
+        throw error;
     }
-
-    if (response.candles) {
-        return response.candles.map((candle: any) => ({
-            epoch: candle.epoch,
-            open: candle.open,
-            high: candle.high,
-            low: candle.low,
-            close: candle.close,
-        }));
-    }
-    return [];
 }, [makeRequest]);
+
+
+const subscribeToMarketData = useCallback(async (symbol: string) => {
+    // Cancela subscrição anterior se existir
+    if (activeSubscriptionIdRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
+        try { 
+            await makeRequest({ forget: activeSubscriptionIdRef.current }); 
+        } catch (e) { 
+            console.log('[Market Data] Previous subscription cancelled'); 
+        }
+        activeSubscriptionIdRef.current = null;
+    }
+
+    setIsChartLoading(true);
+    setChartError(null);
+    setChartData([]);
+
+    try {
+        // 1. Buscar histórico inicial
+        const historyStyle = chartType === 'Candle' ? 'candles' : 'ticks';
+        const history = await getHistoricalData(symbol, historyStyle, 1000, timePeriod);
+        setChartData(history as ChartData[]);
+
+        // 2. Criar subscrição adequada ao tipo de gráfico
+        let subRequest: any;
+        
+        if (chartType === 'Candle') {
+            // Para velas, subscribe em ticks_history com style candles
+            subRequest = { 
+                ticks_history: symbol, 
+                style: 'candles', 
+                granularity: getGranularityForTimePeriod(timePeriod), 
+                subscribe: 1,
+                end: "latest",
+                count: 1,
+                adjust_start_time: 1
+            };
+        } else {
+            // Para linha, subscribe em ticks simples
+            subRequest = { 
+                ticks: symbol, 
+                subscribe: 1 
+            };
+        }
+        
+        const subResponse: any = await makeRequest(subRequest);
+        
+        // Armazena o subscription_id correto
+        if (subResponse.subscription?.id) {
+            activeSubscriptionIdRef.current = subResponse.subscription.id;
+            console.log(`[Market Data] Subscribed to ${symbol} (${chartType}) - ID: ${subResponse.subscription.id}`);
+        }
+
+    } catch (error: any) {
+        console.error(`[Market Data] Error for ${symbol}:`, error);
+        setChartError(error.message || 'Falha ao carregar dados do mercado.');
+    } finally {
+        setIsChartLoading(false);
+    }
+}, [getHistoricalData, makeRequest, chartType, timePeriod]);
+
 
     const executeTrade = useCallback(async (
         contractType: string,
@@ -348,54 +417,6 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
              return { success: false, message };
           }
       }, [isConnected, makeRequest, addTradeAnnotation]);
-
- const subscribeToMarketData = useCallback(async (symbol: string) => {
-    if (activeSubscriptionIdRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
-        try { 
-            await makeRequest({ forget: activeSubscriptionIdRef.current }); 
-        } catch (e) { 
-            console.log('[Market Data] Previous subscription could not be cancelled.'); 
-        }
-        activeSubscriptionIdRef.current = null;
-    }
-
-    setIsChartLoading(true);
-    setChartError(null);
-    setChartData([]);
-
-    try {
-        const historyStyle = chartType === 'Candle' ? 'candles' : 'ticks';
-        const history = await getHistoricalData(symbol, historyStyle, 1000, timePeriod);
-        setChartData(history as ChartData[]);
-
-        let subRequest: any;
-        
-        if (chartType === 'Candle') {
-            subRequest = { 
-                ticks_history: symbol, 
-                style: 'candles', 
-                granularity: getGranularityForTimePeriod(timePeriod), 
-                subscribe: 1 
-            };
-        } else {
-            subRequest = { ticks: symbol, subscribe: 1 };
-        }
-        
-        const subResponse: any = await makeRequest(subRequest);
-        
-        if (subResponse.subscription?.id) {
-            activeSubscriptionIdRef.current = subResponse.subscription.id;
-            console.log(`[Market Data] Subscribed to ${symbol} (${chartType}) - ID: ${subResponse.subscription.id}`);
-        }
-
-    } catch (error: any) {
-        console.error(`[Market Data] Error for ${symbol}:`, error);
-        setChartError(error.message || 'Falha ao carregar dados do mercado.');
-    } finally {
-        setIsChartLoading(false);
-    }
-}, [getHistoricalData, makeRequest, chartType, timePeriod]);
-
 
   useEffect(() => {
     if (!activeToken || isLoading) {
