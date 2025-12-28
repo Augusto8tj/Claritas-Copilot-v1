@@ -17,7 +17,7 @@ import { StrategyCouncilInputSchema, StrategyCouncilOutputSchema, type StrategyC
 const strategyCouncilArchitectPrompt = ai.definePrompt({
     name: 'strategyCouncilArchitectPrompt',
     input: { schema: StrategyCouncilInputSchema },
-    output: { schema: StrategyCouncilGptJson }, // Expect the full council output
+    output: { schema: StrategyCouncilOutputSchema }, // Expect the full council output
     system: `Você é um arquiteto-chefe de estratégias quantitativas. Sua missão é criar as REGRAS para um conselho completo de 22 robôs-analistas especialistas, cada um com uma filosofia de trading única, **calibrados para um horizonte de tempo específico.**
 
 Você deve criar um especialista para CADA UMA das 22 estratégias da lista disponível: ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE', 'KAMA', 'VWAP', 'Z_SCORE', 'STOCH_RSI', 'MFI', 'TRIX', 'ROC', 'DONCHIAN_CHANNELS', 'RVI', 'PARABOLIC_SAR', 'CHANDELIER_EXIT', 'OBV'].
