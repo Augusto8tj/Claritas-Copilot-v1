@@ -39,6 +39,7 @@ export interface Indicators {
     mfi: number | null;
     obv: number | null;
     chandelierExit: number | null;
+    rvi: number | null;
 }
 
 const isCandle = (d: ChartData): d is CandleData => 'close' in d;
@@ -287,7 +288,7 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
         kama: null, bbw: null, stochRSI: null, zScore: null,
         awesomeOscillator: null, trix: null, roc: null, parabolicSAR: null,
         ichimoku: { tenkan: null, kijun: null, senkouA: null, senkouB: null },
-        mfi: null, obv: null, chandelierExit: null,
+        mfi: null, obv: null, chandelierExit: null, rvi: null
     };
     
     if (chartData.length < 2) {
@@ -385,6 +386,10 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
 
     const obvValues = DerivIndicators.obv(candles);
     indicators.obv = obvValues.length > 0 ? obvValues[obvValues.length - 1] : null;
+
+    const rviValues = DerivIndicators.rvi(candles, getParam('RVI', 'period', 10));
+    indicators.rvi = rviValues.length > 0 ? rviValues[rviValues.length-1] : null;
+
 
     return { ...emptyIndicators, ...indicators };
 }

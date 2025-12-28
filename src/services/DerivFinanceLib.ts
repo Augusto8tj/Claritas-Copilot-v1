@@ -247,6 +247,48 @@ export const DerivIndicators = {
     });
   },
 
+  rvi: (data: InputData[], p = 10): number[] => {
+    const d = normalizeData(data);
+    if (d.length < p + 3) return Array(d.length).fill(50);
+    
+    const sma = (arr: number[], period: number) => {
+        if (arr.length < period) return [];
+        let result: number[] = [];
+        let sum = arr.slice(0, period).reduce((a,b) => a+b, 0);
+        result.push(sum/period);
+        for(let i=period; i<arr.length; i++) {
+            sum = sum - arr[i-period] + arr[i];
+            result.push(sum/period);
+        }
+        return result;
+    }
+    
+    let numerators: number[] = [];
+    let denominators: number[] = [];
+
+    for (let i = 3; i < d.length; i++) {
+        const n = (d[i].close - d[i-1].close) + 2*(d[i-1].close-d[i-2].close) + (d[i-2].close-d[i-3].close);
+        numerators.push(n / 6);
+        const de = (d[i].high - d[i].low) + 2*(d[i-1].high-d[i-1].low) + (d[i-2].high-d[i-2].low);
+        denominators.push(de / 6);
+    }
+    
+    const fillCountStart = d.length - numerators.length;
+    
+    const sumNum = sma(numerators, p);
+    const sumDen = sma(denominators, p);
+
+    const fillCountEnd = numerators.length - sumNum.length;
+
+    const rvi = sumNum.map((sn, i) => {
+        const sd = sumDen[i];
+        if (sd === 0) return 50;
+        return (sn / sd) * 100;
+    });
+    
+    return [...Array(fillCountStart + fillCountEnd).fill(50), ...rvi];
+  },
+
   // --- TENDÊNCIA E ESTRUTURA ---
   ichimoku: (data: InputData[]) => {
     const d = normalizeData(data);
