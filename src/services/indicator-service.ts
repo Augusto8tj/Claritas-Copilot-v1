@@ -320,11 +320,15 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
     indicators.atr = atrValues[atrValues.length - 1] ?? null;
 
     const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
-    indicators.sma = maRobot ? calculateSMA(candles, maRobot.longPeriod || 50) : [];
-    indicators.ema = maRobot ? calculateEMA(candles, maRobot.shortPeriod || 20) : [];
+    const emaValues = calculateEMA(candles, maRobot?.shortPeriod || 20);
+    const smaValues = calculateSMA(candles, maRobot?.longPeriod || 50);
+
+    indicators.ema = emaValues;
+    indicators.sma = smaValues;
+
     indicators.ma = {
-        short: indicators.ema.length > 0 ? indicators.ema[indicators.ema.length - 1] : null,
-        long: indicators.sma.length > 0 ? indicators.sma[indicators.sma.length - 1] : null,
+        short: emaValues.length > 0 ? emaValues[emaValues.length - 1] : null,
+        long: smaValues.length > 0 ? smaValues[smaValues.length - 1] : null,
     };
 
     const bbRobot = strategyCouncil.find(r => r.strategyType === 'BOLLINGER_BANDS');
