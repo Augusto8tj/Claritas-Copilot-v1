@@ -352,7 +352,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         try {
             const response = JSON.parse(event.data);
 
-            if (response.error && response.error.message) {
+             if (response.error && response.error.message) {
                 if (response.error.code !== 'AlreadySubscribed') {
                   console.error(`[Deriv WS] Error:`, response.error);
                 }
