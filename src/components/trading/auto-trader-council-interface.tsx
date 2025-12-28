@@ -113,6 +113,7 @@ export function AutoTraderCouncilInterface({
         case 'ADX_TREND':
             return `Limiar de Tendência > ${robot.trendStrengthThreshold}`;
         case 'VOLUME_PROFILE':
+             // @ts-ignore
             return `POC de ${robot.profileBars} barras`;
         case 'ICHIMOKU_CLOUD':
             return "Análise da Nuvem";

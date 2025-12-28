@@ -144,8 +144,8 @@ export default function DerivTraderPage() {
     resolver: zodResolver(riseFallSchema),
     defaultValues: {
       stake: 10,
-      duration: 25,
-      duration_unit: "s",
+      duration: 5,
+      duration_unit: "t",
       allowEquals: false,
     },
   });

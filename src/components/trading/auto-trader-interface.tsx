@@ -19,7 +19,7 @@ import { Badge } from "../ui/badge";
 import { Input } from "../ui/input";
 import { useAutopilot } from "@/hooks/use-autopilot";
 
-// Este componente no longer needs direct access to geminiRequestCount or indicators.
+// This component no longer needs direct access to geminiRequestCount or indicators.
 export function AutoTraderInterface(props: ReturnType<typeof useAutopilot>) {
   const { 
     isAutopilotOn, 
