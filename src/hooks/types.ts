@@ -13,9 +13,22 @@ export type CandleData = {
   high: number;
   low: number;
   close: number;
-  volume?: number;
 };
 
 export type ChartData = TickData | CandleData;
 
 export type DurationUnit = 't' | 's' | 'm' | 'h' | 'd';
+
+export interface TradeAnnotation {
+  id: string;
+  contractId: string;
+  entryTime: number; // epoch timestamp
+  entryPrice: number;
+  exitTime?: number;
+  exitPrice?: number;
+  direction: 'rise' | 'fall';
+  status: 'pending' | 'won' | 'lost';
+  stake: number;
+  profit?: number;
+  symbol: string;
+}

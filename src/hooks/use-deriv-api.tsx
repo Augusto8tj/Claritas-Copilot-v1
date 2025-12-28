@@ -6,7 +6,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode, useCall
 import type { TradeResult } from '@/services/deriv-api-service';
 import { useToast } from './use-toast';
 import type { Operation, OperationInitiator } from '@/components/trading/operations-log.types';
-import type { DurationUnit, ChartType, TimePeriod, ChartData, CandleData } from './types';
+import type { DurationUnit, ChartType, TimePeriod, ChartData, CandleData, TradeAnnotation } from './types';
 
 
 const DERIV_DEMO_TOKEN_KEY = 'derivDemoApiToken';
@@ -49,20 +49,6 @@ export type ApiHistoricalData = {
     low?: number;
     close?: number;
 };
-
-export interface TradeAnnotation {
-  id: string;
-  contractId: string;
-  entryTime: number; // epoch timestamp
-  entryPrice: number;
-  exitTime?: number;
-  exitPrice?: number;
-  direction: 'rise' | 'fall';
-  status: 'pending' | 'won' | 'lost';
-  stake: number;
-  profit?: number;
-  symbol: string;
-}
 
 interface DerivApiContextType {
   ws: WebSocket | null;
@@ -137,6 +123,7 @@ const MAX_DATA_POINTS = 1000;
 const addDataPoint = (prevData: ChartData[], newPoint: ChartData): ChartData[] => {
     const data = [...prevData];
     if (data.length > 0 && data[data.length - 1].epoch === newPoint.epoch) {
+        // If it's the same timestamp, replace the last point (useful for candle updates)
         data[data.length - 1] = newPoint;
         return data;
     }
@@ -147,9 +134,10 @@ const addDataPoint = (prevData: ChartData[], newPoint: ChartData): ChartData[] =
     return data;
 };
 
+
 export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
-  const [demoToken, setDemoToken] = useState<string | null>('ljUGk6wbLSrtEDo');
-  const [realToken, setRealToken] = useState<string | null>('GU5MwbX1kwvSoyw');
+  const [demoToken, setDemoToken] = useState<string | null>(null);
+  const [realToken, setRealToken] = useState<string | null>(null);
   const [accountType, setAccountTypeState] = useState<AccountType>('demo');
   const [accountBalance, setAccountBalance] = useState<AccountBalance>({ balance: null, currency: null, loading: true });
   const [isLoading, setIsLoading] = useState(true);
@@ -181,8 +169,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       const storedRealToken = localStorage.getItem(DERIV_REAL_TOKEN_KEY);
       const storedAccountType = localStorage.getItem(DERIV_ACCOUNT_TYPE_KEY) as AccountType | null;
       
-      setDemoToken(storedDemoToken || 'ljUGk6wbLSrtEDo');
-      setRealToken(storedRealToken || 'GU5MwbX1kwvSoyw');
+      setDemoToken(storedDemoToken);
+      setRealToken(storedRealToken);
 
       if (storedAccountType) setAccountTypeState(storedAccountType);
     } catch (error) {
@@ -325,9 +313,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
             };
             setOperationsLog(prevLog => [newOperation, ...prevLog]);
 
+            // Use 'purchase_time' for accurate entry point for all duration types
+            const entryTime = buyResult.purchase_time;
+            
             addTradeAnnotation({
                 contractId: String(buyResult.contract_id),
-                entryTime: Math.floor(buyResult.start_time),
+                entryTime: entryTime,
                 entryPrice,
                 direction: tradeDirection,
                 status: 'pending',
@@ -348,11 +339,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       }, [isConnected, makeRequest, addTradeAnnotation]);
 
   const subscribeToMarketData = useCallback(async (symbol: string) => {
+    // Cancela subscrição anterior se existir
     if (activeSubscriptionIdRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
         try { 
             await makeRequest({ forget: activeSubscriptionIdRef.current }); 
         } catch (e) { 
-            console.warn('[Market Data] Could not forget previous subscription'); 
+            console.log('[Market Data] Previous subscription cancelled'); 
         }
         activeSubscriptionIdRef.current = null;
     }
@@ -362,12 +354,16 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
     setChartData([]);
 
     try {
+        // 1. Buscar histórico inicial
         const historyStyle = chartType === 'Candle' ? 'candles' : 'ticks';
         const history = await getHistoricalData(symbol, historyStyle, 1000, timePeriod);
         setChartData(history as ChartData[]);
 
+        // 2. Criar subscrição adequada ao tipo de gráfico
         let subRequest: any;
+        
         if (chartType === 'Candle') {
+            // Para velas, subscribe em ticks_history com style candles
             subRequest = { 
                 ticks_history: symbol, 
                 style: 'candles', 
@@ -378,6 +374,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 adjust_start_time: 1
             };
         } else {
+            // Para linha, subscribe em ticks simples
             subRequest = { 
                 ticks: symbol, 
                 subscribe: 1 
@@ -386,10 +383,12 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
         
         const subResponse: any = await makeRequest(subRequest);
         
+        // Armazena o subscription_id correto
         if (subResponse.subscription?.id) {
             activeSubscriptionIdRef.current = subResponse.subscription.id;
             console.log(`[Market Data] Subscribed to ${symbol} (${chartType}) - ID: ${subResponse.subscription.id}`);
         }
+
     } catch (error: any) {
         console.error(`[Market Data] Error for ${symbol}:`, error);
         setChartError(error.message || 'Falha ao carregar dados do mercado.');
@@ -479,6 +478,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                         setChartData(prev => addDataPoint(prev, { epoch: tick.epoch, price: tick.quote }));
                     }
                     break;
+                
                 case 'ohlc':
                     if (chartType === 'Candle' && response.ohlc?.symbol === activeSymbol) {
                         const ohlc = response.ohlc;
@@ -488,11 +488,11 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                             high: parseFloat(ohlc.high),
                             low: parseFloat(ohlc.low),
                             close: parseFloat(ohlc.close),
-                            price: parseFloat(ohlc.close),
                         };
                         setChartData(prev => addDataPoint(prev, newCandle));
                     }
                     break;
+                
                 case 'candles':
                     if (chartType === 'Candle' && response.candles?.length > 0) {
                         const candle = response.candles[0];
@@ -503,9 +503,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                                 high: parseFloat(candle.high),
                                 low: parseFloat(candle.low),
                                 close: parseFloat(candle.close),
-                                price: parseFloat(candle.close),
                             };
-                            setChartData(prev => addDataPoint(prev, newCandle));
+                             setChartData(prev => addDataPoint(prev, newCandle));
                         }
                     }
                     break;
