@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -42,10 +41,9 @@ export type ManualPromptBatch = {
 
 
 export function useRobotCouncil(
-    activeSymbol: string | null,
-    indicators: Indicators // Receive indicators as a prop
+    activeSymbol: string | null
 ) {
-    const { operationsLog, executeTrade, chartData } = useDerivApi(); // chartData for manual prompt generation
+    const { operationsLog, executeTrade, chartData } = useDerivApi();
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
@@ -64,6 +62,12 @@ export function useRobotCouncil(
     const [lastCouncilLossSuggestion, setLastCouncilLossSuggestion] = useState<string | null>(null);
     const [useManualCouncilMode, setUseManualCouncilMode] = useState(true);
     const [useSingleManualPrompt, setUseSingleManualPrompt] = useState(true);
+    const [indicators, setIndicators] = useState<Indicators>({
+        rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
+        macd: { macd: null, signal: null }, ma: { short: null, long: null },
+        sma: [], ema: [], vwap: [], bollingerBands: [],
+        kama: null, bbw: null, stochRSI: null, zScore: null,
+    });
     
     const [manualPromptBatches, setManualPromptBatches] = useState<ManualPromptBatch[]>([]);
 
@@ -77,6 +81,13 @@ export function useRobotCouncil(
     }, []);
 
     const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, incrementGeminiRequestCount);
+    
+    const processNewChartData = useCallback((newChartData: any[]) => {
+        if (newChartData.length > 0) {
+            const calculated = calculateAllIndicators(newChartData, strategyCouncil);
+            setIndicators(calculated);
+        }
+    }, [strategyCouncil]);
 
     useEffect(() => {
         try {
@@ -113,7 +124,7 @@ export function useRobotCouncil(
         try {
             const { duration_unit } = form.getValues();
             
-            const historicalDataJson = JSON.stringify(chartData);
+            const historicalDataJson = JSON.stringify(chartData.slice(-200));
 
             if (useManualCouncilMode) {
                 const allStrategies: RobotStrategy['strategyType'][] = ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'MOVING_AVERAGE_CROSS', 'BOLLINGER_BANDS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'AWESOME_OSCILLATOR', 'PRICE_ACTION_PATTERN', 'VOLUME_PROFILE'];
@@ -401,5 +412,7 @@ ${basePromptInstructions}`;
         setUseManualCouncilMode,
         useSingleManualPrompt,
         setUseSingleManualPrompt,
+        indicators,
+        processNewChartData
     };
 }
