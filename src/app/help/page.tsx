@@ -154,6 +154,43 @@ export default function HelpPage() {
                 </AccordionContent>
             </AccordionItem>
             
+            <AccordionItem value="item-13">
+              <AccordionTrigger className="text-lg font-semibold">
+                A Arena Virtual: Meritocracia na Mesa Operacional
+              </AccordionTrigger>
+              <AccordionContent className="text-base leading-relaxed space-y-4">
+                <p>Para elevar a inteligência do sistema, implementámos uma "Arena Virtual". Em vez de tratar todos os 22 analistas como iguais, criámos um sistema competitivo que promove os melhores em tempo real.</p>
+                <div>
+                    <h4 className="font-semibold text-md mb-2">Página "Mesa de Operações" e o Leaderboard</h4>
+                    <p className="text-sm">
+                      A nova página <strong>Mesa de Operações</strong> (`/trading-desk`) funciona como um *leaderboard* da sua equipa de IA. Para cada robô, ela mostra:
+                    </p>
+                    <ul className="list-disc pl-6 mt-2 space-y-1 text-sm">
+                      <li><strong>Estratégia e Parâmetros:</strong> A configuração atual do analista.</li>
+                      <li><strong>Desempenho:</strong> Número de vitórias e derrotas na sessão.</li>
+                      <li><strong>Taxa de Acerto:</strong> A percentagem de previsões corretas.</li>
+                      <li><strong>Resultado Financeiro:</strong> O lucro ou prejuízo virtual que aquele robô gerou.</li>
+                    </ul>
+                </div>
+                 <div>
+                    <h4 className="font-semibold text-md mb-2">O Modo "Meritocracia"</h4>
+                    <p className="text-sm">
+                      Na interface da Mesa Operacional, você encontrará um interruptor para ativar a **Meritocracia**. Quando ligado, o sistema muda fundamentalmente a forma como os votos são contados:
+                    </p>
+                     <ul className="list-disc pl-6 mt-2 space-y-1 text-sm">
+                      <li><strong>Voto Ponderado:</strong> O voto de um robô com alto desempenho (alta taxa de acerto e lucro) passa a ter **mais peso** na decisão final.</li>
+                      <li>**Auto-Otimização:** O sistema adapta-se automaticamente às condições de mercado. Se os robôs de tendência começam a perder pontos num mercado lateral, o seu peso diminui, e o peso dos robôs de oscilação (RSI, Estocástico) aumenta, tornando o sistema mais inteligente.</li>
+                    </ul>
+                </div>
+                 <div>
+                    <h4 className="font-semibold text-md mb-2">Hall da Fama</h4>
+                    <p className="text-sm">
+                      Os robôs que atingem um desempenho excecional (alto número de vitórias e lucro positivo) são promovidos para a página <strong>Hall da Fama</strong>, um registo permanente dos seus analistas de IA mais lendários.
+                    </p>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
             <AccordionItem value="item-12">
                 <AccordionTrigger className="text-lg font-semibold">
                     Ficheiros da Mesa Operacional de IA
@@ -171,7 +208,7 @@ export default function HelpPage() {
                     </li>
                     <li>
                       <strong className="font-mono">src/ai/flows/strategy-council-flow.ts</strong><br/>
-                      O arquiteto da IA. Este fluxo Genkit contém o prompt detalhado que instrui o LLM sobre como criar as regras, parâmetros e justificações para cada um dos 10 robôs analistas.
+                      O arquiteto da IA. Este fluxo Genkit contém o prompt detalhado que instrui o LLM sobre como criar as regras, parâmetros e justificações para cada um dos 22 robôs analistas.
                     </li>
                     <li>
                       <strong className="font-mono">src/app/deriv-trader/page.tsx</strong><br/>
