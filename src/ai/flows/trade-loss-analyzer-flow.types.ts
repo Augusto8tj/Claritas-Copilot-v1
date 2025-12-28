@@ -10,6 +10,6 @@ export type TradeLossAnalyzerInput = z.infer<typeof TradeLossAnalyzerInputSchema
 
 export const TradeLossAnalyzerOutputSchema = z.object({
   analysis: z.string().describe("A concise, one-sentence analysis of why the trade likely failed (e.g., market reversal, high volatility)."),
-  suggestion: z.string().describe("A short, actionable suggestion to improve the strategy (e.g., 'Consider increasing the RSI threshold to 35' or 'Avoid trading during news events.')."),
+  suggestion: z.string().describe("A short, actionable suggestion to improve the strategy, which could be about indicator parameters, stake, or duration (e.g., 'Consider increasing the RSI threshold to 35', 'Reduce stake in high volatility', or 'Increase contract duration to 7 ticks')."),
 });
 export type TradeLossAnalyzerOutput = z.infer<typeof TradeLossAnalyzerOutputSchema>;

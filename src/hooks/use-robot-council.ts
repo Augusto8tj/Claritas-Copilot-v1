@@ -358,15 +358,16 @@ export function useRobotCouncil(
             case 'Reversão (Baixa)':
                 return strategyCouncil.filter(r => ['RSI', 'STOCHASTIC', 'BOLLINGER_BANDS', 'Z_SCORE', 'PRICE_ACTION_PATTERN'].includes(r.strategyType));
             case 'Volatilidade':
-                return strategyCouncil.filter(r => ['BOLLINGER_BANDS', 'DONCHIAN_CHANNELS', 'ATR'].includes(r.strategyType)); // ATR robot doesn't exist, but shows logic
+                return strategyCouncil.filter(r => ['BOLLINGER_BANDS', 'DONCHIAN_CHANNELS', 'KAMA'].includes(r.strategyType));
             default: // Lateral
                 return strategyCouncil.filter(r => ['RSI', 'STOCHASTIC', 'AWESOME_OSCILLATOR', 'KAMA'].includes(r.strategyType));
         }
     }, [strategyCouncil, indicators]);
 
 
-    const supervisionCommitteeCheck = useCallback((stake: number, direction: 'RISE' | 'FALL') => {
+    const supervisionCommitteeCheck = useCallback((stake: number, direction: 'RISE' | 'FALL', confidenceSum: number) => {
         let finalStake = stake;
+        let finalDuration = form.getValues('duration');
         let vetoReason: string | null = null;
         let analysis = "";
 
@@ -383,23 +384,34 @@ export function useRobotCouncil(
         const isReversalSetup = (direction === 'RISE' && (indicators.rsi ?? 50) <= 35) || (direction === 'FALL' && (indicators.rsi ?? 50) >= 65);
         
         if (isReversalSetup) {
-            analysis = `Setup de Reversão (${direction}) detetado. Risco: operar contra a tendência de curto prazo. Gatilho: aguardar confirmação.`;
+            analysis = `Setup de Reversão (${direction}) detetado.`;
+            finalDuration = Math.max(finalDuration, 7); // Increase duration for mean reversion
+            analysis += " Duração estendida para 7 ticks.";
         } else {
             analysis = `Consenso de ${direction} em mercado lateral/tendência fraca.`;
         }
 
         if (vetoReason) {
             setSupervisionStatus({ status: 'veto', message: vetoReason, analysis });
-            return { finalStake, vetoReason };
+            return { finalStake, finalDuration, vetoReason };
         };
         
+        // Dynamic Stake based on confidence
+        if(confidenceSum > 500) {
+            finalStake *= 1.25;
+            analysis += " Risco aumentado (alta confiança).";
+        } else if (confidenceSum < 350) {
+            finalStake *= 0.75;
+            analysis += " Risco reduzido (baixa confiança).";
+        }
+
         const atr = indicators.atr;
         const currentPrice = indicators.ma.long;
         if (atr && currentPrice) {
             const atrPercentage = (atr / currentPrice) * 100;
             if (atrPercentage > 0.05) { 
                 finalStake *= 0.75;
-                analysis += " Risco ajustado (ATR alto).";
+                analysis += " Ajuste p/ volatilidade (ATR).";
             }
         }
         
@@ -407,20 +419,17 @@ export function useRobotCouncil(
         if (adx) {
             if (adx < 20) { 
                 finalStake *= 0.75;
-                 analysis += " Risco ajustado (ADX baixo).";
-            } else if (adx > 35) { 
-                finalStake *= 1.25; 
-                analysis += " Risco aumentado (ADX alto).";
+                 analysis += " Ajuste p/ mercado lateral (ADX).";
             }
         }
 
         if (finalStake < 0.35) finalStake = 0.35;
         
-        setSupervisionStatus({ status: 'approved', message: `Aprovado com stake de $${finalStake.toFixed(2)}.`, analysis });
+        setSupervisionStatus({ status: 'approved', message: `Aprovado: Stake $${finalStake.toFixed(2)}, Duração ${finalDuration}t.`, analysis });
 
-        return { finalStake, vetoReason };
+        return { finalStake, finalDuration, vetoReason };
 
-    }, [operationsLog, dailyBalance, dailyTarget, indicators]);
+    }, [operationsLog, dailyBalance, dailyTarget, indicators, form]);
 
 
     const dissolveCouncil = () => {
@@ -431,7 +440,9 @@ export function useRobotCouncil(
 
     useEffect(() => {
         if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || strategyCouncil.length === 0 || !indicators.rsi) {
-            setSupervisionStatus({ status: 'inactive', message: 'Aguardando consenso ou ativação.' });
+            if (supervisionStatus.status !== 'veto') {
+              setSupervisionStatus({ status: 'inactive', message: 'Aguardando consenso ou ativação.' });
+            }
             return;
         }
         
@@ -617,7 +628,9 @@ export function useRobotCouncil(
         previousObvRef.current = indicators.obv;
         setCouncilVotes(newVotes);
 
-        const consensusReached = Math.max(riseConfidenceSum, fallConfidenceSum) >= currentThreshold;
+        const totalConfidence = Math.max(riseConfidenceSum, fallConfidenceSum);
+        const consensusReached = totalConfidence >= currentThreshold;
+
         if (consensusReached && activeSymbol) {
             const direction = riseConfidenceSum > fallConfidenceSum ? 'RISE' : 'FALL';
 
@@ -628,7 +641,7 @@ export function useRobotCouncil(
             councilExecutionRef.current.isExecuting = true;
             const baseStake = strategyCouncil[0]?.suggestedStake || form.getValues('stake');
 
-            const { finalStake, vetoReason } = supervisionCommitteeCheck(baseStake, direction);
+            const { finalStake, finalDuration, vetoReason } = supervisionCommitteeCheck(baseStake, direction, totalConfidence);
 
             if (vetoReason) {
                 // Do not toast for vetos to avoid spam, the UI will show the status.
@@ -639,11 +652,11 @@ export function useRobotCouncil(
                 return;
             }
             
-            toast({ title: "Consenso Atingido!", description: `Executando ${direction} com stake ajustado de $${finalStake.toFixed(2)}.` });
+            toast({ title: "Consenso Atingido!", description: `Executando ${direction} com stake $${finalStake.toFixed(2)} e duração ${finalDuration}t.` });
             
-            const { duration, duration_unit } = form.getValues();
+            const { duration_unit } = form.getValues();
 
-            executeTrade(direction === 'RISE' ? 'CALL' : 'PUT', finalStake, activeSymbol, direction.toLowerCase() as 'rise' | 'fall', duration, duration_unit, 'Conselho')
+            executeTrade(direction === 'RISE' ? 'CALL' : 'PUT', finalStake, activeSymbol, direction.toLowerCase() as 'rise' | 'fall', finalDuration, duration_unit, 'Conselho')
                 .finally(() => setTimeout(() => { 
                     councilExecutionRef.current.isExecuting = false; 
                     councilExecutionRef.current.lastVoteDirection = ''; // Reset after cooldown

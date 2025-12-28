@@ -18,9 +18,12 @@ const analysisPrompt = ai.definePrompt({
   system: `Você é um analista de risco e performance de trading. Sua tarefa é realizar uma análise post-mortem de uma operação com prejuízo e fornecer uma explicação e uma sugestão para melhorar.
 
 Instruções:
-1.  **Analise a Causa:** Com base nos dados de mercado e na operação, identifique a razão mais provável para a perda. Foi uma reversão súbita? A volatilidade aumentou? A entrada foi tardia? A duração foi muito curta/longa?
+1.  **Analise a Causa:** Com base nos dados de mercado e na operação, identifique a razão mais provável para a perda. Foi uma reversão súbita? A volatilidade aumentou? A entrada foi tardia? A duração do contrato foi muito curta ou muito longa para a condição de mercado?
 2.  **Seja Conciso:** Forneça uma análise de UMA frase. Ex: "O mercado reverteu a tendência logo após a sua entrada."
-3.  **Dê uma Sugestão Acionável:** Forneça UMA sugestão curta e prática. Se a estratégia do piloto automático foi usada, a sugestão deve ser para ajustar essa estratégia. Ex: "Sugiro aumentar o limiar do RSI para 35 para evitar sinais falsos." ou "Considere aumentar a duração do contrato para 7 ticks para resistir a pequenas flutuações."`,
+3.  **Dê uma Sugestão Acionável:** Forneça UMA sugestão curta e prática. A sugestão pode ser sobre o indicador, o stake ou a duração.
+    - **Ajuste de Indicador:** "Sugiro aumentar o limiar do RSI para 35 para evitar sinais falsos."
+    - **Ajuste de Duração:** "Considere aumentar a duração do contrato para 7 ticks para resistir a pequenas flutuações."
+    - **Ajuste de Risco:** "Em condições de alta volatilidade, considere reduzir o stake pela metade."`,
   prompt: `
 Analise a seguinte operação com prejuízo:
 
