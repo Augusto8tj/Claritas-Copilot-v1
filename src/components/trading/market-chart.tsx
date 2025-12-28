@@ -453,10 +453,7 @@ export function MarketChart({
     tradeAnnotations.forEach(ann => {
         if (ann.symbol !== activeSymbol) return;
 
-        const firstVisibleEpoch = visibleData[0]?.epoch;
-        const lastVisibleEpoch = visibleData[visibleData.length - 1]?.epoch;
-        if (ann.entryTime < firstVisibleEpoch || ann.entryTime > lastVisibleEpoch) return;
-
+        // Find the closest data point for the entry time
         let entryDataIndex = -1, minDiff = Infinity;
         visibleData.forEach((d, i) => {
             const diff = Math.abs(d.epoch - ann.entryTime);
@@ -493,6 +490,7 @@ export function MarketChart({
         ctx.stroke();
 
         if (ann.exitTime && ann.exitPrice) {
+             // Find the closest data point for the exit time
              let exitDataIndex = -1, minExitDiff = Infinity;
              visibleData.forEach((d, i) => {
                  const diff = Math.abs(d.epoch - ann.exitTime!);
