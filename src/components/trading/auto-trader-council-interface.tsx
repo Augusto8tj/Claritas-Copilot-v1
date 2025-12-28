@@ -34,6 +34,18 @@ const indicatorIcons: { [key: string]: React.ReactNode } = {
     ICHIMOKU_CLOUD: <Cloud className="h-4 w-4" />,
     AWESOME_OSCILLATOR: <BarChart className="h-4 w-4" />,
     VOLUME_PROFILE: <Activity className="h-4 w-4" />,
+    KAMA: <Activity className="h-4 w-4" />,
+    VWAP: <Activity className="h-4 w-4" />,
+    Z_SCORE: <BrainCircuit className="h-4 w-4" />,
+    STOCH_RSI: <BrainCircuit className="h-4 w-4" />,
+    MFI: <BrainCircuit className="h-4 w-4" />,
+    TRIX: <Activity className="h-4 w-4" />,
+    ROC: <Activity className="h-4 w-4" />,
+    DONCHIAN_CHANNELS: <Waves className="h-4 w-4" />,
+    RVI: <BrainCircuit className="h-4 w-4" />,
+    PARABOLIC_SAR: <TrendingUp className="h-4 w-4" />,
+    CHANDELIER_EXIT: <TrendingUp className="h-4 w-4" />,
+    OBV: <Activity className="h-4 w-4" />,
 };
 
 const voteIcons: { [key: string]: React.ReactNode } = {

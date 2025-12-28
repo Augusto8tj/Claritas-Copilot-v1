@@ -170,7 +170,7 @@ export function useRobotCouncil(
     const [strategyCouncil, setStrategyCouncil] = useState<RobotStrategy[]>([]);
     const [isFetchingCouncil, setIsFetchingCouncil] = useState(false);
     const [councilVotes, setCouncilVotes] = useState<CouncilVotes>({});
-    const [geminiRequestCount, setGeminiRequestCount] = useState(0); // Kept for UI, but AI calls are removed
+    const [geminiRequestCount, setGeminiRequestCount] = useState(0); 
     const [dailyBalance, setDailyBalance] = useState(100);
     const [dailyTarget, setDailyTarget] = useState(50);
     const [consensusThreshold, setConsensusThreshold] = useState(300);
@@ -185,16 +185,10 @@ export function useRobotCouncil(
         kama: null, bbw: null, stochRSI: null, zScore: null,
     });
     
-    // Manual/AI mode states are no longer needed
-    const [useManualCouncilMode] = useState(false);
-    const [manualPromptBatches, setManualPromptBatches] = useState<any[]>([]);
-
     const councilExecutionRef = useRef({ isExecuting: false });
     const previousMacdRef = useRef<{ macd: number | null; signal: number | null }>({ macd: null, signal: null });
 
-    const incrementGeminiRequestCount = useCallback(() => {
-        // This function is now a no-op but kept for compatibility if other components call it.
-    }, []);
+    const incrementGeminiRequestCount = useCallback(() => {}, []);
 
     const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, incrementGeminiRequestCount);
     
@@ -212,21 +206,15 @@ export function useRobotCouncil(
         } catch (e) { console.error("Failed to load robot performance from localStorage", e); }
     }, []);
 
-    // This function now builds the council locally instead of calling an AI
     const fetchStrategyCouncil = useCallback(async () => {
         if (!activeSymbol) return;
-        
         setIsFetchingCouncil(true);
-        
-        // Simulate a brief delay for better UX, as this is now instantaneous
         await new Promise(resolve => setTimeout(resolve, 500));
-
         try {
             const { duration_unit } = form.getValues();
             const council = buildStaticCouncil(duration_unit, dailyBalance);
             setStrategyCouncil(council);
             toast({ title: "Conselho de IA Montado!", description: `Os ${council.length} analistas-robôs estão prontos e calibrados.` });
-            
         } catch (e: any) {
             toast({ variant: "destructive", title: "Erro ao Montar o Conselho", description: e.message });
         } finally {
@@ -314,7 +302,7 @@ export function useRobotCouncil(
     }, [indicators, strategyCouncil, chartData]);
 
     useEffect(() => {
-        if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || strategyCouncil.length === 0 || !indicators.rsi) {
+        if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || strategyCouncil.length === 0 || !indicators.rsi || !chartData.length) {
             return;
         }
         
@@ -343,6 +331,9 @@ export function useRobotCouncil(
                 }
             }
 
+            const currentPrice = (chartData[chartData.length-1] as any)?.close;
+            if (!currentPrice) return;
+
             switch(robot.strategyType) {
                  case 'RSI':
                     if (indicators.rsi) {
@@ -363,10 +354,50 @@ export function useRobotCouncil(
                  case 'MACD_CROSS':
                     const { macd: currentMacd, signal: currentSignal } = indicators.macd;
                     const { macd: prevMacd, signal: prevSignal } = previousMacdRef.current;
-
                     if (currentMacd !== null && currentSignal !== null && prevMacd !== null && prevSignal !== null) {
                          if (prevMacd <= prevSignal && currentMacd > currentSignal) { vote = 'RISE'; confidence = robot.strongConfidence; }
                          if (prevMacd >= prevSignal && currentMacd < currentSignal) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                    }
+                    break;
+                case 'MOVING_AVERAGE_CROSS':
+                    if(indicators.ma.short && indicators.ma.long) {
+                        if(indicators.ma.short > indicators.ma.long) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                        else if (indicators.ma.short < indicators.ma.long) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                    }
+                    break;
+                case 'BOLLINGER_BANDS':
+                    const lastBB = indicators.bollingerBands[indicators.bollingerBands.length - 1];
+                    if (lastBB) {
+                        if (currentPrice <= lastBB.lower) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                        else if (currentPrice >= lastBB.upper) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                    }
+                    break;
+                case 'ADX_TREND':
+                    if (indicators.adx && indicators.pdi && indicators.ndi && robot.trendStrengthThreshold) {
+                         if(indicators.adx > robot.trendStrengthThreshold) {
+                             if(indicators.pdi > indicators.ndi) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                             else if (indicators.ndi > indicators.pdi) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                         }
+                    }
+                    break;
+                case 'KAMA':
+                    if (indicators.kama) {
+                        if (currentPrice > indicators.kama) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        if (currentPrice < indicators.kama) { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    }
+                    break;
+                case 'Z_SCORE':
+                    if (indicators.zScore && robot.zScoreThreshold) {
+                        if (indicators.zScore <= -robot.zScoreThreshold) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                        if (indicators.zScore >= robot.zScoreThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                    }
+                    break;
+                case 'STOCH_RSI':
+                     if (indicators.stochRSI) {
+                        if (robot.strongBuyThreshold && indicators.stochRSI <= robot.strongBuyThreshold) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                        else if (robot.weakBuyThreshold && indicators.stochRSI <= robot.weakBuyThreshold) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        else if (robot.strongSellThreshold && indicators.stochRSI >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                        else if (robot.weakSellThreshold && indicators.stochRSI >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
                     }
                     break;
             }
@@ -416,7 +447,8 @@ export function useRobotCouncil(
         toast,
         form,
         supervisionCommitteeCheck,
-        committeeOfSpecialists
+        committeeOfSpecialists,
+        chartData,
     ]);
 
     return {
@@ -441,12 +473,5 @@ export function useRobotCouncil(
         setIsMeritocracyOn,
         indicators,
         processNewChartData,
-        // Manual mode is now obsolete, but we keep the props for UI compatibility to avoid crashes
-        manualPromptBatches,
-        processManualCouncilResponse: () => {},
-        useManualCouncilMode,
-        setUseManualCouncilMode: () => {},
-        useSingleManualPrompt: false,
-        setUseSingleManualPrompt: () => {},
     };
 }
