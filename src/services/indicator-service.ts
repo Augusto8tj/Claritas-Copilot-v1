@@ -18,7 +18,7 @@ export interface Indicators {
     adx: number | null;
     pdi: number | null;
     ndi: number | null;
-    macd: { macd: number | null; signal: number | null; };
+    macd: { macd: number | null; signal: number | null; histogram: number | null };
     ma: { short: number | null; long: number | null; };
     sma: (number | null)[];
     ema: (number | null)[];
@@ -29,6 +29,14 @@ export interface Indicators {
     bbw: number | null; // Bollinger Bandwidth
     stochRSI: number | null;
     zScore: number | null;
+    // Newly added for full coverage
+    awesomeOscillator: number | null;
+    trix: number | null;
+    roc: number | null;
+    parabolicSAR: number | null;
+    ichimoku: { tenkan: number | null; kijun: number | null; senkouA: number | null; senkouB: number | null };
+    mfi: number | null;
+    obv: number | null;
 }
 
 const isCandle = (d: ChartData): d is CandleData => 'close' in d;
@@ -216,14 +224,68 @@ const calculateADX = (data: CandleData[], period = 14) => {
     return { adx, pdi: pdiFinal, ndi: ndiFinal };
 };
 
+const calculateAwesomeOscillator = (data: CandleData[]): (number | null)[] => {
+    if (data.length < 34) return Array(data.length).fill(null);
+    const midpoints = data.map(d => (d.high + d.low) / 2);
+    const sma5 = calculateSMA(midpoints.map(p => ({ close: p } as CandleData)), 5);
+    const sma34 = calculateSMA(midpoints.map(p => ({ close: p } as CandleData)), 34);
+    return sma5.map((s, i) => (s && sma34[i]) ? s - sma34[i]! : null);
+};
+
+const calculateParabolicSAR = (data: CandleData[], af = 0.02, maxAf = 0.2): (number | null)[] => {
+    if (data.length < 2) return Array(data.length).fill(null);
+    let sar: (number|null)[] = [null];
+    let isRising = data[1].close > data[0].close;
+    let ep = isRising ? data[1].high : data[1].low;
+    let currentAf = af;
+    let currentSar = isRising ? data[0].low : data[0].high;
+
+    for (let i = 1; i < data.length; i++) {
+        currentSar = currentSar + currentAf * (ep - currentSar);
+        
+        if (isRising) {
+            currentSar = Math.min(currentSar, data[i-1].low, i > 1 ? data[i-2].low : data[i-1].low);
+            if (data[i].low < currentSar) {
+                isRising = false;
+                currentSar = ep;
+                ep = data[i].low;
+                currentAf = af;
+            } else {
+                if (data[i].high > ep) {
+                    ep = data[i].high;
+                    currentAf = Math.min(maxAf, currentAf + af);
+                }
+            }
+        } else { // is falling
+            currentSar = Math.max(currentSar, data[i-1].high, i > 1 ? data[i-2].high : data[i-1].high);
+            if (data[i].high > currentSar) {
+                isRising = true;
+                currentSar = ep;
+                ep = data[i].high;
+                currentAf = af;
+            } else {
+                if (data[i].low < ep) {
+                    ep = data[i].low;
+                    currentAf = Math.min(maxAf, currentAf + af);
+                }
+            }
+        }
+        sar.push(currentSar);
+    }
+    return sar;
+};
+
 
 export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: RobotStrategy[]): Indicators {
     
     const emptyIndicators: Indicators = {
         rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
-        macd: { macd: null, signal: null }, ma: { short: null, long: null },
+        macd: { macd: null, signal: null, histogram: null }, ma: { short: null, long: null },
         sma: [], ema: [], vwap: [], bollingerBands: [],
         kama: null, bbw: null, stochRSI: null, zScore: null,
+        awesomeOscillator: null, trix: null, roc: null, parabolicSAR: null,
+        ichimoku: { tenkan: null, kijun: null, senkouA: null, senkouB: null },
+        mfi: null, obv: null,
     };
     
     if (chartData.length < 2) {
@@ -241,7 +303,6 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
         candles = chartData.filter(isCandle);
     }
 
-
     if (candles.length < 2) {
         return emptyIndicators;
     }
@@ -250,24 +311,25 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
 
     const rsiRobot = strategyCouncil.find(r => r.strategyType === 'RSI');
     const rsiValues = calculateRSI(candles, rsiRobot?.period || 14);
-    indicators.rsi = rsiValues[rsiValues.length - 1] ?? null;
+    indicators.rsi = rsiValues.length > 0 ? rsiValues[rsiValues.length - 1] : null;
 
     const stochRobot = strategyCouncil.find(r => r.strategyType === 'STOCHASTIC');
     const stochValues = calculateStochastic(candles, stochRobot?.period || 14);
-    indicators.stoch = stochValues[stochValues.length - 1] ?? null;
+    indicators.stoch = stochValues.length > 0 ? stochValues[stochValues.length - 1] : null;
     
     const macdRobot = strategyCouncil.find(r => r.strategyType === 'MACD_CROSS');
     const macdValues = calculateMACD(candles, macdRobot?.fastPeriod || 12, macdRobot?.slowPeriod || 26, macdRobot?.signalPeriod || 9);
     indicators.macd = { 
-        macd: macdValues.macd[macdValues.macd.length - 1] ?? null,
-        signal: macdValues.signal[macdValues.signal.length - 1] ?? null,
+        macd: macdValues.macd.length > 0 ? macdValues.macd[macdValues.macd.length - 1] : null,
+        signal: macdValues.signal.length > 0 ? macdValues.signal[macdValues.signal.length - 1] : null,
+        histogram: macdValues.histogram.length > 0 ? macdValues.histogram[macdValues.histogram.length - 1] : null,
     };
 
     const adxRobot = strategyCouncil.find(r => r.strategyType === 'ADX_TREND');
     const adxValues = calculateADX(candles, adxRobot?.period || 14);
-    indicators.adx = adxValues.adx[adxValues.adx.length - 1] ?? null;
-    indicators.pdi = adxValues.pdi[adxValues.pdi.length - 1] ?? null;
-    indicators.ndi = adxValues.ndi[adxValues.ndi.length - 1] ?? null;
+    indicators.adx = adxValues.adx.length > 0 ? adxValues.adx[adxValues.adx.length - 1] : null;
+    indicators.pdi = adxValues.pdi.length > 0 ? adxValues.pdi[adxValues.pdi.length - 1] : null;
+    indicators.ndi = adxValues.ndi.length > 0 ? adxValues.ndi[adxValues.ndi.length - 1] : null;
 
     const maRobot = strategyCouncil.find(r => r.strategyType === 'MOVING_AVERAGE_CROSS');
     const shortPeriod = maRobot?.shortPeriod || 20;
@@ -280,28 +342,54 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
     };
     
     const bbRobot = strategyCouncil.find(r => r.strategyType === 'BOLLINGER_BANDS');
+    const bbValues = DerivIndicators.bollingerBandwidth(candles, bbRobot?.period, bbRobot?.stdDev);
+    indicators.bbw = bbValues[bbValues.length - 1] ?? null;
 
-    // --- ADVANCED INDICATORS (from DerivFinanceLib) ---
+    const donchianRobot = strategyCouncil.find(r => r.strategyType === 'DONCHIAN_CHANNELS');
+    const bbSeries = DerivIndicators.donchian(candles, donchianRobot?.period);
+    indicators.bollingerBands = bbSeries.map(v => v ? { upper: v.upper, lower: v.lower, middle: v.middle } : null);
+
+    // --- ADVANCED & NEWLY ADDED INDICATORS ---
     const atrValues = DerivIndicators.atr(candles);
     indicators.atr = atrValues.length > 0 ? atrValues[atrValues.length - 1] : null;
 
     const vwapValues = DerivIndicators.vwap(candles);
     indicators.vwap = vwapValues;
 
-    const bbValues = DerivIndicators.bollingerBandwidth(candles, bbRobot?.period, bbRobot?.stdDev);
-    indicators.bbw = bbValues[bbValues.length - 1] ?? null;
-
-    const bbSeries = DerivIndicators.donchian(candles, bbRobot?.period);
-    indicators.bollingerBands = bbSeries.map(v => v ? { upper: v.upper, lower: v.lower, middle: v.middle } : null);
-
     const kamaValues = DerivIndicators.kama(candles);
-    indicators.kama = kamaValues[kamaValues.length - 1] ?? null;
+    indicators.kama = kamaValues.length > 0 ? kamaValues[kamaValues.length - 1] : null;
     
     const stochRSIValues = DerivIndicators.stochRSI(candles);
-    indicators.stochRSI = stochRSIValues[stochRSIValues.length - 1] ?? null;
+    indicators.stochRSI = stochRSIValues.length > 0 ? stochRSIValues[stochRSIValues.length - 1] : null;
 
     const zScoreValues = DerivIndicators.zScore(candles);
-    indicators.zScore = zScoreValues[zScoreValues.length - 1] ?? null;
+    indicators.zScore = zScoreValues.length > 0 ? zScoreValues[zScoreValues.length - 1] : null;
+
+    const aoValues = calculateAwesomeOscillator(candles);
+    indicators.awesomeOscillator = aoValues.length > 0 ? aoValues[aoValues.length - 1] : null;
     
+    const trixRobot = strategyCouncil.find(r => r.strategyType === 'TRIX');
+    const trixValues = DerivIndicators.trix(candles, trixRobot?.period);
+    indicators.trix = trixValues.length > 0 ? trixValues[trixValues.length - 1] : null;
+
+    const rocRobot = strategyCouncil.find(r => r.strategyType === 'ROC');
+    const rocValues = DerivIndicators.roc(candles, rocRobot?.period);
+    indicators.roc = rocValues.length > 0 ? rocValues[rocValues.length - 1] : null;
+
+    const sarRobot = strategyCouncil.find(r => r.strategyType === 'PARABOLIC_SAR');
+    const sarValues = calculateParabolicSAR(candles, sarRobot?.acceleration, sarRobot?.maxAcceleration);
+    indicators.parabolicSAR = sarValues.length > 0 ? sarValues[sarValues.length - 1] : null;
+
+    const ichimokuValues = DerivIndicators.ichimoku(candles);
+    const lastIchi = ichimokuValues.length > 0 ? ichimokuValues[ichimokuValues.length - 1] : { tenkan: null, kijun: null, senkouA: null, senkouB: null };
+    indicators.ichimoku = lastIchi;
+
+    const mfiRobot = strategyCouncil.find(r => r.strategyType === 'MFI');
+    const mfiValues = DerivIndicators.mfi(candles, mfiRobot?.period);
+    indicators.mfi = mfiValues.length > 0 ? mfiValues[mfiValues.length - 1] : null;
+
+    const obvValues = DerivIndicators.obv(candles);
+    indicators.obv = obvValues.length > 0 ? obvValues[obvValues.length - 1] : null;
+
     return { ...emptyIndicators, ...indicators };
 }
