@@ -453,20 +453,20 @@ export function MarketChart({
     tradeAnnotations.forEach(ann => {
         if (ann.symbol !== activeSymbol) return;
 
-        // Find the closest data point for the entry time
-        let entryDataIndex = -1, minDiff = Infinity;
+        // Find entry point
+        let entryDataIndex = -1, minEntryDiff = Infinity;
         visibleData.forEach((d, i) => {
             const diff = Math.abs(d.epoch - ann.entryTime);
-            if (diff < minDiff) { minDiff = diff; entryDataIndex = i; }
+            if (diff < minEntryDiff) { minEntryDiff = diff; entryDataIndex = i; }
         });
-        
+
         if (entryDataIndex === -1) return;
-        
+
         const entryX = getX(entryDataIndex);
         const entryY = getY(ann.entryPrice);
-        
         const annColor = ann.status === 'won' ? colors.bull : ann.status === 'lost' ? colors.bear : colors.line;
-
+        
+        // Draw Entry Circle
         ctx.beginPath();
         ctx.arc(entryX, entryY, 6, 0, 2 * Math.PI);
         ctx.fillStyle = annColor;
@@ -475,6 +475,7 @@ export function MarketChart({
         ctx.lineWidth = 2;
         ctx.stroke();
 
+        // Draw Arrow inside circle
         ctx.strokeStyle = 'white';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -490,17 +491,18 @@ export function MarketChart({
         ctx.stroke();
 
         if (ann.exitTime && ann.exitPrice) {
-             // Find the closest data point for the exit time
-             let exitDataIndex = -1, minExitDiff = Infinity;
-             visibleData.forEach((d, i) => {
-                 const diff = Math.abs(d.epoch - ann.exitTime!);
-                 if (diff < minExitDiff) { minExitDiff = diff; exitDataIndex = i; }
-             });
+            // Find exit point
+            let exitDataIndex = -1, minExitDiff = Infinity;
+            visibleData.forEach((d, i) => {
+                const diff = Math.abs(d.epoch - ann.exitTime!);
+                if (diff < minExitDiff) { minExitDiff = diff; exitDataIndex = i; }
+            });
 
             if (exitDataIndex !== -1) {
                 const exitX = getX(exitDataIndex);
                 const exitY = getY(ann.exitPrice);
 
+                // Draw Connecting Line
                 ctx.beginPath();
                 ctx.moveTo(entryX, entryY);
                 ctx.lineTo(exitX, exitY);
@@ -510,6 +512,7 @@ export function MarketChart({
                 ctx.stroke();
                 ctx.setLineDash([]);
                 
+                // Draw Exit Flag
                 ctx.save();
                 ctx.translate(exitX, exitY);
 
@@ -517,11 +520,13 @@ export function MarketChart({
                 ctx.fillStyle = annColor;
                 ctx.lineWidth = 2;
                 
+                // Flagpole
                 ctx.beginPath();
                 ctx.moveTo(0, 0);
                 ctx.lineTo(0, -25);
                 ctx.stroke();
 
+                // Flag body
                 ctx.beginPath();
                 ctx.moveTo(0, -25);
                 ctx.lineTo(25, -20);
@@ -530,12 +535,14 @@ export function MarketChart({
                 ctx.closePath();
                 ctx.fill();
 
+                // Checkmark or X
                 ctx.fillStyle = 'white';
                 ctx.font = 'bold 10px sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(ann.status === 'won' ? '✓' : '✗', 12.5, -15);
                 
+                // Profit Text
                 ctx.fillStyle = annColor;
                 ctx.font = '600 11px sans-serif';
                 ctx.textAlign = 'left';
