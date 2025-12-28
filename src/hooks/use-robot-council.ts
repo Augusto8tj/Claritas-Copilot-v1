@@ -272,7 +272,7 @@ ${basePromptInstructions}`;
     };
 
     useEffect(() => {
-        if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || !strategyCouncil.length || !indicators.rsi) {
+        if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || strategyCouncil.length === 0 || !indicators.rsi) {
             return;
         }
         
@@ -395,7 +395,6 @@ ${basePromptInstructions}`;
         setIsDynamicConsensusOn,
         isMeritocracyOn,
         setIsMeritocracyOn,
-        indicators,
         manualPromptBatches,
         processManualCouncilResponse,
         useManualCouncilMode,

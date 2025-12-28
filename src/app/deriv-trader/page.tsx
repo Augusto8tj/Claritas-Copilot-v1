@@ -53,7 +53,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
     macd: { macd: null, signal: null }, ma: { short: null, long: null },
     sma: [], ema: [], vwap: [], bollingerBands: [],
   });
-
+  
   // CENTRALIZED HOOKS
   const robotCouncil = useRobotCouncil(activeSymbol, indicators);
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, robotCouncil.incrementGeminiRequestCount);
