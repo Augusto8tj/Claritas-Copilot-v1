@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
-import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award, Laptop, Wand, ClipboardPaste, Trash2 } from "lucide-react";
+import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award, Laptop, Wand, ClipboardPaste, Trash2, ShieldCheck, ShieldX, Group, Eye } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "../ui/label";
@@ -73,7 +73,6 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
     strategyCouncil,
     isFetchingCouncil,
     councilVotes,
-    geminiRequestCount,
     dailyBalance,
     setDailyBalance,
     dailyTarget,
@@ -85,6 +84,8 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
     isMeritocracyOn,
     setIsMeritocracyOn,
     indicators,
+    activeCommittee,
+    supervisionStatus,
     fetchStrategyCouncil,
     dissolveCouncil,
  } = props;
@@ -139,7 +140,7 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
         case 'ICHIMOKU_CLOUD':
         case 'VWAP':
         case 'OBV':
-             return 'Parâmetros internos';
+             return 'Parâmetros Internos';
         default:
             return "Parâmetros não definidos";
     }
@@ -196,7 +197,8 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
                 if (!lastChannel) return <p>Canais: <strong>...</strong></p>;
                 return <p>Canais: <strong>{format(lastChannel.lower)} / {format(lastChannel.upper)}</strong></p>;
             case 'CHANDELIER_EXIT':
-                return <p>Saída Chandelier: <strong>{format(indicators.chandelierExit)}</strong></p>;
+                 if (!indicators.chandelierExit) return <p>Saída: <strong>...</strong></p>;
+                 return <p>Saída Chandelier: <strong>{format(indicators.chandelierExit)}</strong></p>;
             case 'ICHIMOKU_CLOUD':
                 if (!indicators.ichimoku) return <p>Nuvem: <strong>...</strong></p>;
                 return <p>Nuvem A/B: <strong>{format(indicators.ichimoku.senkouA)} / {format(indicators.ichimoku.senkouB)}</strong></p>;
@@ -204,7 +206,6 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
                 return null;
         }
   }
-
 
   const groupedRobots = strategyCouncil.reduce((acc, robot) => {
     for (const category in robotCategories) {
@@ -219,6 +220,12 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
     return acc;
   }, {} as Record<string, RobotStrategy[]>);
 
+
+  const supervisionIcon = {
+      'inactive': <HelpCircle className="h-4 w-4 text-muted-foreground" />,
+      'veto': <ShieldX className="h-4 w-4 text-destructive" />,
+      'approved': <ShieldCheck className="h-4 w-4 text-green-600" />,
+  }[supervisionStatus.status]
 
   return (
     <Card>
@@ -238,6 +245,18 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {isCouncilAutopilotOn && (
+            <div className="grid grid-cols-2 gap-4 text-xs">
+                <div className="rounded-lg border bg-card p-3">
+                    <p className="font-semibold flex items-center gap-1.5"><Group className="h-4 w-4" /> Comité Tático Ativo</p>
+                    <p className="text-muted-foreground mt-1">{activeCommittee || 'Aguardando...'}</p>
+                </div>
+                 <div className="rounded-lg border bg-card p-3">
+                    <p className="font-semibold flex items-center gap-1.5">{supervisionIcon} Supervisão de Risco</p>
+                    <p className="text-muted-foreground mt-1">{supervisionStatus.message}</p>
+                </div>
+            </div>
+        )}
         <div className="grid grid-cols-2 gap-4">
              <div className="space-y-2">
                 <Label htmlFor="council-daily-balance">Banca do Dia (USD)</Label>
@@ -322,11 +341,7 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
             <span>Analistas Montados</span>
             <Badge variant="outline">{strategyCouncil.length}</Badge>
         </div>
-         <div className="flex justify-between items-center text-xs text-muted-foreground">
-            <span>Requisições à IA (sessão)</span>
-            <Badge variant="outline">{geminiRequestCount}</Badge>
-        </div>
-
+        
         {isCouncilAutopilotOn && (
             isFetchingCouncil ? (
                 <div className="flex items-center justify-center text-muted-foreground p-4">
@@ -336,7 +351,7 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
             ) : strategyCouncil.length > 0 ? (
                 <Alert className="bg-primary/5 border-primary/20 max-h-96 overflow-y-auto">
                     <AlertTitle className="text-primary flex items-center gap-2">
-                        <Users className="h-4 w-4" />
+                        <Eye className="h-4 w-4" />
                         Conselho em Sessão
                     </AlertTitle>
                     <AlertDescription className="text-primary/90 space-y-3 mt-2">

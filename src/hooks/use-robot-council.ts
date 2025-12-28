@@ -9,6 +9,8 @@ import type { RiseFallFormValues } from '@/components/trading/deriv-trader-inter
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
 import type { Indicators } from '@/services/indicator-service';
+import type { ChartData } from './types';
+import { calculateAllIndicators } from '@/services/indicator-service';
 
 export type RobotVote = {
     vote: 'RISE' | 'FALL' | 'HOLD';
@@ -26,6 +28,12 @@ export interface RobotPerformance {
     losses: number;
     totalProfit: number;
 }
+
+export type SupervisionStatus = {
+    status: 'inactive' | 'approved' | 'veto';
+    message: string;
+};
+
 
 /**
  * Builds a statically defined, locally calibrated council of all 22 trading robots.
@@ -157,8 +165,7 @@ const buildStaticCouncil = (durationUnit: RiseFallFormValues['duration_unit'], d
 
 
 export function useRobotCouncil(
-    activeSymbol: string | null,
-    indicators: Indicators
+    activeSymbol: string | null
 ) {
     const { operationsLog, executeTrade, chartData } = useDerivApi();
     const { toast } = useToast();
@@ -168,7 +175,6 @@ export function useRobotCouncil(
     const [strategyCouncil, setStrategyCouncil] = useState<RobotStrategy[]>([]);
     const [isFetchingCouncil, setIsFetchingCouncil] = useState(false);
     const [councilVotes, setCouncilVotes] = useState<CouncilVotes>({});
-    const [geminiRequestCount, setGeminiRequestCount] = useState(0); 
     const [dailyBalance, setDailyBalance] = useState(100);
     const [dailyTarget, setDailyTarget] = useState(50);
     const [consensusThreshold, setConsensusThreshold] = useState(300);
@@ -177,14 +183,19 @@ export function useRobotCouncil(
     const [isMeritocracyOn, setIsMeritocracyOn] = useState(true);
     const [robotPerformance, setRobotPerformance] = useState<RobotPerformance[]>([]);
     
+    // States to expose for UI
+    const [activeCommittee, setActiveCommittee] = useState<string | null>(null);
+    const [supervisionStatus, setSupervisionStatus] = useState<SupervisionStatus>({ status: 'inactive', message: 'Aguardando consenso.' });
+    
     const councilExecutionRef = useRef({ isExecuting: false });
     const previousMacdRef = useRef<{ macd: number | null; signal: number | null }>({ macd: null, signal: null });
     const previousObvRef = useRef<number | null>(null);
+    
+    const [indicators, setIndicators] = useState<Indicators>(calculateAllIndicators([], []));
 
+    // Empty callback for compatibility, no AI calls needed anymore
     const incrementGeminiRequestCount = useCallback(() => {}, []);
-
-    const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, incrementGeminiRequestCount);
-
+    
     useEffect(() => {
         try {
             const stored = localStorage.getItem(ROBOT_PERFORMANCE_KEY);
@@ -222,7 +233,10 @@ export function useRobotCouncil(
             vetoReason = "Meta de lucro diária atingida. Operações bloqueadas.";
         }
     
-        if (vetoReason) return { finalStake, vetoReason };
+        if (vetoReason) {
+            setSupervisionStatus({ status: 'veto', message: vetoReason });
+            return { finalStake, vetoReason };
+        };
 
         const atr = indicators.atr;
         const lastClose = chartData.length > 0 ? (chartData[chartData.length - 1] as any).close : null;
@@ -230,7 +244,7 @@ export function useRobotCouncil(
             const atrPercentage = (atr / lastClose) * 100;
             if (atrPercentage > 0.05) { 
                 finalStake *= 0.75;
-                toast({ title: "Supervisor de Volatilidade", description: "ATR alto. Risco reduzido para 75%.", variant: "default" });
+                setSupervisionStatus({ status: 'approved', message: "Risco ajustado (ATR alto)." });
             }
         }
         
@@ -238,18 +252,22 @@ export function useRobotCouncil(
         if (adx) {
             if (adx < 20) { 
                 finalStake *= 0.75;
-                toast({ title: "Supervisor de Tendência", description: "ADX baixo (mercado lateral). Risco reduzido.", variant: "default" });
+                setSupervisionStatus({ status: 'approved', message: "Risco ajustado (ADX baixo)." });
             } else if (adx > 35) { 
                 finalStake *= 1.25; 
-                toast({ title: "Supervisor de Tendência", description: "ADX alto (tendência forte). Risco aumentado.", variant: "default" });
+                setSupervisionStatus({ status: 'approved', message: "Risco aumentado (ADX alto)." });
             }
         }
 
         if (finalStake < 0.35) finalStake = 0.35;
         
+        if (!vetoReason && supervisionStatus.status !== 'approved') {
+            setSupervisionStatus({ status: 'approved', message: 'Aprovado sem ajustes.' });
+        }
+
         return { finalStake, vetoReason };
 
-    }, [operationsLog, dailyBalance, dailyTarget, indicators, chartData, toast]);
+    }, [operationsLog, dailyBalance, dailyTarget, indicators, chartData, supervisionStatus.status]);
 
     const dissolveCouncil = () => {
         setStrategyCouncil([]);
@@ -258,34 +276,42 @@ export function useRobotCouncil(
     };
 
     const committeeOfSpecialists = useCallback(() => {
-        const activeSpecialists: RobotStrategy[] = [];
         const { adx, atr, bbw } = indicators;
+        
+        let committeeName = "Comité Padrão";
+        let activeSpecialists: RobotStrategy[] = [];
 
         const isVolatile = (bbw && bbw > 0.04) || (atr && chartData.length > 0 && atr > ((chartData[chartData.length - 1] as any).close || 1) * 0.0005);
-        if (isVolatile) {
-            const volatilityBots = strategyCouncil.filter(r => ['BOLLINGER_BANDS', 'KAMA', 'ADX_TREND', 'CHANDELIER_EXIT'].includes(r.strategyType));
-            activeSpecialists.push(...volatilityBots);
-        }
-
         const isTrending = adx && adx > 25;
-        if (isTrending) {
-            const trendBots = strategyCouncil.filter(r => ['MOVING_AVERAGE_CROSS', 'MACD_CROSS', 'ICHIMOKU_CLOUD', 'PARABOLIC_SAR'].includes(r.strategyType));
-            activeSpecialists.push(...trendBots);
-        }
 
-        if (!isTrending) {
-             const rangeBots = strategyCouncil.filter(r => ['RSI', 'STOCHASTIC', 'Z_SCORE', 'STOCH_RSI', 'RVI'].includes(r.strategyType));
-            activeSpecialists.push(...rangeBots);
+        if (isVolatile) {
+            committeeName = "Especialistas em Volatilidade";
+            activeSpecialists = strategyCouncil.filter(r => ['BOLLINGER_BANDS', 'KAMA', 'ADX_TREND', 'CHANDELIER_EXIT'].includes(r.strategyType));
+        } else if (isTrending) {
+            committeeName = "Especialistas em Tendência";
+            activeSpecialists = strategyCouncil.filter(r => ['MOVING_AVERAGE_CROSS', 'MACD_CROSS', 'ICHIMOKU_CLOUD', 'PARABOLIC_SAR'].includes(r.strategyType));
+        } else {
+            committeeName = "Especialistas em Mercado Lateral";
+            activeSpecialists = strategyCouncil.filter(r => ['RSI', 'STOCHASTIC', 'Z_SCORE', 'STOCH_RSI', 'RVI'].includes(r.strategyType));
         }
 
         if (activeSpecialists.length === 0) {
-            const defaultBots = strategyCouncil.filter(r => ['RSI', 'MOVING_AVERAGE_CROSS'].includes(r.strategyType));
-            activeSpecialists.push(...defaultBots);
+            committeeName = "Comité de Emergência";
+            activeSpecialists = strategyCouncil.filter(r => ['RSI', 'MOVING_AVERAGE_CROSS'].includes(r.strategyType));
         }
-
+        
+        setActiveCommittee(committeeName);
         return [...new Map(activeSpecialists.map(item => [item.id, item])).values()];
 
     }, [indicators, strategyCouncil, chartData]);
+
+    useEffect(() => {
+        if (isCouncilAutopilotOn) {
+            const calculated = calculateAllIndicators(chartData, strategyCouncil);
+            setIndicators(calculated);
+        }
+    }, [chartData, isCouncilAutopilotOn, strategyCouncil]);
+
 
     useEffect(() => {
         if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || strategyCouncil.length === 0 || !indicators.rsi || !chartData.length) {
@@ -523,8 +549,6 @@ export function useRobotCouncil(
         dissolveCouncil,
         isFetchingCouncil,
         councilVotes,
-        geminiRequestCount,
-        incrementGeminiRequestCount,
         dailyBalance,
         setDailyBalance,
         dailyTarget,
@@ -536,5 +560,7 @@ export function useRobotCouncil(
         isMeritocracyOn,
         setIsMeritocracyOn,
         indicators,
+        activeCommittee,
+        supervisionStatus,
     };
 }
