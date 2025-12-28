@@ -362,7 +362,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
                 const promise = promisesRef.current.get(String(reqId));
                 promisesRef.current.delete(String(reqId));
                 if (response.error) {
-                    promise?.reject(new Error(response.error.message || 'Unknown error'));
+                    const errorMessage = response.error.message || `Unknown API error. Code: ${response.error.code || 'N/A'}`;
+                    const errorDetails = JSON.stringify(response.error);
+                    promise?.reject(new Error(`${errorMessage} | Details: ${errorDetails}`));
                 } else {
                     promise?.resolve(response);
                 }
