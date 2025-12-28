@@ -346,6 +346,9 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
     
     indicators.bollingerBands = DerivIndicators.donchian(candles, getParam('BOLLINGER_BANDS', 'period', 20));
 
+    const bbwValues = DerivIndicators.bollingerBandwidth(candles, getParam('BOLLINGER_BANDS', 'period', 20), getParam('BOLLINGER_BANDS', 'stdDev', 2));
+    indicators.bbw = bbwValues.length > 0 ? bbwValues[bbwValues.length-1] : null;
+
     indicators.donchianChannels = DerivIndicators.donchian(candles, getParam('DONCHIAN_CHANNELS', 'period', 20));
 
     const chandelierValues = DerivIndicators.chandelierExit(candles, getParam('CHANDELIER_EXIT', 'period', 22), getParam('CHANDELIER_EXIT', 'multiplier', 3));
