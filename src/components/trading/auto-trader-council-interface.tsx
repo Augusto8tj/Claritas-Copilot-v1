@@ -135,6 +135,11 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
         case 'KAMA':
         case 'DONCHIAN_CHANNELS':
             return `Período: ${robot.period}`;
+        case 'AWESOME_OSCILLATOR':
+        case 'ICHIMOKU_CLOUD':
+        case 'VWAP':
+        case 'OBV':
+             return 'Parâmetros internos';
         default:
             return "Parâmetros não definidos";
     }

@@ -9,8 +9,6 @@ import type { RiseFallFormValues } from '@/components/trading/deriv-trader-inter
 import { useFormContext } from 'react-hook-form';
 import { useTradeAnalysis } from './use-trade-analysis';
 import type { Indicators } from '@/services/indicator-service';
-import { calculateAllIndicators } from '@/services/indicator-service';
-
 
 export type RobotVote = {
     vote: 'RISE' | 'FALL' | 'HOLD';
@@ -181,6 +179,7 @@ export function useRobotCouncil(
     
     const councilExecutionRef = useRef({ isExecuting: false });
     const previousMacdRef = useRef<{ macd: number | null; signal: number | null }>({ macd: null, signal: null });
+    const previousObvRef = useRef<number | null>(null);
 
     const incrementGeminiRequestCount = useCallback(() => {}, []);
 
@@ -306,6 +305,8 @@ export function useRobotCouncil(
         let riseConfidenceSum = 0, fallConfidenceSum = 0;
         
         const activeSpecialists = committeeOfSpecialists();
+        const currentPrice = (chartData[chartData.length-1] as any)?.close;
+        if (!currentPrice) return;
 
         activeSpecialists.forEach(robot => {
             let vote: RobotVote['vote'] = 'HOLD', confidence = 0;
@@ -318,11 +319,8 @@ export function useRobotCouncil(
                 }
             }
 
-            const currentPrice = (chartData[chartData.length-1] as any)?.close;
-            if (!currentPrice) return;
-
             switch(robot.strategyType) {
-                 case 'RSI':
+                case 'RSI':
                     if (indicators.rsi) {
                         if (robot.strongBuyThreshold && indicators.rsi <= robot.strongBuyThreshold) { vote = 'RISE'; confidence = robot.strongConfidence; }
                         else if (robot.weakBuyThreshold && indicators.rsi <= robot.weakBuyThreshold) { vote = 'RISE'; confidence = robot.weakConfidence; }
@@ -353,8 +351,8 @@ export function useRobotCouncil(
                     }
                     break;
                 case 'BOLLINGER_BANDS':
-                    const lastBB = indicators.bollingerBands[indicators.bollingerBands.length - 1];
-                    if (lastBB) {
+                    const lastBB = indicators.bollingerBands.length > 0 ? indicators.bollingerBands[indicators.bollingerBands.length - 1] : null;
+                    if (lastBB && currentPrice) {
                         if (currentPrice <= lastBB.lower) { vote = 'RISE'; confidence = robot.strongConfidence; }
                         else if (currentPrice >= lastBB.upper) { vote = 'FALL'; confidence = robot.strongConfidence; }
                     }
@@ -368,7 +366,7 @@ export function useRobotCouncil(
                     }
                     break;
                 case 'KAMA':
-                    if (indicators.kama) {
+                    if (indicators.kama && currentPrice) {
                         if (currentPrice > indicators.kama) { vote = 'RISE'; confidence = robot.weakConfidence; }
                         if (currentPrice < indicators.kama) { vote = 'FALL'; confidence = robot.weakConfidence; }
                     }
@@ -387,6 +385,84 @@ export function useRobotCouncil(
                         else if (robot.weakSellThreshold && indicators.stochRSI >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
                     }
                     break;
+                case 'AWESOME_OSCILLATOR':
+                    const ao = indicators.awesomeOscillator;
+                    if(ao !== null) {
+                        if(ao > 0) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        if(ao < 0) { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    }
+                    break;
+                case 'TRIX':
+                    const trix = indicators.trix;
+                    if (trix !== null) {
+                        if (trix > 0.01) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        if (trix < -0.01) { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    }
+                    break;
+                case 'ROC':
+                    const roc = indicators.roc;
+                    if (roc !== null) {
+                        if (roc > 0.05) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        if (roc < -0.05) { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    }
+                    break;
+                 case 'RVI':
+                    if (indicators.rvi) {
+                        if (robot.strongBuyThreshold && indicators.rvi <= robot.strongBuyThreshold) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                        else if (robot.weakBuyThreshold && indicators.rvi <= robot.weakBuyThreshold) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        else if (robot.strongSellThreshold && indicators.rvi >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                        else if (robot.weakSellThreshold && indicators.rvi >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    }
+                    break;
+                 case 'PARABOLIC_SAR':
+                    if(indicators.parabolicSAR && currentPrice) {
+                        if(currentPrice > indicators.parabolicSAR) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                        if(currentPrice < indicators.parabolicSAR) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                    }
+                    break;
+                 case 'ICHIMOKU_CLOUD':
+                    const ichi = indicators.ichimoku;
+                    if (ichi && ichi.senkouA && ichi.senkouB && currentPrice) {
+                        if (currentPrice > ichi.senkouA && currentPrice > ichi.senkouB) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        if (currentPrice < ichi.senkouA && currentPrice < ichi.senkouB) { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    }
+                    break;
+                case 'DONCHIAN_CHANNELS':
+                    const lastDonchian = indicators.donchianChannels.length > 0 ? indicators.donchianChannels[indicators.donchianChannels.length - 1] : null;
+                    if (lastDonchian && currentPrice) {
+                         if (currentPrice >= lastDonchian.upper) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                         if (currentPrice <= lastDonchian.lower) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                    }
+                    break;
+                case 'CHANDELIER_EXIT':
+                    if (indicators.chandelierExit && currentPrice) {
+                        if(currentPrice > indicators.chandelierExit) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                        if(currentPrice < indicators.chandelierExit) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                    }
+                    break;
+                case 'VWAP':
+                    const lastVWAP = indicators.vwap && indicators.vwap.length > 0 ? indicators.vwap[indicators.vwap.length - 1] : null;
+                    if (lastVWAP && currentPrice) {
+                         if(currentPrice > lastVWAP) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                         if(currentPrice < lastVWAP) { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    }
+                    break;
+                case 'MFI':
+                     if (indicators.mfi) {
+                        if (robot.strongBuyThreshold && indicators.mfi <= robot.strongBuyThreshold) { vote = 'RISE'; confidence = robot.strongConfidence; }
+                        else if (robot.weakBuyThreshold && indicators.mfi <= robot.weakBuyThreshold) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        else if (robot.strongSellThreshold && indicators.mfi >= robot.strongSellThreshold) { vote = 'FALL'; confidence = robot.strongConfidence; }
+                        else if (robot.weakSellThreshold && indicators.mfi >= robot.weakSellThreshold) { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    }
+                    break;
+                case 'OBV':
+                    const obv = indicators.obv;
+                    const prevObv = previousObvRef.current;
+                    if (obv !== null && prevObv !== null) {
+                        if (obv > prevObv) { vote = 'RISE'; confidence = robot.weakConfidence; }
+                        if (obv < prevObv) { vote = 'FALL'; confidence = robot.weakConfidence; }
+                    }
+                    break;
             }
 
             newVotes[robot.id] = { vote, confidence, weight };
@@ -395,6 +471,7 @@ export function useRobotCouncil(
         });
         
         previousMacdRef.current = indicators.macd;
+        previousObvRef.current = indicators.obv;
         setCouncilVotes(newVotes);
 
         const consensusReached = Math.max(riseConfidenceSum, fallConfidenceSum) >= currentThreshold;
