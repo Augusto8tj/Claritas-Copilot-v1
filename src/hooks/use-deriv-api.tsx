@@ -698,7 +698,7 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
   };
 
   return (
-    <DerivApiContext.Provider value={contextValue as any}>
+    <DerivApiContext.Provider value={contextValue}>
       {children}
     </DerivApiContext.Provider>
   );
