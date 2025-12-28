@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
-import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award, Laptop, Wand, ClipboardPaste, Trash2, ShieldCheck, ShieldX, Group, Eye } from "lucide-react";
+import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award, Laptop, Wand, ClipboardPaste, Trash2, ShieldCheck, ShieldX, Group, Eye, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "../ui/label";
@@ -86,6 +86,7 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
     indicators,
     activeCommittee,
     supervisionStatus,
+    consensusSum,
     fetchStrategyCouncil,
     dissolveCouncil,
  } = props;
@@ -317,7 +318,19 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
                 placeholder="Ex: 300"
                 disabled={isCouncilAutopilotOn || isDynamicConsensusOn}
             />
-            <p className="text-xs text-muted-foreground">Soma de confiança necessária para executar uma ordem.</p>
+            {isCouncilAutopilotOn && (
+                <div className="flex items-center justify-center gap-4 text-sm font-semibold rounded-md border p-2 bg-muted/50">
+                    <div className="flex items-center gap-1.5 text-green-600">
+                        <ArrowUpCircle className="h-4 w-4" />
+                        <span>RISE: {Math.round(consensusSum.rise)}</span>
+                    </div>
+                    <Separator orientation="vertical" className="h-5" />
+                    <div className="flex items-center gap-1.5 text-red-600">
+                        <ArrowDownCircle className="h-4 w-4" />
+                        <span>FALL: {Math.round(consensusSum.fall)}</span>
+                    </div>
+                </div>
+            )}
         </div>
 
         <Separator />

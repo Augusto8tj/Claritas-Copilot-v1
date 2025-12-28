@@ -247,6 +247,7 @@ export function useRobotCouncil(
     const [isDynamicConsensusOn, setIsDynamicConsensusOn] = useState(true);
     const [isMeritocracyOn, setIsMeritocracyOn] = useState(true);
     const [robotPerformance, setRobotPerformance] = useState<RobotPerformance[]>([]);
+    const [consensusSum, setConsensusSum] = useState({ rise: 0, fall: 0 });
     
     // States to expose for UI
     const [activeCommittee, setActiveCommittee] = useState<string | null>(null);
@@ -610,6 +611,7 @@ export function useRobotCouncil(
         
         previousIndicatorsRef.current = indicators;
         setCouncilVotes(newVotes);
+        setConsensusSum({ rise: riseConfidenceSum, fall: fallConfidenceSum });
 
         const totalConfidence = Math.max(riseConfidenceSum, fallConfidenceSum);
         const consensusReached = totalConfidence >= currentThreshold;
@@ -694,5 +696,6 @@ export function useRobotCouncil(
         supervisionStatus,
         processNewChartData,
         indicators,
+        consensusSum,
     };
 }
