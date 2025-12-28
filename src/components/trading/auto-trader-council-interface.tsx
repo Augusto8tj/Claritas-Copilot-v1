@@ -104,7 +104,7 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
   };
 
   const renderStrategyParams = (robot: RobotStrategy) => {
-    switch (robot.strategyType) {
+     switch (robot.strategyType) {
         case 'RSI':
         case 'STOCHASTIC':
         case 'MFI':
@@ -142,9 +142,9 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
         case 'OBV':
              return 'Parâmetros Internos';
         default:
-            return "Parâmetros não definidos";
+            return "N/A";
     }
-  }
+}
 
     const renderIndicatorValue = (robot: RobotStrategy) => {
         if (!indicators) return <p>...</p>;
@@ -246,7 +246,7 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
       </CardHeader>
       <CardContent className="space-y-4">
         {isCouncilAutopilotOn && (
-            <div className="grid grid-cols-2 gap-4 text-xs">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div className="rounded-lg border bg-card p-3">
                     <p className="font-semibold flex items-center gap-1.5"><Group className="h-4 w-4" /> Comité Tático Ativo</p>
                     <p className="text-muted-foreground mt-1">{activeCommittee || 'Aguardando...'}</p>
@@ -254,6 +254,7 @@ export function AutoTraderCouncilInterface(props: AutoTraderCouncilInterfaceProp
                  <div className="rounded-lg border bg-card p-3">
                     <p className="font-semibold flex items-center gap-1.5">{supervisionIcon} Supervisão de Risco</p>
                     <p className="text-muted-foreground mt-1">{supervisionStatus.message}</p>
+                    {supervisionStatus.analysis && <p className="text-muted-foreground mt-1 italic">Análise: {supervisionStatus.analysis}</p>}
                 </div>
             </div>
         )}

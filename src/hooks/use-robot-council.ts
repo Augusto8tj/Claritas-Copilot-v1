@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -17,7 +16,7 @@ export type RobotVote = {
     confidence: number;
     weight: number;
 };
-export type CouncilVotes = { [key: string]: RobotVote };
+export type CouncilVotes = { [key:string]: RobotVote };
 
 const ROBOT_PERFORMANCE_KEY = 'derivRobotPerformance';
 export interface RobotPerformance {
@@ -32,9 +31,12 @@ export interface RobotPerformance {
 export type SupervisionStatus = {
     status: 'inactive' | 'approved' | 'veto';
     message: string;
+    analysis?: string; // Detailed analysis text
 };
 
 type TradingStyle = 'HFT' | 'Scalping' | 'Intraday' | 'Swing';
+type MarketCondition = 'Tendência de Alta' | 'Tendência de Baixa' | 'Reversão (Alta)' | 'Reversão (Baixa)' | 'Volatilidade' | 'Lateral';
+
 
 const getTradingStyle = (timePeriod: TimePeriod): TradingStyle => {
     const hftPeriods: TimePeriod[] = ['1m', '2m'];
@@ -76,7 +78,7 @@ const buildStaticCouncil = (timePeriod: TimePeriod, dailyBalance: number): Robot
             rsiParams = { period: 7, strongBuy: 20, weakBuy: 30, strongSell: 80, weakSell: 70, justification: 'rápidos (7) para reversão extrema.' };
             stochParams = { period: 10, strongBuy: 15, weakBuy: 25, strongSell: 85, weakSell: 75, justification: 'sensível (10) para picos.' };
             macdParams = { fast: 8, slow: 17, signal: 6, justification: 'rápidos (8/17/6) para momentum imediato.' };
-            maParams = { short: 5, long: 10, justification: 'inúteis (muito atraso).' };
+            maParams = { short: 5, long: 10, justification: 'lentos demais para HFT.' };
             bbParams = { period: 20, stdDev: 1.8, justification: 'curto (20/1.8) para rompimentos.'};
             adxThreshold = 30;
             kamaPeriod = 5;
@@ -222,7 +224,7 @@ const EMPTY_INDICATORS: Indicators = {
     kama: null, bbw: null, stochRSI: null, zScore: null,
     awesomeOscillator: null, trix: null, roc: null, parabolicSAR: null,
     ichimoku: { tenkan: null, kijun: null, senkouA: null, senkouB: null },
-    mfi: null, obv: null, chandelierExit: null,
+    mfi: null, obv: null, chandelierExit: null, rvi: null
 };
 
 export function useRobotCouncil(
@@ -231,8 +233,7 @@ export function useRobotCouncil(
     const { operationsLog, executeTrade, timePeriod } = useDerivApi();
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
-    const [geminiRequestCount, setGeminiRequestCount] = useState(0);
-
+    
     const [isCouncilAutopilotOn, setIsCouncilAutopilotOn] = useState(false);
     const [strategyCouncil, setStrategyCouncil] = useState<RobotStrategy[]>([]);
     const [isFetchingCouncil, setIsFetchingCouncil] = useState(false);
@@ -278,33 +279,79 @@ export function useRobotCouncil(
             setIsFetchingCouncil(false);
         }
     }, [activeSymbol, dailyBalance, timePeriod, toast]);
+    
+    const committeeOfSpecialists = useCallback(() => {
+        if (!indicators.rsi) return []; // Guard clause
+        let committeeName: MarketCondition = 'Lateral';
+        let activeSpecialists: RobotStrategy[] = [];
+
+        // Determine Market Condition
+        const isUpTrend = (indicators.ma.short ?? 0) > (indicators.ma.long ?? 0) && (indicators.adx ?? 0) > 20;
+        const isDownTrend = (indicators.ma.short ?? 0) < (indicators.ma.long ?? 0) && (indicators.adx ?? 0) > 20;
+        const isRsiOversold = indicators.rsi <= 30;
+        const isRsiOverbought = indicators.rsi >= 70;
+
+        if (isUpTrend) committeeName = 'Tendência de Alta';
+        else if (isDownTrend) committeeName = 'Tendência de Baixa';
+        else if (isRsiOversold) committeeName = 'Reversão (Alta)';
+        else if (isRsiOverbought) committeeName = 'Reversão (Baixa)';
+        else if ((indicators.bbw ?? 0) < 1) committeeName = 'Volatilidade'; // Example threshold
+        else committeeName = 'Lateral';
+
+        setActiveCommittee(committeeName);
+
+        switch (committeeName) {
+            case 'Tendência de Alta':
+                return strategyCouncil.filter(r => ['MOVING_AVERAGE_CROSS', 'ADX_TREND', 'MACD_CROSS', 'PARABOLIC_SAR'].includes(r.strategyType));
+            case 'Tendência de Baixa':
+                return strategyCouncil.filter(r => ['MOVING_AVERAGE_CROSS', 'ADX_TREND', 'MACD_CROSS', 'PARABOLIC_SAR'].includes(r.strategyType));
+            case 'Reversão (Alta)':
+                return strategyCouncil.filter(r => ['RSI', 'STOCHASTIC', 'BOLLINGER_BANDS', 'Z_SCORE', 'PRICE_ACTION_PATTERN'].includes(r.strategyType));
+            case 'Reversão (Baixa)':
+                return strategyCouncil.filter(r => ['RSI', 'STOCHASTIC', 'BOLLINGER_BANDS', 'Z_SCORE', 'PRICE_ACTION_PATTERN'].includes(r.strategyType));
+            case 'Volatilidade':
+                return strategyCouncil.filter(r => ['BOLLINGER_BANDS', 'DONCHIAN_CHANNELS', 'ATR'].includes(r.strategyType)); // ATR robot doesn't exist, but shows logic
+            default: // Lateral
+                return strategyCouncil.filter(r => ['RSI', 'STOCHASTIC', 'AWESOME_OSCILLATOR', 'KAMA'].includes(r.strategyType));
+        }
+    }, [strategyCouncil, indicators]);
+
 
     const supervisionCommitteeCheck = useCallback((stake: number, direction: 'RISE' | 'FALL') => {
         let finalStake = stake;
         let vetoReason: string | null = null;
-    
+        let analysis = "";
+
         const dailyPnL = operationsLog
             .filter(op => op.initiator === 'Conselho' && op.status !== 'pending' && new Date(op.timestamp).toDateString() === new Date().toDateString())
             .reduce((sum, op) => sum + (op.result || 0), 0);
 
         if (dailyBalance > 0 && dailyPnL <= -dailyBalance) {
-            vetoReason = "Limite de perda diária atingido. Operações bloqueadas.";
+            vetoReason = "Veto: Limite de perda diária atingido.";
         } else if (dailyTarget > 0 && dailyPnL >= dailyTarget) {
-            vetoReason = "Meta de lucro diária atingida. Operações bloqueadas.";
+            vetoReason = "Veto: Meta de lucro diária atingida.";
         }
-    
+
+        const isReversalSetup = (direction === 'RISE' && (indicators.rsi ?? 50) <= 35) || (direction === 'FALL' && (indicators.rsi ?? 50) >= 65);
+        
+        if (isReversalSetup) {
+            analysis = `Setup de Reversão (${direction}) detetado. Risco: operar contra a tendência de curto prazo. Gatilho: aguardar confirmação.`;
+        } else {
+            analysis = `Consenso de ${direction} em mercado lateral/tendência fraca.`;
+        }
+
         if (vetoReason) {
-            setSupervisionStatus({ status: 'veto', message: vetoReason });
+            setSupervisionStatus({ status: 'veto', message: vetoReason, analysis });
             return { finalStake, vetoReason };
         };
-
+        
         const atr = indicators.atr;
         const currentPrice = indicators.ma.long;
         if (atr && currentPrice) {
             const atrPercentage = (atr / currentPrice) * 100;
             if (atrPercentage > 0.05) { 
                 finalStake *= 0.75;
-                setSupervisionStatus({ status: 'approved', message: "Risco ajustado (ATR alto)." });
+                analysis += " Risco ajustado (ATR alto).";
             }
         }
         
@@ -312,22 +359,21 @@ export function useRobotCouncil(
         if (adx) {
             if (adx < 20) { 
                 finalStake *= 0.75;
-                setSupervisionStatus({ status: 'approved', message: "Risco ajustado (ADX baixo)." });
+                 analysis += " Risco ajustado (ADX baixo).";
             } else if (adx > 35) { 
                 finalStake *= 1.25; 
-                setSupervisionStatus({ status: 'approved', message: "Risco aumentado (ADX alto)." });
+                analysis += " Risco aumentado (ADX alto).";
             }
         }
 
         if (finalStake < 0.35) finalStake = 0.35;
         
-        if (!vetoReason && supervisionStatus.status !== 'approved') {
-            setSupervisionStatus({ status: 'approved', message: 'Aprovado sem ajustes.' });
-        }
+        setSupervisionStatus({ status: 'approved', message: `Aprovado com stake de $${finalStake.toFixed(2)}.`, analysis });
 
         return { finalStake, vetoReason };
 
-    }, [operationsLog, dailyBalance, dailyTarget, indicators, supervisionStatus.status]);
+    }, [operationsLog, dailyBalance, dailyTarget, indicators]);
+
 
     const dissolveCouncil = () => {
         setStrategyCouncil([]);
@@ -335,46 +381,9 @@ export function useRobotCouncil(
         setIsCouncilAutopilotOn(false);
     };
 
-    const committeeOfSpecialists = useCallback(() => {
-        const style = getTradingStyle(timePeriod);
-        
-        let committeeName = "Comité Padrão";
-        let activeSpecialists: RobotStrategy[] = [];
-
-        switch(style) {
-            case 'HFT':
-                committeeName = "Especialistas em Reversão Rápida";
-                activeSpecialists = strategyCouncil.filter(r => ['RSI', 'STOCHASTIC', 'BOLLINGER_BANDS'].includes(r.strategyType));
-                break;
-            case 'Scalping':
-                 committeeName = "Especialistas em Padrões e Momentum";
-                 activeSpecialists = strategyCouncil.filter(r => ['MACD_CROSS', 'PRICE_ACTION_PATTERN', 'MFI', 'STOCH_RSI'].includes(r.strategyType));
-                break;
-            case 'Intraday':
-                 committeeName = "Especialistas em Tendência Diária";
-                 activeSpecialists = strategyCouncil.filter(r => ['MOVING_AVERAGE_CROSS', 'ADX_TREND', 'ICHIMOKU_CLOUD', 'KAMA'].includes(r.strategyType));
-                break;
-            case 'Swing':
-                 committeeName = "Especialistas Macro";
-                 activeSpecialists = strategyCouncil.filter(r => ['MOVING_AVERAGE_CROSS', 'ICHIMOKU_CLOUD', 'DONCHIAN_CHANNELS'].includes(r.strategyType));
-                break;
-            default:
-                 activeSpecialists = strategyCouncil.filter(r => ['RSI', 'MOVING_AVERAGE_CROSS'].includes(r.strategyType));
-        }
-
-        if (activeSpecialists.length === 0) {
-            committeeName = "Comité de Emergência";
-            activeSpecialists = strategyCouncil.filter(r => ['RSI', 'MOVING_AVERAGE_CROSS'].includes(r.strategyType));
-        }
-        
-        setActiveCommittee(committeeName);
-        return [...new Map(activeSpecialists.map(item => [item.id, item])).values()];
-
-    }, [strategyCouncil, timePeriod]);
-
-
     useEffect(() => {
         if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || strategyCouncil.length === 0 || !indicators.rsi) {
+            setSupervisionStatus({ status: 'inactive', message: 'Aguardando consenso ou ativação.' });
             return;
         }
         
@@ -569,7 +578,7 @@ export function useRobotCouncil(
             const { finalStake, vetoReason } = supervisionCommitteeCheck(baseStake, direction);
 
             if (vetoReason) {
-                toast({ title: "Operação Vetada", description: vetoReason, variant: "destructive" });
+                // Do not toast for vetos to avoid spam, the UI will show the status.
                 councilExecutionRef.current.isExecuting = false;
                 if(vetoReason.includes("Limite de perda") || vetoReason.includes("Meta de lucro")){
                     setIsCouncilAutopilotOn(false);
@@ -583,6 +592,8 @@ export function useRobotCouncil(
 
             executeTrade(direction === 'RISE' ? 'CALL' : 'PUT', finalStake, activeSymbol, direction.toLowerCase() as 'rise' | 'fall', duration, duration_unit, 'Conselho')
                 .finally(() => setTimeout(() => { councilExecutionRef.current.isExecuting = false; }, 10000));
+        } else if (supervisionStatus.status !== 'veto') {
+            setSupervisionStatus({ status: 'inactive', message: 'Aguardando consenso...' });
         }
     }, [
         indicators,
@@ -598,11 +609,9 @@ export function useRobotCouncil(
         form,
         supervisionCommitteeCheck,
         committeeOfSpecialists,
+        supervisionStatus.status,
     ]);
 
-    const incrementGeminiRequestCount = useCallback(() => {
-        setGeminiRequestCount(c => c + 1);
-    }, []);
 
     const processNewChartData = useCallback((chartData: ChartData[]) => {
         if (chartData.length > 0) {
@@ -632,7 +641,6 @@ export function useRobotCouncil(
         setIsMeritocracyOn,
         activeCommittee,
         supervisionStatus,
-        incrementGeminiRequestCount,
         processNewChartData,
         indicators,
     };
