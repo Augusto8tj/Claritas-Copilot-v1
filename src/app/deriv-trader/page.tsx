@@ -58,22 +58,21 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   });
   
   // CENTRALIZED HOOKS
-  const robotCouncil = useRobotCouncil(activeSymbol, indicators); // Pass indicators in
-  const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, robotCouncil.incrementGeminiRequestCount);
-  const autopilot = useAutopilot(activeSymbol, indicators, robotCouncil.incrementGeminiRequestCount); // Pass indicators in
+  const robotCouncil = useRobotCouncil(activeSymbol, indicators, () => {});
+  const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, () => {});
+  const autopilot = useAutopilot(activeSymbol, indicators, () => {});
 
   // This is now the true INDICATOR ENGINE TRIGGER
   useEffect(() => {
     if (chartData && chartData.length > 0) {
-      // Pass the timePeriod to the calculation engine so it can be used for calibration
       const calculatedIndicators = calculateAllIndicators(chartData, robotCouncil.strategyCouncil, timePeriod);
       setIndicators(calculatedIndicators);
     }
   }, [chartData, robotCouncil.strategyCouncil, timePeriod]);
-
-  // When time period changes, the council must be rebuilt with new calibrations
+  
+  // Rebuild council when time period changes
   useEffect(() => {
-    robotCouncil.fetchStrategyCouncil();
+      robotCouncil.fetchStrategyCouncil();
   }, [timePeriod, robotCouncil.fetchStrategyCouncil]);
 
 
@@ -119,7 +118,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <DerivTraderInterface symbol={activeSymbol || ""} />
                     <div className="space-y-6">
-                        <AITradeSuggestion symbol={activeSymbol || ''} incrementRequestCount={robotCouncil.incrementGeminiRequestCount} />
+                        <AITradeSuggestion symbol={activeSymbol || ''} incrementRequestCount={() => {}} />
                         <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
                         <OperationsLog operations={operationsLog} />
                     </div>
@@ -142,7 +141,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
 
                 <TabsContent value="trade" className="mt-4 space-y-6">
                     <DerivTraderInterface symbol={activeSymbol || ""} />
-                    <AITradeSuggestion symbol={activeSymbol || ''} incrementRequestCount={robotCouncil.incrementGeminiRequestCount} />
+                    <AITradeSuggestion symbol={activeSymbol || ''} incrementRequestCount={() => {}} />
                 </TabsContent>
 
                 <TabsContent value="autopilot" className="mt-4 space-y-6">

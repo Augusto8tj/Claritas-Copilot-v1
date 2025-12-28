@@ -8,10 +8,8 @@ import { useToast } from './use-toast';
 import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
 import type { RiseFallFormValues } from '@/components/trading/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
-import { useTradeAnalysis } from './use-trade-analysis';
 import type { Indicators } from '@/services/indicator-service';
 import type { ChartData, TimePeriod } from './types';
-import { calculateAllIndicators } from '@/services/indicator-service';
 
 export type RobotVote = {
     vote: 'RISE' | 'FALL' | 'HOLD';
@@ -55,11 +53,11 @@ const getTradingStyle = (timePeriod: TimePeriod): TradingStyle => {
  */
 const buildStaticCouncil = (timePeriod: TimePeriod, dailyBalance: number): RobotStrategy[] => {
     const style = getTradingStyle(timePeriod);
-    const isTickTrading = timePeriod === '1m'; // Simplified for duration unit
+    const isTickTrading = timePeriod === '1m'; 
     const durationUnit = isTickTrading ? 't' : 'm';
     const suggestedStake = Math.max(0.35, dailyBalance * 0.01);
     
-    // Default calibrations
+    // Default calibrations (Intraday)
     let rsiParams = { period: 14, strongBuy: 30, weakBuy: 40, strongSell: 70, weakSell: 60, justification: 'padrão (14) para seguir tendência.' };
     let stochParams = { period: 14, strongBuy: 20, weakBuy: 30, strongSell: 80, weakSell: 70, justification: 'padrão (14) para reversão.' };
     let macdParams = { fast: 12, slow: 26, signal: 9, justification: 'padrão (12/26/9) para capturar tendências.'};
@@ -219,7 +217,8 @@ const buildStaticCouncil = (timePeriod: TimePeriod, dailyBalance: number): Robot
 
 export function useRobotCouncil(
     activeSymbol: string | null,
-    indicators: Indicators
+    indicators: Indicators,
+    incrementRequestCount: () => void
 ) {
     const { operationsLog, executeTrade, chartData, timePeriod } = useDerivApi();
     const { toast } = useToast();
@@ -245,8 +244,6 @@ export function useRobotCouncil(
     const previousMacdRef = useRef<{ macd: number | null; signal: number | null }>({ macd: null, signal: null });
     const previousObvRef = useRef<number | null>(null);
     
-    // Empty callback for compatibility, no AI calls needed anymore
-    const incrementGeminiRequestCount = useCallback(() => {}, []);
     
     useEffect(() => {
         try {
@@ -260,9 +257,10 @@ export function useRobotCouncil(
         setIsFetchingCouncil(true);
         await new Promise(resolve => setTimeout(resolve, 500));
         try {
+            const style = getTradingStyle(timePeriod);
             const council = buildStaticCouncil(timePeriod, dailyBalance);
             setStrategyCouncil(council);
-            toast({ title: `Conselho de IA ${style} Montado!`, description: `${council.length} analistas prontos e calibrados.` });
+            toast({ title: `Conselho de IA (${style}) Montado!`, description: `${council.length} analistas prontos e calibrados.` });
         } catch (e: any) {
             toast({ variant: "destructive", title: "Erro ao Montar o Conselho", description: e.message });
         } finally {
@@ -327,7 +325,6 @@ export function useRobotCouncil(
     };
 
     const committeeOfSpecialists = useCallback(() => {
-        const { adx, atr, bbw } = indicators;
         const style = getTradingStyle(timePeriod);
         
         let committeeName = "Comité Padrão";
@@ -362,7 +359,7 @@ export function useRobotCouncil(
         setActiveCommittee(committeeName);
         return [...new Map(activeSpecialists.map(item => [item.id, item])).values()];
 
-    }, [indicators, strategyCouncil, timePeriod]);
+    }, [strategyCouncil, timePeriod]);
 
 
     useEffect(() => {
@@ -513,7 +510,7 @@ export function useRobotCouncil(
                     }
                     break;
                 case 'CHANDELIER_EXIT':
-                    if (indicators.chandelierExit && currentPrice) {
+                     if (indicators.chandelierExit && currentPrice) {
                         if(currentPrice > indicators.chandelierExit) { vote = 'RISE'; confidence = robot.strongConfidence; }
                         if(currentPrice < indicators.chandelierExit) { vote = 'FALL'; confidence = robot.strongConfidence; }
                     }
@@ -592,9 +589,7 @@ export function useRobotCouncil(
         committeeOfSpecialists,
         chartData,
     ]);
-
-    // Expose the raw indicators for the panel
-    const exposedIndicators = indicators;
+    
 
     return {
         isCouncilAutopilotOn,
@@ -614,9 +609,8 @@ export function useRobotCouncil(
         setIsDynamicConsensusOn,
         isMeritocracyOn,
         setIsMeritocracyOn,
-        indicators: exposedIndicators,
         activeCommittee,
         supervisionStatus,
-        incrementGeminiRequestCount
+        incrementRequestCount,
     };
 }
