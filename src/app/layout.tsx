@@ -2,7 +2,7 @@
 import './globals.css';
 import { AppLayout } from '@/components/layout/app-layout';
 import { Toaster } from '@/components/ui/toaster';
-import { ThemeProvider } from '@/hooks/use-theme';
+import { ThemeProvider } from '@/features/theme/hooks/use-theme';
 import { AuthProvider } from '@/features/auth/hooks/use-auth';
 import { DerivApiProvider } from '@/features/trading/hooks/use-deriv-api';
 

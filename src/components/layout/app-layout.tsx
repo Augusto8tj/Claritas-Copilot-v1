@@ -245,6 +245,19 @@ function DesktopSidebar() {
     )
 }
 
+function SidebarContent({children}: {children: React.ReactNode}) {
+  return (
+    <div
+      data-sidebar="content"
+      className={cn(
+        "flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+      )}
+    >
+        {children}
+    </div>
+  )
+}
+
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const pathname = usePathname();
