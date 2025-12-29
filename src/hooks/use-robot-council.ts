@@ -289,6 +289,7 @@ export function useRobotCouncil(
         (
             riseSum: number,
             fallSum: number,
+            currentVotes: CouncilVotes,
             indicators: Indicators | null,
             dailyPnl: number
         ): {
@@ -328,18 +329,31 @@ export function useRobotCouncil(
                 };
             }
 
-            // Consenso Dinâmico
-            let effectiveThreshold = consensusThreshold;
+            // ================== NOVA LÓGICA DE CONSENSO DINÂMICO ==================
+            let effectiveThreshold;
             if (isDynamicConsensusOn) {
-                const base = 150; // Limiar mínimo
-                const zScoreFactor = Math.pow(Math.abs(indicators.zScore || 0), 2) * 50; // Aumenta exponencialmente com desvio
-                const atrFactor = (indicators.atr || 0) * 20000; // Sensível à volatilidade média
-                const adxPenalty = (indicators.adx && indicators.adx < 20) ? 100 : 0; // Penalidade para mercado sem tendência
-                
-                effectiveThreshold = base + zScoreFactor + atrFactor + adxPenalty;
-                setConsensusThreshold(Math.round(effectiveThreshold));
-            }
+                // 1. Calcular o potencial de voto máximo (soma da confiança de quem não votou HOLD)
+                const totalPossibleConsensus = Object.values(currentVotes)
+                    .filter(v => v.vote !== 'HOLD')
+                    .reduce((sum, v) => sum + (v.confidence * v.weight), 0);
 
+                // 2. Definir uma percentagem base necessária para o consenso
+                let requiredPercentage = 0.60; // 60% por padrão
+
+                // 3. Modular a percentagem com base no risco do mercado
+                if (indicators.adx && indicators.adx < 20) requiredPercentage += 0.10; // Mercado lateral, exige mais convicção
+                if (indicators.bbw && indicators.bbw > 0.1) requiredPercentage += 0.15; // Volatilidade alta, exige mais convicção
+                
+                // Limitar a percentagem a um máximo de 85% para não tornar impossível
+                requiredPercentage = Math.min(requiredPercentage, 0.85);
+
+                // 4. Calcular o limiar final
+                effectiveThreshold = totalPossibleConsensus * requiredPercentage;
+                setConsensusThreshold(Math.round(effectiveThreshold));
+            } else {
+                effectiveThreshold = consensusThreshold;
+            }
+            // ======================================================================
 
             // Verifica consenso
             const consensusReached = Math.max(riseSum, fallSum) >= effectiveThreshold;
@@ -389,7 +403,7 @@ export function useRobotCouncil(
             // Aplicar restrições finais
             finalStake = Math.max(0.35, finalStake);
             if (duration_unit === 't') {
-                finalDuration = Math.max(1, Math.min(10, Math.round(finalDuration)));
+                finalDuration = Math.round(Math.max(1, Math.min(10, finalDuration)));
             }
 
             return {
@@ -400,7 +414,7 @@ export function useRobotCouncil(
                 finalDuration,
             };
         },
-        [form, dailyBalance, dailyTarget, priceTicks, consensusThreshold, isDynamicConsensusOn]
+        [form, dailyBalance, dailyTarget, priceTicks, isDynamicConsensusOn, consensusThreshold]
     );
 
     // ========================================================================
@@ -509,7 +523,7 @@ export function useRobotCouncil(
 
         // FASE 5: EXECUÇÃO REAL
         const dailyPnl = operationsLog.filter(op => new Date(op.timestamp).toDateString() === new Date().toDateString() && op.initiator === 'Conselho').reduce((sum, op) => sum + (op.result || 0), 0);
-        const supervisionDecision = supervisionCommitteeCheck(riseConfidenceSum, fallConfidenceSum, currentIndicators, dailyPnl);
+        const supervisionDecision = supervisionCommitteeCheck(riseConfidenceSum, fallConfidenceSum, newVotes, currentIndicators, dailyPnl);
         setSupervisionStatus(supervisionDecision);
 
         if (supervisionDecision.status === 'approved') {
