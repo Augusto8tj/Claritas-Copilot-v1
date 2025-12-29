@@ -1,5 +1,10 @@
+// /src/app/dashboard/main-goal.tsx
+"use client";
 
+import { useAuth } from "@/hooks/use-auth";
+import { useEffect, useState } from "react";
 import { getGoals } from "@/app/actions/financial-data-actions";
+import type { Goal } from "@/lib/types";
 import {
   Card,
   CardContent,
@@ -15,14 +20,58 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import { GoalProgressChart } from "./goal-progress-chart";
-import { auth } from "@/lib/firebase";
+import { Skeleton } from "../ui/skeleton";
 
-export async function MainGoal() {
-  const userId = auth.currentUser?.uid;
-  if (!userId) {
-     return <Card><CardHeader><CardTitle className="font-headline">Metas</CardTitle><CardDescription>Faça login para ver suas metas.</CardDescription></CardHeader></Card>
+function MainGoalSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <Skeleton className="h-6 w-3/4" />
+        <Skeleton className="h-4 w-1/2" />
+      </CardHeader>
+      <CardContent className="flex items-center justify-center p-6">
+        <Skeleton className="h-36 w-36 rounded-full" />
+      </CardContent>
+    </Card>
+  )
+}
+
+export function MainGoal() {
+  const { user } = useAuth();
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) {
+        // If there's no user and we're not loading, there are no goals to fetch.
+        if(!loading) setLoading(false);
+        return;
+    };
+    
+    const fetchGoals = async () => {
+        setLoading(true);
+        const userGoals = await getGoals(user.uid);
+        setGoals(userGoals);
+        setLoading(false);
+    };
+
+    fetchGoals();
+  }, [user, loading]);
+
+  if (loading) {
+    return <MainGoalSkeleton />;
   }
-  const goals = await getGoals(userId);
+
+  if (!user) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-headline">Metas</CardTitle>
+          <CardDescription>Faça login para ver suas metas.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   if (!goals || goals.length === 0) {
     return (

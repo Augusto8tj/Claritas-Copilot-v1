@@ -1,5 +1,4 @@
-
-
+// /src/services/deriv-api-service.ts
 'use client';
 
 /**

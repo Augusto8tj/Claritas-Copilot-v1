@@ -1,3 +1,4 @@
+// /src/components/trading/trading-desk.tsx
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

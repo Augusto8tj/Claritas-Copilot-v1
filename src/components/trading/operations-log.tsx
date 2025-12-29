@@ -1,4 +1,4 @@
-
+// /src/components/trading/operations-log.tsx
 "use client";
 
 import {

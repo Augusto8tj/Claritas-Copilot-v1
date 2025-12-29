@@ -1,3 +1,4 @@
+// /src/components/icons.tsx
 import type { SVGProps } from "react";
 
 export const Logo = (props: SVGProps<SVGSVGElement>) => (
@@ -16,5 +17,3 @@ export const Logo = (props: SVGProps<SVGSVGElement>) => (
     <path d="M2 12l10 5 10-5" />
   </svg>
 );
-
-    

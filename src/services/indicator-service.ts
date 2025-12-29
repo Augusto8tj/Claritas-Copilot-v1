@@ -1,5 +1,4 @@
-
-
+// /src/services/indicator-service.ts
 'use client';
 
 /**

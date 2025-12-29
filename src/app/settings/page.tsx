@@ -1,3 +1,4 @@
+// /src/app/settings/page.tsx
 import { EmailNotificationsCard } from "@/components/settings/email-notifications-card";
 import {
   Card,

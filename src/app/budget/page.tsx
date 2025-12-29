@@ -1,3 +1,4 @@
+// /src/app/budget/page.tsx
 import { BudgetOverview } from "@/components/budget/budget-overview";
 
 export default function BudgetPage() {

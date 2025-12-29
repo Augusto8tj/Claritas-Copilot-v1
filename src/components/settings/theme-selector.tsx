@@ -1,3 +1,4 @@
+// /src/components/settings/theme-selector.tsx
 "use client";
 
 import * as React from "react";

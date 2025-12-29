@@ -1,4 +1,4 @@
-
+// /src/components/firebase-error-listener.tsx
 'use client';
 
 import { useEffect } from 'react';

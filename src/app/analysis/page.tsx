@@ -1,3 +1,4 @@
+// /src/app/analysis/page.tsx
 import { SpendingChart } from "@/components/analysis/spending-chart";
 import { TransactionsTable } from "@/components/analysis/transactions-table";
 import {

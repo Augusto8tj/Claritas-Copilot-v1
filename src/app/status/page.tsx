@@ -1,4 +1,4 @@
-
+// /src/app/status/page.tsx
 import { HealthCheckCard } from "@/components/status/health-check-card";
 import { checkGeminiConnection, checkFirestoreConnection } from "@/app/actions";
 import { ListModelsCard } from "@/app/status/list-models-card";

@@ -1,3 +1,4 @@
+// /src/ai/flows/mql-analyzer-flow.types.ts
 import { z } from 'zod';
 
 export const MqlAnalyzerInputSchema = z.object({

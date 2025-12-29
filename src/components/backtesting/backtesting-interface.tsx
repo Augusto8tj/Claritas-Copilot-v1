@@ -1,4 +1,4 @@
-
+// /src/components/backtesting/backtesting-interface.tsx
 "use client";
 
 import { useState } from "react";
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/form";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { runStrategyBacktestAction, analyzeMqlCodeAction } from "@/app/actions/trading-actions";
+import { analyzeMqlCodeAction } from "@/app/actions/trading-actions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const strategySchema = z.object({
@@ -49,7 +49,8 @@ export function BacktestingInterface() {
   const onStrategySubmit: SubmitHandler<StrategyFormValues> = async (data) => {
     setLoading(true);
     setResult(null);
-    const response = await runStrategyBacktestAction(data);
+    // const response = await runStrategyBacktestAction(data);
+    const response = { success: "A simulação de backtesting está em desenvolvimento e será ativada em breve.", error: null };
     if (response.success) {
       setResult(response.success);
     } else {

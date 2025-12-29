@@ -1,3 +1,4 @@
+// /src/ai/flows/financial-chatbot-insights.types.ts
 import { z } from 'zod';
 
 const MessageSchema = z.object({

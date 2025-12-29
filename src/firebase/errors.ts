@@ -1,4 +1,4 @@
-
+// /src/firebase/errors.ts
 export type SecurityRuleContext = {
   path: string;
   operation: 'get' | 'list' | 'create' | 'update' | 'delete';

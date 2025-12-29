@@ -1,5 +1,4 @@
-
-
+// /src/app/layout.tsx
 import './globals.css';
 import { AppLayout } from '@/components/layout/app-layout';
 import { Toaster } from '@/components/ui/toaster';

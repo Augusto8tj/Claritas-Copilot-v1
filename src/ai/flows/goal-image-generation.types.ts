@@ -1,3 +1,4 @@
+// /src/ai/flows/goal-image-generation.types.ts
 import { z } from 'zod';
 
 export const GenerateGoalImageInputSchema = z.object({

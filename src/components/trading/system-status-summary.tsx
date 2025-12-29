@@ -1,4 +1,4 @@
-
+// /src/components/trading/system-status-summary.tsx
 'use client';
 
 import { BrainCircuit, Link as LinkIcon, Loader2, RefreshCw, Server, Settings, ShieldCheck, ShieldX } from "lucide-react";

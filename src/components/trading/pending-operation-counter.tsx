@@ -1,4 +1,4 @@
-
+// /src/components/trading/pending-operation-counter.tsx
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';

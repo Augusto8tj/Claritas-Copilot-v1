@@ -1,4 +1,4 @@
-
+// /src/lib/types.ts
 export type Goal = {
   id: string;
   name: string;

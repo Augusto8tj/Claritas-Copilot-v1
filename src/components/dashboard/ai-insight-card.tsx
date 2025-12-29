@@ -1,3 +1,4 @@
+// /src/components/dashboard/ai-insight-card.tsx
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getInsights } from "@/services/financial-data-service";
 import { Lightbulb } from "lucide-react";

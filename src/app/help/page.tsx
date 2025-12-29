@@ -1,4 +1,4 @@
-
+// /src/app/help/page.tsx
 import {
   Accordion,
   AccordionContent,

@@ -1,3 +1,4 @@
+// /src/app/chat-insights/page.tsx
 import { ChatInterfaceInsights } from "@/components/chat-insights/chat-interface-insights";
 
 export default function ChatInsightsPage() {

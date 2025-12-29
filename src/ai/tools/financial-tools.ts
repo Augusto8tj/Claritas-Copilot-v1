@@ -1,4 +1,4 @@
-
+// /src/ai/tools/financial-tools.ts
 'use server';
 /**
  * @fileOverview Defines the tools available to the financial AI chatbot.

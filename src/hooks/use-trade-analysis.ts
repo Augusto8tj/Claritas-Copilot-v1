@@ -1,5 +1,4 @@
-
-
+// /src/hooks/use-trade-analysis.ts
 'use client';
 
 import { useCallback } from 'react';

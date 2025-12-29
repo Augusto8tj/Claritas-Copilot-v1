@@ -1,3 +1,4 @@
+// /src/app/trader/page.tsx
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Layers, Bot, CandlestickChart, Settings2, Laptop, Smartphone } from "lucide-react";

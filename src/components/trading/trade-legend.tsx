@@ -1,3 +1,4 @@
+// /src/components/trading/trade-legend.tsx
 'use client';
 
 import React, { useMemo } from 'react';

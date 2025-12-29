@@ -1,3 +1,4 @@
+// /src/components/trading/chart-parts/themes.ts
 export const THEMES = {
   light: {
     bg: '#FFFFFF',

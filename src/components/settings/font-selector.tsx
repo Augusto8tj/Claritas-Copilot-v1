@@ -1,3 +1,4 @@
+// /src/components/settings/font-selector.tsx
 "use client";
 
 import { Check, CaseSensitive } from "lucide-react";

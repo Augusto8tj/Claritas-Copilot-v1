@@ -1,3 +1,4 @@
+// /src/ai/flows/operation-analysis-flow.types.ts
 import { z } from 'zod';
 
 const OperationStatusSchema = z.enum(['pending', 'won', 'lost']);

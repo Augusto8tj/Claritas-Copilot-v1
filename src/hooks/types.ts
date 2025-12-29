@@ -1,3 +1,4 @@
+// /src/hooks/types.ts
 // This file can be used to share types between hooks
 
 export type TimePeriod = '1m' | '2m' | '3m' | '5m' | '10m' | '15m' | '30m' | '1h' | '8h' | '1d';
