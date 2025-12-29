@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import React, { useEffect, useState, useMemo } from "react";
 import { Skeleton } from "../ui/skeleton";
-import { useDerivApi } from "@/features/trading/hooks/use-deriv-api";
+import { useDerivApi } from "@/hooks/use-deriv-api";
 import type { Asset } from "@/lib/types";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "../ui/command";
 import { Check, ChevronsUpDown } from "lucide-react";

@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { DurationUnit } from "@/lib/types";
-import { useDerivApi } from '@/features/trading/hooks/use-deriv-api';
+import { useDerivApi } from '@/hooks/use-deriv-api';
 
 interface PendingOperationCounterProps {
   duration: number;

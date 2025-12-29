@@ -4,8 +4,8 @@
 import { useCallback } from 'react';
 import { analyzeOperationsAction } from '@/app/actions/trading-actions';
 import type { Operation } from '@/lib/types';
-import { useToast } from '@/features/ui/hooks/use-toast';
-import { useDerivApi } from './use-deriv-api';
+import { useToast } from '@/hooks/use-toast';
+import { useDerivApi } from '@/hooks/use-deriv-api';
 
 
 export function useTradeAnalysis(
