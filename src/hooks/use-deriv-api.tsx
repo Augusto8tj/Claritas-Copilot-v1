@@ -6,7 +6,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode, useCall
 import type { TradeResult } from '@/services/deriv-api-service';
 import { useToast } from './use-toast';
 import type { Operation, OperationInitiator } from '@/components/trading/operations-log.types';
-import type { DurationUnit, ChartType, TimePeriod, ChartData, CandleData, TradeAnnotation } from './types';
+import type { DurationUnit, ChartType, TimePeriod, ChartData, CandleData, TradeAnnotation, TickData } from './types';
 
 
 const DERIV_DEMO_TOKEN_KEY = 'derivDemoApiToken';
@@ -68,6 +68,7 @@ interface DerivApiContextType {
   activeSymbol: string | null;
   setActiveSymbol: (symbol: string | null) => void;
   chartData: ChartData[];
+  priceTicks: TickData[]; // Expose price ticks for the arena
   isChartLoading: boolean;
   chartError: string | null;
   chartType: ChartType;
@@ -148,6 +149,7 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
 
   const [activeSymbol, setActiveSymbol] = useState<string | null>('1HZ10V');
   const [chartData, setChartData] = useState<ChartData[]>([]);
+  const [priceTicks, setPriceTicks] = useState<TickData[]>([]);
   const [isChartLoading, setIsChartLoading] = useState(true);
   const [chartError, setChartError] = useState<string | null>(null);
   const [chartType, setChartType] = useState<ChartType>('Area');
@@ -168,23 +170,8 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
       const storedRealToken = localStorage.getItem(DERIV_REAL_TOKEN_KEY);
       const storedAccountType = localStorage.getItem(DERIV_ACCOUNT_TYPE_KEY) as AccountType | null;
 
-      const defaultDemoToken = 'ljUGk6wbLSrtEDo';
-      const defaultRealToken = 'GU5MwbX1kwvSoyw';
-
-      if (storedDemoToken) {
-          setDemoToken(storedDemoToken);
-      } else {
-          setDemoToken(defaultDemoToken);
-          localStorage.setItem(DERIV_DEMO_TOKEN_KEY, defaultDemoToken);
-      }
-
-      if (storedRealToken) {
-          setRealToken(storedRealToken);
-      } else {
-          setRealToken(defaultRealToken);
-          localStorage.setItem(DERIV_REAL_TOKEN_KEY, defaultRealToken);
-      }
-
+      if (storedDemoToken) setDemoToken(storedDemoToken);
+      if (storedRealToken) setRealToken(storedRealToken);
       if (storedAccountType) setAccountTypeState(storedAccountType);
     } catch (error) {
       console.error("Failed to access localStorage:", error);
@@ -299,12 +286,16 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
     setIsChartLoading(true);
     setChartError(null);
     setChartData([]);
+    setPriceTicks([]); // Reset ticks for new symbol
 
     try {
         // 1. Buscar histórico inicial
         const historyStyle = chartType === 'Candle' ? 'candles' : 'ticks';
         const history = await getHistoricalData(symbol, historyStyle, 1000, timePeriod);
         setChartData(history as ChartData[]);
+        if (historyStyle === 'ticks') {
+            setPriceTicks(history as TickData[]);
+        }
 
         // 2. Criar subscrição adequada ao tipo de gráfico
         let subRequest: any;
@@ -495,9 +486,17 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
                     }
                     break;
                 case 'tick':
-                    if (chartType === 'Area' && response.tick?.symbol === activeSymbol) {
+                    if (response.tick?.symbol === activeSymbol) {
                         const tick = response.tick;
-                        setChartData(prev => addDataPoint(prev, { epoch: tick.epoch, price: tick.quote }));
+                        const newTick = { epoch: tick.epoch, price: tick.quote };
+                        if (chartType === 'Area') {
+                           setChartData(prev => addDataPoint(prev, newTick));
+                        }
+                        setPriceTicks(prev => {
+                            const newTicks = [...prev, newTick];
+                            if (newTicks.length > MAX_DATA_POINTS) newTicks.shift();
+                            return newTicks;
+                        });
                     }
                     break;
                 
@@ -690,6 +689,7 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
     activeSymbol,
     setActiveSymbol,
     chartData,
+    priceTicks,
     isChartLoading,
     chartError,
     chartType,

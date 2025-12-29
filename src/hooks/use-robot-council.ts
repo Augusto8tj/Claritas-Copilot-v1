@@ -10,7 +10,7 @@ import type { RiseFallFormValues } from '@/components/trading/deriv-trader-inter
 import { useFormContext } from 'react-hook-form';
 import type { Indicators } from '@/services/indicator-service';
 import { calculateAllIndicators } from '@/services/indicator-service';
-import type { ChartData } from './types';
+import type { ChartData, TickData } from './types';
 import type { RobotPerformance } from '@/components/trading/operations-log.types';
 import { initialCouncilStrategies } from '@/services/council-strategies';
 
@@ -48,10 +48,9 @@ const getPrice = (d: ChartData | null): number | undefined => {
 }
 
 export function useRobotCouncil(
-    activeSymbol: string | null,
-    chartData: ChartData[]
+    activeSymbol: string | null
 ) {
-    const { operationsLog, executeTrade, timePeriod } = useDerivApi();
+    const { operationsLog, executeTrade, timePeriod, chartData, priceTicks } = useDerivApi();
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
     
@@ -215,15 +214,15 @@ export function useRobotCouncil(
 
     // CORE LOGIC: VIRTUAL ARENA & COUNCIL EXECUTION
     useEffect(() => {
-        if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || strategyCouncil.length === 0 || !indicators || !activeSymbol || chartData.length < 1) return;
+        if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || strategyCouncil.length === 0 || !indicators || !activeSymbol || priceTicks.length < 1) return;
 
         let riseConfidenceSum = 0;
         let fallConfidenceSum = 0;
         const newVotes: CouncilVotes = {};
-        const currentTickIndex = chartData.length - 1;
-        const currentDataPoint = chartData[currentTickIndex];
+        const currentTickIndex = priceTicks.length - 1;
+        const currentDataPoint = priceTicks[currentTickIndex];
         if (!currentDataPoint) return;
-        const currentPrice = getPrice(currentDataPoint);
+        const currentPrice = currentDataPoint.price;
         if (currentPrice === undefined) return;
 
         // --- VIRTUAL ARENA: JUDGE CLOSED TRADES ---
@@ -233,9 +232,9 @@ export function useRobotCouncil(
         virtualArenaTradesRef.current.forEach(trade => {
             if (currentTickIndex >= trade.entryTickIndex + trade.durationTicks) {
                 // Trade is closed, judge it
-                const exitDataPoint = chartData[trade.entryTickIndex + trade.durationTicks];
+                const exitDataPoint = priceTicks[trade.entryTickIndex + trade.durationTicks];
                 if (exitDataPoint) {
-                    const exitPrice = getPrice(exitDataPoint);
+                    const exitPrice = exitDataPoint.price;
                     if(exitPrice !== undefined) {
                         const isWin = (trade.vote === 'RISE' && exitPrice > trade.entryPrice) || (trade.vote === 'FALL' && exitPrice < trade.entryPrice);
                         const perf = performanceMap.get(trade.robotId);
@@ -300,7 +299,7 @@ export function useRobotCouncil(
                     robotId: robot.id,
                     vote: vote,
                     entryPrice: currentPrice,
-                    entryTime: chartData[currentTickIndex].epoch,
+                    entryTime: priceTicks[currentTickIndex].epoch,
                     durationTicks: form.getValues('duration'), // Using form duration for virtual trades
                     entryTickIndex: currentTickIndex,
                 });
@@ -345,7 +344,7 @@ export function useRobotCouncil(
                 .finally(() => setTimeout(() => councilExecutionRef.current.isExecuting = false, 10000));
         }
 
-    }, [indicators, isCouncilAutopilotOn, strategyCouncil, consensusThreshold, isMeritocracyOn, robotPerformance, executeTrade, activeSymbol, toast, form, operationsLog, supervisionCommitteeCheck, chartData]);
+    }, [indicators, isCouncilAutopilotOn, strategyCouncil, consensusThreshold, isMeritocracyOn, robotPerformance, executeTrade, activeSymbol, toast, form, operationsLog, supervisionCommitteeCheck, priceTicks]);
     
 
     return {
