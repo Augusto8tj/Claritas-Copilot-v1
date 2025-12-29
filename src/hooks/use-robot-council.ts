@@ -326,13 +326,11 @@ export function useRobotCouncil(
     // --- VIRTUAL ARENA ENGINE ---
     // This effect is dedicated to the virtual arena simulation
     useEffect(() => {
-        // This effect runs on every tick when the council is active
         if (!isCouncilAutopilotOn || priceTicks.length < 2 || strategyCouncil.length === 0) {
             return;
         }
 
-        // We calculate indicators specifically for the arena engine here to ensure it's self-contained.
-        const arenaIndicators = calculateAllIndicators(chartData, strategyCouncil, timePeriod);
+        const arenaIndicators = calculateAllIndicators(priceTicks, strategyCouncil, timePeriod);
         if (!arenaIndicators) return;
 
         const currentTickIndex = priceTicks.length - 1;
@@ -391,7 +389,7 @@ export function useRobotCouncil(
             window.dispatchEvent(new Event('storage'));
         }
     
-    }, [priceTicks, isCouncilAutopilotOn, strategyCouncil, chartData, timePeriod, robotPerformance, form]);
+    }, [priceTicks, isCouncilAutopilotOn, strategyCouncil, timePeriod, robotPerformance, form]);
 
 
     return {
