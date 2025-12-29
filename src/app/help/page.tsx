@@ -128,28 +128,34 @@ export default function HelpPage() {
                 </AccordionTrigger>
                 <AccordionContent className="text-base leading-relaxed space-y-4">
                     <p>
-                        A "Mesa Operacional" é o sistema mais avançado do Claritas. Em vez de um único robô, ela simula uma equipa profissional para tomar decisões de trading mais seguras e inteligentes. A arquitetura é dividida em três camadas hierárquicas.
+                        A "Mesa Operacional" é o sistema mais avançado do Claritas, operando de forma totalmente autónoma. Em vez de um único robô, ela simula uma equipa profissional para tomar decisões de trading mais seguras e inteligentes, dividida em três camadas hierárquicas.
                     </p>
 
                     <div>
                         <h4 className="font-semibold text-md mb-2">Camada 1: Os 22 Analistas Táticos (A Equipa)</h4>
                         <p className="text-sm">
-                           São os especialistas de linha de frente. Cada um domina uma única estratégia (RSI, MACD, etc.). Eles analisam os indicadores em tempo real e emitem um "voto" (`RISE`, `FALL`, `HOLD`) com um nível de confiança. Pense neles como 22 analistas, cada um na sua secretária, focados no seu gráfico.
+                           São os especialistas de linha de frente. Cada um domina uma única estratégia (RSI, MACD, etc.), totalizando 22 analistas. A cada tick, eles analisam os indicadores em tempo real e emitem um "voto" (`RISE`, `FALL`, `HOLD`) com um nível de confiança. Pense neles como 22 especialistas, cada um na sua secretária, focados no seu gráfico.
                         </p>
                     </div>
                     
                     <div>
                         <h4 className="font-semibold text-md mb-2">Camada 2: O Líder do Comité Tático (O Gestor de Turno)</h4>
                         <p className="text-sm">
-                          Esta persona, representada pela função `committeeOfSpecialists`, não vota. Em vez disso, ele avalia as condições gerais do mercado (tendência, volatilidade) e **convoca apenas os especialistas mais qualificados** para a situação. Se o mercado está volátil, ele chama os especialistas em Bandas de Bollinger; se está em tendência, chama os de Médias Móveis. É o gestor de turno que organiza a equipa.
+                          Esta persona, representada pela função `committeeOfSpecialists`, não vota. Em vez disso, ele avalia as condições gerais do mercado (tendência, volatilidade) e **exibe a sua leitura tática** na interface (ex: "Tendência de Alta com Força"). É o gestor de turno que contextualiza a situação para o utilizador.
                         </p>
                     </div>
 
                     <div>
                         <h4 className="font-semibold text-md mb-2">Camada 3: O Comité de Supervisão e Risco (A Direção)</h4>
                         <p className="text-sm">
-                          Esta é a camada final e mais poderosa (`supervisionCommitteeCheck`). Este comité recebe a recomendação do consenso, mas tem **poder de veto e de ajuste**. Ele responde a perguntas cruciais: "Já atingimos o nosso limite de perda ou a nossa meta de lucro do dia?" (se sim, **VETO**), ou "O mercado está demasiado caótico?" (se sim, **reduz o valor da aposta**). É a direção de risco que dá a aprovação final.
+                          Esta é a camada final e mais poderosa (`supervisionCommitteeCheck`). Este comité recebe a recomendação do consenso, mas tem **poder de veto e de ajuste dinâmico**. Ele responde a perguntas cruciais:
                         </p>
+                         <ul className="list-disc pl-6 mt-2 space-y-1 text-sm">
+                            <li>"Já atingimos o nosso limite de perda ou a nossa meta de lucro do dia?" (se sim, **VETO** e para as operações).</li>
+                            <li>"O mercado está demasiado caótico ou volátil?" (se sim, **reduz o valor da aposta (`stake`)** e **aumenta a duração do contrato** para dar mais espaço à operação).</li>
+                            <li>"O consenso dos analistas é forte o suficiente para esta condição de mercado?" (se não, aguarda).</li>
+                        </ul>
+                        <p className="text-sm mt-2">É a direção de risco que dá a aprovação final e ajusta os parâmetros de cada trade de forma autónoma.</p>
                     </div>
                 </AccordionContent>
             </AccordionItem>
