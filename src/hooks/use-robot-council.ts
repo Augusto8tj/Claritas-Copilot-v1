@@ -10,7 +10,7 @@ import type { RiseFallFormValues } from '@/components/trading/deriv-trader-inter
 import { useFormContext } from 'react-hook-form';
 import type { Indicators } from '@/services/indicator-service';
 import { calculateAllIndicators } from '@/services/indicator-service';
-import type { ChartData, TickData } from './types';
+import type { ChartData, TickData, CandleData } from './types';
 import type { RobotPerformance } from '@/components/trading/operations-log.types';
 import { initialCouncilStrategies } from '@/services/council-strategies';
 
@@ -41,7 +41,7 @@ type VirtualTrade = {
 
 const ROBOT_PERFORMANCE_KEY = 'derivRobotPerformance';
 
-const isCandle = (d: ChartData): d is { open: number, high: number, low: number, close: number } => d !== null && 'close' in d;
+const isCandle = (d: ChartData): d is CandleData => d !== null && 'close' in d;
 const getPrice = (d: ChartData | null): number | undefined => {
     if (!d) return undefined;
     return isCandle(d) ? d.close : d.price;
@@ -80,7 +80,7 @@ const calculateRobotVote = (robot: RobotStrategy, indicators: Indicators): Pick<
 
 export function useRobotCouncil(
     activeSymbol: string | null,
-    chartData: ChartData[],
+    chartData: ChartData[], // Mantido para o motor de indicadores, mas a arena usará ticks
     priceTicks: TickData[]
 ) {
     const { operationsLog, executeTrade, timePeriod } = useDerivApi();
@@ -260,8 +260,9 @@ export function useRobotCouncil(
         const currentTick = priceTicks[currentTickIndex];
         if (!currentTick) return;
 
-        // --- 1. Calculate indicators ONCE ---
-        const currentIndicators = calculateAllIndicators(chartData, strategyCouncil, timePeriod);
+        // --- 1. Calculate indicators ONCE using priceTicks for synchronization ---
+        const tickCandles = priceTicks.map(t => ({ epoch: t.epoch, open: t.price, high: t.price, low: t.price, close: t.price, volume: 1 }));
+        const currentIndicators = calculateAllIndicators(tickCandles, strategyCouncil, timePeriod);
         setIndicators(currentIndicators);
         if (!currentIndicators) return;
 
@@ -364,7 +365,7 @@ export function useRobotCouncil(
                 .finally(() => setTimeout(() => councilExecutionRef.current.isExecuting = false, 10000));
         }
 
-    }, [priceTicks, chartData, isCouncilAutopilotOn, strategyCouncil, robotPerformance, isMeritocracyOn, activeSymbol, operationsLog, supervisionCommitteeCheck, consensusThreshold, toast, executeTrade, form, timePeriod, committeeOfSpecialists]);
+    }, [priceTicks, isCouncilAutopilotOn, strategyCouncil, robotPerformance, isMeritocracyOn, activeSymbol, operationsLog, supervisionCommitteeCheck, consensusThreshold, toast, executeTrade, form, timePeriod, committeeOfSpecialists]);
     
     return {
         isCouncilAutopilotOn,
