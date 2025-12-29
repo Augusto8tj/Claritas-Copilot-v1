@@ -232,40 +232,39 @@ export function useRobotCouncil(
     }, [form, dailyBalance, dailyTarget, chartData, timePeriod]);
 
 
-    // CICLO PRINCIPAL DA MESA OPERACIONAL E DA ARENA VIRTUAL
+    // ==========================================================
+    //  O NOVO CICLO LÓGICO UNIFICADO DA MESA E DA ARENA
+    // ==========================================================
     useEffect(() => {
-        // --- Condições de Guarda ---
+        // --- CONDIÇÃO DE GUARDA ---
+        // Só executa se a mesa estiver ativa, houver robôs, um ativo e ticks suficientes.
         if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || strategyCouncil.length === 0 || !activeSymbol || priceTicks.length < 2) {
             return;
         }
 
-        // --- 1. FONTE DA VERDADE: Ticks e Indicadores ---
-        const currentTickIndex = priceTicks.length - 1;
-        const currentTick = priceTicks[currentTickIndex];
-        if (!currentTick) return;
-        
-        // Converte ticks para velas para os indicadores
+        // --- PASSO 1: CALCULAR INDICADORES (A ÚNICA FONTE DA VERDADE) ---
+        // Converte os ticks mais recentes em velas que o motor de indicadores entende.
         const tickCandles: CandleData[] = priceTicks.map(t => ({ epoch: t.epoch, open: t.price, high: t.price, low: t.price, close: t.price, volume: 1 }));
         const currentIndicators = calculateAllIndicators(tickCandles, strategyCouncil, timePeriod);
-        setIndicators(currentIndicators);
+        setIndicators(currentIndicators); // Atualiza o estado para a UI
         if (!currentIndicators) return;
 
-        // --- 2. JULGAMENTO DA ARENA: Processa Trades Virtuais Concluídos ---
+        // --- PASSO 2: JULGAR OPERAÇÕES VIRTUAIS EXPIRADAS ---
         const stillActiveVirtualTrades: VirtualTrade[] = [];
         let performanceChanged = false;
-        
-        // Cria um mapa mutável para o desempenho da sessão atual
         const performanceMap = new Map<string, RobotPerformance>(robotPerformance.map(p => [p.id, { ...p }]));
-        
+        const currentTickIndex = priceTicks.length - 1;
+
         virtualArenaTradesRef.current.forEach(trade => {
             const isFinished = currentTickIndex >= trade.entryTickIndex + trade.durationTicks;
             if (isFinished) {
+                // A operação virtual terminou. Vamos julgá-la.
                 const exitTick = priceTicks[trade.entryTickIndex + trade.durationTicks];
                 if (exitTick) {
                     const isWin = (trade.vote === 'RISE' && exitTick.price > trade.entryPrice) || (trade.vote === 'FALL' && exitTick.price < trade.entryPrice);
                     const perf = performanceMap.get(trade.robotId);
                     if (perf) {
-                        const virtualPnl = isWin ? 0.92 : -1.0; // Assume stake de $1
+                        const virtualPnl = isWin ? 0.92 : -1.0; // Payout de 92% ou perda de 100%
                         perf.totalProfit = (perf.totalProfit || 0) + virtualPnl;
                         if (isWin) perf.wins = (perf.wins || 0) + 1;
                         else perf.losses = (perf.losses || 0) + 1;
@@ -273,20 +272,22 @@ export function useRobotCouncil(
                     }
                 }
             } else {
+                // A operação ainda está ativa, mantém na lista para a próxima verificação.
                 stillActiveVirtualTrades.push(trade);
             }
         });
-        virtualArenaTradesRef.current = stillActiveVirtualTrades;
-
-        // --- 3. VOTAÇÃO DO CONSELHO E REGISTO PRAGMÁTICO NA ARENA ---
+        
+        // --- PASSO 3: VOTAÇÃO DO CONSELHO E REGISTO PRAGMÁTICO NA ARENA ---
         let riseConfidenceSum = 0;
         let fallConfidenceSum = 0;
         const newVotes: CouncilVotes = {};
-        
+        const currentTick = priceTicks[currentTickIndex];
+
         strategyCouncil.forEach(robot => {
+            // Calcula o voto do robô com base nos indicadores atuais
             const { vote, confidence } = calculateRobotVote(robot, currentIndicators);
             
-            // LÓGICA PRAGMÁTICA: Se o robô votou, a Arena regista!
+            // **A LÓGICA DO ESPELHO: Se o robô votou, a Arena regista IMEDIATAMENTE**
             if (vote !== 'HOLD') {
                 const newVirtualTrade: VirtualTrade = {
                     robotId: robot.id,
@@ -296,9 +297,10 @@ export function useRobotCouncil(
                     durationTicks: form.getValues('duration'),
                     entryTickIndex: currentTickIndex,
                 };
-                virtualArenaTradesRef.current.push(newVirtualTrade);
+                stillActiveVirtualTrades.push(newVirtualTrade);
             }
             
+            // Calcula o peso do voto para o consenso (meritocracia)
             let weight = 1.0;
             if (isMeritocracyOn) {
                 const perf = performanceMap.get(robot.id);
@@ -314,7 +316,10 @@ export function useRobotCouncil(
             if (vote === 'FALL') fallConfidenceSum += confidence * weight;
         });
         
-        // --- 4. ATUALIZAÇÃO DE ESTADOS ---
+        // Atualiza a lista de trades da arena
+        virtualArenaTradesRef.current = stillActiveVirtualTrades;
+
+        // --- PASSO 4: ATUALIZAÇÃO DE ESTADOS PARA A UI ---
         if (performanceChanged) {
             const updatedPerformanceArray = Array.from(performanceMap.values());
             setRobotPerformance(updatedPerformanceArray);
@@ -330,12 +335,12 @@ export function useRobotCouncil(
         else if (fallConfidenceSum > riseConfidenceSum && fallConfidenceSum > 0) setConsensusDecision('FALL');
         else setConsensusDecision('HOLD');
 
-        // --- 5. EXECUÇÃO DE TRADE REAL (SE APROVADO) ---
+        // --- PASSO 5: DECISÃO FINAL DE SUPERVISÃO E EXECUÇÃO DE TRADE REAL ---
         const dailyPnl = operationsLog.filter(op => new Date(op.timestamp).toDateString() === new Date().toDateString() && op.initiator === 'Conselho').reduce((sum, op) => sum + (op.result || 0), 0);
         const supervisionDecision = supervisionCommitteeCheck(riseConfidenceSum, fallConfidenceSum, consensusThreshold, currentIndicators, dailyPnl);
         setSupervisionStatus(supervisionDecision);
 
-        if (supervisionDecision.status === 'approved') {
+        if (supervisionDecision.status === 'approved' && !councilExecutionRef.current.isExecuting) {
             councilExecutionRef.current.isExecuting = true;
             const direction = riseConfidenceSum > fallConfidenceSum ? 'RISE' : 'FALL';
             const { finalStake, finalDuration } = supervisionDecision;
@@ -343,10 +348,24 @@ export function useRobotCouncil(
             toast({ title: "Conselho Executou Ordem!", description: `Direção: ${direction}, Stake: $${finalStake.toFixed(2)}, Duração: ${finalDuration} ticks.` });
 
             executeTrade(direction === 'RISE' ? 'CALL' : 'PUT', finalStake, activeSymbol, direction.toLowerCase() as 'rise' | 'fall', finalDuration, form.getValues('duration_unit'), 'Conselho')
-                .finally(() => setTimeout(() => councilExecutionRef.current.isExecuting = false, 10000));
+                .finally(() => setTimeout(() => {
+                    councilExecutionRef.current.isExecuting = false;
+                }, 10000)); // Previne execuções demasiado rápidas
         }
 
     }, [priceTicks, isCouncilAutopilotOn, strategyCouncil, robotPerformance, isMeritocracyOn, activeSymbol, operationsLog, supervisionCommitteeCheck, consensusThreshold, toast, executeTrade, form, timePeriod, committeeOfSpecialists]);
+
+    // Efeito para carregar o desempenho do localStorage quando o componente monta
+    useEffect(() => {
+        try {
+            const storedPerformance = localStorage.getItem(ROBOT_PERFORMANCE_KEY);
+            if (storedPerformance) {
+                setRobotPerformance(JSON.parse(storedPerformance));
+            }
+        } catch (error) {
+            console.error("Falha ao carregar desempenho do localStorage", error);
+        }
+    }, []);
     
     return {
         isCouncilAutopilotOn,
