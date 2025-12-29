@@ -1,4 +1,4 @@
-
+// src/features/financials/components/dashboard/net-worth-chart.tsx
 'use client';
 import {
   Line,
@@ -9,12 +9,12 @@ import {
   YAxis,
   CartesianGrid
 } from "recharts";
-import { useAuth } from "@/hooks/use-auth";
-import { getTransactions } from "@/services/financial-data-service";
+import { useAuth } from "@/features/auth/hooks/use-auth";
+import { getTransactions } from "@/features/financials/services/financial-data-service";
 import type { Transaction } from "@/lib/types";
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
-import { Skeleton } from "../ui/skeleton";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ChartDataPoint {
   name: string;

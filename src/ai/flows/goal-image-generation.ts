@@ -1,4 +1,4 @@
-// /src/ai/flows/goal-image-generation.ts
+// src/features/financials/ai/goal-image-generation.ts
 'use server';
 
 /**
@@ -8,7 +8,7 @@
  */
 
 import { ai } from '@/lib/genkit';
-import { GenerateGoalImageInputSchema, GenerateGoalImageOutputSchema, type GenerateGoalImageInput } from './goal-image-generation.types';
+import { GenerateGoalImageInputSchema, GenerateGoalImageOutputSchema, type GenerateGoalImageInput } from '@/lib/types';
 
 
 const generateGoalImageFlow = ai.defineFlow(

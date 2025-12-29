@@ -1,5 +1,5 @@
-// src/components/deriv-trader/deriv-trader-interface.types.ts
-import { z } from "zod";
+// src/features/trading/components/deriv-trader-interface.types.ts
+import { z } from 'zod';
 
 export const riseFallSchema = z.object({
   stake: z.coerce.number().min(0.35, "O valor mínimo é $0.35."),
@@ -9,5 +9,3 @@ export const riseFallSchema = z.object({
 });
 
 export type RiseFallFormValues = z.infer<typeof riseFallSchema>;
-
-export type DurationUnit = 't' | 's' | 'm' | 'h' | 'd';

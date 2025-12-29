@@ -1,4 +1,4 @@
-
+// /src/services/financial-data-service.ts
 'use server';
 
 /**
@@ -6,9 +6,8 @@
  */
 import { db, auth } from '@/lib/firebase';
 import { collection, getDocs, addDoc, query, where, doc, updateDoc, deleteDoc, writeBatch, getDoc, setDoc } from 'firebase/firestore';
-import type { Goal, BudgetCategory, Transaction } from '@/lib/types';
-import type { RobotPerformance } from '@/hooks/use-robot-council';
-import { generateGoalImage } from '@/ai/flows/goal-image-generation';
+import type { Goal, BudgetCategory, Transaction, RobotPerformance } from '@/lib/types';
+import { generateGoalImage } from '@/features/ai/flows/goal-image-generation';
 
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -159,7 +158,7 @@ export async function saveRobotPerformance(userId: string, performanceData: Robo
     const performanceDocRef = doc(db, 'users', userId, 'trading', 'robotPerformance');
     const dataToSave = { performance: performanceData };
 
-    setDoc(performanceDocRef, dataToSave, { merge: true })
+    await setDoc(performanceDocRef, dataToSave, { merge: true })
         .catch(async (serverError) => {
             const permissionError = new FirestorePermissionError({
                 path: performanceDocRef.path,

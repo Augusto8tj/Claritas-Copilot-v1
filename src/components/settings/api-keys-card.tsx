@@ -1,4 +1,4 @@
-// /src/components/settings/api-keys-card.tsx
+// src/features/trading/components/settings/api-keys-card.tsx
 "use client";
 
 import { useState } from "react";
@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "../ui/button";
+import { Button } from "@/components/ui/button";
 import { Loader2, Link as LinkIcon, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useDerivApi, type AccountType } from "@/hooks/use-deriv-api";
+import { useDerivApi, type AccountType } from "@/features/trading/hooks/use-deriv-api";
 import { checkDerivConnection } from "@/app/actions";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 

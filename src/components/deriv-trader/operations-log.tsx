@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import type { Operation, OperationInitiator } from "./operations-log.types";
+import type { Operation, OperationInitiator, DurationUnit } from "@/lib/types";
 import { ArrowDown, ArrowUp, Bot, User, Users, MoveRight } from "lucide-react";
 import { useMemo } from "react";
 import { PendingOperationCounter } from "./pending-operation-counter";

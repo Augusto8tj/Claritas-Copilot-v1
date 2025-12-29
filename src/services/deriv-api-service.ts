@@ -1,4 +1,4 @@
-// /src/services/deriv-api-service.ts
+// src/features/trading/services/deriv-api-service.ts
 'use client';
 
 /**

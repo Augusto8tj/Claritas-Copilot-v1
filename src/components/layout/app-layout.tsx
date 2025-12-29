@@ -40,8 +40,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Logo } from "@/components/icons";
-import { UserNav } from "./user-nav";
-import { useAuth } from "@/hooks/use-auth";
+import { UserNav } from "@/features/auth/components/user-nav";
+import { useAuth } from "@/features/auth/hooks/use-auth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSidebar } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -229,7 +229,9 @@ function DesktopSidebar() {
                 </h1>
               </div>
             </SidebarHeader>
-            <MainNav />
+            <SidebarContent>
+              <MainNav />
+            </SidebarContent>
              <SidebarFooter>
                 <div className="text-xs text-muted-foreground text-center p-2 group-data-[collapsible=icon]:hidden">
                     Versão {packageJson.version}

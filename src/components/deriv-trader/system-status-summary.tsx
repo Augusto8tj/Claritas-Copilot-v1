@@ -1,8 +1,8 @@
-// src/components/deriv-trader/system-status-summary.tsx
+// /src/components/deriv-trader/system-status-summary.tsx
 'use client';
 
 import { BrainCircuit, Link as LinkIcon, Loader2, RefreshCw, Server, Settings, ShieldCheck, ShieldX } from "lucide-react";
-import { useDerivApi } from "@/hooks/use-deriv-api";
+import { useDerivApi } from "@/features/trading/hooks/use-deriv-api";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import Link from "next/link";

@@ -1,4 +1,4 @@
-// /src/components/chat-insights/chat-interface-insights.tsx
+// src/features/financials/components/chat/chat-interface-insights.tsx
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -6,7 +6,7 @@ import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { CornerDownLeft, Loader2, Sparkles, User } from "lucide-react";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/features/auth/hooks/use-auth";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

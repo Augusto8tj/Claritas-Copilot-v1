@@ -1,13 +1,10 @@
-// /src/hooks/use-deriv-api.tsx
-
-
+// src/features/trading/hooks/use-deriv-api.tsx
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
-import type { TradeResult } from '@/services/deriv-api-service';
+import type { TradeResult } from '@/features/trading/services/deriv-api-service';
 import { useToast } from './use-toast';
-import type { Operation, OperationInitiator } from '@/components/deriv-trader/operations-log.types';
-import type { DurationUnit, ChartType, TimePeriod, ChartData, CandleData, TradeAnnotation, TickData } from './types';
+import type { Operation, OperationInitiator, DurationUnit, ChartType, TimePeriod, ChartData, CandleData, TradeAnnotation, TickData } from '@/lib/types';
 import { FirebaseErrorListener } from '@/components/firebase-error-listener';
 
 

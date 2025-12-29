@@ -1,8 +1,8 @@
-// /src/components/layout/auth-guard.tsx
+// src/features/auth/components/auth-guard.tsx
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/features/auth/hooks/use-auth";
 import { useEffect, type ReactNode } from "react";
 
 const publicPaths = ["/login", "/signup"];

@@ -1,10 +1,10 @@
-// src/components/deriv-trader/pending-operation-counter.tsx
+// /src/components/deriv-trader/pending-operation-counter.tsx
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
-import type { DurationUnit } from './deriv-trader-interface.types';
-import { useDerivApi } from '@/hooks/use-deriv-api';
+import type { DurationUnit } from "@/lib/types";
+import { useDerivApi } from '@/features/trading/hooks/use-deriv-api';
 
 interface PendingOperationCounterProps {
   duration: number;

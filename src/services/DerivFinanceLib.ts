@@ -1,4 +1,4 @@
-
+// src/features/trading/services/DerivFinanceLib.ts
 
 /**
  * BIBLIOTECA FINANCEIRA AVANÇADA PARA DERIV API (2025)

@@ -6,8 +6,7 @@
  * It is designed to be used on the client-side for real-time analysis.
  */
 
-import type { CandleData, ChartData, TimePeriod } from '@/hooks/types';
-import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
+import type { CandleData, ChartData, TimePeriod, RobotStrategy } from '@/lib/types';
 import { DerivIndicators } from './DerivFinanceLib';
 
 export interface Indicators {

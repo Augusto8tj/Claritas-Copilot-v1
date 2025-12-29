@@ -1,4 +1,4 @@
-// /src/components/goals/goal-card.tsx
+// src/features/financials/components/goals/goal-card.tsx
 "use client";
 
 import Image from "next/image";
@@ -28,7 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { deleteGoal } from "@/app/actions/financial-data-actions";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/features/auth/hooks/use-auth";
 
 interface GoalCardProps {
   goal: Goal;
@@ -102,8 +102,8 @@ export function GoalCard({ goal, onGoalDeleted }: GoalCardProps) {
           <Image
             src={goal.imageUrl}
             alt={goal.name}
-            layout="fill"
-            objectFit="cover"
+            fill={true}
+            style={{objectFit: 'cover'}}
             className="rounded-t-lg"
             data-ai-hint={goal.imageHint}
           />

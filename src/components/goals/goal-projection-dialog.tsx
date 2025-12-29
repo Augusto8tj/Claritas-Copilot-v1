@@ -1,4 +1,4 @@
-// /src/components/goals/goal-projection-dialog.tsx
+// src/features/financials/components/goals/goal-projection-dialog.tsx
 "use client";
 
 import { useState } from "react";
@@ -25,17 +25,10 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 // import { getGoalProjection } from "@/app/actions";
-import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import type { Goal } from "@/lib/types";
 
-
-type Goal = {
-  id: string;
-  name: string;
-  currentAmount: number;
-  targetAmount: number;
-  imageUrl: string;
-};
 
 const formSchema = z.object({
   currentSavings: z.coerce.number().positive("Deve ser um número positivo"),

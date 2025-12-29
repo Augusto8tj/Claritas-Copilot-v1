@@ -1,9 +1,10 @@
+// src/features/financials/components/dashboard/main-goal.tsx
 "use client";
 
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/features/auth/hooks/use-auth";
 import { useEffect, useState } from "react";
 import { getGoals } from "@/app/actions/financial-data-actions";
-import type { Goal } from "@/lib/types";
+import type { Goal } from "@/lib/types/financial.types";
 import {
   Card,
   CardContent,
@@ -19,7 +20,7 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import { GoalProgressChart } from "./goal-progress-chart";
-import { Skeleton } from "../ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function MainGoalSkeleton() {
   return (

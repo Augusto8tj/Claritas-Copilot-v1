@@ -1,10 +1,10 @@
-// src/components/deriv-trader/hall-of-fame.tsx
+// /src/components/deriv-trader/hall-of-fame.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
+import type { RobotStrategy } from '@/lib/types/trading.types';
 import { BrainCircuit, Activity, Waves, CandlestickChart, Bot, Trophy, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { RobotPerformance } from '@/hooks/use-robot-council';

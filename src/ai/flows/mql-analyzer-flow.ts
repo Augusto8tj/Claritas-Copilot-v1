@@ -1,4 +1,4 @@
-// /src/ai/flows/mql-analyzer-flow.ts
+// src/features/trading/ai/mql-analyzer-flow.ts
 'use server';
 
 /**
@@ -8,7 +8,7 @@
  */
 
 import { ai } from '@/lib/genkit';
-import { MqlAnalyzerInputSchema, MqlAnalyzerOutputSchema, type MqlAnalyzerInput } from './mql-analyzer-flow.types';
+import { MqlAnalyzerInputSchema, MqlAnalyzerOutputSchema, type MqlAnalyzerInput } from '@/lib/types';
 import { z } from 'zod';
 
 const CONTEXT_WINDOW_LIMIT = 10000; // Character limit, a safe guess for the model's context.

@@ -3,11 +3,11 @@
 
 import {
   analyzeMqlCode,
-} from '@/ai/flows/mql-analyzer-flow';
-import { MqlAnalyzerInputSchema, type MqlAnalyzerInput } from '@/ai/flows/mql-analyzer-flow.types';
-import type { TradeResult } from '@/services/deriv-api-service';
-import { analyzeOperations } from '@/ai/flows/operation-analysis-flow';
-import { OperationAnalysisInputSchema, type OperationAnalysisInput } from '@/ai/flows/operation-analysis-flow.types';
+} from '@/features/ai/flows/mql-analyzer-flow';
+import { MqlAnalyzerInputSchema, type MqlAnalyzerInput } from '@/lib/types';
+import type { TradeResult } from '@/features/trading/services/deriv-api-service';
+import { analyzeOperations } from '@/features/ai/flows/operation-analysis-flow';
+import { OperationAnalysisInputSchema, type OperationAnalysisInput } from '@/lib/types';
 
 
 export async function analyzeMqlCodeAction(data: MqlAnalyzerInput): Promise<{ success?: string; error?: string }> {

@@ -6,11 +6,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { AIInsightCard } from "@/components/dashboard/ai-insight-card";
-import { NetWorthChart } from "@/components/dashboard/net-worth-chart";
-import { MonthlyBalance } from "@/components/dashboard/monthly-balance";
-import { UpcomingBills } from "@/components/dashboard/upcoming-bills";
-import { MainGoal } from "@/components/dashboard/main-goal";
+import { AIInsightCard } from "@/features/financials/components/dashboard/ai-insight-card";
+import { NetWorthChart } from "@/features/financials/components/dashboard/net-worth-chart";
+import { MonthlyBalance } from "@/features/financials/components/dashboard/monthly-balance";
+import { UpcomingBills } from "@/features/financials/components/dashboard/upcoming-bills";
+import { MainGoal } from "@/features/financials/components/dashboard/main-goal";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 

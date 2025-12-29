@@ -2,7 +2,7 @@
 "use server";
 
 import { z } from "zod";
-import { updateBudgetLimit as updateBudgetLimitInService } from "@/services/financial-data-service";
+import { updateBudgetLimit as updateBudgetLimitInService } from "@/features/financials/services/financial-data-service";
 import { revalidatePath } from "next/cache";
 import type { BudgetCategory } from "@/lib/types";
 

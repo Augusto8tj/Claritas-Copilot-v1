@@ -1,4 +1,4 @@
-// /src/ai/flows/strategy-council-flow.types.ts
+// src/lib/types/trading.types.ts
 import { z } from 'zod';
 
 export const RobotStrategySchema = z.object({
@@ -78,15 +78,3 @@ export const RobotStrategySchema = z.object({
 });
 
 export type RobotStrategy = z.infer<typeof RobotStrategySchema>;
-
-export const StrategyCouncilInputSchema = z.object({
-  symbol: z.string().describe("The trading symbol of the asset to be analyzed."),
-  balance: z.number().describe("The user's designated trading balance for the day. THIS IS THE VALUE TO BE USED FOR RISK MANAGEMENT."),
-  timePeriod: z.string().describe("The current chart time period (e.g., 'Ticks', '1 Minuto', '15 Minutos'). THIS IS CRITICAL CONTEXT for parameter calibration."),
-});
-export type StrategyCouncilInput = z.infer<typeof StrategyCouncilInputSchema>;
-
-export const StrategyCouncilOutputSchema = z.object({
-  robots: z.array(RobotStrategySchema).length(22).describe("An array of exactly 22 trading robots, each with a unique strategy."),
-});
-export type StrategyCouncilOutput = z.infer<typeof StrategyCouncilOutputSchema>;

@@ -1,9 +1,9 @@
-// /src/hooks/use-trade-analysis.ts
+// src/features/trading/hooks/use-trade-analysis.ts
 'use client';
 
 import { useCallback } from 'react';
 import { analyzeOperationsAction } from '@/app/actions/trading-actions';
-import type { Operation } from '@/components/trading/operations-log.types';
+import type { Operation } from '@/lib/types';
 import { useToast } from './use-toast';
 import { useDerivApi } from './use-deriv-api';
 

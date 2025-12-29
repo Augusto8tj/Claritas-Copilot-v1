@@ -1,4 +1,4 @@
-// /src/components/budget/edit-budget-dialog.tsx
+// src/features/financials/components/budget/edit-budget-dialog.tsx
 "use client";
 
 import { useState } from "react";
@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input";
 import { updateBudget } from "@/app/actions/budget-actions";
 import { useToast } from "@/hooks/use-toast";
 import type { BudgetCategory } from "@/lib/types";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/features/auth/hooks/use-auth";
 
 interface EditBudgetDialogProps {
     category: BudgetCategory;

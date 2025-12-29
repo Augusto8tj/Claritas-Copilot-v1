@@ -1,4 +1,4 @@
-// src/components/deriv-trader/council-autopilot-interface.tsx
+// /src/components/deriv-trader/council-autopilot-interface.tsx
 'use client';
 
 import { useState, Fragment } from "react";
@@ -17,7 +17,7 @@ import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { Separator } from "../ui/separator";
 import { Badge } from "../ui/badge";
-import type { RobotStrategy } from "@/ai/flows/strategy-council-flow.types";
+import type { RobotStrategy } from "@/lib/types/trading.types";
 import { cn } from "@/lib/utils";
 import { Input } from "../ui/input";
 import type { useRobotCouncil } from "@/hooks/use-robot-council";
@@ -167,7 +167,7 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
             case 'KAMA':
                 return <p>KAMA Atual: <strong>{format(indicators.kama)}</strong></p>;
             case 'STOCH_RSI':
-                return <p>StochRSI Atual: <strong>{format(indicators.stochRSI, 2)}</strong></p>;
+                return <p>StochRSI Atual: <strong>{format(indicators.stochRsi, 2)}</strong></p>;
             case 'AWESOME_OSCILLATOR':
                 return <p>Awesome Osc: <strong>{format(indicators.awesomeOscillator, 2)}</strong></p>;
             case 'TRIX':

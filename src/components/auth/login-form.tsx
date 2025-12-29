@@ -1,4 +1,4 @@
-// /src/components/auth/login-form.tsx
+// src/features/auth/components/login-form.tsx
 "use client";
 
 import { useState } from "react";

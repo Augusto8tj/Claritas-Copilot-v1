@@ -1,5 +1,5 @@
-// /src/services/council-strategies.ts
-import type { RobotStrategy } from "@/ai/flows/strategy-council-flow.types";
+// src/features/trading/services/council-strategies.ts
+import type { RobotStrategy } from '@/lib/types';
 
 // This file contains the pre-defined, local configuration for the 22 robot analysts.
 // This approach removes the need for an AI call to build the council, making it faster and more reliable.

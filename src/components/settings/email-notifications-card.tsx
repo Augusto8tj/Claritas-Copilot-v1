@@ -1,4 +1,4 @@
-// /src/components/settings/email-notifications-card.tsx
+// src/features/auth/components/settings/email-notifications-card.tsx
 "use client";
 
 import { useState } from "react";
@@ -11,12 +11,12 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Button } from "../ui/button";
+import { Button } from "@/components/ui/button";
 import { Loader2, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sendFinancialSummaryEmail } from "@/app/actions";
-import { Separator } from "../ui/separator";
-import { useAuth } from "@/hooks/use-auth";
+import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/features/auth/hooks/use-auth";
 
 export function EmailNotificationsCard() {
     const { user } = useAuth();

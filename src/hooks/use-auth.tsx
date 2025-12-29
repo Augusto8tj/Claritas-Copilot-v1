@@ -1,4 +1,4 @@
-// /src/hooks/use-auth.tsx
+// src/features/auth/hooks/use-auth.tsx
 "use client";
 
 import {
@@ -12,7 +12,7 @@ import type { User } from "firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { Loader2 } from "lucide-react";
-import { AuthGuard } from "@/components/layout/auth-guard";
+import { AuthGuard } from "@/features/auth/components/auth-guard";
 
 type AuthContextType = {
   user: User | null;

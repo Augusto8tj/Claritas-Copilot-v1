@@ -1,11 +1,11 @@
-// /src/ai/tools/financial-tools.ts
+// src/features/financials/ai/tools/financial-tools.ts
 'use server';
 /**
  * @fileOverview Defines the tools available to the financial AI chatbot.
  */
 
 import { ai } from '@/lib/genkit';
-import { addGoal, addTransaction, getFinancialSummary, getBudgetData } from '@/services/financial-data-service';
+import { addGoal, addTransaction, getFinancialSummary, getBudgetData } from '@/features/financials/services/financial-data-service';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/firebase'; // Assuming auth can give us the user context

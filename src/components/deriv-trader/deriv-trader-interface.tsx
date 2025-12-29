@@ -1,5 +1,4 @@
-// src/components/deriv-trader/deriv-trader-interface.tsx
-
+// /src/components/deriv-trader/deriv-trader-interface.tsx
 "use client";
 
 import { useState } from "react";
@@ -27,8 +26,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 
-import type { DurationUnit, RiseFallFormValues } from "./deriv-trader-interface.types";
-import { useDerivApi } from "@/hooks/use-deriv-api";
+import type { DurationUnit, RiseFallFormValues } from "@/lib/types";
+import { useDerivApi } from "@/features/trading/hooks/use-deriv-api";
 
 type TradeType = 'rise_fall' | 'higher_lower' | 'touch_no_touch';
 

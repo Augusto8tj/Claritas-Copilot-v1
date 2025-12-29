@@ -1,4 +1,4 @@
-// /src/ai/flows/operation-analysis-flow.ts
+// src/features/trading/ai/operation-analysis-flow.ts
 'use server';
 
 /**
@@ -9,7 +9,7 @@
 
 import { ai } from '@/lib/genkit';
 import { z } from 'zod';
-import { OperationAnalysisInputSchema, OperationAnalysisOutputSchema, type OperationAnalysisInput } from './operation-analysis-flow.types';
+import { OperationAnalysisInputSchema, OperationAnalysisOutputSchema, type OperationAnalysisInput } from '@/lib/types';
 
 // O prompt agora espera uma string JSON em vez de um objeto complexo.
 const analyzerPrompt = ai.definePrompt({

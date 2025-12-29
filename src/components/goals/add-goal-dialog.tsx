@@ -1,4 +1,4 @@
-// /src/components/goals/add-goal-dialog.tsx
+// src/features/financials/components/goals/add-goal-dialog.tsx
 "use client";
 
 import { useState } from "react";
@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input";
 import { addGoal } from "@/app/actions/financial-data-actions";
 import { useToast } from "@/hooks/use-toast";
 import type { Goal } from "@/lib/types";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/features/auth/hooks/use-auth";
 
 interface AddGoalDialogProps {
     onGoalAdded: (goal: Goal) => void;

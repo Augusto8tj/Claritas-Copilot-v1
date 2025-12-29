@@ -1,3 +1,4 @@
+// /src/components/dashboard/upcoming-bills.tsx
 import {
   Card,
   CardContent,
@@ -14,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "../ui/badge";
-import { getTransactions } from "@/services/financial-data-service";
+import { getTransactions } from "@/features/financials/services/financial-data-service";
 import { auth } from "@/lib/firebase";
 
 

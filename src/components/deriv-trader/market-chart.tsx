@@ -1,4 +1,4 @@
-// src/components/deriv-trader/market-chart.tsx
+// /src/components/deriv-trader/market-chart.tsx
 'use client'
 
 import React, { useCallback } from 'react'
@@ -21,9 +21,9 @@ import type {
   TimePeriod,
   ChartType,
   TradeAnnotation,
-} from '@/hooks/types' // Corrected import path
+} from '@/lib/types'
 import { THEMES } from './chart-parts/themes'
-import type { Operation } from '@/components/trading/operations-log.types'
+import type { Operation } from '@/lib/types'
 import {
   DropdownMenu,
   DropdownMenuContent,

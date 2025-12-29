@@ -1,4 +1,4 @@
-// /src/components/status/deriv-connection-card.tsx
+// src/features/trading/components/status/deriv-connection-card.tsx
 "use client";
 
 import React, { useState } from 'react';
@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { checkDerivConnection } from '@/app/actions';
-import { useDerivApi } from '@/hooks/use-deriv-api';
+import { useDerivApi } from '@/features/trading/hooks/use-deriv-api';
 import { Loader2, AlertTriangle, CheckCircle, Link } from 'lucide-react';
 
 export function DerivConnectionCard() {

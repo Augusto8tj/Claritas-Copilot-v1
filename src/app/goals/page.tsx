@@ -2,12 +2,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GoalCard } from "@/components/goals/goal-card";
-import { AddGoalDialog } from "@/components/goals/add-goal-dialog";
+import { GoalCard } from "@/features/financials/components/goals/goal-card";
+import { AddGoalDialog } from "@/features/financials/components/goals/add-goal-dialog";
 import { getGoals } from "@/app/actions/financial-data-actions";
 import type { Goal } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/features/auth/hooks/use-auth";
 
 export default function GoalsPage() {
   const { user } = useAuth();

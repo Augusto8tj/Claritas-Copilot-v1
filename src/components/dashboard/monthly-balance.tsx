@@ -1,3 +1,4 @@
+// /src/components/dashboard/monthly-balance.tsx
 import {
   Card,
   CardContent,
@@ -6,7 +7,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { getFinancialSummary } from "@/services/financial-data-service";
+import { getFinancialSummary } from "@/features/financials/services/financial-data-service";
 import { auth } from "@/lib/firebase";
 
 
