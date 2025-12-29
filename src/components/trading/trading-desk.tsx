@@ -147,7 +147,7 @@ export function TradingDesk() {
                              Painel de Desempenho dos Analistas
                         </CardTitle>
                         <CardDescription>
-                            Resultados em tempo real do conselho de IA.
+                            O placar da Arena Virtual. Cada voto é julgado, e o desempenho alimenta o modo Meritocracia.
                         </CardDescription>
                     </div>
                     <Button onClick={resetPerformance} variant="destructive" size="sm">
