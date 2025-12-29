@@ -58,7 +58,7 @@ const tradeTypeLabels: Record<TradeType, string> = {
   touch_no_touch: "Touch/No Touch",
 };
 
-export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
+function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<"rise" | "fall" | null>(null);
   const [tradeType, setTradeType] = useState<TradeType>('rise_fall');
@@ -336,4 +336,4 @@ export function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
   );
 }
 
-    
+export default DerivTraderInterface;

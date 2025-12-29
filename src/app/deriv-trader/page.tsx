@@ -5,7 +5,7 @@
 import React, { useState, useEffect } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { DerivTraderInterface } from "@/components/trading/deriv-trader-interface";
+import DerivTraderInterface from "@/components/trading/deriv-trader-interface";
 import { AssetSelector } from "@/components/trading/asset-selector";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MarketChart } from "@/components/trading/market-chart";
