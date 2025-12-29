@@ -4,11 +4,10 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { RobotStrategy } from '@/lib/types/trading.types';
+import type { RobotStrategy, RobotPerformance } from '@/lib/types';
 import { BrainCircuit, Activity, Waves, CandlestickChart, Bot, Trophy, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { RobotPerformance } from '@/hooks/use-robot-council';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/features/auth/hooks/use-auth';
 import { getHallOfFame } from '@/services/financial-data-service';
 
 const indicatorIcons: { [key: string]: React.ReactNode } = {

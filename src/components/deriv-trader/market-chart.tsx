@@ -14,7 +14,7 @@ import {
   Moon,
   Sun,
 } from 'lucide-react'
-import { useTheme as useAppTheme } from '@/hooks/use-theme'
+import { useTheme as useAppTheme } from '@/features/theme/hooks/use-theme'
 import type {
   ChartData,
   CandleData,

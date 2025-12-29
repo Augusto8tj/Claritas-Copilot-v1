@@ -10,7 +10,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import type { RobotStrategy } from '@/features/trading/lib/types';
+import type { RobotStrategy } from '@/lib/types';
 import {
     BrainCircuit,
     Activity,
@@ -30,13 +30,13 @@ import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import type { RobotPerformance } from '@/features/trading/hooks/use-robot-council';
+import type { RobotPerformance } from '@/hooks/use-robot-council';
 import { Label } from '../ui/label';
 import { Switch } from '../ui/switch';
 import { Separator } from '../ui/separator';
 import { Badge } from '../ui/badge';
-import { useAuth } from '@/hooks/use-auth';
-import { saveRobotPerformance } from '@/features/financials/services/financial-data-service';
+import { useAuth } from '@/features/auth/hooks/use-auth';
+import { saveRobotPerformance } from '@/services/financial-data-service';
 
 interface TradingDeskProps {
     isMeritocracyOn: boolean;
