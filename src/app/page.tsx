@@ -30,6 +30,38 @@ function MainGoalSkeleton() {
   )
 }
 
+function ChartSkeleton() {
+    return (
+        <Card className="col-span-4">
+            <CardHeader>
+                <Skeleton className="h-6 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+            </CardHeader>
+            <CardContent className="pl-2">
+                <Skeleton className="h-[350px] w-full" />
+            </CardContent>
+        </Card>
+    )
+}
+
+function BalanceSkeleton() {
+    return (
+         <Card>
+            <CardHeader>
+                <Skeleton className="h-6 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-2">
+                   <Skeleton className="h-4 w-full" />
+                   <Skeleton className="h-2 w-full" />
+                   <Skeleton className="h-4 w-full" />
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
+
 
 export default function DashboardPage() {
   return (
@@ -45,23 +77,21 @@ export default function DashboardPage() {
         </Suspense>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle className="font-headline">Patrimônio Líquido</CardTitle>
-            <CardDescription>Sua jornada financeira no último ano.</CardDescription>
-          </CardHeader>
-          <CardContent className="pl-2">
+        <Suspense fallback={<ChartSkeleton/>}>
             <NetWorthChart />
-          </CardContent>
-        </Card>
+        </Suspense>
         <div className="col-span-4 lg:col-span-3 space-y-4">
-          <MonthlyBalance />
+          <Suspense fallback={<BalanceSkeleton />}>
+            <MonthlyBalance />
+          </Suspense>
           <Suspense fallback={<MainGoalSkeleton />}>
             <MainGoal />
           </Suspense>
         </div>
       </div>
-      <UpcomingBills />
+       <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+        <UpcomingBills />
+       </Suspense>
     </div>
   );
 }

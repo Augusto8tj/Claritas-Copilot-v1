@@ -14,41 +14,37 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "../ui/badge";
+import { getTransactions } from "@/services/financial-data-service";
+import { auth } from "@/lib/firebase";
 
-const bills = [
-  {
-    recipient: "Netflix",
-    dueDate: "2024-08-25",
-    amount: 39.90,
-    status: "Próxima",
-  },
-  {
-    recipient: "Internet Claro",
-    dueDate: "2024-08-28",
-    amount: 99.90,
-    status: "Próxima",
-  },
-  {
-    recipient: "CPFL Energia",
-    dueDate: "2024-09-01",
-    amount: 124.5,
-    status: "Próxima",
-  },
-  {
-    recipient: "Cartão de Crédito Nubank",
-    dueDate: "2024-09-05",
-    amount: 850.0,
-    status: "Próxima",
-  },
-   {
-    recipient: "Spotify",
-    dueDate: "2024-08-15",
-    amount: 21.90,
-    status: "Paga",
-  },
-];
 
-export function UpcomingBills() {
+async function getBills() {
+  const userId = auth.currentUser?.uid;
+  if (!userId) return [];
+  
+  const transactions = await getTransactions(userId);
+  const bills = transactions.filter(t => t.category === "Contas" && t.type === "expense");
+
+  // This is a simplified logic. A real app would have a dedicated 'bills' collection
+  // with due dates and payment status.
+  const today = new Date();
+  
+  return bills.map(bill => {
+    const dueDate = new Date(bill.date);
+    // Mocking status based on date for demonstration
+    const status = dueDate < today ? "Paga" : "Próxima";
+    return {
+        recipient: bill.description,
+        dueDate: bill.date,
+        amount: bill.amount,
+        status: status,
+    }
+  }).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+}
+
+export async function UpcomingBills() {
+  const bills = await getBills();
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'Paga':
@@ -59,12 +55,13 @@ export function UpcomingBills() {
         return <Badge variant="outline">{status}</Badge>;
     }
   }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline">Contas a Vencer</CardTitle>
+        <CardTitle className="font-headline">Contas Recentes</CardTitle>
         <CardDescription>
-          Acompanhe seus próximos pagamentos para evitar multas por atraso.
+          Suas contas pagas e próximas para este ciclo. (Use a categoria &quot;Contas&quot; ao adicionar despesas).
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -78,14 +75,20 @@ export function UpcomingBills() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {bills.map((bill, index) => (
+            {bills.length > 0 ? bills.map((bill, index) => (
               <TableRow key={index}>
                 <TableCell className="font-medium">{bill.recipient}</TableCell>
                  <TableCell className="text-center">{getStatusBadge(bill.status)}</TableCell>
                 <TableCell className="text-center">{new Date(bill.dueDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</TableCell>
                 <TableCell className="text-right">R${bill.amount.toFixed(2).replace('.', ',')}</TableCell>
               </TableRow>
-            ))}
+            )) : (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
+                  Nenhuma conta registrada. Adicione despesas na categoria &quot;Contas&quot; para vê-las aqui.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </CardContent>

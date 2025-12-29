@@ -6,11 +6,25 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { getFinancialSummary } from "@/services/financial-data-service";
+import { auth } from "@/lib/firebase";
 
-export function MonthlyBalance() {
-  const income = 7250;
-  const expenses = 4830;
-  const progress = (expenses / income) * 100;
+
+export async function MonthlyBalance() {
+  const userId = auth.currentUser?.uid;
+  if (!userId) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-headline">Balanço Mensal</CardTitle>
+          <CardDescription>Faça login para ver seu balanço.</CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
+
+  const { income, expenses } = await getFinancialSummary(userId);
+  const progress = income > 0 ? (expenses / income) * 100 : 0;
 
   return (
     <Card>
