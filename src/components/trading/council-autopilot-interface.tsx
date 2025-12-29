@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, Fragment } from "react";
@@ -10,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
-import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award, Wand, Trash2, ShieldCheck, ShieldX, Group, ArrowUpCircle, ArrowDownCircle, LayoutGrid } from "lucide-react";
+import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award, Wand, Trash2, ShieldCheck, ShieldX, Group, ArrowUpCircle, ArrowDownCircle, LayoutGrid, Power, PowerOff } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "../ui/label";
@@ -69,7 +70,6 @@ interface CouncilAutopilotInterfaceProps extends ReturnType<typeof useRobotCounc
 export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps) {
   const { 
     isCouncilAutopilotOn,
-    setIsCouncilAutopilotOn,
     strategyCouncil,
     isFetchingCouncil,
     councilVotes,
@@ -92,27 +92,15 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
  } = props;
   const { toast } = useToast();
   
-  const handleToggleAutopilot = (isOn: boolean) => {
-    if (isOn && strategyCouncil.length < 1) {
-        toast({
-            variant: "destructive",
-            title: "Conselho Vazio",
-            description: "Você deve primeiro construir o conselho de analistas antes de ativar o piloto automático.",
-        });
-        return;
-    }
-    setIsCouncilAutopilotOn(isOn);
-  };
-
   const renderStrategyParams = (robot: RobotStrategy) => {
      switch (robot.strategyType) {
         case 'RSI':
         case 'STOCHASTIC':
         case 'MFI':
         case 'RVI':
-            return `Sinal Forte < ${robot.strongBuyThreshold}, Sinal Fraco < ${robot.weakBuyThreshold}`;
+            return `Forte < ${robot.strongBuyThreshold}, Fraco < ${robot.weakBuyThreshold}`;
         case 'STOCH_RSI':
-             return `Sinal Forte < ${robot.strongBuyThreshold?.toFixed(2)}, Sinal Fraco < ${robot.weakBuyThreshold?.toFixed(2)}`;
+             return `Forte < ${robot.strongBuyThreshold?.toFixed(2)}, Fraco < ${robot.weakBuyThreshold?.toFixed(2)}`;
         case 'MOVING_AVERAGE_CROSS':
             return `Cruzamento ${robot.shortPeriod}/${robot.longPeriod}`;
         case 'BOLLINGER_BANDS':
@@ -236,10 +224,9 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
                 <LayoutGrid className="h-5 w-5 text-primary" />
                 Mesa Operacional de IA
             </CardTitle>
-            <div className="flex items-center space-x-2">
-                <Switch id="council-autopilot-switch" checked={isCouncilAutopilotOn} onCheckedChange={handleToggleAutopilot}/>
-                <Label htmlFor="council-autopilot-switch">{isCouncilAutopilotOn ? "Ativada" : "Desativada"}</Label>
-            </div>
+             <Badge variant={isCouncilAutopilotOn ? "default" : "secondary"}>
+                {isCouncilAutopilotOn ? "Ativada" : "Desativada"}
+            </Badge>
         </div>
         <CardDescription>
           Controle a orquestra de analistas e a execução automática de operações.
@@ -335,21 +322,18 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
 
         <Separator />
 
-        {strategyCouncil.length > 0 ? (
-             <Button variant="destructive" className="w-full" onClick={dissolveCouncil} disabled={isFetchingCouncil || isCouncilAutopilotOn}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Dispensar Conselho
+        {isCouncilAutopilotOn ? (
+            <Button variant="destructive" className="w-full" onClick={dissolveCouncil} disabled={isFetchingCouncil}>
+                <PowerOff className="mr-2 h-4 w-4" />
+                Dispensar e Desativar
             </Button>
         ) : (
-            <Button className="w-full" onClick={fetchStrategyCouncil} disabled={isFetchingCouncil}>
-                {isFetchingCouncil ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                    <Wand className="mr-2 h-4 w-4" />
-                )}
-                {isFetchingCouncil ? 'Convocando...' : 'Convocar Conselho de Analistas'}
+             <Button className="w-full" onClick={fetchStrategyCouncil} disabled={isFetchingCouncil}>
+                {isFetchingCouncil ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Power className="mr-2 h-4 w-4" />}
+                {isFetchingCouncil ? 'Convocando...' : 'Convocar e Ativar Mesa'}
             </Button>
         )}
+
 
          <div className="flex justify-between items-center text-xs text-muted-foreground pt-2">
             <span>Analistas em Posição</span>
@@ -420,7 +404,7 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
         {!isCouncilAutopilotOn && strategyCouncil.length < 1 && (
             <div className="text-center text-muted-foreground p-4 border rounded-md bg-muted/50">
                 <Info className="h-5 w-5 mx-auto mb-2" />
-                <p className="text-sm">O Conselho está aguardando a convocação.</p>
+                <p className="text-sm">A Mesa Operacional está aguardando a convocação.</p>
                 <p className="text-xs">Use o botão acima para iniciar.</p>
             </div>
         )}

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -143,8 +144,8 @@ export function useRobotCouncil(
         }));
         
         setStrategyCouncil(council);
-        toast({ title: "Conselho de IA Montado!", description: `${council.length} analistas locais foram instanciados.` });
-
+        toast({ title: "Conselho de IA Montado!", description: `${council.length} analistas foram convocados e a Mesa está ativa.` });
+        setIsCouncilAutopilotOn(true); // Activate the desk automatically
         setIsFetchingCouncil(false);
     }, [activeSymbol, dailyBalance, form, timePeriod, toast]);
     
