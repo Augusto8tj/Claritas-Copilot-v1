@@ -11,7 +11,7 @@ import type { Indicators } from '@/services/indicator-service';
 import { calculateAllIndicators } from '@/services/indicator-service';
 import type { ChartData, TickData, CandleData } from './types';
 import { initialCouncilStrategies } from '@/services/council-strategies';
-import { useAuth } from './use-auth';
+import { useAuth } from '@/features/auth/hooks/use-auth';
 import { saveRobotPerformance, loadRobotPerformance } from '@/services/financial-data-service';
 
 export type RobotVote = {
