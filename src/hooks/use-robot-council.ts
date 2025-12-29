@@ -258,7 +258,7 @@ export function useRobotCouncil(
         const currentTickIndex = priceTicks.length - 1;
         const currentTick = priceTicks[currentTickIndex];
         if (!currentTick) return;
-
+        
         // --- 1. Calculate indicators ONCE using priceTicks for synchronization ---
         const tickCandles = priceTicks.map(t => ({ epoch: t.epoch, open: t.price, high: t.price, low: t.price, close: t.price, volume: 1 }));
         const currentIndicators = calculateAllIndicators(tickCandles, strategyCouncil, timePeriod);
@@ -266,7 +266,7 @@ export function useRobotCouncil(
         if (!currentIndicators) return;
 
         // --- 2. Process Arena: Judge Closed Trades ---
-        const performanceMap = new Map(robotPerformance.map(p => [p.id, { ...p }]));
+        const performanceMap = new Map<string, RobotPerformance>(robotPerformance.map(p => [p.id, { ...p }]));
         let performanceChanged = false;
         const stillActiveVirtualTrades: VirtualTrade[] = [];
         
@@ -290,6 +290,8 @@ export function useRobotCouncil(
                 stillActiveVirtualTrades.push(trade);
             }
         });
+        virtualArenaTradesRef.current = stillActiveVirtualTrades;
+
 
         // --- 3. Process Council: Calculate Votes and Potentially Open New Arena Trades ---
         let riseConfidenceSum = 0;
@@ -301,7 +303,7 @@ export function useRobotCouncil(
             
             // a. Arena Logic: If vote is decisive, register a new virtual trade
             if (vote !== 'HOLD') {
-                stillActiveVirtualTrades.push({
+                virtualArenaTradesRef.current.push({
                     robotId: robot.id,
                     vote: vote,
                     entryPrice: currentTick.price,
@@ -328,7 +330,6 @@ export function useRobotCouncil(
         });
 
         // --- 4. Update all states ---
-        virtualArenaTradesRef.current = stillActiveVirtualTrades;
         if (performanceChanged) {
             const updatedPerformanceArray = Array.from(performanceMap.values());
             setRobotPerformance(updatedPerformanceArray);
