@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
@@ -616,20 +617,15 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
     };
   }, [isConnected, chartType, timePeriod, activeSymbol, subscribeToMarketData]);
 
-  const setAccountType = (type: AccountType) => {
+  const setAccountType = useCallback((type: AccountType) => {
     try {
         localStorage.setItem(DERIV_ACCOUNT_TYPE_KEY, type);
         setAccountTypeState(type);
-        // Clear old state and force reconnect
-        setIsConnected(false);
-        setAccountBalance({ balance: null, currency: null, loading: true });
-        setOperationsLog([]);
-        setTradeAnnotations([]);
-        setTriggerReconnect(c => c + 1);
+        setTriggerReconnect(c => c + 1); // Trigger a full reconnect
     } catch (error) {
         console.error("Failed to save account type to localStorage:", error);
     }
-  }
+  }, []);
 
   const setTokens = (tokens: { demo?: string; real?: string }) => {
     try {
