@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDerivApi } from './use-deriv-api';
 import { useToast } from '@/hooks/use-toast';
-import type { RobotStrategy } from '@/lib/types/trading.types';
+import type { RobotStrategy } from '@/lib/types';
 import type { RiseFallFormValues } from '@/features/trading/components/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import type { Indicators } from '@/features/trading/services/indicator-service';
@@ -136,11 +136,11 @@ const calculateRobotVote = (
     }
     
     // STOCH_RSI
-    if (robot.strategyType === 'STOCH_RSI' && isValid(indicators.stochRSI)) {
-        if (indicators.stochRSI! <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
-        if (indicators.stochRSI! <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
-        if (indicators.stochRSI! >= robot.weakSellThreshold!) { vote = 'FALL'; confidence = robot.weakConfidence; }
-        if (indicators.stochRSI! >= robot.strongSellThreshold!) { vote = 'FALL'; confidence = robot.strongConfidence; }
+    if (robot.strategyType === 'STOCH_RSI' && isValid(indicators.stochRsi)) {
+        if (indicators.stochRsi! <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
+        if (indicators.stochRsi! <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
+        if (indicators.stochRsi! >= robot.weakSellThreshold!) { vote = 'FALL'; confidence = robot.weakConfidence; }
+        if (indicators.stochRsi! >= robot.strongSellThreshold!) { vote = 'FALL'; confidence = robot.strongConfidence; }
     }
 
     return { vote, confidence };
@@ -629,7 +629,7 @@ export function useRobotCouncil(
                 duration_unit,
                 'Conselho'
             ).finally(() =>
-                setTimeout(() => (councilExecutionref.current.isExecuting = false), 10000)
+                setTimeout(() => (councilExecutionRef.current.isExecuting = false), 10000)
             );
         }
     }, [
