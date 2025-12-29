@@ -2,7 +2,7 @@
 "use client";
 
 import { useAuth } from "@/features/auth/hooks/use-auth";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getGoals } from "@/app/actions/financial-data-actions";
 import type { Goal } from "@/lib/types/financial.types";
 import {
@@ -41,27 +41,33 @@ export function MainGoal() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchGoals = useCallback(async () => {
     if (!user) {
-        // If there's no user and we're not loading, there are no goals to fetch.
-        if(!loading) setLoading(false);
-        return;
-    };
+      setLoading(false);
+      return;
+    }
     
-    const fetchGoals = async () => {
-        setLoading(true);
+    setLoading(true);
+    try {
         const userGoals = await getGoals(user.uid);
         setGoals(userGoals);
+    } catch (error) {
+        console.error("Failed to fetch goals:", error);
+        setGoals([]); // Reset goals on error
+    } finally {
         setLoading(false);
-    };
+    }
+  }, [user]);
 
+  useEffect(() => {
     fetchGoals();
-  }, [user, loading]);
+  }, [fetchGoals]);
+
 
   if (loading) {
     return <MainGoalSkeleton />;
   }
-
+  
   if (!user) {
     return (
       <Card>
