@@ -13,6 +13,8 @@ import { UpcomingBills } from "@/features/financials/components/dashboard/upcomi
 import { MainGoal } from "@/features/financials/components/dashboard/main-goal";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getFinancialSummary } from "@/services/financial-data-service";
+import { auth } from "@/lib/firebase";
 
 export const revalidate = 0; // Force dynamic rendering
 
@@ -63,7 +65,18 @@ function BalanceSkeleton() {
 }
 
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  // Fetch data directly in the server component page
+  const userId = auth.currentUser?.uid;
+  let summary = { income: 0, expenses: 0 };
+  if (userId) {
+      try {
+        summary = await getFinancialSummary(userId);
+      } catch (e) {
+        console.error("Failed to fetch financial summary on server:", e);
+      }
+  }
+
   return (
     <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
@@ -82,7 +95,8 @@ export default function DashboardPage() {
         </Suspense>
         <div className="col-span-4 lg:col-span-3 space-y-4">
           <Suspense fallback={<BalanceSkeleton />}>
-            <MonthlyBalance />
+            {/* Pass the fetched data as props */}
+            <MonthlyBalance income={summary.income} expenses={summary.expenses} />
           </Suspense>
           <Suspense fallback={<MainGoalSkeleton />}>
             <MainGoal />

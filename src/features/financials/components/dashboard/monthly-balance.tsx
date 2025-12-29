@@ -7,24 +7,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { getFinancialSummary } from "@/services/financial-data-service";
-import { auth } from "@/lib/firebase";
 
+// This component is now a "dumb" component that just receives data.
+interface MonthlyBalanceProps {
+  income: number;
+  expenses: number;
+}
 
-export async function MonthlyBalance() {
-  const userId = auth.currentUser?.uid;
-  if (!userId) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-headline">Balanço Mensal</CardTitle>
-          <CardDescription>Faça login para ver seu balanço.</CardDescription>
-        </CardHeader>
-      </Card>
-    )
-  }
-
-  const { income, expenses } = await getFinancialSummary(userId);
+export function MonthlyBalance({ income, expenses }: MonthlyBalanceProps) {
   const progress = income > 0 ? (expenses / income) * 100 : 0;
 
   return (

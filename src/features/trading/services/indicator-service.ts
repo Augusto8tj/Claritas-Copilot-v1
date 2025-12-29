@@ -7,7 +7,7 @@
  */
 
 import type { CandleData, ChartData, TimePeriod, RobotStrategy } from '@/lib/types';
-import { DerivIndicators } from './DerivFinanceLib';
+import { DerivIndicators } from '@/services/DerivFinanceLib';
 
 export interface Indicators {
     rsi: number | null;
