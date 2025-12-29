@@ -427,7 +427,10 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
     setConnectionError(null);
     setIsAssetsLoading(true);
   
-    if (wsRef.current) wsRef.current.close();
+    if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+    }
 
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
     wsRef.current = ws;
@@ -617,6 +620,12 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
     try {
         localStorage.setItem(DERIV_ACCOUNT_TYPE_KEY, type);
         setAccountTypeState(type);
+        // Clear old state and force reconnect
+        setIsConnected(false);
+        setAccountBalance({ balance: null, currency: null, loading: true });
+        setOperationsLog([]);
+        setTradeAnnotations([]);
+        setTriggerReconnect(c => c + 1);
     } catch (error) {
         console.error("Failed to save account type to localStorage:", error);
     }
