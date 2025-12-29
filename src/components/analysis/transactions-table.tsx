@@ -1,8 +1,8 @@
-// src/features/financials/components/analysis/transactions-table.tsx
+// src/components/analysis/transactions-table.tsx
 "use client";
 
 import * as React from "react";
-import { getTransactions } from "@/features/financials/services/financial-data-service";
+import { getTransactions } from "@/services/financial-data-service";
 import type { Transaction } from "@/lib/types";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import {

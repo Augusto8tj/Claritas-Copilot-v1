@@ -7,7 +7,7 @@
 import { db, auth } from '@/lib/firebase';
 import { collection, getDocs, addDoc, query, where, doc, updateDoc, deleteDoc, writeBatch, getDoc, setDoc } from 'firebase/firestore';
 import type { Goal, BudgetCategory, Transaction, RobotPerformance } from '@/lib/types';
-import { generateGoalImage } from '@/features/ai/flows/goal-image-generation';
+import { generateGoalImage } from '@/ai/flows/goal-image-generation';
 
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';

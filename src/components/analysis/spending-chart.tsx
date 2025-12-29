@@ -1,9 +1,9 @@
-// src/features/financials/components/analysis/spending-chart.tsx
+// src/components/analysis/spending-chart.tsx
 "use client";
 
 import * as React from "react";
 import { Label, Pie, PieChart, Cell } from "recharts";
-import { getTransactions, getExpenseCategories } from "@/features/financials/services/financial-data-service";
+import { getTransactions, getExpenseCategories } from "@/services/financial-data-service";
 import type { Transaction } from "@/lib/types";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import {

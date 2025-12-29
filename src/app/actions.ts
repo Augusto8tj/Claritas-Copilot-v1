@@ -3,9 +3,9 @@
 
 import {
   financialChatbotInsights,
-} from "@/features/ai/flows/financial-chatbot-insights";
+} from "@/ai/flows/financial-chatbot-insights";
 import type { FinancialChatbotInsightsInput } from "@/lib/types";
-import { getFinancialSummary, getInsights } from "@/features/financials/services/financial-data-service";
+import { getFinancialSummary, getInsights } from "@/services/financial-data-service";
 import { auth, db } from "@/lib/firebase";
 import WebSocket from 'ws';
 import { getDoc, doc } from 'firebase/firestore';

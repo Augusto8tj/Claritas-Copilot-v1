@@ -10,7 +10,7 @@ import {
   CartesianGrid
 } from "recharts";
 import { useAuth } from "@/features/auth/hooks/use-auth";
-import { getTransactions } from "@/features/financials/services/financial-data-service";
+import { getTransactions } from "@/services/financial-data-service";
 import type { Transaction } from "@/lib/types";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

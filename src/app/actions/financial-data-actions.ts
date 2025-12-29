@@ -2,7 +2,7 @@
 "use server";
 
 import { z } from "zod";
-import { addGoal as addGoalToService, getGoals as getGoalsFromService, deleteGoal as deleteGoalFromService } from "@/features/financials/services/financial-data-service";
+import { addGoal as addGoalToService, getGoals as getGoalsFromService, deleteGoal as deleteGoalFromService } from "@/services/financial-data-service";
 import type { Goal } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 

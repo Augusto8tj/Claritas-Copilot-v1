@@ -2,7 +2,7 @@
 "use server";
 
 import { z } from "zod";
-import { addTransaction as addTransactionToService } from "@/features/financials/services/financial-data-service";
+import { addTransaction as addTransactionToService } from "@/services/financial-data-service";
 import { revalidatePath } from "next/cache";
 
 const transactionSchema = z.object({
