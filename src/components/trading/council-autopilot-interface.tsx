@@ -280,10 +280,6 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
                 <Label htmlFor="dynamic-consensus-switch" className="flex-1">Consenso Dinâmico</Label>
                 <Switch id="dynamic-consensus-switch" checked={isDynamicConsensusOn} onCheckedChange={setIsDynamicConsensusOn} disabled={isCouncilAutopilotOn} />
             </div>
-            <div className="flex items-center justify-between">
-                <Label htmlFor="meritocracy-switch" className="flex-1">Meritocracia (Peso de Voto)</Label>
-                <Switch id="meritocracy-switch" checked={isMeritocracyOn} onCheckedChange={setIsMeritocracyOn} disabled={isCouncilAutopilotOn} />
-            </div>
         </div>
 
 

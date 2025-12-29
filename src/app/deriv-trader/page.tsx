@@ -2,7 +2,7 @@
 
 'use client';
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DerivTraderInterface } from "@/components/trading/deriv-trader-interface";
@@ -47,6 +47,15 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   // CENTRALIZED HOOKS
   const robotCouncil = useRobotCouncil(activeSymbol, chartData);
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
+
+  const [activeTab, setActiveTab] = useState("log");
+
+  useEffect(() => {
+    // Automatically switch to the Arena Virtual tab when the council is activated
+    if (robotCouncil.isCouncilAutopilotOn) {
+      setActiveTab("desk");
+    }
+  }, [robotCouncil.isCouncilAutopilotOn]);
 
 
   const latestDataPoint = chartData.length > 0 ? chartData[chartData.length - 1] : null;
@@ -102,7 +111,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                     </div>
                 </div>
                  <div className="mt-6">
-                    <Tabs defaultValue="log">
+                    <Tabs value={activeTab} onValueChange={setActiveTab}>
                         <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger value="log">Registo de Operações</TabsTrigger>
                             <TabsTrigger value="desk">Arena Virtual</TabsTrigger>
@@ -131,10 +140,10 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
 
        {/* Layout com Abas para telas pequenas */}
        <div className="lg:hidden mt-6">
-           <Tabs defaultValue="trade">
+           <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="trade">Negociar</TabsTrigger>
-                    <TabsTrigger value="autopilot"><Bot className="w-4 h-4 mr-1"/> Piloto IA</TabsTrigger>
+                    <TabsTrigger value="autopilot"><Bot className="w-4 h-4 mr-1"/> Mesa de IA</TabsTrigger>
                     <TabsTrigger value="desk"><LayoutGrid className="w-4 h-4 mr-1"/></TabsTrigger>
                     <TabsTrigger value="log"><NotepadText className="w-4 h-4 mr-1"/></TabsTrigger>
                 </TabsList>
