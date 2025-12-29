@@ -259,14 +259,15 @@ export function useRobotCouncil(
 
         const calculatedIndicators = calculateAllIndicators(chartData, strategyCouncil, timePeriod);
         setIndicators(calculatedIndicators);
-        setActiveCommittee(committeeOfSpecialists(calculatedIndicators, timePeriod));
         
-    }, [chartData, strategyCouncil, timePeriod, committeeOfSpecialists, isCouncilAutopilotOn]);
+    }, [chartData, strategyCouncil, timePeriod, isCouncilAutopilotOn]);
 
 
     // Main council logic effect, triggered by new indicators
     useEffect(() => {
         if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || strategyCouncil.length === 0 || !indicators || !activeSymbol) return;
+
+        setActiveCommittee(committeeOfSpecialists(indicators, timePeriod));
 
         let riseConfidenceSum = 0;
         let fallConfidenceSum = 0;
@@ -319,21 +320,24 @@ export function useRobotCouncil(
                 .finally(() => setTimeout(() => councilExecutionRef.current.isExecuting = false, 10000));
         }
 
-    }, [indicators, isCouncilAutopilotOn, strategyCouncil, robotPerformance, isMeritocracyOn, activeSymbol, operationsLog, supervisionCommitteeCheck, consensusThreshold, toast, executeTrade, form]);
+    }, [indicators, isCouncilAutopilotOn, strategyCouncil, robotPerformance, isMeritocracyOn, activeSymbol, operationsLog, supervisionCommitteeCheck, consensusThreshold, toast, executeTrade, form, timePeriod, committeeOfSpecialists]);
     
 
     // --- VIRTUAL ARENA ENGINE ---
     // This effect is dedicated to the virtual arena simulation
     useEffect(() => {
-        if (!isCouncilAutopilotOn || priceTicks.length < 2 || strategyCouncil.length === 0 || chartData.length < 2) {
+        // This effect runs on every tick when the council is active
+        if (!isCouncilAutopilotOn || priceTicks.length < 2 || strategyCouncil.length === 0) {
             return;
         }
 
         // We calculate indicators specifically for the arena engine here to ensure it's self-contained.
         const arenaIndicators = calculateAllIndicators(chartData, strategyCouncil, timePeriod);
-    
+        if (!arenaIndicators) return;
+
         const currentTickIndex = priceTicks.length - 1;
         const currentTick = priceTicks[currentTickIndex];
+        if (!currentTick) return;
     
         // 1. Judge closed virtual trades
         const performanceMap = new Map(robotPerformance.map(p => [p.id, { ...p }]));
