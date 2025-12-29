@@ -137,7 +137,8 @@ export function TradingDesk({ isMeritocracyOn, setIsMeritocracyOn, isCouncilAuto
                 const storedPerformance = localStorage.getItem(ROBOT_PERFORMANCE_KEY);
                 if (storedPerformance) {
                     const performanceData: RobotPerformance[] = JSON.parse(storedPerformance);
-                    performanceData.sort((a, b) => b.totalProfit - a.totalProfit);
+                    // Classificar por número de vitórias (acertos)
+                    performanceData.sort((a, b) => b.wins - a.wins);
                     setPerformance(performanceData);
                 }
             } catch (error) {
@@ -221,9 +222,9 @@ export function TradingDesk({ isMeritocracyOn, setIsMeritocracyOn, isCouncilAuto
                             <TableHead>Estratégia</TableHead>
                             <TableHead>Parâmetros</TableHead>
                             <TableHead>Indicador (Valor Atual)</TableHead>
-                            <TableHead className="text-center">Trades</TableHead>
+                            <TableHead className="text-center">Trades (V/D)</TableHead>
                             <TableHead className="text-center">Taxa de Acerto</TableHead>
-                            <TableHead className="text-right">Resultado (Virtual)</TableHead>
+                            <TableHead className="text-right">Resultado (USD)</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -262,7 +263,7 @@ export function TradingDesk({ isMeritocracyOn, setIsMeritocracyOn, isCouncilAuto
                                             "text-right font-bold",
                                             robot.totalProfit > 0 ? "text-green-600" : "text-red-600"
                                         )}>
-                                            {robot.totalProfit > 0 ? '+' : ''}${robot.totalProfit.toFixed(2)}
+                                            {robot.totalProfit.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
                                         </TableCell>
                                     </TableRow>
                                 );
