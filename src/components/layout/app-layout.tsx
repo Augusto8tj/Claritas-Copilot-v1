@@ -73,11 +73,6 @@ const navItems = [
     label: "Metas",
   },
   {
-    href: "/hall-of-fame",
-    icon: Trophy,
-    label: "Hall da Fama",
-  },
-  {
     href: "/backtesting",
     icon: TestTube,
     label: "Backtesting",
