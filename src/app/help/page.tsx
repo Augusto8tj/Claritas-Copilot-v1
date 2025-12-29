@@ -210,11 +210,11 @@ export default function HelpPage() {
                     </li>
                     <li>
                       <strong className="font-mono">src/hooks/use-robot-council.ts</strong><br/>
-                      O cérebro da operação. Contém o motor de cálculo de todos os indicadores técnicos, a lógica de votação dos robôs, a chamada para formar o conselho via IA e o "Comité de Supervisão" para gestão de risco final.
+                      O cérebro da operação. Contém o motor de cálculo de todos os indicadores técnicos, a lógica de votação dos robôs, a formação do conselho e o "Comité de Supervisão" para gestão de risco final.
                     </li>
                     <li>
-                      <strong className="font-mono">src/ai/flows/strategy-council-flow.ts</strong><br/>
-                      O arquiteto da IA. Este fluxo Genkit contém o prompt detalhado que instrui o LLM sobre como criar as regras, parâmetros e justificações para cada um dos 22 robôs analistas.
+                      <strong className="font-mono">src/services/council-strategies.ts</strong><br/>
+                      O Manual de Estratégias. Este ficheiro define localmente as regras, parâmetros e justificações para cada um dos 22 robôs analistas, eliminando a necessidade de uma chamada de IA para formar o conselho.
                     </li>
                     <li>
                       <strong className="font-mono">src/app/deriv-trader/page.tsx</strong><br/>
