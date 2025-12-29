@@ -158,7 +158,7 @@ export async function saveRobotPerformance(userId: string, performanceData: Robo
     const performanceDocRef = doc(db, 'users', userId, 'trading', 'robotPerformance');
     const dataToSave = { performance: performanceData };
 
-    await setDoc(performanceDocRef, dataToSave, { merge: true })
+    setDoc(performanceDocRef, dataToSave, { merge: true })
         .catch(async (serverError) => {
             const permissionError = new FirestorePermissionError({
                 path: performanceDocRef.path,
