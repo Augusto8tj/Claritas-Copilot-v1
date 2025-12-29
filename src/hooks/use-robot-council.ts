@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -68,6 +69,8 @@ export function useRobotCouncil(
     const [activeCommittee, setActiveCommittee] = useState<string | null>(null);
     const [supervisionStatus, setSupervisionStatus] = useState<{ status: 'inactive' | 'approved' | 'veto', message: string, analysis?: string }>({ status: 'inactive', message: 'Aguardando consenso.' });
     const [consensusSum, setConsensusSum] = useState({ rise: 0, fall: 0 });
+    const [consensusDecision, setConsensusDecision] = useState<'RISE' | 'FALL' | 'HOLD'>('HOLD');
+
 
     const incrementGeminiRequestCount = () => setGeminiRequestCount(prev => prev + 1);
     
@@ -302,6 +305,14 @@ export function useRobotCouncil(
         setCouncilVotes(newVotes);
         setConsensusSum({ rise: riseConfidenceSum, fall: fallConfidenceSum });
 
+        if (riseConfidenceSum > fallConfidenceSum && riseConfidenceSum > 0) {
+            setConsensusDecision('RISE');
+        } else if (fallConfidenceSum > riseConfidenceSum && fallConfidenceSum > 0) {
+            setConsensusDecision('FALL');
+        } else {
+            setConsensusDecision('HOLD');
+        }
+
         const dailyPnl = operationsLog.filter(op => new Date(op.timestamp).toDateString() === new Date().toDateString() && op.initiator === 'Conselho').reduce((sum, op) => sum + (op.result || 0), 0);
         const supervisionDecision = supervisionCommitteeCheck(riseConfidenceSum, fallConfidenceSum, consensusThreshold, indicators, dailyPnl);
         setSupervisionStatus(supervisionDecision);
@@ -345,5 +356,6 @@ export function useRobotCouncil(
         activeCommittee,
         supervisionStatus,
         consensusSum,
+        consensusDecision,
     };
 }

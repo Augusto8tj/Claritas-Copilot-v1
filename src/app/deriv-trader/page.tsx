@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect } from "react";
@@ -99,7 +100,14 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <DerivTraderInterface symbol={activeSymbol || ""} />
                     <div className="space-y-6">
-                        <AITradeSuggestion symbol={activeSymbol || ''} incrementRequestCount={robotCouncil.incrementGeminiRequestCount} />
+                        <AITradeSuggestion 
+                          councilDecision={robotCouncil.consensusDecision}
+                          consensusSum={robotCouncil.consensusSum}
+                          consensusThreshold={robotCouncil.consensusThreshold}
+                          supervisionStatus={robotCouncil.supervisionStatus}
+                          activeCommittee={robotCouncil.activeCommittee}
+                          isAutopilotOn={robotCouncil.isCouncilAutopilotOn}
+                        />
                         <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
                         <OperationsLog operations={operationsLog} />
                     </div>
@@ -122,7 +130,14 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
 
                 <TabsContent value="trade" className="mt-4 space-y-6">
                     <DerivTraderInterface symbol={activeSymbol || ""} />
-                    <AITradeSuggestion symbol={activeSymbol || ''} incrementRequestCount={robotCouncil.incrementGeminiRequestCount} />
+                    <AITradeSuggestion 
+                      councilDecision={robotCouncil.consensusDecision}
+                      consensusSum={robotCouncil.consensusSum}
+                      consensusThreshold={robotCouncil.consensusThreshold}
+                      supervisionStatus={robotCouncil.supervisionStatus}
+                      activeCommittee={robotCouncil.activeCommittee}
+                      isAutopilotOn={robotCouncil.isCouncilAutopilotOn}
+                    />
                 </TabsContent>
 
                 <TabsContent value="autopilot" className="mt-4 space-y-6">
