@@ -10,7 +10,7 @@ import { AssetSelector } from "@/components/trading/asset-selector";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MarketChart } from "@/components/trading/market-chart";
 import { Button } from "@/components/ui/button";
-import { Trash2, Bot, NotepadText } from "lucide-react";
+import { Trash2, Bot, NotepadText, LayoutGrid } from "lucide-react";
 import { useDerivApi } from "@/hooks/use-deriv-api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OperationsLog } from "@/components/trading/operations-log";
@@ -25,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AITradeSuggestion } from "@/components/trading/ai-trade-suggestion";
 import { IndicatorPanel } from "@/components/trading/indicator-panel";
 import { VirtualArenaCard } from "@/components/trading/virtual-arena-card";
+import { TradingDesk } from "@/components/trading/trading-desk";
 
 
 /**
@@ -88,9 +89,9 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
        {/* Layout para telas maiores */}
        <div className="hidden lg:grid lg:grid-cols-3 gap-6 mt-6">
             <div className="lg:col-span-2 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <DerivTraderInterface symbol={activeSymbol || ""} />
-                    <div className="space-y-6">
+                     <div className="space-y-6">
                         <AITradeSuggestion 
                           councilDecision={robotCouncil.consensusDecision}
                           consensusSum={robotCouncil.consensusSum}
@@ -105,9 +106,25 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                             isCouncilAutopilotOn={robotCouncil.isCouncilAutopilotOn}
                             robotPerformance={robotCouncil.robotPerformance}
                          />
-                        <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
-                        <OperationsLog operations={operationsLog} />
                     </div>
+                </div>
+                 <div className="mt-6">
+                    <Tabs defaultValue="log">
+                        <TabsList className="grid w-full grid-cols-3">
+                            <TabsTrigger value="log">Registo de Operações</TabsTrigger>
+                            <TabsTrigger value="desk">Mesa de Operações</TabsTrigger>
+                            <TabsTrigger value="analysis">Análise com IA</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="log" className="mt-4">
+                            <OperationsLog operations={operationsLog} />
+                        </TabsContent>
+                        <TabsContent value="desk" className="mt-4">
+                            <TradingDesk />
+                        </TabsContent>
+                         <TabsContent value="analysis" className="mt-4">
+                             <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
+                        </TabsContent>
+                    </Tabs>
                 </div>
             </div>
              <div className="space-y-6">
@@ -118,10 +135,11 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
        {/* Layout com Abas para telas pequenas */}
        <div className="lg:hidden mt-6">
            <Tabs defaultValue="trade">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="trade">Negociar</TabsTrigger>
                     <TabsTrigger value="autopilot"><Bot className="w-4 h-4 mr-1"/> Piloto IA</TabsTrigger>
-                    <TabsTrigger value="log"><NotepadText className="w-4 h-4 mr-1"/>Registos</TabsTrigger>
+                    <TabsTrigger value="desk"><LayoutGrid className="w-4 h-4 mr-1"/></TabsTrigger>
+                    <TabsTrigger value="log"><NotepadText className="w-4 h-4 mr-1"/></TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="trade" className="mt-4 space-y-6">
@@ -144,6 +162,10 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
 
                 <TabsContent value="autopilot" className="mt-4 space-y-6">
                     <CouncilAutopilotInterface {...robotCouncil} />
+                </TabsContent>
+
+                 <TabsContent value="desk" className="mt-4">
+                    <TradingDesk />
                 </TabsContent>
 
                  <TabsContent value="log" className="mt-4 space-y-6">

@@ -1,242 +1,253 @@
-
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
-import { BrainCircuit, Activity, Waves, CandlestickChart, Bot, LayoutGrid, BarChart, TrendingUp, Cloud, CheckCircle, XCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Progress } from '@/components/ui/progress';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
-
-// Duplicada de use-robot-council para evitar importação circular
-export interface RobotPerformance {
-    id: string;
-    strategyType: RobotStrategy['strategyType'];
-    strategy: RobotStrategy;
-    wins: number;
-    losses: number;
-    totalProfit: number;
-}
-const ROBOT_PERFORMANCE_KEY = 'derivRobotPerformance';
-
-
-const indicatorIcons: { [key: string]: React.ReactNode } = {
-    RSI: <BrainCircuit className="h-4 w-4" />,
-    STOCHASTIC: <BrainCircuit className="h-4 w-4" />,
-    MOVING_AVERAGE_CROSS: <Activity className="h-4 w-4" />,
-    BOLLINGER_BANDS: <Waves className="h-4 w-4" />,
-    MACD_CROSS: <Activity className="h-4 w-4" />,
-    PRICE_ACTION_PATTERN: <CandlestickChart className="h-4 w-4" />,
-    ADX_TREND: <TrendingUp className="h-4 w-4" />,
-    ICHIMOKU_CLOUD: <Cloud className="h-4 w-4" />,
-    AWESOME_OSCILLATOR: <BarChart className="h-4 w-4" />,
-    VOLUME_PROFILE: <Activity className="h-4 w-4" />,
-    KAMA: <Activity className="h-4 w-4" />,
-    VWAP: <Activity className="h-4 w-4" />,
-    Z_SCORE: <BrainCircuit className="h-4 w-4" />,
-    STOCH_RSI: <BrainCircuit className="h-4 w-4" />,
-    MFI: <BrainCircuit className="h-4 w-4" />,
-    TRIX: <Activity className="h-4 w-4" />,
-    ROC: <Activity className="h-4 w-4" />,
-    DONCHIAN_CHANNELS: <Waves className="h-4 w-4" />,
-    RVI: <BrainCircuit className="h-4 w-4" />,
-    PARABOLIC_SAR: <TrendingUp className="h-4 w-4" />,
-    CHANDELIER_EXIT: <TrendingUp className="h-4 w-4" />,
-    OBV: <Activity className="h-4 w-4" />,
-};
-
-function renderStrategyParams(robot: RobotStrategy) {
-     switch (robot.strategyType) {
-        case 'RSI':
-        case 'STOCHASTIC':
-        case 'MFI':
-        case 'RVI':
-            return `Forte < ${robot.strongBuyThreshold}, Fraco < ${robot.weakBuyThreshold}`;
-        case 'STOCH_RSI':
-             return `Forte < ${robot.strongBuyThreshold?.toFixed(2)}, Fraco < ${robot.weakBuyThreshold?.toFixed(2)}`;
-        case 'MOVING_AVERAGE_CROSS':
-            return `Cruzamento ${robot.shortPeriod}/${robot.longPeriod}`;
-        case 'BOLLINGER_BANDS':
-            return `Período: ${robot.period}, Desvio Padrão: ${robot.stdDev}`;
-        case 'MACD_CROSS':
-            return `Parâmetros: ${robot.fastPeriod}/${robot.slowPeriod}/${robot.signalPeriod}`;
-        case 'PRICE_ACTION_PATTERN':
-            const pattern = robot.pattern === 'hammer' ? 'Martelo' : 'Estrela Cadente';
-            return `Padrão: ${pattern}`;
-        case 'ADX_TREND':
-            return `Limiar de Tendência > ${robot.trendStrengthThreshold}`;
-        case 'VOLUME_PROFILE':
-            return `POC de ${robot.profileBars} barras`;
-        case 'Z_SCORE':
-            return `Limiar Z-Score: ${robot.zScoreThreshold}`;
-        case 'PARABOLIC_SAR':
-            return `AF: ${robot.acceleration}, MAX: ${robot.maxAcceleration}`;
-        case 'CHANDELIER_EXIT':
-            return `Multiplicador ATR: ${robot.multiplier}`;
-        case 'TRIX':
-        case 'ROC':
-        case 'KAMA':
-        case 'DONCHIAN_CHANNELS':
-            return `Período: ${robot.period}`;
-        case 'AWESOME_OSCILLATOR':
-        case 'ICHIMOKU_CLOUD':
-        case 'VWAP':
-        case 'OBV':
-             return 'Parâmetros Internos';
-        default:
-            return "N/A";
-    }
-}
+import React, { useState, useEffect } from "react";
+import { useForm, FormProvider } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { DerivTraderInterface } from "@/components/trading/deriv-trader-interface";
+import { AssetSelector } from "@/components/trading/asset-selector";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MarketChart } from "@/components/trading/market-chart";
+import { Button } from "@/components/ui/button";
+import { Trash2, Bot, NotepadText, LayoutGrid } from "lucide-react";
+import { useDerivApi } from "@/hooks/use-deriv-api";
+import { Skeleton } from "@/components/ui/skeleton";
+import { OperationsLog } from "@/components/trading/operations-log";
+import { AIAnalysisInterface } from "@/components/trading/ai-analysis-interface";
+import { riseFallSchema, type RiseFallFormValues } from "@/components/trading/deriv-trader-interface.types";
+import { CouncilAutopilotInterface } from "@/components/trading/council-autopilot-interface";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
+import { useRobotCouncil } from "@/hooks/use-robot-council";
+import { SystemStatusSummary } from "@/components/trading/system-status-summary";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AITradeSuggestion } from "@/components/trading/ai-trade-suggestion";
+import { IndicatorPanel } from "@/components/trading/indicator-panel";
+import { VirtualArenaCard } from "@/components/trading/virtual-arena-card";
+import { TradingDesk } from "@/components/trading/trading-desk";
 
 
-export default function TradingDeskPage() {
-    const [performance, setPerformance] = useState<RobotPerformance[]>([]);
-    const [loading, setLoading] = useState(true);
-    const { toast } = useToast();
-
-    useEffect(() => {
-        const loadPerformance = () => {
-            try {
-                const storedPerformance = localStorage.getItem(ROBOT_PERFORMANCE_KEY);
-                if (storedPerformance) {
-                    const performanceData: RobotPerformance[] = JSON.parse(storedPerformance);
-                    performanceData.sort((a, b) => b.totalProfit - a.totalProfit);
-                    setPerformance(performanceData);
-                }
-            } catch (error) {
-                console.error("Failed to load performance from localStorage", error);
-            }
-            setLoading(false);
-        };
-        loadPerformance();
-
-        // Listen for storage changes from other tabs/windows
-        window.addEventListener('storage', (e) => {
-            if (e.key === ROBOT_PERFORMANCE_KEY) {
-                loadPerformance();
-            }
-        });
-
-        return () => {
-             window.removeEventListener('storage', (e) => {
-                if (e.key === ROBOT_PERFORMANCE_KEY) {
-                    loadPerformance();
-                }
-            });
-        }
-    }, []);
-
-    const resetPerformance = () => {
-        try {
-            localStorage.removeItem(ROBOT_PERFORMANCE_KEY);
-            setPerformance([]);
-            toast({
-                title: "Desempenho Resetado",
-                description: "O histórico de desempenho da sessão atual foi limpo.",
-            });
-        } catch (error) {
-            toast({
-                variant: "destructive",
-                title: "Erro",
-                description: "Não foi possível limpar o histórico de desempenho.",
-            });
-        }
-    };
+/**
+ * This core component is now separate to ensure that all hooks using
+ * `useFormContext` are called within the <FormProvider> of the parent page.
+ */
+function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
+  const { 
+    operationsLog,
+    chartData,
+    isChartLoading,
+    chartError,
+    chartType,
+    setChartType,
+    timePeriod,
+    setTimePeriod,
+    tradeAnnotations,
+  } = useDerivApi();
+  
+  // CENTRALIZED HOOKS
+  const robotCouncil = useRobotCouncil(activeSymbol, chartData);
+  const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
 
 
-    if (loading) {
-        return <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">Carregando...</div>;
-    }
+  const latestDataPoint = chartData.length > 0 ? chartData[chartData.length - 1] : null;
 
-    return (
-        <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
-                <div className="flex items-center gap-2">
-                    <LayoutGrid className="w-8 h-8 text-primary" />
-                    <h1 className="text-3xl font-bold tracking-tight font-headline">
-                        Mesa de Operações
-                    </h1>
+  return (
+    <>
+      <div className="space-y-6">
+        <IndicatorPanel indicators={robotCouncil.indicators} latestDataPoint={latestDataPoint} />
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div>
+                  <CardTitle className="font-headline text-lg">
+                      Gráfico ({activeSymbol})
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                      Desempenho em tempo real do ativo.
+                  </CardDescription>
+              </div>
+          </CardHeader>
+          <CardContent>
+              <MarketChart 
+                  activeSymbol={activeSymbol || ''}
+                  chartData={chartData}
+                  isChartLoading={isChartLoading}
+                  chartError={chartError}
+                  chartType={chartType}
+                  setChartType={setChartType}
+                  timePeriod={timePeriod}
+                  setTimePeriod={setTimePeriod}
+                  operations={operationsLog}
+                  indicators={robotCouncil.indicators}
+                  tradeAnnotations={tradeAnnotations}
+              />
+          </CardContent>
+        </Card>
+      </div>
+      
+       {/* Layout para telas maiores */}
+       <div className="hidden lg:grid lg:grid-cols-3 gap-6 mt-6">
+            <div className="lg:col-span-2 space-y-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <DerivTraderInterface symbol={activeSymbol || ""} />
+                     <div className="space-y-6">
+                        <AITradeSuggestion 
+                          councilDecision={robotCouncil.consensusDecision}
+                          consensusSum={robotCouncil.consensusSum}
+                          consensusThreshold={robotCouncil.consensusThreshold}
+                          supervisionStatus={robotCouncil.supervisionStatus}
+                          activeCommittee={robotCouncil.activeCommittee}
+                          isAutopilotOn={robotCouncil.isCouncilAutopilotOn}
+                        />
+                         <VirtualArenaCard 
+                            isMeritocracyOn={robotCouncil.isMeritocracyOn}
+                            setIsMeritocracyOn={robotCouncil.setIsMeritocracyOn}
+                            isCouncilAutopilotOn={robotCouncil.isCouncilAutopilotOn}
+                            robotPerformance={robotCouncil.robotPerformance}
+                         />
+                    </div>
                 </div>
-                 <Button onClick={resetPerformance} variant="destructive" size="sm">
-                    Resetar Desempenho da Sessão
-                </Button>
+                 <div className="mt-6">
+                    <Tabs defaultValue="log">
+                        <TabsList className="grid w-full grid-cols-3">
+                            <TabsTrigger value="log">Registo de Operações</TabsTrigger>
+                            <TabsTrigger value="desk">Mesa de Operações</TabsTrigger>
+                            <TabsTrigger value="analysis">Análise com IA</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="log" className="mt-4">
+                            <OperationsLog operations={operationsLog} />
+                        </TabsContent>
+                        <TabsContent value="desk" className="mt-4">
+                            <TradingDesk />
+                        </TabsContent>
+                         <TabsContent value="analysis" className="mt-4">
+                             <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
+                        </TabsContent>
+                    </Tabs>
+                </div>
             </div>
-            <p className="text-muted-foreground">
-                Monitore o desempenho de cada robô-analista durante a sessão atual de trading.
-            </p>
+             <div className="space-y-6">
+                <CouncilAutopilotInterface {...robotCouncil} />
+            </div>
+       </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Painel de Desempenho dos Analistas</CardTitle>
-                    <CardDescription>
-                        Resultados em tempo real do conselho de IA. Os dados são salvos no seu navegador.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Estratégia</TableHead>
-                                <TableHead>Parâmetros</TableHead>
-                                <TableHead className="text-center">Trades</TableHead>
-                                <TableHead className="text-center">Taxa de Acerto</TableHead>
-                                <TableHead className="text-right">Resultado (USD)</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {performance.length > 0 ? (
-                                performance.map((robot) => {
-                                    const totalTrades = robot.wins + robot.losses;
-                                    const winRate = totalTrades > 0 ? (robot.wins / totalTrades) * 100 : 0;
-                                    return (
-                                        <TableRow key={robot.id}>
-                                            <TableCell className="font-medium">
-                                                <div className="flex items-center gap-2">
-                                                    {indicatorIcons[robot.strategyType] || <Bot />}
-                                                    <span>{robot.strategyType}</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-sm text-muted-foreground">{renderStrategyParams(robot.strategy)}</TableCell>
-                                            <TableCell className="text-center">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <span className="flex items-center gap-1 text-green-600"><CheckCircle className="h-4 w-4"/>{robot.wins}</span>
-                                                    <span>/</span>
-                                                    <span className="flex items-center gap-1 text-red-600">{robot.losses}<XCircle className="h-4 w-4"/></span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                {totalTrades > 0 ? (
-                                                    <div className="flex items-center justify-center gap-2">
-                                                        <span>{winRate.toFixed(1)}%</span>
-                                                        <Progress value={winRate} className="w-20 h-2" indicatorClassName={winRate >= 50 ? 'bg-green-500' : 'bg-red-500'} />
-                                                    </div>
-                                                ) : (
-                                                    <span>-</span>
-                                                )}
-                                            </TableCell>
-                                            <TableCell className={cn(
-                                                "text-right font-bold",
-                                                robot.totalProfit > 0 ? "text-green-600" : "text-red-600"
-                                            )}>
-                                                {robot.totalProfit > 0 ? '+' : ''}${robot.totalProfit.toFixed(2)}
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={5} className="text-center h-24">
-                                        Nenhum desempenho registrado para esta sessão. Ative a Mesa Operacional na página Deriv Trader.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+       {/* Layout com Abas para telas pequenas */}
+       <div className="lg:hidden mt-6">
+           <Tabs defaultValue="trade">
+                <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="trade">Negociar</TabsTrigger>
+                    <TabsTrigger value="autopilot"><Bot className="w-4 h-4 mr-1"/> Piloto IA</TabsTrigger>
+                    <TabsTrigger value="desk"><LayoutGrid className="w-4 h-4 mr-1"/></TabsTrigger>
+                    <TabsTrigger value="log"><NotepadText className="w-4 h-4 mr-1"/></TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="trade" className="mt-4 space-y-6">
+                    <DerivTraderInterface symbol={activeSymbol || ""} />
+                    <AITradeSuggestion 
+                      councilDecision={robotCouncil.consensusDecision}
+                      consensusSum={robotCouncil.consensusSum}
+                      consensusThreshold={robotCouncil.consensusThreshold}
+                      supervisionStatus={robotCouncil.supervisionStatus}
+                      activeCommittee={robotCouncil.activeCommittee}
+                      isAutopilotOn={robotCouncil.isCouncilAutopilotOn}
+                    />
+                    <VirtualArenaCard 
+                        isMeritocracyOn={robotCouncil.isMeritocracyOn}
+                        setIsMeritocracyOn={robotCouncil.setIsMeritocracyOn}
+                        isCouncilAutopilotOn={robotCouncil.isCouncilAutopilotOn}
+                        robotPerformance={robotCouncil.robotPerformance}
+                    />
+                </TabsContent>
+
+                <TabsContent value="autopilot" className="mt-4 space-y-6">
+                    <CouncilAutopilotInterface {...robotCouncil} />
+                </TabsContent>
+
+                 <TabsContent value="desk" className="mt-4">
+                    <TradingDesk />
+                </TabsContent>
+
+                 <TabsContent value="log" className="mt-4 space-y-6">
+                    <OperationsLog operations={operationsLog} />
+                    <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
+                </TabsContent>
+           </Tabs>
+       </div>
+    </>
+  );
+}
+
+
+export default function DerivTraderPage() {
+  const form = useForm<RiseFallFormValues>({
+    resolver: zodResolver(riseFallSchema),
+    defaultValues: {
+      stake: 10,
+      duration: 5,
+      duration_unit: "t",
+      allowEquals: false,
+    },
+  });
+
+  const { 
+    accountType, 
+    setAccountType, 
+    accountBalance, 
+    clearActiveContracts, 
+    operationsLog,
+    isConnecting,
+    isAssetsLoading,
+    assetGroups,
+    activeSymbol,
+    setActiveSymbol,
+  } = useDerivApi();
+  
+  const handleAssetChange = (asset: string) => {
+    setActiveSymbol(asset);
+  };
+
+  return (
+    <FormProvider {...form}>
+      <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4 flex-1">
+              <h1 className="text-3xl font-bold tracking-tight font-headline shrink-0">
+                Deriv Trader
+              </h1>
+              <AssetSelector 
+                selectedAsset={activeSymbol || ""} 
+                onAssetChange={handleAssetChange} 
+                assetGroups={assetGroups}
+                isAssetsLoading={isAssetsLoading}
+              />
+          </div>
+          <div className="flex items-center justify-end gap-4">
+              <ToggleGroup type="single" value={accountType} onValueChange={(value: any) => value && setAccountType(value)} defaultValue="demo" aria-label="Tipo de Conta">
+                  <ToggleGroupItem value="demo" aria-label="Usar conta demo">Demo</ToggleGroupItem>
+                  <ToggleGroupItem value="real" aria-label="Usar conta real">Real</ToggleGroupItem>
+              </ToggleGroup>
+              <div className="text-right h-6 w-40">
+                  {accountBalance.loading || isConnecting ? (
+                      <Skeleton className="h-5 w-full" />
+                  ) : accountBalance.balance !== null ? (
+                      <p className="text-sm font-medium text-muted-foreground truncate">
+                          Saldo: <span className="font-bold text-foreground">{new Intl.NumberFormat('en-US', { style: 'currency', currency: accountBalance.currency || 'USD' }).format(accountBalance.balance)}</span>
+                      </p>
+                  ) : null}
+              </div>
+              {operationsLog.length > 0 && (
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={clearActiveContracts}>
+                    <Trash2 className="h-4 w-4" />
+                    <span className="sr-only">Limpar negociações</span>
+                </Button>
+              )}
+          </div>
         </div>
-    );
+
+        <SystemStatusSummary />
+
+        <DerivTraderCore activeSymbol={activeSymbol} />
+      </div>
+    </FormProvider>
+  );
 }

@@ -74,11 +74,6 @@ const navItems = [
     label: "Metas",
   },
   {
-    href: "/trading-desk", // Nova página
-    icon: LayoutGrid,
-    label: "Mesa de Operações",
-  },
-  {
     href: "/hall-of-fame",
     icon: Trophy,
     label: "Hall da Fama",
