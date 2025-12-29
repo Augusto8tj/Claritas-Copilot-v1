@@ -44,22 +44,21 @@ const getPrice = (d: ChartData | null): number | undefined => {
     if (!d) return undefined;
     return isCandle(d) ? d.close : d.price;
 };
+const isValid = (val: any): val is number => val !== null && val !== undefined && !isNaN(val);
 
 // ============================================================================
 // LÓGICA DE VOTAÇÃO: Como cada robô decide RISE, FALL ou HOLD
 // ============================================================================
 const calculateRobotVote = (
     robot: RobotStrategy,
-    indicators: Indicators
+    indicators: Indicators,
+    chartData: ChartData[] // <--- PARÂMETRO ADICIONADO
 ): Pick<RobotVote, 'vote' | 'confidence'> => {
     let vote: RobotVote['vote'] = 'HOLD';
     let confidence = 0;
 
     if (!indicators) return { vote: 'HOLD', confidence: 0 };
     
-    // Assegura que o indicador necessário não seja nulo ou indefinido
-    const isValid = (val: any): val is number => val !== null && val !== undefined;
-
     // RSI
     if (robot.strategyType === 'RSI' && isValid(indicators.rsi)) {
         if (indicators.rsi <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
@@ -123,8 +122,6 @@ const calculateRobotVote = (
         if (indicators.stochRSI >= robot.weakSellThreshold!) { vote = 'FALL'; confidence = robot.weakConfidence; }
         if (indicators.stochRSI >= robot.strongSellThreshold!) { vote = 'FALL'; confidence = robot.strongConfidence; }
     }
-    
-    // Implementar a lógica para as restantes estratégias...
 
     return { vote, confidence };
 };
@@ -355,7 +352,8 @@ export function useRobotCouncil(
             !isCouncilAutopilotOn ||
             strategyCouncil.length === 0 ||
             !activeSymbol ||
-            priceTicks.length < 2
+            priceTicks.length < 2 ||
+            chartData.length < 2
         ) {
             return;
         }
@@ -443,7 +441,7 @@ export function useRobotCouncil(
         const tradeDuration = form.getValues('duration');
 
         strategyCouncil.forEach((robot) => {
-            const { vote, confidence } = calculateRobotVote(robot, currentIndicators);
+            const { vote, confidence } = calculateRobotVote(robot, currentIndicators, chartData); // <--- Passando chartData
 
             // REGISTO IMEDIATO: Se votou, registrar na arena
             if (vote !== 'HOLD') {
@@ -538,6 +536,7 @@ export function useRobotCouncil(
         }
     }, [
         priceTicks,
+        chartData, // Adicionado como dependência
         isCouncilAutopilotOn,
         strategyCouncil,
         robotPerformance,
