@@ -260,17 +260,53 @@ export function useRobotCouncil(
         const currentTick = priceTicks[currentTickIndex];
         if (!currentTick) return;
 
-        // --- 1. Calculate indicators ONCE ---
+        // --- 1. Calculate indicators and robot votes ONCE ---
         const currentIndicators = calculateAllIndicators(chartData, strategyCouncil, timePeriod);
         setIndicators(currentIndicators);
         if (!currentIndicators) return;
 
-        // --- 2. Judge closed virtual trades from the ARENA ---
         const performanceMap = new Map(robotPerformance.map(p => [p.id, { ...p }]));
+        let riseConfidenceSum = 0;
+        let fallConfidenceSum = 0;
+        const newVotes: CouncilVotes = {};
+        const newVirtualTrades: VirtualTrade[] = [];
+
+        strategyCouncil.forEach(robot => {
+            const { vote, confidence } = calculateRobotVote(robot, currentIndicators);
+            
+            // a. Handle Arena Logic: If vote is decisive, register a new virtual trade
+            if (vote !== 'HOLD') {
+                newVirtualTrades.push({
+                    robotId: robot.id,
+                    vote: vote,
+                    entryPrice: currentTick.price,
+                    entryTime: currentTick.epoch,
+                    durationTicks: form.getValues('duration'),
+                    entryTickIndex: currentTickIndex,
+                });
+            }
+            
+            // b. Handle Council Logic: Calculate weighted vote for consensus
+            let weight = 1.0;
+            if (isMeritocracyOn) {
+                const perf = performanceMap.get(robot.id);
+                if (perf && (perf.wins + perf.losses) > 3) {
+                     const winRate = perf.wins / (perf.wins + perf.losses);
+                     const pnlFactor = Math.tanh(perf.totalProfit / 50); // Normalize PnL
+                     weight = 0.5 + (winRate * 0.75) + (pnlFactor * 0.25);
+                }
+            }
+            
+            newVotes[robot.id] = { vote, confidence, weight };
+            if (vote === 'RISE') riseConfidenceSum += confidence * weight;
+            if (vote === 'FALL') fallConfidenceSum += confidence * weight;
+        });
+        
+        // --- 2. Judge closed virtual trades from the ARENA ---
         const remainingVirtualTrades: VirtualTrade[] = [];
         let performanceChanged = false;
 
-        virtualArenaTradesRef.current.forEach(trade => {
+        [...virtualArenaTradesRef.current, ...newVirtualTrades].forEach(trade => {
             if (currentTickIndex >= trade.entryTickIndex + trade.durationTicks) {
                 const exitTick = priceTicks[trade.entryTickIndex + trade.durationTicks];
                 if (exitTick) {
@@ -290,44 +326,8 @@ export function useRobotCouncil(
                 remainingVirtualTrades.push(trade);
             }
         });
-
-        // --- 3. Loop through robots to get votes for BOTH council and arena ---
-        let riseConfidenceSum = 0;
-        let fallConfidenceSum = 0;
-        const newVotes: CouncilVotes = {};
-
-        strategyCouncil.forEach(robot => {
-            const { vote, confidence } = calculateRobotVote(robot, currentIndicators);
-            
-            // a. Handle Arena Logic
-            if (vote !== 'HOLD') {
-                remainingVirtualTrades.push({
-                    robotId: robot.id,
-                    vote: vote,
-                    entryPrice: currentTick.price,
-                    entryTime: currentTick.epoch,
-                    durationTicks: form.getValues('duration'),
-                    entryTickIndex: currentTickIndex,
-                });
-            }
-            
-            // b. Handle Council Logic
-            let weight = 1.0;
-            if (isMeritocracyOn) {
-                const perf = performanceMap.get(robot.id);
-                if (perf && (perf.wins + perf.losses) > 3) {
-                     const winRate = perf.wins / (perf.wins + perf.losses);
-                     const pnlFactor = Math.tanh(perf.totalProfit / 50);
-                     weight = 0.5 + (winRate * 0.75) + (pnlFactor * 0.25);
-                }
-            }
-            
-            newVotes[robot.id] = { vote, confidence, weight };
-            if (vote === 'RISE') riseConfidenceSum += confidence * weight;
-            if (vote === 'FALL') fallConfidenceSum += confidence * weight;
-        });
-
-        // --- 4. Update all states ---
+        
+        // --- 3. Update all states ---
         virtualArenaTradesRef.current = remainingVirtualTrades;
         if (performanceChanged) {
             const updatedPerformanceArray = Array.from(performanceMap.values());
@@ -348,7 +348,7 @@ export function useRobotCouncil(
             setConsensusDecision('HOLD');
         }
 
-        // --- 5. Execute REAL trade if supervised and approved ---
+        // --- 4. Execute REAL trade if supervised and approved ---
         const dailyPnl = operationsLog.filter(op => new Date(op.timestamp).toDateString() === new Date().toDateString() && op.initiator === 'Conselho').reduce((sum, op) => sum + (op.result || 0), 0);
         const supervisionDecision = supervisionCommitteeCheck(riseConfidenceSum, fallConfidenceSum, consensusThreshold, currentIndicators, dailyPnl);
         setSupervisionStatus(supervisionDecision);
