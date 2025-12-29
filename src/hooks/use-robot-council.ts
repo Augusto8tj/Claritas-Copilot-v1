@@ -47,6 +47,35 @@ const getPrice = (d: ChartData | null): number | undefined => {
     return isCandle(d) ? d.close : d.price;
 }
 
+const calculateRobotVote = (robot: RobotStrategy, indicators: Indicators): Pick<RobotVote, 'vote' | 'confidence'> => {
+    let vote: RobotVote['vote'] = 'HOLD', confidence = 0;
+
+    if (robot.strategyType === 'RSI' && indicators.rsi) {
+        if (indicators.rsi <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
+        if (indicators.rsi <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
+        if (indicators.rsi >= robot.weakSellThreshold!) { vote = 'FALL'; confidence = robot.weakConfidence; }
+        if (indicators.rsi >= robot.strongSellThreshold!) { vote = 'FALL'; confidence = robot.strongConfidence; }
+    }
+    if (robot.strategyType === 'STOCHASTIC' && indicators.stoch) {
+        if (indicators.stoch <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
+        if (indicators.stoch <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
+        if (indicators.stoch >= robot.weakSellThreshold!) { vote = 'FALL'; confidence = robot.weakConfidence; }
+        if (indicators.stoch >= robot.strongSellThreshold!) { vote = 'FALL'; confidence = robot.strongConfidence; }
+    }
+    if (robot.strategyType === 'MOVING_AVERAGE_CROSS' && indicators.ma.short && indicators.ma.long) {
+        if(indicators.ma.short > indicators.ma.long) { vote = 'RISE'; confidence = robot.weakConfidence; }
+        if(indicators.ma.long > indicators.ma.short) { vote = 'FALL'; confidence = robot.weakConfidence; }
+    }
+     if (robot.strategyType === 'MACD_CROSS' && indicators.macd.macd && indicators.macd.signal) {
+         if(indicators.macd.macd > indicators.macd.signal) { vote = 'RISE'; confidence = robot.weakConfidence; }
+         if(indicators.macd.signal > indicators.macd.macd) { vote = 'FALL'; confidence = robot.weakConfidence; }
+    }
+    // ... all other voting logic remains here ...
+
+    return { vote, confidence };
+}
+
+
 export function useRobotCouncil(
     activeSymbol: string | null,
     chartData: ChartData[],
@@ -236,15 +265,11 @@ export function useRobotCouncil(
         let riseConfidenceSum = 0;
         let fallConfidenceSum = 0;
         const newVotes: CouncilVotes = {};
-        const currentDataPoint = priceTicks[priceTicks.length - 1];
-        if (!currentDataPoint) return;
-        const currentPrice = currentDataPoint.price;
-        if (currentPrice === undefined) return;
-
+        
         const performanceMap = new Map(robotPerformance.map(p => [p.id, { ...p }]));
         
         strategyCouncil.forEach(robot => {
-            let vote: RobotVote['vote'] = 'HOLD', confidence = 0;
+            const { vote, confidence } = calculateRobotVote(robot, indicators);
             let weight = 1.0;
 
             if (isMeritocracyOn) {
@@ -256,29 +281,6 @@ export function useRobotCouncil(
                 }
             }
             
-            // (VOTING LOGIC)
-            if (robot.strategyType === 'RSI' && indicators.rsi) {
-                if (indicators.rsi <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
-                if (indicators.rsi <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
-                if (indicators.rsi >= robot.weakSellThreshold!) { vote = 'FALL'; confidence = robot.weakConfidence; }
-                if (indicators.rsi >= robot.strongSellThreshold!) { vote = 'FALL'; confidence = robot.strongConfidence; }
-            }
-            if (robot.strategyType === 'STOCHASTIC' && indicators.stoch) {
-                if (indicators.stoch <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
-                if (indicators.stoch <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
-                if (indicators.stoch >= robot.weakSellThreshold!) { vote = 'FALL'; confidence = robot.weakConfidence; }
-                if (indicators.stoch >= robot.strongSellThreshold!) { vote = 'FALL'; confidence = robot.strongConfidence; }
-            }
-            if (robot.strategyType === 'MOVING_AVERAGE_CROSS' && indicators.ma.short && indicators.ma.long) {
-                if(indicators.ma.short > indicators.ma.long) { vote = 'RISE'; confidence = robot.weakConfidence; }
-                if(indicators.ma.long > indicators.ma.short) { vote = 'FALL'; confidence = robot.weakConfidence; }
-            }
-             if (robot.strategyType === 'MACD_CROSS' && indicators.macd.macd && indicators.macd.signal) {
-                 if(indicators.macd.macd > indicators.macd.signal) { vote = 'RISE'; confidence = robot.weakConfidence; }
-                 if(indicators.macd.signal > indicators.macd.macd) { vote = 'FALL'; confidence = robot.weakConfidence; }
-            }
-            // ... all other voting logic remains here ...
-
             newVotes[robot.id] = { vote, confidence, weight };
             if (vote === 'RISE') riseConfidenceSum += confidence * weight;
             if (vote === 'FALL') fallConfidenceSum += confidence * weight;
@@ -311,23 +313,24 @@ export function useRobotCouncil(
                 .finally(() => setTimeout(() => councilExecutionRef.current.isExecuting = false, 10000));
         }
 
-    }, [indicators]); // This effect now correctly depends only on indicators.
+    }, [indicators, isCouncilAutopilotOn, strategyCouncil, robotPerformance, isMeritocracyOn, activeSymbol, operationsLog, supervisionCommitteeCheck, consensusThreshold, toast, executeTrade, form]);
     
 
     // --- VIRTUAL ARENA ENGINE ---
     // This effect is dedicated to the virtual arena simulation
     useEffect(() => {
-        if (!isCouncilAutopilotOn || priceTicks.length < 2 || strategyCouncil.length === 0 || !councilVotes) {
+        if (!isCouncilAutopilotOn || priceTicks.length < 2 || strategyCouncil.length === 0 || !indicators) {
             return;
         }
-
+    
         const currentTickIndex = priceTicks.length - 1;
         const currentTick = priceTicks[currentTickIndex];
-
+    
         // 1. Judge closed virtual trades
         const performanceMap = new Map(robotPerformance.map(p => [p.id, { ...p }]));
         const remainingVirtualTrades: VirtualTrade[] = [];
-
+        let performanceChanged = false;
+    
         virtualArenaTradesRef.current.forEach(trade => {
             if (currentTickIndex >= trade.entryTickIndex + trade.durationTicks) {
                 // Trade is closed
@@ -342,6 +345,7 @@ export function useRobotCouncil(
                         perf.totalProfit += virtualPnl;
                         if (isWin) perf.wins++; else perf.losses++;
                         performanceMap.set(trade.robotId, perf);
+                        performanceChanged = true;
                     }
                 }
             } else {
@@ -349,14 +353,14 @@ export function useRobotCouncil(
                 remainingVirtualTrades.push(trade);
             }
         });
-
+    
         // 2. Open new virtual trades based on the latest votes
         strategyCouncil.forEach(robot => {
-            const voteData = councilVotes[robot.id];
-            if (voteData && voteData.vote !== 'HOLD') {
+            const { vote } = calculateRobotVote(robot, indicators);
+            if (vote !== 'HOLD') {
                 remainingVirtualTrades.push({
                     robotId: robot.id,
-                    vote: voteData.vote,
+                    vote: vote,
                     entryPrice: currentTick.price,
                     entryTime: currentTick.epoch,
                     durationTicks: form.getValues('duration'),
@@ -364,18 +368,17 @@ export function useRobotCouncil(
                 });
             }
         });
-
+    
         // 3. Update state
         virtualArenaTradesRef.current = remainingVirtualTrades;
-        const updatedPerformanceArray = Array.from(performanceMap.values());
-        
-        if (JSON.stringify(updatedPerformanceArray) !== JSON.stringify(robotPerformance)) {
+        if (performanceChanged) {
+            const updatedPerformanceArray = Array.from(performanceMap.values());
             setRobotPerformance(updatedPerformanceArray);
             localStorage.setItem(ROBOT_PERFORMANCE_KEY, JSON.stringify(updatedPerformanceArray));
             window.dispatchEvent(new Event('storage'));
         }
-
-    }, [priceTicks]); // This effect ONLY depends on priceTicks, making it a reliable simulation engine.
+    
+    }, [priceTicks, isCouncilAutopilotOn, strategyCouncil, indicators, robotPerformance, form]);
 
 
     return {
