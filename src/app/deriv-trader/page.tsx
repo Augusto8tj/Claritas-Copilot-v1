@@ -16,11 +16,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { OperationsLog } from "@/components/trading/operations-log";
 import { AIAnalysisInterface } from "@/components/trading/ai-analysis-interface";
 import { riseFallSchema, type RiseFallFormValues } from "@/components/trading/deriv-trader-interface.types";
-import { AutoTraderInterface } from "@/components/trading/auto-trader-interface";
-import { AutoTraderCouncilInterface } from "@/components/trading/auto-trader-council-interface";
+import { CouncilAutopilotInterface } from "@/components/trading/council-autopilot-interface";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useTradeAnalysis } from "@/hooks/use-trade-analysis";
-import { useAutopilot } from "@/hooks/use-autopilot";
 import { useRobotCouncil } from "@/hooks/use-robot-council";
 import { SystemStatusSummary } from "@/components/trading/system-status-summary";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -47,15 +45,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   
   // CENTRALIZED HOOKS
   const robotCouncil = useRobotCouncil(activeSymbol, chartData);
-  const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog, robotCouncil.incrementGeminiRequestCount);
-  const autopilot = useAutopilot(activeSymbol, robotCouncil.indicators, robotCouncil.incrementGeminiRequestCount);
-
-  // Pass chart data to the main council hook for processing
-  useEffect(() => {
-    if (chartData && chartData.length > 0) {
-      robotCouncil.processNewChartData(chartData);
-    }
-  }, [chartData, robotCouncil.processNewChartData]);
+  const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
 
 
   const latestDataPoint = chartData.length > 0 ? chartData[chartData.length - 1] : null;
@@ -114,8 +104,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                 </div>
             </div>
              <div className="space-y-6">
-                <AutoTraderCouncilInterface {...robotCouncil} />
-                <AutoTraderInterface {...autopilot} />
+                <CouncilAutopilotInterface {...robotCouncil} />
             </div>
        </div>
 
@@ -124,7 +113,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
            <Tabs defaultValue="trade">
                 <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="trade">Negociar</TabsTrigger>
-                    <TabsTrigger value="autopilot"><Bot className="w-4 h-4 mr-1"/> Pilotos IA</TabsTrigger>
+                    <TabsTrigger value="autopilot"><Bot className="w-4 h-4 mr-1"/> Piloto IA</TabsTrigger>
                     <TabsTrigger value="log"><NotepadText className="w-4 h-4 mr-1"/>Registos</TabsTrigger>
                 </TabsList>
 
@@ -141,8 +130,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                 </TabsContent>
 
                 <TabsContent value="autopilot" className="mt-4 space-y-6">
-                    <AutoTraderCouncilInterface {...robotCouncil} />
-                    <AutoTraderInterface {...autopilot} />
+                    <CouncilAutopilotInterface {...robotCouncil} />
                 </TabsContent>
 
                  <TabsContent value="log" className="mt-4 space-y-6">
