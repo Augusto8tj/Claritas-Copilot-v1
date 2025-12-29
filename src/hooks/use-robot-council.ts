@@ -143,7 +143,6 @@ const calculateRobotVote = (
 // ============================================================================
 export function useRobotCouncil(
     activeSymbol: string | null,
-    chartData: ChartData[],
     priceTicks: TickData[]
 ) {
     const { operationsLog, executeTrade, timePeriod, isConnected } = useDerivApi();
@@ -330,12 +329,14 @@ export function useRobotCouncil(
             }
 
             // Consenso Dinâmico
-            const lastPrice = getPrice(priceTicks[priceTicks.length - 1]);
-            const effectiveThreshold = isDynamicConsensusOn && indicators.atr && lastPrice
-                ? 200 + ((indicators.atr) / lastPrice) * 500000 
-                : consensusThreshold;
-            
+            let effectiveThreshold = consensusThreshold;
             if (isDynamicConsensusOn) {
+                const base = 150; // Limiar mínimo
+                const zScoreFactor = Math.pow(Math.abs(indicators.zScore || 0), 2) * 50; // Aumenta exponencialmente com desvio
+                const atrFactor = (indicators.atr || 0) * 20000; // Sensível à volatilidade média
+                const adxPenalty = (indicators.adx && indicators.adx < 20) ? 100 : 0; // Penalidade para mercado sem tendência
+                
+                effectiveThreshold = base + zScoreFactor + atrFactor + adxPenalty;
                 setConsensusThreshold(Math.round(effectiveThreshold));
             }
 
@@ -370,6 +371,7 @@ export function useRobotCouncil(
                      analysisParts.push("alta volatilidade (BBW alto)");
                 }
                 
+                const lastPrice = getPrice(priceTicks[priceTicks.length - 1]);
                 if(indicators.atr && lastPrice && (indicators.atr / lastPrice) > 0.00015) {
                     riskFactor *= 0.8;
                     durationAdjustment += 1;
@@ -521,7 +523,22 @@ export function useRobotCouncil(
             executeTrade(direction === 'RISE' ? 'CALL' : 'PUT', finalStake, activeSymbol, direction.toLowerCase() as 'rise' | 'fall', finalDuration, form.getValues('duration_unit'), 'Conselho')
                 .finally(() => setTimeout(() => (councilExecutionRef.current.isExecuting = false), 10000));
         }
-    }, [priceTicks, isCouncilAutopilotOn, isConnected, strategyCouncil, robotPerformance, isMeritocracyOn, activeSymbol, operationsLog, supervisionCommitteeCheck, toast, executeTrade, form, timePeriod, committeeOfSpecialists, consensusThreshold]);
+    }, [
+        priceTicks, 
+        isConnected,
+        isCouncilAutopilotOn, 
+        strategyCouncil, 
+        robotPerformance, 
+        isMeritocracyOn, 
+        activeSymbol, 
+        operationsLog, 
+        supervisionCommitteeCheck, 
+        toast, 
+        executeTrade, 
+        form, 
+        timePeriod, 
+        committeeOfSpecialists
+    ]);
 
     return {
         isCouncilAutopilotOn, setIsCouncilAutopilotOn,
@@ -532,5 +549,3 @@ export function useRobotCouncil(
         supervisionStatus, consensusSum, consensusDecision, robotPerformance,
     };
 }
-
-    
