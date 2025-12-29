@@ -86,7 +86,12 @@ export function useRobotCouncil(
     useEffect(() => {
         try {
             const stored = localStorage.getItem(ROBOT_PERFORMANCE_KEY);
-            if (stored) setRobotPerformance(JSON.parse(stored));
+            if (stored) {
+                 const parsed = JSON.parse(stored);
+                 if (Array.isArray(parsed)) {
+                    setRobotPerformance(parsed);
+                 }
+            }
         } catch (e) { console.error("Failed to load robot performance from localStorage", e); }
     }, []);
 
@@ -110,6 +115,21 @@ export function useRobotCouncil(
         }));
         
         setStrategyCouncil(council);
+
+        // Initialize performance for all robots if not already present
+        const initialPerformance = council.map(robot => ({
+            id: robot.id,
+            strategyType: robot.strategyType,
+            strategy: robot,
+            wins: 0,
+            losses: 0,
+            totalProfit: 0,
+        }));
+        setRobotPerformance(initialPerformance);
+        localStorage.setItem(ROBOT_PERFORMANCE_KEY, JSON.stringify(initialPerformance));
+        window.dispatchEvent(new Event('storage'));
+
+
         toast({ title: "Conselho de IA Montado!", description: `${council.length} analistas foram convocados e a Mesa está ativa.` });
         setIsCouncilAutopilotOn(true); // Activate the desk automatically
         setIsFetchingCouncil(false);
@@ -199,62 +219,30 @@ export function useRobotCouncil(
     }, [form, dailyBalance, dailyTarget, chartData, timePeriod]);
 
 
-    const processNewChartData = useCallback((data: ChartData[]) => {
-        if (data.length > 0) {
-            const calculatedIndicators = calculateAllIndicators(data, strategyCouncil, timePeriod);
+    // Effect to calculate indicators whenever chartData changes
+    useEffect(() => {
+        if (chartData.length > 0) {
+            const calculatedIndicators = calculateAllIndicators(chartData, strategyCouncil, timePeriod);
             setIndicators(calculatedIndicators);
             setActiveCommittee(committeeOfSpecialists(calculatedIndicators, timePeriod));
         }
-    }, [strategyCouncil, timePeriod, committeeOfSpecialists]);
-    
-    useEffect(() => {
-        if(chartData.length > 0) {
-           processNewChartData(chartData);
-        }
-    }, [chartData, processNewChartData]);
+    }, [chartData, strategyCouncil, timePeriod, committeeOfSpecialists]);
 
 
-    // CORE LOGIC: VIRTUAL ARENA & COUNCIL EXECUTION
+    // Main council logic effect, triggered by new indicators
     useEffect(() => {
-        if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || strategyCouncil.length === 0 || !indicators || !activeSymbol || priceTicks.length < 1) return;
+        if (!isCouncilAutopilotOn || councilExecutionRef.current.isExecuting || strategyCouncil.length === 0 || !indicators || !activeSymbol) return;
 
         let riseConfidenceSum = 0;
         let fallConfidenceSum = 0;
         const newVotes: CouncilVotes = {};
-        const currentTickIndex = priceTicks.length - 1;
-        const currentDataPoint = priceTicks[currentTickIndex];
+        const currentDataPoint = priceTicks[priceTicks.length - 1];
         if (!currentDataPoint) return;
         const currentPrice = currentDataPoint.price;
         if (currentPrice === undefined) return;
 
-        // --- VIRTUAL ARENA: JUDGE CLOSED TRADES ---
-        const remainingVirtualTrades: VirtualTrade[] = [];
         const performanceMap = new Map(robotPerformance.map(p => [p.id, { ...p }]));
-
-        virtualArenaTradesRef.current.forEach(trade => {
-            if (currentTickIndex >= trade.entryTickIndex + trade.durationTicks) {
-                // Trade is closed, judge it
-                const exitDataPoint = priceTicks[trade.entryTickIndex + trade.durationTicks];
-                if (exitDataPoint) {
-                    const exitPrice = exitDataPoint.price;
-                    if(exitPrice !== undefined) {
-                        const isWin = (trade.vote === 'RISE' && exitPrice > trade.entryPrice) || (trade.vote === 'FALL' && exitPrice < trade.entryPrice);
-                        const perf = performanceMap.get(trade.robotId);
-                        if (perf) {
-                            const virtualPnl = isWin ? 0.92 : -1.0; // Simplified PNL for a $1 stake
-                            perf.totalProfit += virtualPnl;
-                            if (isWin) perf.wins++;
-                            else perf.losses++;
-                        }
-                    }
-                }
-            } else {
-                // Trade is still open
-                remainingVirtualTrades.push(trade);
-            }
-        });
         
-        // --- VOTE CALCULATION & OPEN NEW VIRTUAL TRADES ---
         strategyCouncil.forEach(robot => {
             let vote: RobotVote['vote'] = 'HOLD', confidence = 0;
             let weight = 1.0;
@@ -268,7 +256,7 @@ export function useRobotCouncil(
                 }
             }
             
-            // (VOTING LOGIC - EXTENSIVE but unchanged)
+            // (VOTING LOGIC)
             if (robot.strategyType === 'RSI' && indicators.rsi) {
                 if (indicators.rsi <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
                 if (indicators.rsi <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
@@ -294,30 +282,7 @@ export function useRobotCouncil(
             newVotes[robot.id] = { vote, confidence, weight };
             if (vote === 'RISE') riseConfidenceSum += confidence * weight;
             if (vote === 'FALL') fallConfidenceSum += confidence * weight;
-            
-            // --- VIRTUAL ARENA: OPEN NEW TRADES ---
-            if (vote !== 'HOLD') {
-                remainingVirtualTrades.push({
-                    robotId: robot.id,
-                    vote: vote,
-                    entryPrice: currentPrice,
-                    entryTime: priceTicks[currentTickIndex].epoch,
-                    durationTicks: form.getValues('duration'), // Using form duration for virtual trades
-                    entryTickIndex: currentTickIndex,
-                });
-            }
         });
-
-        // Update state for virtual trades and performance
-        virtualArenaTradesRef.current = remainingVirtualTrades;
-        const updatedPerformanceArray = Array.from(performanceMap.values());
-        
-        // Only update if there are changes to avoid excessive re-renders/storage writes
-        if (JSON.stringify(updatedPerformanceArray) !== JSON.stringify(robotPerformance)) {
-            setRobotPerformance(updatedPerformanceArray);
-            localStorage.setItem(ROBOT_PERFORMANCE_KEY, JSON.stringify(updatedPerformanceArray));
-            window.dispatchEvent(new Event('storage')); // Notify other components
-        }
 
         // --- COUNCIL CONSENSUS & EXECUTION ---
         setCouncilVotes(newVotes);
@@ -346,8 +311,72 @@ export function useRobotCouncil(
                 .finally(() => setTimeout(() => councilExecutionRef.current.isExecuting = false, 10000));
         }
 
-    }, [indicators, isCouncilAutopilotOn, strategyCouncil, consensusThreshold, isMeritocracyOn, robotPerformance, executeTrade, activeSymbol, toast, form, operationsLog, supervisionCommitteeCheck, priceTicks]);
+    }, [indicators]); // This effect now correctly depends only on indicators.
     
+
+    // --- VIRTUAL ARENA ENGINE ---
+    // This effect is dedicated to the virtual arena simulation
+    useEffect(() => {
+        if (!isCouncilAutopilotOn || priceTicks.length < 2 || strategyCouncil.length === 0 || !councilVotes) {
+            return;
+        }
+
+        const currentTickIndex = priceTicks.length - 1;
+        const currentTick = priceTicks[currentTickIndex];
+
+        // 1. Judge closed virtual trades
+        const performanceMap = new Map(robotPerformance.map(p => [p.id, { ...p }]));
+        const remainingVirtualTrades: VirtualTrade[] = [];
+
+        virtualArenaTradesRef.current.forEach(trade => {
+            if (currentTickIndex >= trade.entryTickIndex + trade.durationTicks) {
+                // Trade is closed
+                const exitTick = priceTicks[trade.entryTickIndex + trade.durationTicks];
+                if (exitTick) {
+                    const isWin = (trade.vote === 'RISE' && exitTick.price > trade.entryPrice) || 
+                                  (trade.vote === 'FALL' && exitTick.price < trade.entryPrice);
+                    
+                    const perf = performanceMap.get(trade.robotId);
+                    if (perf) {
+                        const virtualPnl = isWin ? 0.92 : -1.0;
+                        perf.totalProfit += virtualPnl;
+                        if (isWin) perf.wins++; else perf.losses++;
+                        performanceMap.set(trade.robotId, perf);
+                    }
+                }
+            } else {
+                // Trade is still open
+                remainingVirtualTrades.push(trade);
+            }
+        });
+
+        // 2. Open new virtual trades based on the latest votes
+        strategyCouncil.forEach(robot => {
+            const voteData = councilVotes[robot.id];
+            if (voteData && voteData.vote !== 'HOLD') {
+                remainingVirtualTrades.push({
+                    robotId: robot.id,
+                    vote: voteData.vote,
+                    entryPrice: currentTick.price,
+                    entryTime: currentTick.epoch,
+                    durationTicks: form.getValues('duration'),
+                    entryTickIndex: currentTickIndex,
+                });
+            }
+        });
+
+        // 3. Update state
+        virtualArenaTradesRef.current = remainingVirtualTrades;
+        const updatedPerformanceArray = Array.from(performanceMap.values());
+        
+        if (JSON.stringify(updatedPerformanceArray) !== JSON.stringify(robotPerformance)) {
+            setRobotPerformance(updatedPerformanceArray);
+            localStorage.setItem(ROBOT_PERFORMANCE_KEY, JSON.stringify(updatedPerformanceArray));
+            window.dispatchEvent(new Event('storage'));
+        }
+
+    }, [priceTicks]); // This effect ONLY depends on priceTicks, making it a reliable simulation engine.
+
 
     return {
         isCouncilAutopilotOn,
@@ -369,7 +398,6 @@ export function useRobotCouncil(
         setIsMeritocracyOn,
         geminiRequestCount,
         incrementGeminiRequestCount,
-        processNewChartData,
         indicators,
         activeCommittee,
         supervisionStatus,
