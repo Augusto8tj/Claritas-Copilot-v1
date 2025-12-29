@@ -4,12 +4,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDerivApi } from './use-deriv-api';
 import { useToast } from './use-toast';
-import type { RobotStrategy } from '@/ai/flows/strategy-council.types';
+import type { RobotStrategy } from '@/lib/types';
 import type { RiseFallFormValues } from '@/components/deriv-trader/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import type { Indicators } from '@/services/indicator-service';
 import { calculateAllIndicators } from '@/services/indicator-service';
-import type { ChartData, TickData, CandleData } from './types';
+import type { ChartData, TickData, CandleData } from '@/lib/types';
 import { initialCouncilStrategies } from '@/services/council-strategies';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import { saveRobotPerformance, loadRobotPerformance } from '@/services/financial-data-service';
