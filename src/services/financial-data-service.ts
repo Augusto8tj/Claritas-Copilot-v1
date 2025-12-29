@@ -16,25 +16,34 @@ import { FirestorePermissionError } from '@/firebase/errors';
 const PROMOTION_THRESHOLD_WINS = 10;
 const PROMOTION_THRESHOLD_PROFIT = 0;
 
-// Helper to get the current user's ID
-const getUserId = (): string | null => {
-    // This is a server-side service, so auth.currentUser might not be available
-    // in all contexts. In a real app, you'd pass the user ID from a secure session.
-    // For this environment, we'll assume it's available or handle it gracefully.
-    return auth.currentUser?.uid || null;
-};
-
 // --- Transactions ---
 
 export async function getTransactions(userId: string): Promise<Transaction[]> {
     const transactionsCol = collection(db, `users/${userId}/transactions`);
-    const snapshot = await getDocs(transactionsCol);
-    return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Transaction));
+    try {
+        const snapshot = await getDocs(transactionsCol);
+        return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Transaction));
+    } catch (serverError) {
+        const permissionError = new FirestorePermissionError({
+            path: transactionsCol.path,
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        // Retornar um array vazio para evitar que a UI quebre
+        return [];
+    }
 }
 
 export async function addTransaction(userId: string, data: Omit<Transaction, 'id'>): Promise<string> {
     const transactionsCol = collection(db, `users/${userId}/transactions`);
-    await addDoc(transactionsCol, data);
+    addDoc(transactionsCol, data).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: transactionsCol.path,
+            operation: 'create',
+            requestResourceData: data,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
     return `Transação "${data.description}" de R$${data.amount.toFixed(2)} adicionada com sucesso.`;
 }
 
@@ -51,8 +60,17 @@ export async function getFinancialSummary(userId: string): Promise<{ income: num
 
 export async function getGoals(userId: string): Promise<Goal[]> {
     const goalsCol = collection(db, `users/${userId}/goals`);
-    const snapshot = await getDocs(goalsCol);
-    return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Goal));
+    try {
+        const snapshot = await getDocs(goalsCol);
+        return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Goal));
+    } catch (serverError) {
+        const permissionError = new FirestorePermissionError({
+            path: goalsCol.path,
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        return [];
+    }
 }
 
 export async function addGoal(userId: string, name: string, targetAmount: number): Promise<Goal> {
@@ -74,14 +92,28 @@ export async function addGoal(userId: string, name: string, targetAmount: number
         imageHint: "new goal"
     };
     
-    const docRef = await addDoc(goalsCol, newGoalData);
+    const docRef = await addDoc(goalsCol, newGoalData).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: goalsCol.path,
+            operation: 'create',
+            requestResourceData: newGoalData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError; // Lançar o erro original para que a Promise seja rejeitada
+    });
 
     return { id: docRef.id, ...newGoalData };
 }
 
 export async function deleteGoal(userId: string, goalId: string): Promise<{ success: boolean }> {
     const goalDoc = doc(db, `users/${userId}/goals`, goalId);
-    await deleteDoc(goalDoc);
+    deleteDoc(goalDoc).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: goalDoc.path,
+            operation: 'delete',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
     return { success: true };
 }
 
@@ -89,15 +121,24 @@ export async function deleteGoal(userId: string, goalId: string): Promise<{ succ
 
 async function getBudgetLimits(userId: string): Promise<{ [key: string]: number }> {
     const settingsDoc = doc(db, `users/${userId}/settings`, 'budget');
-    const docSnap = await getDoc(settingsDoc);
-    if (docSnap.exists()) {
-        return docSnap.data().limits || {};
+    try {
+        const docSnap = await getDoc(settingsDoc);
+        if (docSnap.exists()) {
+            return docSnap.data().limits || {};
+        }
+        // Return default if not exists
+        return {
+            "Moradia": 2000, "Alimentação": 1000, "Transporte": 500,
+            "Lazer": 400, "Compras": 600, "Outros": 300,
+        };
+    } catch (serverError) {
+         const permissionError = new FirestorePermissionError({
+            path: settingsDoc.path,
+            operation: 'get',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        return {}; // Return empty on error
     }
-    // Return default if not exists
-    return {
-        "Moradia": 2000, "Alimentação": 1000, "Transporte": 500,
-        "Lazer": 400, "Compras": 600, "Outros": 300,
-    };
 }
 
 export async function getBudgetData(userId: string): Promise<BudgetCategory[]> {
@@ -124,9 +165,17 @@ export async function getBudgetData(userId: string): Promise<BudgetCategory[]> {
 
 export async function updateBudgetLimit(userId: string, name: string, newLimit: number): Promise<BudgetCategory | null> {
     const settingsDocRef = doc(db, `users/${userId}/settings`, 'budget');
-    await setDoc(settingsDocRef, {
-        [`limits.${name}`]: newLimit
-    }, { merge: true });
+    const dataToSet = { [`limits.${name}`]: newLimit };
+
+    setDoc(settingsDocRef, dataToSet, { merge: true })
+        .catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: settingsDocRef.path,
+                operation: 'update',
+                requestResourceData: dataToSet
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
 
     const transactions = await getTransactions(userId);
     const spent = transactions
