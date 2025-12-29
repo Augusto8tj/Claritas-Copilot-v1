@@ -45,6 +45,7 @@ const getPrice = (d: ChartData | null): number | undefined => {
 };
 const isValid = (val: any): val is number => val !== null && val !== undefined && !isNaN(val);
 
+
 // ============================================================================
 // LÓGICA DE VOTAÇÃO: Como cada robô decide RISE, FALL ou HOLD
 // ============================================================================
@@ -142,7 +143,7 @@ const calculateRobotVote = (
 // ============================================================================
 export function useRobotCouncil(
     activeSymbol: string | null,
-    chartData: ChartData[], // Mantido para referência de alto nível, mas não para o motor
+    chartData: ChartData[],
     priceTicks: TickData[]
 ) {
     const { operationsLog, executeTrade, timePeriod } = useDerivApi();
@@ -345,15 +346,35 @@ export function useRobotCouncil(
 
             let analysis = 'Risco padrão.';
             
-            // Análise de Risco
-            if (indicators.adx && indicators.adx < 20) {
-                finalStake *= 0.75;
-                analysis = "Risco reduzido: mercado sem tendência clara (ADX baixo).";
-            }
-            if (indicators.atr && lastPrice && (indicators.atr / lastPrice > 0.0002)) {
-                 finalStake *= 0.75;
-                 finalDuration = Math.max(duration + 2, 7);
-                 analysis = "Risco e duração ajustados: alta volatilidade (ATR alto).";
+            // Análise de Risco com Ajuste Dinâmico
+            if (isDynamicConsensusOn) {
+                let riskFactor = 1.0;
+                let durationAdjustment = 0;
+                let analysisParts: string[] = [];
+
+                if (indicators.adx && indicators.adx < 20) {
+                    riskFactor *= 0.75;
+                    analysisParts.push("mercado sem tendência (ADX baixo)");
+                }
+
+                if (indicators.bbw && indicators.bbw > 0.1) {
+                     riskFactor *= 0.8;
+                     durationAdjustment += 2;
+                     analysisParts.push("alta volatilidade (BBW alto)");
+                }
+                
+                if(indicators.atr && lastPrice && (indicators.atr / lastPrice) > 0.00015) {
+                    riskFactor *= 0.8;
+                    durationAdjustment += 1;
+                    analysisParts.push("ATR elevado");
+                }
+
+                finalStake = Math.max(0.35, stake * riskFactor);
+                finalDuration = duration + durationAdjustment;
+
+                if(analysisParts.length > 0) {
+                    analysis = `Risco e/ou duração ajustados: ${analysisParts.join(', ')}.`;
+                }
             }
 
 
