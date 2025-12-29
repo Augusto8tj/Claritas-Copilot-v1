@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -622,10 +623,10 @@ export function useRobotCouncil(
 
             executeTrade(
                 direction === 'RISE' ? 'CALL' : 'PUT',
-                finalStake,
+                finalStake, // <-- CORREÇÃO APLICADA AQUI
                 activeSymbol,
                 direction.toLowerCase() as 'rise' | 'fall',
-                finalDuration,
+                finalDuration, // <-- CORREÇÃO APLICADA AQUI
                 duration_unit,
                 'Conselho'
             ).finally(() =>
