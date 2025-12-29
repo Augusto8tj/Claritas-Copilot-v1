@@ -1,0 +1,10 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Proteger os dados do utilizador para que apenas o próprio utilizador possa aceder
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
