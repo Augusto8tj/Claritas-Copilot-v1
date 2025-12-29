@@ -105,7 +105,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                     <Tabs defaultValue="log">
                         <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger value="log">Registo de Operações</TabsTrigger>
-                            <TabsTrigger value="desk">Mesa de Operações</TabsTrigger>
+                            <TabsTrigger value="desk">Arena Virtual</TabsTrigger>
                             <TabsTrigger value="analysis">Análise com IA</TabsTrigger>
                         </TabsList>
                         <TabsContent value="log" className="mt-4">
