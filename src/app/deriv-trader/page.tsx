@@ -24,7 +24,6 @@ import { SystemStatusSummary } from "@/components/trading/system-status-summary"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AITradeSuggestion } from "@/components/trading/ai-trade-suggestion";
 import { IndicatorPanel } from "@/components/trading/indicator-panel";
-import { VirtualArenaCard } from "@/components/trading/virtual-arena-card";
 import { TradingDesk } from "@/components/trading/trading-desk";
 
 
@@ -100,12 +99,6 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                           activeCommittee={robotCouncil.activeCommittee}
                           isAutopilotOn={robotCouncil.isCouncilAutopilotOn}
                         />
-                         <VirtualArenaCard 
-                            isMeritocracyOn={robotCouncil.isMeritocracyOn}
-                            setIsMeritocracyOn={robotCouncil.setIsMeritocracyOn}
-                            isCouncilAutopilotOn={robotCouncil.isCouncilAutopilotOn}
-                            robotPerformance={robotCouncil.robotPerformance}
-                         />
                     </div>
                 </div>
                  <div className="mt-6">
@@ -119,7 +112,11 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                             <OperationsLog operations={operationsLog} />
                         </TabsContent>
                         <TabsContent value="desk" className="mt-4">
-                            <TradingDesk />
+                            <TradingDesk 
+                                isMeritocracyOn={robotCouncil.isMeritocracyOn}
+                                setIsMeritocracyOn={robotCouncil.setIsMeritocracyOn}
+                                isCouncilAutopilotOn={robotCouncil.isCouncilAutopilotOn}
+                            />
                         </TabsContent>
                          <TabsContent value="analysis" className="mt-4">
                              <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
@@ -152,12 +149,6 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                       activeCommittee={robotCouncil.activeCommittee}
                       isAutopilotOn={robotCouncil.isCouncilAutopilotOn}
                     />
-                    <VirtualArenaCard 
-                        isMeritocracyOn={robotCouncil.isMeritocracyOn}
-                        setIsMeritocracyOn={robotCouncil.setIsMeritocracyOn}
-                        isCouncilAutopilotOn={robotCouncil.isCouncilAutopilotOn}
-                        robotPerformance={robotCouncil.robotPerformance}
-                    />
                 </TabsContent>
 
                 <TabsContent value="autopilot" className="mt-4 space-y-6">
@@ -165,7 +156,11 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                 </TabsContent>
 
                  <TabsContent value="desk" className="mt-4">
-                    <TradingDesk />
+                    <TradingDesk 
+                        isMeritocracyOn={robotCouncil.isMeritocracyOn}
+                        setIsMeritocracyOn={robotCouncil.setIsMeritocracyOn}
+                        isCouncilAutopilotOn={robotCouncil.isCouncilAutopilotOn}
+                    />
                 </TabsContent>
 
                  <TabsContent value="log" className="mt-4 space-y-6">

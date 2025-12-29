@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -11,8 +12,17 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import type { RobotPerformance } from './operations-log.types';
+import { Label } from '../ui/label';
+import { Switch } from '../ui/switch';
+import { Separator } from '../ui/separator';
 
 const ROBOT_PERFORMANCE_KEY = 'derivRobotPerformance';
+
+interface TradingDeskProps {
+    isMeritocracyOn: boolean;
+    setIsMeritocracyOn: (isOn: boolean) => void;
+    isCouncilAutopilotOn: boolean;
+}
 
 const indicatorIcons: { [key: string]: React.ReactNode } = {
     RSI: <BrainCircuit className="h-4 w-4" />,
@@ -82,7 +92,7 @@ function renderStrategyParams(robot: RobotStrategy) {
     }
 }
 
-export function TradingDesk() {
+export function TradingDesk({ isMeritocracyOn, setIsMeritocracyOn, isCouncilAutopilotOn }: TradingDeskProps) {
     const [performance, setPerformance] = useState<RobotPerformance[]>([]);
     const [loading, setLoading] = useState(true);
     const { toast } = useToast();
@@ -140,20 +150,35 @@ export function TradingDesk() {
     return (
         <Card>
             <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div>
                         <CardTitle className="font-headline flex items-center gap-2">
                              <LayoutGrid className="w-5 h-5" />
-                             Painel de Desempenho dos Analistas
+                             Arena Virtual: Painel de Desempenho
                         </CardTitle>
                         <CardDescription>
                             O placar da Arena Virtual. Cada voto é julgado, e o desempenho alimenta o modo Meritocracia.
                         </CardDescription>
                     </div>
-                    <Button onClick={resetPerformance} variant="destructive" size="sm">
-                        Resetar Desempenho da Sessão
-                    </Button>
+                     <div className="flex items-center space-x-2 rounded-lg border p-3 shadow-sm shrink-0">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="meritocracy-switch-desk" className="font-semibold">Modo Meritocracia</Label>
+                            <p className="text-xs text-muted-foreground">
+                                Pondera os votos pelo desempenho.
+                            </p>
+                        </div>
+                        <Switch 
+                            id="meritocracy-switch-desk" 
+                            checked={isMeritocracyOn}
+                            onCheckedChange={setIsMeritocracyOn}
+                            disabled={isCouncilAutopilotOn}
+                        />
+                    </div>
                 </div>
+                 <Separator className="my-4" />
+                 <Button onClick={resetPerformance} variant="destructive" size="sm" className="w-full sm:w-auto">
+                    Resetar Desempenho da Sessão
+                </Button>
             </CardHeader>
             <CardContent>
                 <Table>
