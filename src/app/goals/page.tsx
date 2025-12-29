@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,21 +7,25 @@ import { AddGoalDialog } from "@/components/goals/add-goal-dialog";
 import { getGoals } from "@/app/actions/financial-data-actions";
 import type { Goal } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function GoalsPage() {
+  const { user } = useAuth();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchGoals = async () => {
-    setLoading(true);
-    const fetchedGoals = await getGoals();
-    setGoals(fetchedGoals);
-    setLoading(false);
-  };
-
   useEffect(() => {
+    if (!user) return;
+    
+    const fetchGoals = async () => {
+      setLoading(true);
+      const fetchedGoals = await getGoals(user.uid);
+      setGoals(fetchedGoals);
+      setLoading(false);
+    };
+
     fetchGoals();
-  }, []);
+  }, [user]);
 
   const handleGoalAdded = (newGoal: Goal) => {
     setGoals((prevGoals) => [...prevGoals, newGoal]);

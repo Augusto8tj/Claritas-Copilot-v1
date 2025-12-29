@@ -1,8 +1,10 @@
+
 "use client";
 
 import * as React from "react";
 import { getTransactions } from "@/services/financial-data-service";
 import type { Transaction } from "@/lib/types";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Card,
   CardContent,
@@ -18,7 +20,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import {
   Utensils,
   Home,
@@ -41,20 +42,22 @@ const categoryIcons: { [key: string]: React.ReactNode } = {
 };
 
 export function TransactionsTable() {
+  const { user } = useAuth();
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
+    if (!user) return;
+
     const fetchData = async () => {
       setLoading(true);
-      const data = await getTransactions();
-      // Sort transactions by date, most recent first
+      const data = await getTransactions(user.uid);
       data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setTransactions(data);
       setLoading(false);
     };
     fetchData();
-  }, []);
+  }, [user]);
 
   return (
     <Card>

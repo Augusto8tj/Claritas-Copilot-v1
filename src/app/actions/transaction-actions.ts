@@ -1,12 +1,12 @@
+
 "use server";
 
 import { z } from "zod";
-import {
-  addTransaction as addTransactionToService,
-} from "@/services/financial-data-service";
+import { addTransaction as addTransactionToService } from "@/services/financial-data-service";
 import { revalidatePath } from "next/cache";
 
 const transactionSchema = z.object({
+  userId: z.string(),
   description: z.string().min(1, "A descrição é obrigatória."),
   amount: z.coerce.number().positive("O valor deve ser positivo."),
   type: z.enum(["income", "expense"], {
@@ -17,6 +17,7 @@ const transactionSchema = z.object({
 });
 
 export async function addTransaction(data: {
+  userId: string;
   description: string;
   amount: number;
   type: "income" | "expense";
@@ -30,7 +31,7 @@ export async function addTransaction(data: {
   }
 
   try {
-    await addTransactionToService(validatedData.data);
+    await addTransactionToService(validatedData.data.userId, validatedData.data);
     revalidatePath("/analysis");
     revalidatePath("/budget");
     revalidatePath("/"); // Revalidate dashboard to update monthly balance

@@ -4,15 +4,15 @@
 import {
   financialChatbotInsights,
 } from "@/ai/flows/financial-chatbot-insights";
-import { type FinancialChatbotInsightsInput } from "@/ai/flows/financial-chatbot-insights.types";
-import { z } from "zod";
+import type { FinancialChatbotInsightsInput } from "@/ai/flows/financial-chatbot-insights.types";
 import { getFinancialSummary, getInsights } from "@/services/financial-data-service";
 import { auth } from "@/lib/firebase";
 import WebSocket from 'ws';
 
 
-export async function getChatbotInsightsResponse(data: FinancialChatbotInsightsInput) {
+export async function getChatbotInsightsResponse(data: FinancialChatbotInsightsInput, userId: string) {
   try {
+    // Pass userId to the tool context if needed, for now tools will infer it
     const result = await financialChatbotInsights(data);
     return { success: result.response };
   } catch (e) {
@@ -21,16 +21,11 @@ export async function getChatbotInsightsResponse(data: FinancialChatbotInsightsI
   }
 }
 
-export async function sendFinancialSummaryEmail() {
+export async function sendFinancialSummaryEmail(userId: string, userEmail: string) {
   try {
-    // Em um app real, aqui você obteria o usuário da sessão
-    const userEmail = auth.currentUser?.email || "usuariodemo@exemplo.com";
-    
-    // Obter os dados financeiros
-    const summary = await getFinancialSummary();
+    const summary = await getFinancialSummary(userId);
     const insights = await getInsights();
 
-    // Montar o conteúdo do email
     const emailSubject = "Seu Resumo Financeiro Semanal - Claritas Copilot";
     const emailBody = `
       Olá,
@@ -50,7 +45,6 @@ export async function sendFinancialSummaryEmail() {
       Equipe Claritas Copilot
     `;
 
-    // Simular o envio do email
     console.log("===================================");
     console.log("SIMULANDO ENVIO DE EMAIL");
     console.log(`Para: ${userEmail}`);

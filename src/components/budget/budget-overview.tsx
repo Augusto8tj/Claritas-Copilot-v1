@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -11,7 +12,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { getBudgetData } from "@/services/financial-data-service";
 import type { BudgetCategory } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Home,
   Utensils,
@@ -36,19 +37,21 @@ const categoryIcons: { [key: string]: LucideIcon } = {
 };
 
 export function BudgetOverview() {
+  const { user } = useAuth();
   const [budgetData, setBudgetData] = React.useState<BudgetCategory[]>([]);
   const [loading, setLoading] = React.useState(true);
 
-  const fetchBudgetData = async () => {
+  const fetchBudgetData = React.useCallback(async () => {
+    if (!user) return;
     setLoading(true);
-    const data = await getBudgetData();
+    const data = await getBudgetData(user.uid);
     setBudgetData(data);
     setLoading(false);
-  };
+  }, [user]);
 
   React.useEffect(() => {
     fetchBudgetData();
-  }, []);
+  }, [fetchBudgetData]);
 
   const handleBudgetUpdated = (updatedCategory: BudgetCategory) => {
     setBudgetData(currentData =>

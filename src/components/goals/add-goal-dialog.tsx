@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -28,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { addGoal } from "@/app/actions/financial-data-actions";
 import { useToast } from "@/hooks/use-toast";
 import type { Goal } from "@/lib/types";
+import { useAuth } from "@/hooks/use-auth";
 
 interface AddGoalDialogProps {
     onGoalAdded: (goal: Goal) => void;
@@ -41,6 +43,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 export function AddGoalDialog({ onGoalAdded }: AddGoalDialogProps) {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -54,8 +57,12 @@ export function AddGoalDialog({ onGoalAdded }: AddGoalDialogProps) {
   });
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
+    if (!user) {
+      toast({ variant: "destructive", title: "Erro", description: "Utilizador não autenticado." });
+      return;
+    }
     setLoading(true);
-    const response = await addGoal(data);
+    const response = await addGoal({ userId: user.uid, ...data });
     
     if (response.error) {
        if(typeof response.error === 'object') {

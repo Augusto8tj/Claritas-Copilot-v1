@@ -1,3 +1,4 @@
+
 export type Goal = {
   id: string;
   name: string;
@@ -14,7 +15,7 @@ export type BudgetCategory = {
 };
 
 export type Transaction = {
-  id: number;
+  id: string; // Changed to string to match Firestore document ID
   date: string;
   description: string;
   amount: number;

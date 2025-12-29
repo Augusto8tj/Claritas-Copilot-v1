@@ -1,13 +1,11 @@
+
 "use client";
 
 import * as React from "react";
 import { Label, Pie, PieChart, Cell } from "recharts";
 import { getTransactions, getExpenseCategories } from "@/services/financial-data-service";
 import type { Transaction } from "@/lib/types";
-
-import {
-  CardContent,
-} from "@/components/ui/card";
+import { useAuth } from "@/hooks/use-auth";
 import {
   ChartContainer,
   ChartTooltip,
@@ -27,13 +25,17 @@ const chartConfig = {
 };
 
 export function SpendingChart() {
+  const { user } = useAuth();
   const [chartData, setChartData] = React.useState<any[]>([]);
   const [totalAmount, setTotalAmount] = React.useState(0);
 
   React.useEffect(() => {
+    if (!user) return;
     const fetchData = async () => {
-      const transactions = await getTransactions();
-      const categories = await getExpenseCategories();
+      const [transactions, categories] = await Promise.all([
+        getTransactions(user.uid),
+        getExpenseCategories(user.uid)
+      ]);
       
       const expenses = transactions.filter(t => t.type === 'expense');
       const total = expenses.reduce((acc, curr) => acc + curr.amount, 0);
@@ -43,10 +45,11 @@ export function SpendingChart() {
         const amount = expenses
           .filter(t => t.category === category)
           .reduce((acc, curr) => acc + curr.amount, 0);
+        const colorKey = category as keyof typeof chartConfig;
         return {
           category,
           amount,
-          fill: chartConfig[category as keyof typeof chartConfig]?.color || chartConfig.Outros.color,
+          fill: chartConfig[colorKey]?.color || chartConfig.Outros.color,
         };
       }).filter(item => item.amount > 0);
 
@@ -54,7 +57,7 @@ export function SpendingChart() {
     };
 
     fetchData();
-  }, []);
+  }, [user]);
 
   if (chartData.length === 0) {
     return (

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -5,6 +6,7 @@ import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { CornerDownLeft, Loader2, Sparkles, User } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +37,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 export function ChatInterfaceInsights() {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -45,6 +48,10 @@ export function ChatInterfaceInsights() {
   });
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
+    if (!user) {
+        setMessages((prev) => [...prev, { role: "model", content: "Por favor, faça login para usar o chat." }]);
+        return;
+    }
     setLoading(true);
     const userMessage: Message = { role: "user", content: data.query };
     
@@ -53,7 +60,7 @@ export function ChatInterfaceInsights() {
 
     form.reset();
 
-    const response = await getChatbotInsightsResponse({ history, query: data.query });
+    const response = await getChatbotInsightsResponse({ history, query: data.query }, user.uid);
     
     if (response.success) {
       const assistantMessage: Message = {

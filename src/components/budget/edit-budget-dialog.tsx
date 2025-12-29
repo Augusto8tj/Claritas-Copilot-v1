@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -28,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { updateBudget } from "@/app/actions/budget-actions";
 import { useToast } from "@/hooks/use-toast";
 import type { BudgetCategory } from "@/lib/types";
+import { useAuth } from "@/hooks/use-auth";
 
 interface EditBudgetDialogProps {
     category: BudgetCategory;
@@ -36,13 +38,13 @@ interface EditBudgetDialogProps {
 }
 
 const formSchema = z.object({
-  name: z.string(),
   budgeted: z.coerce.number().min(0, "O valor do orçamento não pode ser negativo."),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 export function EditBudgetDialog({ category, onBudgetUpdated, children }: EditBudgetDialogProps) {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -50,14 +52,18 @@ export function EditBudgetDialog({ category, onBudgetUpdated, children }: EditBu
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: category.name,
       budgeted: category.budgeted,
     },
   });
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
+    if (!user) {
+      toast({ variant: "destructive", title: "Erro", description: "Utilizador não autenticado." });
+      return;
+    }
+
     setLoading(true);
-    const response = await updateBudget(data);
+    const response = await updateBudget({ userId: user.uid, name: category.name, budgeted: data.budgeted });
     
     if (response.error) {
        if(typeof response.error === 'object') {
@@ -86,7 +92,6 @@ export function EditBudgetDialog({ category, onBudgetUpdated, children }: EditBu
     setOpen(isOpen);
     if (!isOpen) {
       form.reset({
-        name: category.name,
         budgeted: category.budgeted,
       });
     }

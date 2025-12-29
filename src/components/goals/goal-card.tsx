@@ -1,3 +1,4 @@
+
 "use client";
 
 import Image from "next/image";
@@ -27,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { deleteGoal } from "@/app/actions/financial-data-actions";
+import { useAuth } from "@/hooks/use-auth";
 
 interface GoalCardProps {
   goal: Goal;
@@ -34,13 +36,18 @@ interface GoalCardProps {
 }
 
 export function GoalCard({ goal, onGoalDeleted }: GoalCardProps) {
+  const { user } = useAuth();
   const progress = (goal.currentAmount / goal.targetAmount) * 100;
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = React.useState(false);
 
   const handleDelete = async () => {
+    if (!user) {
+      toast({ variant: "destructive", title: "Erro", description: "Utilizador não autenticado." });
+      return;
+    }
     setIsDeleting(true);
-    const result = await deleteGoal(goal.id);
+    const result = await deleteGoal(user.uid, goal.id);
     setIsDeleting(false);
 
     if (result.success) {

@@ -16,15 +16,21 @@ import { Loader2, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sendFinancialSummaryEmail } from "@/app/actions";
 import { Separator } from "../ui/separator";
-
+import { useAuth } from "@/hooks/use-auth";
 
 export function EmailNotificationsCard() {
+    const { user } = useAuth();
     const [isSending, setIsSending] = useState(false);
     const { toast } = useToast();
 
     const handleSendTestEmail = async () => {
+        if (!user || !user.email) {
+            toast({ variant: "destructive", title: "Erro", description: "Utilizador não autenticado ou sem email." });
+            return;
+        }
+
         setIsSending(true);
-        const result = await sendFinancialSummaryEmail();
+        const result = await sendFinancialSummaryEmail(user.uid, user.email);
         setIsSending(false);
 
         if (result.success) {
@@ -74,7 +80,7 @@ export function EmailNotificationsCard() {
             <p className="text-sm text-muted-foreground pb-2">
                 Envie um email de teste para verificar a funcionalidade. Em um app real, isso enviaria um email de verdade. Aqui, ele apenas registrará no console.
             </p>
-            <Button onClick={handleSendTestEmail} disabled={isSending} variant="outline">
+            <Button onClick={handleSendTestEmail} disabled={isSending || !user} variant="outline">
                 {isSending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
