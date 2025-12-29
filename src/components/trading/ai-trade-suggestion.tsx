@@ -115,7 +115,7 @@ export function AITradeSuggestion({
             <div className="text-sm border-t pt-3 space-y-2">
                 <div className="flex items-center gap-2">
                     {supervisionIcons[supervisionStatus.status]}
-                    <span className="font-semibold">Supervisão de Risco:</span>
+                    <span className="font-semibold">Direção de Risco:</span>
                     <span className="text-muted-foreground">{supervisionStatus.message}</span>
                 </div>
                  {supervisionStatus.analysis && (
@@ -123,7 +123,7 @@ export function AITradeSuggestion({
                  )}
                 <div className="flex items-center gap-2">
                     <Group className="h-4 w-4 text-muted-foreground"/>
-                    <span className="font-semibold">Gestor de Turno:</span>
+                    <span className="font-semibold">Comité Ativo:</span>
                     <span className="text-muted-foreground">{activeCommittee || 'Aguardando...'}</span>
                 </div>
             </div>
