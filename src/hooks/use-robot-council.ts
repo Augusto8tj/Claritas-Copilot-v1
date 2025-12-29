@@ -169,6 +169,8 @@ export function useRobotCouncil(
     // Configurações da Mesa
     const [dailyBalance, setDailyBalance] = useState(100);
     const [dailyTarget, setDailyTarget] = useState(50);
+    const [baseStake, setBaseStake] = useState(1);
+    const [baseDuration, setBaseDuration] = useState(5);
     const [consensusThreshold, setConsensusThreshold] = useState(300);
     const [isDynamicConsensusOn, setIsDynamicConsensusOn] = useState(true);
     const [isMeritocracyOn, setIsMeritocracyOn] = useState(true);
@@ -319,9 +321,9 @@ export function useRobotCouncil(
             message: string;
             analysis?: string;
         } => {
-            const { stake, duration, duration_unit } = form.getValues();
-            let finalStake = stake;
-            let finalDuration = duration;
+            const { duration_unit } = form.getValues();
+            let finalStake = baseStake;
+            let finalDuration = baseDuration;
 
             if (!indicators) {
                  return { status: 'inactive', message: 'Aguardando indicadores.', finalStake, finalDuration };
@@ -416,8 +418,8 @@ export function useRobotCouncil(
                 analysisParts.push("ATR elevado");
             }
             
-            finalStake = stake * riskFactor;
-            finalDuration = duration + durationAdjustment;
+            finalStake = baseStake * riskFactor;
+            finalDuration = baseDuration + durationAdjustment;
 
             if(analysisParts.length > 0) {
                 analysis = `Risco e/ou duração ajustados: ${analysisParts.join(', ')}.`;
@@ -437,7 +439,7 @@ export function useRobotCouncil(
                 finalDuration,
             };
         },
-        [form, dailyBalance, dailyTarget, priceTicks, isDynamicConsensusOn, consensusThreshold]
+        [form, dailyBalance, dailyTarget, priceTicks, isDynamicConsensusOn, consensusThreshold, baseStake, baseDuration]
     );
 
     // ========================================================================
@@ -531,7 +533,8 @@ export function useRobotCouncil(
         let riseConfidenceSum = 0;
         let fallConfidenceSum = 0;
         const newVotes: CouncilVotes = {};
-        const tradeDuration = form.getValues('duration');
+        const { duration: formDuration } = form.getValues();
+        const tradeDuration = formDuration > 0 ? formDuration : baseDuration; // Fallback para a duração base
 
         strategyCouncil.forEach((robot) => {
             const { vote, confidence } = calculateRobotVote(robot, currentIndicators, tickCandles);
@@ -646,7 +649,8 @@ export function useRobotCouncil(
         form,
         timePeriod,
         committeeOfSpecialists,
-        user
+        user,
+        baseDuration // Adicionado como dependência
     ]);
 
     return {
@@ -661,6 +665,10 @@ export function useRobotCouncil(
         setDailyBalance,
         dailyTarget,
         setDailyTarget,
+        baseStake,
+        setBaseStake,
+        baseDuration,
+        setBaseDuration,
         consensusThreshold,
         setConsensusThreshold,
         isDynamicConsensusOn,

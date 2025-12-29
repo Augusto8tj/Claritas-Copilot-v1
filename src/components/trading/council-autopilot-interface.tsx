@@ -77,6 +77,10 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
     setDailyBalance,
     dailyTarget,
     setDailyTarget,
+    baseStake,
+    setBaseStake,
+    baseDuration,
+    setBaseDuration,
     consensusThreshold,
     setConsensusThreshold,
     isDynamicConsensusOn,
@@ -270,6 +274,40 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
                     disabled={isCouncilAutopilotOn}
                 />
                 <p className="text-xs text-muted-foreground">Sua meta de lucro no dia.</p>
+            </div>
+        </div>
+
+        <Separator />
+
+        <div className="grid grid-cols-2 gap-4">
+             <div className="space-y-2">
+                <Label htmlFor="council-base-stake">Aposta Base (USD)</Label>
+                <Input 
+                    id="council-base-stake"
+                    type="number"
+                    value={baseStake}
+                    min={0.35}
+                    step={0.1}
+                    onChange={(e) => setBaseStake(Number(e.target.value))}
+                    placeholder="Ex: 1"
+                    disabled={isCouncilAutopilotOn}
+                />
+                <p className="text-xs text-muted-foreground">Valor inicial para a IA ajustar.</p>
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="council-base-duration">Duração Base (Ticks)</Label>
+                <Input 
+                    id="council-base-duration"
+                    type="number"
+                    value={baseDuration}
+                    min={1}
+                    max={10}
+                    step={1}
+                    onChange={(e) => setBaseDuration(Number(e.target.value))}
+                    placeholder="Ex: 5"
+                    disabled={isCouncilAutopilotOn}
+                />
+                <p className="text-xs text-muted-foreground">Duração inicial para a IA ajustar.</p>
             </div>
         </div>
         
