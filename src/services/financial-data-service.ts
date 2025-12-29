@@ -76,32 +76,44 @@ export async function getGoals(userId: string): Promise<Goal[]> {
 export async function addGoal(userId: string, name: string, targetAmount: number): Promise<Goal> {
     const goalsCol = collection(db, `users/${userId}/goals`);
     
-    let imageUrl = "https://placehold.co/600x400.png";
-    try {
-        const imageResult = await generateGoalImage({ goalName: name });
-        imageUrl = imageResult.imageUrl;
-    } catch (error) {
-        console.error("Falha ao gerar imagem da meta, usando placeholder.", error);
-    }
-
+    // 1. Crie a meta com uma imagem de placeholder primeiro para garantir que seja salva.
     const newGoalData = {
         name,
         targetAmount,
         currentAmount: 0,
-        imageUrl: imageUrl,
+        imageUrl: `https://placehold.co/600x400/334155/ffffff.png?text=${encodeURIComponent(name)}`,
         imageHint: "new goal"
     };
-    
-    const docRef = await addDoc(goalsCol, newGoalData).catch(async (serverError) => {
+
+    const docRef = await addDoc(goalsCol, newGoalData).catch((serverError) => {
         const permissionError = new FirestorePermissionError({
             path: goalsCol.path,
             operation: 'create',
             requestResourceData: newGoalData,
         });
         errorEmitter.emit('permission-error', permissionError);
-        throw serverError; // Lançar o erro original para que a Promise seja rejeitada
+        throw serverError; // Lançar erro para a camada de ação
     });
 
+    // 2. Inicie a geração da imagem de IA em segundo plano (sem await)
+    generateGoalImage({ goalName: name })
+        .then(imageResult => {
+            if (imageResult?.imageUrl) {
+                // Se a imagem for gerada com sucesso, atualize o documento
+                const goalDoc = doc(db, `users/${userId}/goals`, docRef.id);
+                updateDoc(goalDoc, { imageUrl: imageResult.imageUrl })
+                    .catch(updateError => {
+                        // Se a atualização falhar, o erro é registado mas a meta já foi criada.
+                        console.error("Falha ao atualizar a imagem da meta:", updateError);
+                    });
+            }
+        })
+        .catch(imageError => {
+            console.error("Falha ao gerar imagem da meta, usando placeholder.", imageError);
+        });
+
+    // 3. Retorne a meta com a imagem de placeholder imediatamente.
+    // A UI irá atualizar a imagem posteriormente se a geração de IA for bem-sucedida.
     return { id: docRef.id, ...newGoalData };
 }
 
