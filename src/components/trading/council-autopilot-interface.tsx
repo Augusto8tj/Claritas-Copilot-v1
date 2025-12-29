@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
-import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award, Wand, Trash2, ShieldCheck, ShieldX, Group, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
+import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award, Wand, Trash2, ShieldCheck, ShieldX, Group, ArrowUpCircle, ArrowDownCircle, LayoutGrid } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "../ui/label";
@@ -233,27 +233,27 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
       <CardHeader>
         <div className="flex justify-between items-center">
             <CardTitle className="font-headline flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                Piloto do Conselho
+                <LayoutGrid className="h-5 w-5 text-primary" />
+                Mesa Operacional de IA
             </CardTitle>
             <div className="flex items-center space-x-2">
                 <Switch id="council-autopilot-switch" checked={isCouncilAutopilotOn} onCheckedChange={handleToggleAutopilot}/>
-                <Label htmlFor="council-autopilot-switch">{isCouncilAutopilotOn ? "Ativado" : "Desativado"}</Label>
+                <Label htmlFor="council-autopilot-switch">{isCouncilAutopilotOn ? "Ativada" : "Desativada"}</Label>
             </div>
         </div>
         <CardDescription>
-          O piloto automático principal, alimentado pelo consenso dos 22 analistas.
+          Controle a orquestra de analistas e a execução automática de operações.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {isCouncilAutopilotOn && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div className="rounded-lg border bg-card p-3">
-                    <p className="font-semibold flex items-center gap-1.5"><Group className="h-4 w-4" /> Comité Tático Ativo</p>
+                    <p className="font-semibold flex items-center gap-1.5"><Group className="h-4 w-4" /> Gestor de Turno</p>
                     <p className="text-muted-foreground mt-1">{activeCommittee || 'Aguardando...'}</p>
                 </div>
                  <div className="rounded-lg border bg-card p-3">
-                    <p className="font-semibold flex items-center gap-1.5">{supervisionIcon} Supervisão de Risco</p>
+                    <p className="font-semibold flex items-center gap-1.5">{supervisionIcon} Direção de Risco</p>
                     <p className="text-muted-foreground mt-1">{supervisionStatus.message}</p>
                     {supervisionStatus.analysis && <p className="text-muted-foreground mt-1 italic">Análise: {supervisionStatus.analysis}</p>}
                 </div>
@@ -338,7 +338,7 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
         {strategyCouncil.length > 0 ? (
              <Button variant="destructive" className="w-full" onClick={dissolveCouncil} disabled={isFetchingCouncil || isCouncilAutopilotOn}>
                 <Trash2 className="mr-2 h-4 w-4" />
-                Dissolver Conselho
+                Dispensar Conselho
             </Button>
         ) : (
             <Button className="w-full" onClick={fetchStrategyCouncil} disabled={isFetchingCouncil}>
@@ -347,12 +347,12 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
                 ) : (
                     <Wand className="mr-2 h-4 w-4" />
                 )}
-                {isFetchingCouncil ? 'Construindo...' : 'Construir Conselho de Analistas'}
+                {isFetchingCouncil ? 'Convocando...' : 'Convocar Conselho de Analistas'}
             </Button>
         )}
 
          <div className="flex justify-between items-center text-xs text-muted-foreground pt-2">
-            <span>Analistas Montados</span>
+            <span>Analistas em Posição</span>
             <Badge variant="outline">{strategyCouncil.length}</Badge>
         </div>
         
@@ -413,21 +413,21 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
             ) : (
                  <div className="text-center text-muted-foreground p-4 border rounded-md bg-muted/50">
                     <Info className="h-5 w-5 mx-auto mb-2" />
-                    <p className="text-sm">Clique em "Construir Conselho" para começar.</p>
+                    <p className="text-sm">Clique em "Convocar Conselho" para começar.</p>
                 </div>
             )
         )}
         {!isCouncilAutopilotOn && strategyCouncil.length < 1 && (
             <div className="text-center text-muted-foreground p-4 border rounded-md bg-muted/50">
                 <Info className="h-5 w-5 mx-auto mb-2" />
-                <p className="text-sm">O Conselho está aguardando a construção.</p>
+                <p className="text-sm">O Conselho está aguardando a convocação.</p>
                 <p className="text-xs">Use o botão acima para iniciar.</p>
             </div>
         )}
         {!isCouncilAutopilotOn && strategyCouncil.length > 0 && (
              <div className="text-center text-muted-foreground p-4 border rounded-md bg-muted/50">
                 <Info className="h-5 w-5 mx-auto mb-2" />
-                <p className="text-sm">O Conselho está pronto. Ative o piloto para começar.</p>
+                <p className="text-sm">A Mesa Operacional está pronta. Ative-a para começar.</p>
             </div>
         )}
       </CardContent>
