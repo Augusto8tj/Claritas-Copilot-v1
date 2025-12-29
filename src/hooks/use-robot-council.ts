@@ -41,6 +41,11 @@ type VirtualTrade = {
 
 const ROBOT_PERFORMANCE_KEY = 'derivRobotPerformance';
 
+const isCandle = (d: ChartData): d is { open: number, high: number, low: number, close: number } => d !== null && 'close' in d;
+const getPrice = (d: ChartData | null): number | undefined => {
+    if (!d) return undefined;
+    return isCandle(d) ? d.close : d.price;
+}
 
 export function useRobotCouncil(
     activeSymbol: string | null,
@@ -169,7 +174,7 @@ export function useRobotCouncil(
         if (isHFT) {
             if (indicators.stoch && ((direction === 'RISE' && indicators.stoch < 20) || (direction === 'FALL' && indicators.stoch > 80))) {
                 analysis = "Setup de reversão de HFT detetado."
-                const currentPrice = chartData[chartData.length - 1]?.close;
+                const currentPrice = getPrice(chartData[chartData.length - 1]);
                 const vwap = indicators.vwap?.[indicators.vwap.length -1];
                 if (currentPrice && vwap && Math.abs(currentPrice - vwap) / vwap > 0.0005) {
                     finalStake *= 0.7;
@@ -181,7 +186,7 @@ export function useRobotCouncil(
                 finalStake *= 0.75;
                 analysis = "Risco reduzido: mercado sem tendência clara (ADX baixo).";
             }
-            if (indicators.atr && indicators.atr > (chartData[chartData.length-1]?.close * 0.0001)) {
+            if (indicators.atr && indicators.atr > (getPrice(chartData[chartData.length-1])! * 0.0001)) {
                 finalStake *= 0.75;
                 finalDuration = Math.max(duration + 2, 7);
                 analysis = "Risco e duração ajustados: alta volatilidade (ATR alto).";
@@ -216,8 +221,10 @@ export function useRobotCouncil(
         let fallConfidenceSum = 0;
         const newVotes: CouncilVotes = {};
         const currentTickIndex = chartData.length - 1;
-        const currentPrice = chartData[currentTickIndex].close;
-        if (!currentPrice) return;
+        const currentDataPoint = chartData[currentTickIndex];
+        if (!currentDataPoint) return;
+        const currentPrice = getPrice(currentDataPoint);
+        if (currentPrice === undefined) return;
 
         // --- VIRTUAL ARENA: JUDGE CLOSED TRADES ---
         const remainingVirtualTrades: VirtualTrade[] = [];
@@ -226,15 +233,18 @@ export function useRobotCouncil(
         virtualArenaTradesRef.current.forEach(trade => {
             if (currentTickIndex >= trade.entryTickIndex + trade.durationTicks) {
                 // Trade is closed, judge it
-                const exitPrice = chartData[trade.entryTickIndex + trade.durationTicks]?.close;
-                if (exitPrice) {
-                    const isWin = (trade.vote === 'RISE' && exitPrice > trade.entryPrice) || (trade.vote === 'FALL' && exitPrice < trade.entryPrice);
-                    const perf = performanceMap.get(trade.robotId);
-                    if (perf) {
-                        const virtualPnl = isWin ? 0.92 : -1.0; // Simplified PNL for a $1 stake
-                        perf.totalProfit += virtualPnl;
-                        if (isWin) perf.wins++;
-                        else perf.losses++;
+                const exitDataPoint = chartData[trade.entryTickIndex + trade.durationTicks];
+                if (exitDataPoint) {
+                    const exitPrice = getPrice(exitDataPoint);
+                    if(exitPrice !== undefined) {
+                        const isWin = (trade.vote === 'RISE' && exitPrice > trade.entryPrice) || (trade.vote === 'FALL' && exitPrice < trade.entryPrice);
+                        const perf = performanceMap.get(trade.robotId);
+                        if (perf) {
+                            const virtualPnl = isWin ? 0.92 : -1.0; // Simplified PNL for a $1 stake
+                            perf.totalProfit += virtualPnl;
+                            if (isWin) perf.wins++;
+                            else perf.losses++;
+                        }
                     }
                 }
             } else {
