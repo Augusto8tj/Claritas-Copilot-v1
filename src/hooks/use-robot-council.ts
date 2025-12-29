@@ -1,5 +1,4 @@
-
-
+// /src/hooks/use-robot-council.ts
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -101,18 +100,17 @@ const calculateRobotVote = (
     // BOLLINGER_BANDS
     if (
         robot.strategyType === 'BOLLINGER_BANDS' &&
-        indicators.bollingerBands.length > 0 &&
+        isValid(indicators.bb.lower) && isValid(indicators.bb.upper) &&
         tickCandles.length > 0
     ) {
-        const lastBB = indicators.bollingerBands[indicators.bollingerBands.length - 1];
         const lastPrice = tickCandles[tickCandles.length - 1].close;
 
-        if (lastBB && isValid(lastBB.lower) && isValid(lastBB.upper) && isValid(lastPrice)) {
-            if (lastPrice <= lastBB.lower) {
+        if (isValid(lastPrice)) {
+            if (lastPrice <= indicators.bb.lower!) {
                 vote = 'RISE';
                 confidence = robot.weakConfidence;
             }
-            if (lastPrice >= lastBB.upper) {
+            if (lastPrice >= indicators.bb.upper!) {
                 vote = 'FALL';
                 confidence = robot.weakConfidence;
             }
@@ -624,10 +622,10 @@ export function useRobotCouncil(
 
             executeTrade(
                 direction === 'RISE' ? 'CALL' : 'PUT',
-                finalStake, // <-- CORREÇÃO APLICADA AQUI
+                finalStake,
                 activeSymbol,
                 direction.toLowerCase() as 'rise' | 'fall',
-                finalDuration, // <-- CORREÇÃO APLICADA AQUI
+                finalDuration,
                 duration_unit,
                 'Conselho'
             ).finally(() =>

@@ -22,7 +22,11 @@ export interface Indicators {
     sma: (number | null)[];
     ema: (number | null)[];
     vwap: (number | null)[];
+    
+    // ✅ CORRIGIDO: Adicionar propriedade 'bb' para acesso direto ao último valor
+    bb: { upper: number | null; middle: number | null; lower: number | null };
     bollingerBands: ({ upper: number; middle: number; lower: number } | null)[];
+    
     donchianChannels: ({ upper: number; middle: number; lower: number } | null)[];
     // New Advanced Indicators
     kama: number | null;
@@ -79,7 +83,6 @@ const calculateEMA = (data: CandleData[], period: number): (number | null)[] => 
   }
   return emaValues;
 }
-
 
 const calculateRSI = (data: CandleData[], period = 14): (number | null)[] => {
     if (data.length < period + 1) return Array(data.length).fill(null);
@@ -277,13 +280,48 @@ const calculateParabolicSAR = (data: CandleData[], af = 0.02, maxAf = 0.2): (num
     return sar;
 };
 
+// ✅ NOVA FUNÇÃO: Calcular Bollinger Bands corretamente
+const calculateBollingerBands = (
+    data: CandleData[], 
+    period = 20, 
+    stdDev = 2
+): ({ upper: number; middle: number; lower: number } | null)[] => {
+    if (data.length < period) return Array(data.length).fill(null);
+    
+    const sma = calculateSMA(data, period);
+    const bands: ({ upper: number; middle: number; lower: number } | null)[] = [];
+    
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1 || sma[i] === null) {
+            bands.push(null);
+            continue;
+        }
+        
+        const slice = data.slice(i - period + 1, i + 1);
+        const mean = sma[i]!;
+        const variance = slice.reduce((acc, d) => acc + Math.pow(d.close - mean, 2), 0) / period;
+        const std = Math.sqrt(variance);
+        
+        bands.push({
+            middle: mean,
+            upper: mean + (stdDev * std),
+            lower: mean - (stdDev * std),
+        });
+    }
+    
+    return bands;
+};
 
 export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: RobotStrategy[], timePeriod: TimePeriod): Indicators {
     
     const emptyIndicators: Indicators = {
         rsi: null, stoch: null, atr: null, adx: null, pdi: null, ndi: null,
-        macd: { macd: null, signal: null, histogram: null }, ma: { short: null, long: null },
-        sma: [], ema: [], vwap: [], bollingerBands: [], donchianChannels: [],
+        macd: { macd: null, signal: null, histogram: null }, 
+        ma: { short: null, long: null },
+        sma: [], ema: [], vwap: [], 
+        bb: { upper: null, middle: null, lower: null }, // ✅ ADICIONADO
+        bollingerBands: [], 
+        donchianChannels: [],
         kama: null, bbw: null, stochRSI: null, zScore: null,
         awesomeOscillator: null, trix: null, roc: null, parabolicSAR: null,
         ichimoku: { tenkan: null, kijun: null, senkouA: null, senkouB: null },
@@ -343,9 +381,16 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
         long: indicators.sma.length > 0 ? indicators.sma[indicators.sma.length - 1] : null,
     };
     
-    indicators.bollingerBands = DerivIndicators.donchian(candles, getParam('BOLLINGER_BANDS', 'period', 20));
+    // ✅ CORRIGIDO: Usar calculateBollingerBands em vez de donchian
+    const bbPeriod = getParam('BOLLINGER_BANDS', 'period', 20);
+    const bbStdDev = getParam('BOLLINGER_BANDS', 'stdDev', 2);
+    indicators.bollingerBands = calculateBollingerBands(candles, bbPeriod, bbStdDev);
+    
+    // ✅ NOVO: Adicionar acesso direto ao último valor
+    const lastBB = indicators.bollingerBands[indicators.bollingerBands.length - 1];
+    indicators.bb = lastBB || { upper: null, middle: null, lower: null };
 
-    const bbwValues = DerivIndicators.bollingerBandwidth(candles, getParam('BOLLINGER_BANDS', 'period', 20), getParam('BOLLINGER_BANDS', 'stdDev', 2));
+    const bbwValues = DerivIndicators.bollingerBandwidth(candles, bbPeriod, bbStdDev);
     indicators.bbw = bbwValues.length > 0 ? bbwValues[bbwValues.length-1] : null;
 
     indicators.donchianChannels = DerivIndicators.donchian(candles, getParam('DONCHIAN_CHANNELS', 'period', 20));
