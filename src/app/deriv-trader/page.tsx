@@ -35,6 +35,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
   const { 
     operationsLog,
     chartData,
+    priceTicks, // Get price ticks here
     isChartLoading,
     chartError,
     chartType,
@@ -44,8 +45,8 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
     tradeAnnotations,
   } = useDerivApi();
   
-  // CENTRALIZED HOOKS
-  const robotCouncil = useRobotCouncil(activeSymbol, chartData);
+  // CENTRALIZED HOOKS - Pass priceTicks to robotCouncil
+  const robotCouncil = useRobotCouncil(activeSymbol, chartData, priceTicks);
   const tradeAnalysis = useTradeAnalysis(activeSymbol, operationsLog);
 
   const [activeTab, setActiveTab] = useState("log");

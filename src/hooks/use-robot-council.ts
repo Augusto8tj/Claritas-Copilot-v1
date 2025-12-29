@@ -48,9 +48,11 @@ const getPrice = (d: ChartData | null): number | undefined => {
 }
 
 export function useRobotCouncil(
-    activeSymbol: string | null
+    activeSymbol: string | null,
+    chartData: ChartData[],
+    priceTicks: TickData[]
 ) {
-    const { operationsLog, executeTrade, timePeriod, chartData, priceTicks } = useDerivApi();
+    const { operationsLog, executeTrade, timePeriod } = useDerivApi();
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
     
