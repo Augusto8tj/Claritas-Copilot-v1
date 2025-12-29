@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -155,7 +156,7 @@ export function useRobotCouncil(
     priceTicks: TickData[]
 ) {
     const { operationsLog, executeTrade, timePeriod, isConnected } = useDerivApi();
-    const { user } = useAuth();
+    const { user, loading: isAuthLoading } = useAuth();
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
@@ -195,7 +196,7 @@ export function useRobotCouncil(
     // CARREGAR DESEMPENHO PERSISTIDO DO FIREBASE
     // ========================================================================
     useEffect(() => {
-        if (!user) return;
+        if (!user || isAuthLoading) return;
 
         const doLoad = async () => {
             try {
@@ -211,7 +212,7 @@ export function useRobotCouncil(
             }
         };
         doLoad();
-    }, [user]);
+    }, [user, isAuthLoading]);
 
     // ========================================================================
     // CONSTRUIR O CONSELHO

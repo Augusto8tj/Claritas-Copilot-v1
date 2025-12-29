@@ -55,10 +55,12 @@ const mockUser: User = {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(useMockUser ? mockUser : null);
-  const [loading, setLoading] = useState(!useMockUser);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (useMockUser) return;
+    if (useMockUser) {
+        setLoading(false);
+    }
     
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
@@ -74,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = { user, loading, updateUser };
 
-  if (loading && !useMockUser) {
+  if (loading) {
      return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
