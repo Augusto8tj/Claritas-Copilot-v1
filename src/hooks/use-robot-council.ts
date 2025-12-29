@@ -55,6 +55,7 @@ export function useRobotCouncil(
 
     
     const councilExecutionRef = useRef({ isExecuting: false });
+    const judgedOperationsRef = useRef(new Set<number>()); // Regista as operações já julgadas
 
     const [indicators, setIndicators] = useState<Indicators | null>(null);
 
@@ -77,7 +78,11 @@ export function useRobotCouncil(
     const updateRobotPerformance = useCallback((operation: Operation) => {
         if (operation.initiator !== 'Conselho' || !operation.entryPrice || !operation.exitPrice) return;
         
-        let updatedPerformance: RobotPerformance[] = robotPerformance.length > 0 ? [...robotPerformance] : [];
+        // Carrega o estado mais recente para garantir que não estamos a sobrepor dados
+        const currentPerformanceString = localStorage.getItem(ROBOT_PERFORMANCE_KEY);
+        const currentPerformance: RobotPerformance[] = currentPerformanceString ? JSON.parse(currentPerformanceString) : [];
+        
+        let performanceMap = new Map(currentPerformance.map(p => [p.id, p]));
 
         strategyCouncil.forEach(robot => {
             const voteData = councilVotes[robot.id];
@@ -88,10 +93,9 @@ export function useRobotCouncil(
             
             const virtualPnl = isWin ? (operation.stake * 0.92) : -operation.stake;
 
-            let perf = updatedPerformance.find(p => p.id === robot.id);
+            let perf = performanceMap.get(robot.id);
             if (!perf) {
                 perf = { id: robot.id, strategy: robot, strategyType: robot.strategyType, wins: 0, losses: 0, totalProfit: 0 };
-                updatedPerformance.push(perf);
             }
 
             if (isWin) {
@@ -100,29 +104,33 @@ export function useRobotCouncil(
                 perf.losses++;
             }
             perf.totalProfit += virtualPnl;
+            performanceMap.set(robot.id, perf);
         });
 
-        setRobotPerformance(updatedPerformance);
-        localStorage.setItem(ROBOT_PERFORMANCE_KEY, JSON.stringify(updatedPerformance));
+        const updatedPerformanceArray = Array.from(performanceMap.values());
+        setRobotPerformance(updatedPerformanceArray);
+        localStorage.setItem(ROBOT_PERFORMANCE_KEY, JSON.stringify(updatedPerformanceArray));
+        // Dispara um evento de storage para que outros componentes (como TradingDesk) possam atualizar
+        window.dispatchEvent(new Event('storage'));
 
-    }, [councilVotes, robotPerformance, strategyCouncil]);
+    }, [councilVotes, strategyCouncil]);
 
+     // Reparação: Este useEffect agora é robusto para julgar as operações
      useEffect(() => {
-        const lastOp = operationsLog[0];
-        if (lastOp && lastOp.status !== 'pending' && lastOp.initiator === 'Conselho') {
-            const processedOperations = new Set(robotPerformance.map(p => p.id + (p.wins + p.losses))); 
-            const opIdentifier = lastOp.id.toString() + lastOp.status;
-            
-            const alreadyProcessedInState = robotPerformance.some(p => {
-                const totalTrades = p.wins + p.losses;
-                return totalTrades > 0 && lastOp.stake === p.strategy.suggestedStake; // Simplistic check
-            });
+        const closedCouncilOps = operationsLog.filter(op => 
+            op.initiator === 'Conselho' && 
+            op.status !== 'pending' &&
+            !judgedOperationsRef.current.has(op.id) // Apenas operações não julgadas
+        );
 
-            if (!alreadyProcessedInState) { 
-               updateRobotPerformance(lastOp);
-            }
+        if (closedCouncilOps.length > 0) {
+            console.log(`[Arena Virtual] Julgando ${closedCouncilOps.length} nova(s) operação(ões).`);
+            closedCouncilOps.forEach(op => {
+                updateRobotPerformance(op);
+                judgedOperationsRef.current.add(op.id); // Marca como julgada
+            });
         }
-    }, [operationsLog, updateRobotPerformance, robotPerformance]);
+    }, [operationsLog, updateRobotPerformance]);
 
 
     const fetchStrategyCouncil = useCallback(async () => {
@@ -131,6 +139,7 @@ export function useRobotCouncil(
             return;
         }
         setIsFetchingCouncil(true);
+        judgedOperationsRef.current.clear(); // Limpa o registo de julgamentos ao convocar um novo conselho
         
         await new Promise(resolve => setTimeout(resolve, 500));
 
