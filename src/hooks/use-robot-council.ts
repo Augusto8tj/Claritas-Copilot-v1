@@ -52,7 +52,7 @@ const isValid = (val: any): val is number => val !== null && val !== undefined &
 const calculateRobotVote = (
     robot: RobotStrategy,
     indicators: Indicators,
-    chartData: ChartData[] // <--- PARÂMETRO ADICIONADO
+    chartData: ChartData[] 
 ): Pick<RobotVote, 'vote' | 'confidence'> => {
     let vote: RobotVote['vote'] = 'HOLD';
     let confidence = 0;
@@ -352,8 +352,7 @@ export function useRobotCouncil(
             !isCouncilAutopilotOn ||
             strategyCouncil.length === 0 ||
             !activeSymbol ||
-            priceTicks.length < 2 ||
-            chartData.length < 2
+            priceTicks.length < 2
         ) {
             return;
         }
@@ -441,7 +440,7 @@ export function useRobotCouncil(
         const tradeDuration = form.getValues('duration');
 
         strategyCouncil.forEach((robot) => {
-            const { vote, confidence } = calculateRobotVote(robot, currentIndicators, chartData); // <--- Passando chartData
+            const { vote, confidence } = calculateRobotVote(robot, currentIndicators, tickCandles);
 
             // REGISTO IMEDIATO: Se votou, registrar na arena
             if (vote !== 'HOLD') {
@@ -536,7 +535,6 @@ export function useRobotCouncil(
         }
     }, [
         priceTicks,
-        chartData, // Adicionado como dependência
         isCouncilAutopilotOn,
         strategyCouncil,
         robotPerformance,
