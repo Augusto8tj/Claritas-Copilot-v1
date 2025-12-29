@@ -1,3 +1,4 @@
+// /tsconfig.json
 {
   "compilerOptions": {
     "target": "ES2017",
@@ -28,6 +29,15 @@
       ],
       "@/features/*": [
         "./src/features/*"
+      ],
+      "@/components/*": [
+        "./src/components/*"
+      ],
+      "@/hooks/*": [
+        "./src/hooks/*"
+      ],
+      "@/lib/*": [
+        "./src/lib/*"
       ]
     }
   },

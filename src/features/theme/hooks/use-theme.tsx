@@ -1,4 +1,4 @@
-// /src/hooks/use-theme.tsx
+// /src/features/theme/hooks/use-theme.tsx
 'use client';
 
 import * as React from 'react';
