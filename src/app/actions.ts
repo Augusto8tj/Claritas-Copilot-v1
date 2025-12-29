@@ -6,8 +6,9 @@ import {
 } from "@/ai/flows/financial-chatbot-insights";
 import type { FinancialChatbotInsightsInput } from "@/ai/flows/financial-chatbot-insights.types";
 import { getFinancialSummary, getInsights } from "@/services/financial-data-service";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import WebSocket from 'ws';
+import { getDoc, doc } from 'firebase/firestore';
 
 
 export async function getChatbotInsightsResponse(data: FinancialChatbotInsightsInput, userId: string) {
@@ -144,4 +145,26 @@ export async function checkDerivConnection(token: string): Promise<{ success: bo
             cleanup();
         }, 10000); // 10-second timeout
     });
+}
+
+export async function checkFirestoreConnection(): Promise<{ success: boolean; error?: string; }> {
+    try {
+        // Tentamos aceder a um documento que não existe num caminho protegido por regras de autenticação.
+        // O objetivo não é ler os dados, mas sim confirmar que o pedido é processado pelo Firestore.
+        // Um erro de "permission-denied" é, para este teste, um SUCESSO, pois confirma que
+        // a conexão está ativa e as regras de segurança estão a ser aplicadas.
+        const unauthenticatedRef = doc(db, 'users', 'test-connection');
+        await getDoc(unauthenticatedRef);
+        
+        // Se chegarmos aqui sem um erro de permissão, algo está errado com as regras.
+        return { success: false, error: "As regras de segurança podem não estar a proteger os dados corretamente. Acesso não autenticado foi permitido." };
+    } catch (e: any) {
+        if (e.code === 'permission-denied') {
+            // Este é o resultado esperado e significa que a conexão e as regras estão a funcionar.
+            return { success: true };
+        }
+        // Qualquer outro erro é uma falha na conexão.
+        console.error("[Health Check] Firestore error:", e);
+        return { success: false, error: e.message || "Ocorreu um erro desconhecido ao contatar o Firestore." };
+    }
 }

@@ -1,6 +1,6 @@
 
 import { HealthCheckCard } from "@/components/status/health-check-card";
-import { checkGeminiConnection } from "@/app/actions";
+import { checkGeminiConnection, checkFirestoreConnection } from "@/app/actions";
 import { ListModelsCard } from "@/app/status/list-models-card";
 import { DerivConnectionCard } from "@/components/status/deriv-connection-card";
 
@@ -9,7 +9,10 @@ export const revalidate = 0; // Disable cache for this page
 export default async function StatusPage() {
   
   // As a server component, this will run on the server each time the page is loaded.
-  const geminiResult = await checkGeminiConnection();
+  const [geminiResult, firestoreResult] = await Promise.all([
+    checkGeminiConnection(),
+    checkFirestoreConnection()
+  ]);
   
   return (
     <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
@@ -22,7 +25,7 @@ export default async function StatusPage() {
         Verifique a saúde das conexões e serviços essenciais do Claritas Copilot.
       </p>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <HealthCheckCard
           serviceName="API Gemini (IA)"
           checkResult={geminiResult}
@@ -40,6 +43,15 @@ export default async function StatusPage() {
           successMessage="A conexão com a API da Deriv está funcionando corretamente."
           failureMessage="O token da API da Deriv não está configurado ou é inválido."
           configurePath="/settings"
+        />
+
+        <HealthCheckCard
+            serviceName="Firestore (Base de Dados)"
+            checkResult={firestoreResult}
+            description="Armazena todos os seus dados financeiros, metas e desempenho dos robôs."
+            successMessage="A conexão com o Firestore está saudável e as regras de segurança estão ativas."
+            failureMessage="Não foi possível conectar ao Firestore ou as regras de segurança não estão configuradas corretamente."
+            configurePath="/help"
         />
       </div>
       <div className="grid gap-6 md:grid-cols-2">
