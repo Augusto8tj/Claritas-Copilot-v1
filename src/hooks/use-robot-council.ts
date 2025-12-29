@@ -34,7 +34,6 @@ type VirtualTrade = {
 
 const ROBOT_PERFORMANCE_KEY = 'derivRobotPerformance';
 const VIRTUAL_STAKE = 1.0; // Cada trade virtual usa $1 para calcular PnL
-const PAYOUT_RATE = 0.92; // Simula um payout de 92%
 
 // ============================================================================
 // UTILITÁRIOS
@@ -44,9 +43,7 @@ const getPrice = (d: ChartData | null): number | undefined => {
     if (!d) return undefined;
     return isCandle(d) ? d.close : d.price;
 };
-
 const isValid = (val: any): val is number => val !== null && val !== undefined && !isNaN(val);
-
 
 // ============================================================================
 // LÓGICA DE VOTAÇÃO: Como cada robô decide RISE, FALL ou HOLD
@@ -54,13 +51,13 @@ const isValid = (val: any): val is number => val !== null && val !== undefined &
 const calculateRobotVote = (
     robot: RobotStrategy,
     indicators: Indicators,
-    chartData: ChartData[]
+    tickCandles: CandleData[]
 ): Pick<RobotVote, 'vote' | 'confidence'> => {
     let vote: RobotVote['vote'] = 'HOLD';
     let confidence = 0;
 
     if (!indicators) return { vote: 'HOLD', confidence: 0 };
-    
+
     // RSI
     if (robot.strategyType === 'RSI' && isValid(indicators.rsi)) {
         if (indicators.rsi <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
@@ -88,17 +85,28 @@ const calculateRobotVote = (
         if (indicators.macd.macd > indicators.macd.signal) { vote = 'RISE'; confidence = robot.weakConfidence; }
         if (indicators.macd.signal > indicators.macd.macd) { vote = 'FALL'; confidence = robot.weakConfidence; }
     }
-    
+
     // BOLLINGER_BANDS
-    const lastBB = indicators.bollingerBands?.[indicators.bollingerBands.length - 1];
-    if (robot.strategyType === 'BOLLINGER_BANDS' && lastBB && isValid(lastBB.lower) && isValid(lastBB.upper)) {
-        const lastPrice = getPrice(chartData[chartData.length - 1]);
-        if(lastPrice) {
-            if (lastPrice <= lastBB.lower) { vote = 'RISE'; confidence = robot.weakConfidence; }
-            if (lastPrice >= lastBB.upper) { vote = 'FALL'; confidence = robot.weakConfidence; }
+    if (
+        robot.strategyType === 'BOLLINGER_BANDS' &&
+        indicators.bollingerBands.length > 0 &&
+        tickCandles.length > 0
+    ) {
+        const lastBB = indicators.bollingerBands[indicators.bollingerBands.length - 1];
+        const lastPrice = tickCandles[tickCandles.length - 1].close;
+
+        if (lastBB && isValid(lastBB.lower) && isValid(lastBB.upper) && isValid(lastPrice)) {
+            if (lastPrice <= lastBB.lower) {
+                vote = 'RISE';
+                confidence = robot.weakConfidence;
+            }
+            if (lastPrice >= lastBB.upper) {
+                vote = 'FALL';
+                confidence = robot.weakConfidence;
+            }
         }
     }
-    
+
     // ADX_TREND
     if (robot.strategyType === 'ADX_TREND' && isValid(indicators.adx)) {
         if (indicators.adx > (robot.trendStrengthThreshold || 25)) {
@@ -128,12 +136,13 @@ const calculateRobotVote = (
     return { vote, confidence };
 };
 
+
 // ============================================================================
 // HOOK PRINCIPAL
 // ============================================================================
 export function useRobotCouncil(
     activeSymbol: string | null,
-    chartData: ChartData[],
+    chartData: ChartData[], // Mantido para referência de alto nível, mas não para o motor
     priceTicks: TickData[]
 ) {
     const { operationsLog, executeTrade, timePeriod } = useDerivApi();
@@ -294,6 +303,7 @@ export function useRobotCouncil(
                     message: 'VETO: Limite de perda diário atingido.',
                     finalStake,
                     finalDuration,
+                    analysis: `Prejuízo de $${Math.abs(dailyPnl).toFixed(2)} atingiu o limite de $${dailyBalance}.`
                 };
             }
             if (dailyPnl >= dailyTarget) {
@@ -303,12 +313,14 @@ export function useRobotCouncil(
                     message: 'VETO: Meta de lucro diária atingida.',
                     finalStake,
                     finalDuration,
+                    analysis: `Lucro de $${dailyPnl.toFixed(2)} atingiu a meta de $${dailyTarget}.`
                 };
             }
 
             // Consenso Dinâmico
-            const effectiveThreshold = isDynamicConsensusOn && indicators.atr && chartData.length > 0
-                ? 200 + ((indicators.atr) / (getPrice(chartData[chartData.length - 1]) || 1)) * 500000 
+            const lastPrice = getPrice(priceTicks[priceTicks.length - 1]);
+            const effectiveThreshold = isDynamicConsensusOn && indicators.atr && lastPrice
+                ? 200 + ((indicators.atr) / lastPrice) * 500000 
                 : consensusThreshold;
             
             if (isDynamicConsensusOn) {
@@ -334,13 +346,10 @@ export function useRobotCouncil(
                 finalStake *= 0.75;
                 analysis = "Risco reduzido: mercado sem tendência clara (ADX baixo).";
             }
-            if (indicators.atr && chartData.length > 0) {
-                const lastPrice = getPrice(chartData[chartData.length - 1]);
-                if(lastPrice && (indicators.atr / lastPrice > 0.0002)) {
-                     finalStake *= 0.75;
-                     finalDuration = Math.max(duration + 2, 7);
-                     analysis = "Risco e duração ajustados: alta volatilidade (ATR alto).";
-                }
+            if (indicators.atr && lastPrice && (indicators.atr / lastPrice > 0.0002)) {
+                 finalStake *= 0.75;
+                 finalDuration = Math.max(duration + 2, 7);
+                 analysis = "Risco e duração ajustados: alta volatilidade (ATR alto).";
             }
 
 
@@ -352,13 +361,14 @@ export function useRobotCouncil(
                 finalDuration,
             };
         },
-        [form, dailyBalance, dailyTarget, chartData, consensusThreshold, isDynamicConsensusOn]
+        [form, dailyBalance, dailyTarget, priceTicks, consensusThreshold, isDynamicConsensusOn]
     );
 
     // ========================================================================
-    // MOTOR DA ARENA VIRTUAL: O CORAÇÃO DO SISTEMA
+    // MOTOR DA ARENA VIRTUAL E MESA OPERACIONAL
     // ========================================================================
     useEffect(() => {
+        // Condições de guarda
         if (!isCouncilAutopilotOn || strategyCouncil.length === 0 || !activeSymbol || priceTicks.length < 2) {
             return;
         }
@@ -367,24 +377,29 @@ export function useRobotCouncil(
         const currentTick = priceTicks[currentTickIndex];
         if (!currentTick) return;
 
-        const tickCandles: CandleData[] = priceTicks.map(t => ({ epoch: t.epoch, open: t.price, high: t.price, low: t.price, close: t.price, volume: 1 }));
+        const tickCandles: CandleData[] = priceTicks.map((t) => ({
+            epoch: t.epoch, open: t.price, high: t.price, low: t.price, close: t.price, volume: 1,
+        }));
 
         const currentIndicators = calculateAllIndicators(tickCandles, strategyCouncil, timePeriod);
         setIndicators(currentIndicators);
         if (!currentIndicators) return;
 
         const stillActiveTrades: VirtualTrade[] = [];
-        const performanceMap = new Map<string, RobotPerformance>(robotPerformance.map(p => ({ ...p })));
+        const performanceMap = new Map<string, RobotPerformance>(
+            robotPerformance.map((p) => [p.id, { ...p }])
+        );
         let performanceChanged = false;
 
-        virtualTradesRef.current.forEach(trade => {
-            if (currentTickIndex >= trade.exitTickIndex) {
+        virtualTradesRef.current.forEach((trade) => {
+            const isExpired = currentTickIndex >= trade.exitTickIndex;
+            if (isExpired) {
                 const exitTick = priceTicks[trade.exitTickIndex];
                 if (exitTick) {
                     const isWin = (trade.vote === 'RISE' && exitTick.price > trade.entryPrice) || (trade.vote === 'FALL' && exitTick.price < trade.entryPrice);
                     const perf = performanceMap.get(trade.robotId);
                     if (perf) {
-                        const pnl = isWin ? VIRTUAL_STAKE * PAYOUT_RATE : -VIRTUAL_STAKE;
+                        const pnl = isWin ? VIRTUAL_STAKE * 0.92 : -VIRTUAL_STAKE;
                         perf.totalProfit = (perf.totalProfit || 0) + pnl;
                         if (isWin) perf.wins = (perf.wins || 0) + 1;
                         else perf.losses = (perf.losses || 0) + 1;
@@ -395,6 +410,7 @@ export function useRobotCouncil(
                 stillActiveTrades.push(trade);
             }
         });
+
         virtualTradesRef.current = stillActiveTrades;
 
         if (performanceChanged) {
@@ -408,7 +424,7 @@ export function useRobotCouncil(
         const newVotes: CouncilVotes = {};
         const tradeDuration = form.getValues('duration');
 
-        strategyCouncil.forEach(robot => {
+        strategyCouncil.forEach((robot) => {
             const { vote, confidence } = calculateRobotVote(robot, currentIndicators, tickCandles);
             
             if (vote !== 'HOLD') {
@@ -449,7 +465,7 @@ export function useRobotCouncil(
         if (councilExecutionRef.current.isExecuting) return;
 
         const dailyPnl = operationsLog.filter(op => new Date(op.timestamp).toDateString() === new Date().toDateString() && op.initiator === 'Conselho').reduce((sum, op) => sum + (op.result || 0), 0);
-        const supervisionDecision = supervisionCommitteeCheck(riseConfidenceSum, fallConfidenceSum, currentIndicators, dailyPnl);
+        const supervisionDecision = supervisionCommitteeCheck(riseConfidenceSum, fallConfidenceSum, indicators, dailyPnl);
         setSupervisionStatus(supervisionDecision);
 
         if (supervisionDecision.status === 'approved') {
@@ -463,7 +479,7 @@ export function useRobotCouncil(
             executeTrade(direction === 'RISE' ? 'CALL' : 'PUT', finalStake, activeSymbol, direction.toLowerCase() as 'rise' | 'fall', finalDuration, form.getValues('duration_unit'), 'Conselho')
                 .finally(() => setTimeout(() => (councilExecutionRef.current.isExecuting = false), 10000));
         }
-    }, [priceTicks, isCouncilAutopilotOn, strategyCouncil, robotPerformance, isMeritocracyOn, activeSymbol, operationsLog, supervisionCommitteeCheck, consensusThreshold, toast, executeTrade, form, timePeriod, committeeOfSpecialists]);
+    }, [priceTicks, isCouncilAutopilotOn, strategyCouncil, robotPerformance, isMeritocracyOn, activeSymbol, operationsLog, supervisionCommitteeCheck, toast, executeTrade, form, timePeriod, committeeOfSpecialists]);
 
     return {
         isCouncilAutopilotOn, setIsCouncilAutopilotOn,
