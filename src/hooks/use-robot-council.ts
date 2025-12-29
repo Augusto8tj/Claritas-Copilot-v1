@@ -43,8 +43,6 @@ const getPrice = (d: ChartData | null): number | undefined => {
     if (!d) return undefined;
     return isCandle(d) ? d.close : d.price;
 };
-const isValid = (val: any): val is number => val !== null && val !== undefined && !isNaN(val);
-
 
 // ============================================================================
 // LÓGICA DE VOTAÇÃO: Como cada robô decide RISE, FALL ou HOLD
@@ -58,9 +56,9 @@ const calculateRobotVote = (
     let confidence = 0;
 
     if (!indicators) return { vote: 'HOLD', confidence: 0 };
-
+    
     // RSI
-    if (robot.strategyType === 'RSI' && isValid(indicators.rsi)) {
+    if (robot.strategyType === 'RSI' && indicators.rsi) {
         if (indicators.rsi <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
         if (indicators.rsi <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
         if (indicators.rsi >= robot.weakSellThreshold!) { vote = 'FALL'; confidence = robot.weakConfidence; }
@@ -68,7 +66,7 @@ const calculateRobotVote = (
     }
 
     // STOCHASTIC
-    if (robot.strategyType === 'STOCHASTIC' && isValid(indicators.stoch)) {
+    if (robot.strategyType === 'STOCHASTIC' && indicators.stoch) {
         if (indicators.stoch <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
         if (indicators.stoch <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
         if (indicators.stoch >= robot.weakSellThreshold!) { vote = 'FALL'; confidence = robot.weakConfidence; }
@@ -76,13 +74,13 @@ const calculateRobotVote = (
     }
 
     // MOVING_AVERAGE_CROSS
-    if (robot.strategyType === 'MOVING_AVERAGE_CROSS' && isValid(indicators.ma.short) && isValid(indicators.ma.long)) {
+    if (robot.strategyType === 'MOVING_AVERAGE_CROSS' && indicators.ma.short && indicators.ma.long) {
         if (indicators.ma.short > indicators.ma.long) { vote = 'RISE'; confidence = robot.weakConfidence; }
         if (indicators.ma.long > indicators.ma.short) { vote = 'FALL'; confidence = robot.weakConfidence; }
     }
 
     // MACD_CROSS
-    if (robot.strategyType === 'MACD_CROSS' && isValid(indicators.macd.macd) && isValid(indicators.macd.signal)) {
+    if (robot.strategyType === 'MACD_CROSS' && indicators.macd.macd && indicators.macd.signal) {
         if (indicators.macd.macd > indicators.macd.signal) { vote = 'RISE'; confidence = robot.weakConfidence; }
         if (indicators.macd.signal > indicators.macd.macd) { vote = 'FALL'; confidence = robot.weakConfidence; }
     }
@@ -96,7 +94,7 @@ const calculateRobotVote = (
         const lastBB = indicators.bollingerBands[indicators.bollingerBands.length - 1];
         const lastPrice = tickCandles[tickCandles.length - 1].close;
 
-        if (lastBB && isValid(lastBB.lower) && isValid(lastBB.upper) && isValid(lastPrice)) {
+        if (lastBB && lastBB.lower && lastBB.upper && lastPrice) {
             if (lastPrice <= lastBB.lower) {
                 vote = 'RISE';
                 confidence = robot.weakConfidence;
@@ -109,9 +107,9 @@ const calculateRobotVote = (
     }
 
     // ADX_TREND
-    if (robot.strategyType === 'ADX_TREND' && isValid(indicators.adx)) {
+    if (robot.strategyType === 'ADX_TREND' && indicators.adx) {
         if (indicators.adx > (robot.trendStrengthThreshold || 25)) {
-            if (isValid(indicators.pdi) && isValid(indicators.ndi)) {
+            if (indicators.pdi && indicators.ndi) {
                 if (indicators.pdi > indicators.ndi) { vote = 'RISE'; confidence = robot.weakConfidence; }
                 if (indicators.ndi > indicators.pdi) { vote = 'FALL'; confidence = robot.weakConfidence; }
             }
@@ -119,7 +117,7 @@ const calculateRobotVote = (
     }
     
     // MFI
-    if (robot.strategyType === 'MFI' && isValid(indicators.mfi)) {
+    if (robot.strategyType === 'MFI' && indicators.mfi) {
         if (indicators.mfi <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
         if (indicators.mfi <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
         if (indicators.mfi >= robot.weakSellThreshold!) { vote = 'FALL'; confidence = robot.weakConfidence; }
@@ -127,7 +125,7 @@ const calculateRobotVote = (
     }
     
     // STOCH_RSI
-    if (robot.strategyType === 'STOCH_RSI' && isValid(indicators.stochRSI)) {
+    if (robot.strategyType === 'STOCH_RSI' && indicators.stochRSI) {
         if (indicators.stochRSI <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
         if (indicators.stochRSI <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
         if (indicators.stochRSI >= robot.weakSellThreshold!) { vote = 'FALL'; confidence = robot.weakConfidence; }
@@ -268,8 +266,15 @@ export function useRobotCouncil(
         (indicators: Indicators): string => {
             if (!indicators.adx || !indicators.stoch) return 'Comité Indefinido';
 
-            if (indicators.adx > 25) return 'Tendência Forte';
-            if (indicators.stoch < 20 || indicators.stoch > 80) return 'Exaustão/Reversão';
+            if (indicators.adx > 25) {
+                 if (indicators.pdi && indicators.ndi) {
+                    if (indicators.pdi > indicators.ndi) return "Tendência de Alta com Força";
+                    return "Tendência de Baixa com Força";
+                }
+                return "Tendência com Força";
+            }
+            if (indicators.stoch < 20 ) return 'Exaustão de Venda';
+            if (indicators.stoch > 80 ) return 'Exaustão de Compra';
             
             return 'Mercado Lateral';
         },
@@ -292,7 +297,7 @@ export function useRobotCouncil(
             message: string;
             analysis?: string;
         } => {
-            const { stake, duration } = form.getValues();
+            const { stake, duration, duration_unit } = form.getValues();
             let finalStake = stake;
             let finalDuration = duration;
 
@@ -369,7 +374,7 @@ export function useRobotCouncil(
                     analysisParts.push("ATR elevado");
                 }
 
-                finalStake = Math.max(0.35, stake * riskFactor);
+                finalStake = stake * riskFactor;
                 finalDuration = duration + durationAdjustment;
 
                 if(analysisParts.length > 0) {
@@ -377,12 +382,17 @@ export function useRobotCouncil(
                 }
             }
 
+            // Aplicar restrições finais
+            finalStake = Math.max(0.35, finalStake);
+            if (duration_unit === 't') {
+                finalDuration = Math.max(1, Math.min(10, Math.round(finalDuration)));
+            }
 
             return {
                 status: 'approved',
                 message: 'Aprovado. Risco avaliado.',
                 analysis,
-                finalStake: Math.max(0.35, finalStake),
+                finalStake,
                 finalDuration,
             };
         },
@@ -398,6 +408,7 @@ export function useRobotCouncil(
             return;
         }
 
+        // FASE 1: FONTE DA VERDADE
         const currentTickIndex = priceTicks.length - 1;
         const currentTick = priceTicks[currentTickIndex];
         if (!currentTick) return;
@@ -410,6 +421,7 @@ export function useRobotCouncil(
         setIndicators(currentIndicators);
         if (!currentIndicators) return;
 
+        // FASE 2: JULGAMENTO
         const stillActiveTrades: VirtualTrade[] = [];
         const performanceMap = new Map<string, RobotPerformance>(
             robotPerformance.map((p) => [p.id, { ...p }])
@@ -444,6 +456,7 @@ export function useRobotCouncil(
             localStorage.setItem(ROBOT_PERFORMANCE_KEY, JSON.stringify(updatedPerformance));
         }
 
+        // FASE 3: VOTAÇÃO E REGISTO
         let riseConfidenceSum = 0;
         let fallConfidenceSum = 0;
         const newVotes: CouncilVotes = {};
@@ -475,6 +488,7 @@ export function useRobotCouncil(
             if (vote === 'FALL') fallConfidenceSum += confidence * weight;
         });
 
+        // FASE 4: ATUALIZAÇÃO DE ESTADOS
         setCouncilVotes(newVotes);
         setConsensusSum({ rise: riseConfidenceSum, fall: fallConfidenceSum });
         setActiveCommittee(committeeOfSpecialists(currentIndicators));
@@ -489,6 +503,7 @@ export function useRobotCouncil(
         
         if (councilExecutionRef.current.isExecuting) return;
 
+        // FASE 5: EXECUÇÃO REAL
         const dailyPnl = operationsLog.filter(op => new Date(op.timestamp).toDateString() === new Date().toDateString() && op.initiator === 'Conselho').reduce((sum, op) => sum + (op.result || 0), 0);
         const supervisionDecision = supervisionCommitteeCheck(riseConfidenceSum, fallConfidenceSum, currentIndicators, dailyPnl);
         setSupervisionStatus(supervisionDecision);
