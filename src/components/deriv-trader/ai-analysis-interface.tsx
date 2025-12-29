@@ -1,4 +1,4 @@
-// /src/components/trading/ai-analysis-interface.tsx
+// src/components/deriv-trader/ai-analysis-interface.tsx
 "use client";
 
 import { useState } from "react";

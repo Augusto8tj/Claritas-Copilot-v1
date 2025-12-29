@@ -1,4 +1,4 @@
-// /src/components/trading/trade-legend.tsx
+// src/components/deriv-trader/trade-legend.tsx
 'use client';
 
 import React, { useMemo } from 'react';

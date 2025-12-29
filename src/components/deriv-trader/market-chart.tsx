@@ -1,4 +1,4 @@
-
+// src/components/deriv-trader/market-chart.tsx
 'use client'
 
 import React, { useCallback } from 'react'

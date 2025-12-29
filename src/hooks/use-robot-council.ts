@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDerivApi } from './use-deriv-api';
 import { useToast } from './use-toast';
 import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
-import type { RiseFallFormValues } from '@/components/trading/deriv-trader-interface.types';
+import type { RiseFallFormValues } from '@/components/deriv-trader/deriv-trader-interface.types';
 import { useFormContext } from 'react-hook-form';
 import type { Indicators } from '@/services/indicator-service';
 import { calculateAllIndicators } from '@/services/indicator-service';

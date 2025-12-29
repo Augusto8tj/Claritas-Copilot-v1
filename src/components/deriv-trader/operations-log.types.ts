@@ -1,4 +1,4 @@
-// /src/components/trading/operations-log.types.ts
+// src/components/deriv-trader/operations-log.types.ts
 import type { RobotStrategy } from "@/ai/flows/strategy-council-flow.types";
 
 export type OperationStatus = 'pending' | 'won' | 'lost';

@@ -1,4 +1,4 @@
-// /src/components/trading/ai-trade-suggestion.tsx
+// src/components/deriv-trader/ai-trade-suggestion.tsx
 'use client';
 
 import {

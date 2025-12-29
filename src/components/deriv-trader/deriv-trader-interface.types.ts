@@ -1,4 +1,4 @@
-// /src/components/trading/deriv-trader-interface.types.ts
+// src/components/deriv-trader/deriv-trader-interface.types.ts
 import { z } from "zod";
 
 export const riseFallSchema = z.object({

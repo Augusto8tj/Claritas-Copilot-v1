@@ -1,4 +1,4 @@
-// /src/components/trading/asset-selector.tsx
+// src/components/deriv-trader/asset-selector.tsx
 "use client";
 
 import {

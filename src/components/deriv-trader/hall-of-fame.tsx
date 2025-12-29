@@ -1,4 +1,4 @@
-// /src/components/trading/hall-of-fame.tsx
+// src/components/deriv-trader/hall-of-fame.tsx
 'use client';
 
 import { useEffect, useState } from 'react';

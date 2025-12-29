@@ -1,3 +1,4 @@
+// src/components/deriv-trader/council-autopilot-interface.tsx
 'use client';
 
 import { useState, Fragment } from "react";
