@@ -7,6 +7,7 @@ import type { TradeResult } from '@/services/deriv-api-service';
 import { useToast } from './use-toast';
 import type { Operation, OperationInitiator } from '@/components/trading/operations-log.types';
 import type { DurationUnit, ChartType, TimePeriod, ChartData, CandleData, TradeAnnotation, TickData } from './types';
+import { FirebaseErrorListener } from '@/components/firebase-error-listener';
 
 
 const DERIV_DEMO_TOKEN_KEY = 'derivDemoApiToken';
@@ -703,6 +704,7 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
 
   return (
     <DerivApiContext.Provider value={contextValue}>
+      <FirebaseErrorListener />
       {children}
     </DerivApiContext.Provider>
   );

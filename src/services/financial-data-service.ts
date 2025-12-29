@@ -10,6 +10,10 @@ import type { Goal, BudgetCategory, Transaction } from '@/lib/types';
 import type { RobotPerformance } from '@/hooks/use-robot-council';
 import { generateGoalImage } from '@/ai/flows/goal-image-generation';
 
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+
+
 const PROMOTION_THRESHOLD_WINS = 10;
 const PROMOTION_THRESHOLD_PROFIT = 0;
 
@@ -153,17 +157,40 @@ export async function getInsights(): Promise<string[]> {
 
 export async function saveRobotPerformance(userId: string, performanceData: RobotPerformance[]): Promise<void> {
     const performanceDocRef = doc(db, 'users', userId, 'trading', 'robotPerformance');
-    await setDoc(performanceDocRef, { performance: performanceData }, { merge: true });
+    const dataToSave = { performance: performanceData };
+
+    setDoc(performanceDocRef, dataToSave, { merge: true })
+        .catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: performanceDocRef.path,
+                operation: 'update',
+                requestResourceData: dataToSave,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
 }
+
 
 export async function loadRobotPerformance(userId: string): Promise<RobotPerformance[] | null> {
     const performanceDocRef = doc(db, 'users', userId, 'trading', 'robotPerformance');
-    const docSnap = await getDoc(performanceDocRef);
-    if (docSnap.exists()) {
-        return docSnap.data().performance as RobotPerformance[];
+    
+    try {
+        const docSnap = await getDoc(performanceDocRef);
+        if (docSnap.exists()) {
+            return docSnap.data().performance as RobotPerformance[];
+        }
+        return null;
+    } catch (serverError) {
+        const permissionError = new FirestorePermissionError({
+            path: performanceDocRef.path,
+            operation: 'get',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        // Retornar nulo ou um array vazio em caso de erro para não quebrar a aplicação
+        return null;
     }
-    return null;
 }
+
 
 export async function getHallOfFame(userId: string): Promise<RobotPerformance[]> {
     const performanceData = await loadRobotPerformance(userId);
