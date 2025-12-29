@@ -11,11 +11,13 @@ Este documento regista a jornada de desenvolvimento e as principais funcionalida
 - **Memória Persistente com Firebase:** A Arena Virtual agora é "imortal". O desempenho de cada um dos 22 robôs (vitórias, derrotas, P&L) é guardado de forma segura no **Firestore**, associado à sua conta de utilizador. O progresso já não se perde ao fechar o navegador.
 - **Hall da Fama Integrado:** O Hall da Fama foi movido da sua página isolada para um separador dedicado diretamente dentro da página **Deriv Trader**, centralizando todo o ecossistema de trading num único local. Ele busca os dados do Firebase, mostrando um placar de líderes persistente.
 - **Consenso Relativo e Inteligente:** O limiar de consenso deixou de ser um número absoluto. Agora é calculado como uma **percentagem do potencial de voto máximo** disponível a cada momento, tornando-o verdadeiramente adaptativo à quantidade de robôs que têm uma opinião formada (`RISE` ou `FALL`).
+- **Estratégias Locais e Fim da Dependência da IA:** O conselho de 22 robôs analistas já não é gerado por uma chamada de IA. As suas estratégias estão agora definidas localmente no ficheiro `src/services/council-strategies.ts`, tornando a inicialização da Mesa Operacional instantânea, fiável e consistente.
 
 **Correções Críticas:**
-- Resolvido um erro crucial que impedia a execução de trades automáticas (`TypeError: Cannot read properties of null`).
+- Resolvido um erro crucial (`TypeError: Cannot read properties of null`) que impedia a execução de trades automáticas devido à falta de verificação dos indicadores.
 - Corrigida a lógica de votação do robô de Bandas de Bollinger, que estava inoperante e impedia a atividade na Arena.
-- Garantido que os ajustes dinâmicos de `stake` e `duration` respeitam os limites mínimos da corretora ($0.35 e 1-10 ticks).
+- Garantido que os ajustes dinâmicos de `stake` e `duration` respeitam os limites mínimos da corretora ($0.35 e 1-10 ticks) e que os valores corretos são usados na execução da ordem.
+- Corrigido um erro que tentava executar trades antes de a conexão com a API da corretora estar totalmente estabelecida.
 
 ---
 

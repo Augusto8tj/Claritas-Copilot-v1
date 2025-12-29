@@ -30,8 +30,8 @@ export default function HelpPage() {
                 Visão Geral e Autenticação
               </AccordionTrigger>
               <AccordionContent className="text-base leading-relaxed space-y-2">
-                <p>O Claritas Copilot é seu assistente financeiro pessoal, projetado para ajudá-lo a ter uma visão clara de suas finanças. O acesso é protegido por <strong>autenticação</strong>: crie uma conta ou faça login para acessar seus dados de forma segura. Você também pode gerenciar seu nome e foto na página de <strong>Perfil</strong>.</p>
-                 <p className="pt-2"><strong>Nota sobre os Dados:</strong> Atualmente, o aplicativo funciona com dados de demonstração (mock) para que você possa explorar todos os recursos. Em uma versão futura, ele poderá se conectar a diversas fontes de dados, como bancos e corretoras, através de APIs de Open Banking.</p>
+                <p>O Claritas Copilot é seu assistente financeiro pessoal, projetado para ajudá-lo a ter uma visão clara de suas finanças. O acesso é protegido por <strong>autenticação via Firebase</strong>: crie uma conta ou faça login para acessar seus dados de forma segura em qualquer dispositivo. Você também pode gerenciar seu nome e foto na página de <strong>Perfil</strong>.</p>
+                 <p className="pt-2"><strong>Nota sobre os Dados:</strong> O módulo de finanças pessoais atualmente funciona com dados de demonstração (mock). O módulo de trading (Deriv Trader) conecta-se a dados reais ou de demonstração da corretora Deriv.</p>
               </AccordionContent>
             </AccordionItem>
 
@@ -167,13 +167,13 @@ export default function HelpPage() {
               <AccordionContent className="text-base leading-relaxed space-y-4">
                 <p>Para elevar a inteligência do sistema, implementámos uma "Arena Virtual". Em vez de tratar todos os 22 analistas como iguais, criámos um sistema competitivo que promove os melhores em tempo real.</p>
                 <div>
-                    <h4 className="font-semibold text-md mb-2">Página "Mesa de Operações" e o Leaderboard</h4>
+                    <h4 className="font-semibold text-md mb-2">Painel "Arena Virtual" e o Leaderboard</h4>
                     <p className="text-sm">
-                      A nova página <strong>Mesa de Operações</strong> (`/trading-desk`) funciona como um *leaderboard* da sua equipa de IA. Para cada robô, ela mostra:
+                      O painel <strong>Arena Virtual</strong>, agora uma aba dentro do Deriv Trader, funciona como um *leaderboard* da sua equipa de IA. Para cada robô, ela mostra:
                     </p>
                     <ul className="list-disc pl-6 mt-2 space-y-1 text-sm">
                       <li><strong>Estratégia e Parâmetros:</strong> A configuração atual do analista.</li>
-                      <li><strong>Desempenho:</strong> Número de vitórias e derrotas na sessão.</li>
+                      <li><strong>Desempenho:</strong> Número de vitórias e derrotas. O progresso é guardado no <strong>Firebase</strong>, persistindo entre sessões.</li>
                       <li><strong>Taxa de Acerto:</strong> A percentagem de previsões corretas.</li>
                       <li><strong>Resultado Financeiro:</strong> O lucro ou prejuízo virtual que aquele robô gerou.</li>
                     </ul>
@@ -181,7 +181,7 @@ export default function HelpPage() {
                  <div>
                     <h4 className="font-semibold text-md mb-2">O Modo "Meritocracia"</h4>
                     <p className="text-sm">
-                      Na interface da Mesa Operacional, você encontrará um interruptor para ativar a **Meritocracia**. Quando ligado, o sistema muda fundamentalmente a forma como os votos são contados:
+                      Na interface da Arena, você encontrará um interruptor para ativar a **Meritocracia**. Quando ligado, o sistema muda fundamentalmente a forma como os votos são contados:
                     </p>
                      <ul className="list-disc pl-6 mt-2 space-y-1 text-sm">
                       <li><strong>Voto Ponderado:</strong> O voto de um robô com alto desempenho (alta taxa de acerto e lucro) passa a ter **mais peso** na decisão final.</li>
@@ -191,7 +191,7 @@ export default function HelpPage() {
                  <div>
                     <h4 className="font-semibold text-md mb-2">Hall da Fama</h4>
                     <p className="text-sm">
-                      Os robôs que atingem um desempenho excecional (alto número de vitórias e lucro positivo) são promovidos para a página <strong>Hall da Fama</strong>, um registo permanente dos seus analistas de IA mais lendários.
+                      Os robôs que atingem um desempenho excecional são promovidos para o <strong>Hall da Fama</strong>, uma aba dedicada no Deriv Trader que mostra um registo persistente dos seus analistas de IA mais lendários, com dados carregados diretamente do Firebase.
                     </p>
                 </div>
               </AccordionContent>
@@ -214,11 +214,15 @@ export default function HelpPage() {
                     </li>
                     <li>
                       <strong className="font-mono">src/services/council-strategies.ts</strong><br/>
-                      O Manual de Estratégias. Este ficheiro define localmente as regras, parâmetros e justificações para cada um dos 22 robôs analistas, eliminando a necessidade de uma chamada de IA para formar o conselho.
+                      O Manual de Estratégias. Este ficheiro define localmente as regras, parâmetros e justificações para cada um dos 22 robôs analistas, eliminando a necessidade de uma chamada de IA para formar o conselho, tornando o processo mais rápido e fiável.
+                    </li>
+                     <li>
+                      <strong className="font-mono">src/services/financial-data-service.ts</strong><br/>
+                      O serviço de persistência. Contém as funções para guardar e carregar o desempenho dos robôs no banco de dados Firebase Firestore, garantindo que o progresso da Arena e do Hall da Fama não se perca.
                     </li>
                     <li>
                       <strong className="font-mono">src/app/deriv-trader/page.tsx</strong><br/>
-                      A interface e o orquestrador. Esta página integra todos os hooks e componentes visuais, como o gráfico e o painel da Mesa Operacional, permitindo a interação do utilizador com o sistema.
+                      A interface e o orquestrador. Esta página integra todos os hooks e componentes visuais, como o gráfico e o painel da Arena Virtual, permitindo a interação do utilizador com o sistema.
                     </li>
                   </ul>
                 </AccordionContent>
