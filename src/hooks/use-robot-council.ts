@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -173,6 +172,7 @@ export function useRobotCouncil(
     const [baseDuration, setBaseDuration] = useState(5);
     const [consensusThreshold, setConsensusThreshold] = useState(300);
     const [isDynamicConsensusOn, setIsDynamicConsensusOn] = useState(true);
+    const [isDynamicRiskOn, setIsDynamicRiskOn] = useState(true); // NOVO ESTADO
     const [isMeritocracyOn, setIsMeritocracyOn] = useState(true);
 
     // Estados da Arena Virtual
@@ -354,29 +354,23 @@ export function useRobotCouncil(
             // ================== CONSENSO DINÂMICO (RELATIVO) ==================
             let effectiveThreshold;
             if (isDynamicConsensusOn) {
-                // 1. Calcular o potencial de voto total (apenas de quem não votou HOLD)
                 const totalPossibleConsensus = Object.values(currentVotes)
                     .filter(v => v.vote !== 'HOLD')
                     .reduce((sum, v) => sum + (v.confidence * v.weight), 0);
 
-                // 2. Definir a percentagem base necessária
-                let requiredPercentage = 0.60; // Base: precisa de 60% de convicção
+                let requiredPercentage = 0.60;
                 let analysisParts: string[] = [];
 
-                // 3. Ajustar a percentagem com base no risco do mercado
                 if (indicators.adx && indicators.adx < 20) {
-                     requiredPercentage += 0.15; // +15% se não há tendência
+                     requiredPercentage += 0.15;
                      analysisParts.push("mercado sem tendência");
                 }
-                if (indicators.bbw && indicators.bbw > 0.08) { // Mais sensível
-                    requiredPercentage += 0.20; // +20% para alta volatilidade
+                if (indicators.bbw && indicators.bbw > 0.08) {
+                    requiredPercentage += 0.20;
                     analysisParts.push("alta volatilidade");
                 }
                 
-                // Limitar a percentagem máxima
                 requiredPercentage = Math.min(requiredPercentage, 0.85);
-
-                // 4. Calcular o limiar final
                 effectiveThreshold = totalPossibleConsensus * requiredPercentage;
                 setConsensusThreshold(Math.round(effectiveThreshold));
 
@@ -402,27 +396,31 @@ export function useRobotCouncil(
             let durationAdjustment = 0;
             let analysisParts: string[] = [];
 
-            if (indicators.adx && indicators.adx < 20) {
-                riskFactor *= 0.75;
-                analysisParts.push("sem tendência (ADX baixo)");
-            }
-            if (indicators.bbw && indicators.bbw > 0.1) {
-                riskFactor *= 0.8;
-                durationAdjustment += 2;
-                analysisParts.push("alta volatilidade (BBW alto)");
-            }
-            const lastPrice = getPrice(priceTicks[priceTicks.length - 1]);
-            if (indicators.atr && lastPrice && (indicators.atr / lastPrice) > 0.00015) {
-                riskFactor *= 0.8;
-                durationAdjustment += 1;
-                analysisParts.push("ATR elevado");
-            }
-            
-            finalStake = baseStake * riskFactor;
-            finalDuration = baseDuration + durationAdjustment;
+            if (isDynamicRiskOn) { // NOVO: Só ajusta se a opção estiver ligada
+                if (indicators.adx && indicators.adx < 20) {
+                    riskFactor *= 0.75;
+                    analysisParts.push("sem tendência (ADX baixo)");
+                }
+                if (indicators.bbw && indicators.bbw > 0.1) {
+                    riskFactor *= 0.8;
+                    durationAdjustment += 2;
+                    analysisParts.push("alta volatilidade (BBW alto)");
+                }
+                const lastPrice = getPrice(priceTicks[priceTicks.length - 1]);
+                if (indicators.atr && lastPrice && (indicators.atr / lastPrice) > 0.00015) {
+                    riskFactor *= 0.8;
+                    durationAdjustment += 1;
+                    analysisParts.push("ATR elevado");
+                }
+                
+                finalStake = baseStake * riskFactor;
+                finalDuration = baseDuration + durationAdjustment;
 
-            if(analysisParts.length > 0) {
-                analysis = `Risco e/ou duração ajustados: ${analysisParts.join(', ')}.`;
+                if(analysisParts.length > 0) {
+                    analysis = `Risco e/ou duração ajustados: ${analysisParts.join(', ')}.`;
+                }
+            } else {
+                 analysis = 'Gestão de risco dinâmica desativada.';
             }
 
             // Aplicar restrições finais
@@ -439,7 +437,7 @@ export function useRobotCouncil(
                 finalDuration,
             };
         },
-        [form, dailyBalance, dailyTarget, priceTicks, isDynamicConsensusOn, consensusThreshold, baseStake, baseDuration]
+        [form, dailyBalance, dailyTarget, priceTicks, isDynamicConsensusOn, isDynamicRiskOn, consensusThreshold, baseStake, baseDuration]
     );
 
     // ========================================================================
@@ -650,7 +648,7 @@ export function useRobotCouncil(
         timePeriod,
         committeeOfSpecialists,
         user,
-        baseDuration // Adicionado como dependência
+        baseDuration
     ]);
 
     return {
@@ -673,6 +671,8 @@ export function useRobotCouncil(
         setConsensusThreshold,
         isDynamicConsensusOn,
         setIsDynamicConsensusOn,
+        isDynamicRiskOn,
+        setIsDynamicRiskOn,
         isMeritocracyOn,
         setIsMeritocracyOn,
         indicators,

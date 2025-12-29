@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState, Fragment } from "react";
@@ -85,6 +83,8 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
     setConsensusThreshold,
     isDynamicConsensusOn,
     setIsDynamicConsensusOn,
+    isDynamicRiskOn,
+    setIsDynamicRiskOn,
     isMeritocracyOn,
     setIsMeritocracyOn,
     indicators,
@@ -317,6 +317,10 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
             <div className="flex items-center justify-between">
                 <Label htmlFor="dynamic-consensus-switch" className="flex-1">Consenso Dinâmico</Label>
                 <Switch id="dynamic-consensus-switch" checked={isDynamicConsensusOn} onCheckedChange={setIsDynamicConsensusOn} disabled={isCouncilAutopilotOn} />
+            </div>
+             <div className="flex items-center justify-between">
+                <Label htmlFor="dynamic-risk-switch" className="flex-1">Gestão de Risco Dinâmica</Label>
+                <Switch id="dynamic-risk-switch" checked={isDynamicRiskOn} onCheckedChange={setIsDynamicRiskOn} disabled={isCouncilAutopilotOn} />
             </div>
         </div>
 
