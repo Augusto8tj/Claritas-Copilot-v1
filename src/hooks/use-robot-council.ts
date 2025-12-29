@@ -50,6 +50,8 @@ const getPrice = (d: ChartData | null): number | undefined => {
 const calculateRobotVote = (robot: RobotStrategy, indicators: Indicators): Pick<RobotVote, 'vote' | 'confidence'> => {
     let vote: RobotVote['vote'] = 'HOLD', confidence = 0;
 
+    if (!indicators) return { vote: 'HOLD', confidence: 0 };
+
     if (robot.strategyType === 'RSI' && indicators.rsi) {
         if (indicators.rsi <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
         if (indicators.rsi <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
@@ -248,14 +250,18 @@ export function useRobotCouncil(
     }, [form, dailyBalance, dailyTarget, chartData, timePeriod]);
 
 
-    // Effect to calculate indicators whenever chartData changes
+    // Effect to calculate indicators for the main council execution
     useEffect(() => {
-        if (chartData.length > 0) {
-            const calculatedIndicators = calculateAllIndicators(chartData, strategyCouncil, timePeriod);
-            setIndicators(calculatedIndicators);
-            setActiveCommittee(committeeOfSpecialists(calculatedIndicators, timePeriod));
-        }
-    }, [chartData, strategyCouncil, timePeriod, committeeOfSpecialists]);
+        if (!isCouncilAutopilotOn || chartData.length < 2 || strategyCouncil.length === 0) {
+            setIndicators(null);
+            return;
+        };
+
+        const calculatedIndicators = calculateAllIndicators(chartData, strategyCouncil, timePeriod);
+        setIndicators(calculatedIndicators);
+        setActiveCommittee(committeeOfSpecialists(calculatedIndicators, timePeriod));
+        
+    }, [chartData, strategyCouncil, timePeriod, committeeOfSpecialists, isCouncilAutopilotOn]);
 
 
     // Main council logic effect, triggered by new indicators
@@ -276,7 +282,7 @@ export function useRobotCouncil(
                 const perf = performanceMap.get(robot.id);
                 if (perf && (perf.wins + perf.losses) > 3) {
                      const winRate = perf.wins / (perf.wins + perf.losses);
-                     const pnlFactor = Math.tanh(perf.totalProfit / 50);
+                     const pnlFactor = Math.tanh(perf.totalProfit / 50); // Normalize profit impact
                      weight = 0.5 + (winRate * 0.75) + (pnlFactor * 0.25);
                 }
             }
@@ -319,9 +325,12 @@ export function useRobotCouncil(
     // --- VIRTUAL ARENA ENGINE ---
     // This effect is dedicated to the virtual arena simulation
     useEffect(() => {
-        if (!isCouncilAutopilotOn || priceTicks.length < 2 || strategyCouncil.length === 0 || !indicators) {
+        if (!isCouncilAutopilotOn || priceTicks.length < 2 || strategyCouncil.length === 0 || chartData.length < 2) {
             return;
         }
+
+        // We calculate indicators specifically for the arena engine here to ensure it's self-contained.
+        const arenaIndicators = calculateAllIndicators(chartData, strategyCouncil, timePeriod);
     
         const currentTickIndex = priceTicks.length - 1;
         const currentTick = priceTicks[currentTickIndex];
@@ -356,7 +365,7 @@ export function useRobotCouncil(
     
         // 2. Open new virtual trades based on the latest votes
         strategyCouncil.forEach(robot => {
-            const { vote } = calculateRobotVote(robot, indicators);
+            const { vote } = calculateRobotVote(robot, arenaIndicators);
             if (vote !== 'HOLD') {
                 remainingVirtualTrades.push({
                     robotId: robot.id,
@@ -378,7 +387,7 @@ export function useRobotCouncil(
             window.dispatchEvent(new Event('storage'));
         }
     
-    }, [priceTicks, isCouncilAutopilotOn, strategyCouncil, indicators, robotPerformance, form]);
+    }, [priceTicks, isCouncilAutopilotOn, strategyCouncil, chartData, timePeriod, robotPerformance, form]);
 
 
     return {
