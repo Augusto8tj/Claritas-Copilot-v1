@@ -7,6 +7,58 @@ import {
 } from "@/components/ui/accordion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+const ChangelogContent = () => (
+  <div className="prose prose-sm dark:prose-invert max-w-none text-base leading-relaxed space-y-4">
+    <style jsx>{`
+      .prose h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+      }
+      .prose h4 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-top: 1rem;
+        margin-bottom: 0.25rem;
+      }
+      .prose ul {
+        list-style-type: disc;
+        padding-left: 1.5rem;
+        margin-top: 0.5rem;
+      }
+      .prose hr {
+        margin: 1.5rem 0;
+      }
+    `}</style>
+    <h3>v1.0.0 (Atual) - A Ascensão da IA: Autonomia e Persistência</h3>
+    <h4>Funcionalidades Principais:</h4>
+    <ul>
+      <li><strong>Autonomia Total da Mesa:</strong> A Mesa Operacional agora ajusta dinamicamente não só o <strong>limiar de consenso</strong>, mas também o <strong>valor da aposta (`stake`)</strong> e a <strong>duração do contrato</strong> a cada tick. A IA analisa a volatilidade (ATR, Z-Score) e a força da tendência (ADX) para tomar decisões de risco em tempo real.</li>
+      <li><strong>Memória Persistente com Firebase:</strong> A Arena Virtual agora é "imortal". O desempenho de cada um dos 22 robôs (vitórias, derrotas, P&L) é guardado de forma segura no <strong>Firestore</strong>, associado à sua conta de utilizador. O progresso já não se perde ao fechar o navegador.</li>
+      <li><strong>Hall da Fama Integrado:</strong> O Hall da Fama foi movido da sua página isolada para um separador dedicado diretamente dentro da página <strong>Deriv Trader</strong>, centralizando todo o ecossistema de trading num único local. Ele busca os dados do Firebase, mostrando um placar de líderes persistente.</li>
+      <li><strong>Consenso Relativo e Inteligente:</strong> O limiar de consenso deixou de ser um número absoluto. Agora é calculado como uma <strong>percentagem do potencial de voto máximo</strong> disponível a cada momento, tornando-o verdadeiramente adaptativo à quantidade de robôs que têm uma opinião formada (`RISE` ou `FALL`).</li>
+      <li><strong>Estratégias Locais e Fim da Dependência da IA:</strong> O conselho de 22 robôs analistas já não é gerado por uma chamada de IA. As suas estratégias estão agora definidas localmente no ficheiro <code>src/services/council-strategies.ts</code>, tornando a inicialização da Mesa Operacional instantânea, fiável e consistente.</li>
+    </ul>
+    <h4>Correções Críticas:</h4>
+    <ul>
+      <li>Resolvido um erro crucial (`TypeError: Cannot read properties of null`) que impedia a execução de trades automáticas devido à falta de verificação dos indicadores.</li>
+      <li>Corrigida a lógica de votação do robô de Bandas de Bollinger, que estava inoperante e impedia a atividade na Arena.</li>
+      <li>Garantido que os ajustes dinâmicos de `stake` e `duration` respeitam os limites mínimos da corretora ($0.35 e 1-10 ticks) e que os valores corretos são usados na execução da ordem.</li>
+      <li>Corrigido um erro que tentava executar trades antes de a conexão com a API da corretora estar totalmente estabelecida.</li>
+    </ul>
+    <hr/>
+    <h3>v0.5.0 - A Arena Virtual e Meritocracia</h3>
+    <h4>Funcionalidades Principais:</h4>
+    <ul>
+      <li><strong>Criação da "Arena Virtual":</strong> Implementação de um sistema de "paper trading" competitivo em segundo plano. O sistema rastreia o desempenho individual de cada um dos 22 robôs analistas.</li>
+      <li><strong>Memória de Desempenho:</strong> Utilização do `localStorage` para guardar as vitórias, derrotas e o P&L (Lucro/Prejuízo) de cada robô durante a sessão de trading.</li>
+      <li><strong>Página "Mesa de Operações" (`/trading-desk`):</strong> Criação de um novo ecrã que funciona como um *leaderboard*, exibindo o ranking de desempenho de todos os analistas, incluindo taxa de acerto e resultado financeiro.</li>
+      <li><strong>Implementação da "Meritocracia":</strong> Adição de um modo de operação onde os robôs com melhor desempenho histórico têm os seus votos ponderados com mais força, tornando o sistema auto-otimizável e adaptativo.</li>
+      <li><strong>Navegação Atualizada:</strong> Adicionado um link no menu lateral para a nova página "Mesa de Operações".</li>
+    </ul>
+  </div>
+);
+
 export default function HelpPage() {
   return (
     <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
@@ -31,7 +83,7 @@ export default function HelpPage() {
               </AccordionTrigger>
               <AccordionContent className="text-base leading-relaxed space-y-2">
                 <p>O Claritas Copilot é seu assistente financeiro pessoal, projetado para ajudá-lo a ter uma visão clara de suas finanças. O acesso é protegido por <strong>autenticação via Firebase</strong>: crie uma conta ou faça login para acessar seus dados de forma segura em qualquer dispositivo. Você também pode gerenciar seu nome e foto na página de <strong>Perfil</strong>.</p>
-                 <p className="pt-2"><strong>Nota sobre os Dados:</strong> O módulo de finanças pessoais atualmente funciona com dados de demonstração (mock). O módulo de trading (Deriv Trader) conecta-se a dados reais ou de demonstração da corretora Deriv.</p>
+                 <p className="pt-2"><strong>Nota sobre os Dados:</strong> O módulo de finanças pessoais funciona com os seus dados reais, guardados de forma segura no Firebase. O módulo de trading (Deriv Trader) conecta-se a dados reais ou de demonstração da corretora Deriv.</p>
               </AccordionContent>
             </AccordionItem>
 
@@ -268,6 +320,14 @@ export default function HelpPage() {
                   <li>Dentro deste arquivo, adicione a seguinte linha, substituindo <code>"SUA_CHAVE_DE_API"</code> pela chave que você copiou: <br/><code>GEMINI_API_KEY="SUA_CHAVE_DE_API"</code></li>
                   <li>Salve o arquivo e reinicie o aplicativo para que as alterações tenham efeito.</li>
                 </ol>
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="item-14">
+              <AccordionTrigger className="text-lg font-semibold">
+                Histórico de Versões (Changelog)
+              </AccordionTrigger>
+              <AccordionContent>
+                 <ChangelogContent />
               </AccordionContent>
             </AccordionItem>
           </Accordion>

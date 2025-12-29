@@ -4,7 +4,7 @@ Este documento regista a jornada de desenvolvimento e as principais funcionalida
 
 ---
 
-### v0.6.0 (Atual) - A Ascensão da IA: Autonomia e Persistência
+### v1.0.0 (Atual) - A Ascensão da IA: Autonomia e Persistência
 
 **Funcionalidades Principais:**
 - **Autonomia Total da Mesa:** A Mesa Operacional agora ajusta dinamicamente não só o **limiar de consenso**, mas também o **valor da aposta (`stake`)** e a **duração do contrato** a cada tick. A IA analisa a volatilidade (ATR, Z-Score) e a força da tendência (ADX) para tomar decisões de risco em tempo real.
