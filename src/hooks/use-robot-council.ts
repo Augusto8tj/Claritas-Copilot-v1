@@ -278,7 +278,7 @@ export function useRobotCouncil(
         });
         virtualArenaTradesRef.current = stillActiveVirtualTrades;
 
-        // --- 3. VOTAÇÃO DO CONSELHO E CRIAÇÃO DE TRADES VIRTUAIS ---
+        // --- 3. VOTAÇÃO DO CONSELHO E REGISTO PRAGMÁTICO NA ARENA ---
         let riseConfidenceSum = 0;
         let fallConfidenceSum = 0;
         const newVotes: CouncilVotes = {};
