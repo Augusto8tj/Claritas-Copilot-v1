@@ -187,7 +187,7 @@ export default function DerivTraderPage() {
   const form = useForm<RiseFallFormValues>({
     resolver: zodResolver(riseFallSchema),
     defaultValues: {
-      stake: 10,
+      stake: 1,
       duration: 5,
       duration_unit: "t",
       allowEquals: false,

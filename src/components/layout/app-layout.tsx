@@ -22,7 +22,6 @@ import {
   Trophy,
   PanelLeftClose,
   PanelRightClose,
-  LayoutGrid, // Novo ícone
 } from "lucide-react";
 import {
   Sidebar,

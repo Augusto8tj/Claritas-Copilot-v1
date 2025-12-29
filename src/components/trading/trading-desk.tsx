@@ -157,7 +157,7 @@ export function TradingDesk({ isMeritocracyOn, setIsMeritocracyOn, isCouncilAuto
                              Arena Virtual: Painel de Desempenho
                         </CardTitle>
                         <CardDescription>
-                            O placar da Arena Virtual. Cada voto é julgado, e o desempenho alimenta o modo Meritocracia.
+                            O placar da Arena Virtual. Cada robô compete continuamente, e o seu desempenho alimenta o modo Meritocracia.
                         </CardDescription>
                     </div>
                      <div className="flex items-center space-x-2 rounded-lg border p-3 shadow-sm shrink-0">
@@ -171,7 +171,7 @@ export function TradingDesk({ isMeritocracyOn, setIsMeritocracyOn, isCouncilAuto
                             id="meritocracy-switch-desk" 
                             checked={isMeritocracyOn}
                             onCheckedChange={setIsMeritocracyOn}
-                            disabled={isCouncilAutopilotOn}
+                            disabled={!isCouncilAutopilotOn}
                         />
                     </div>
                 </div>
@@ -188,7 +188,7 @@ export function TradingDesk({ isMeritocracyOn, setIsMeritocracyOn, isCouncilAuto
                             <TableHead>Parâmetros</TableHead>
                             <TableHead className="text-center">Trades</TableHead>
                             <TableHead className="text-center">Taxa de Acerto</TableHead>
-                            <TableHead className="text-right">Resultado (USD)</TableHead>
+                            <TableHead className="text-right">Resultado (Virtual)</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -234,7 +234,7 @@ export function TradingDesk({ isMeritocracyOn, setIsMeritocracyOn, isCouncilAuto
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={5} className="text-center h-24">
-                                    Nenhum desempenho registrado para esta sessão. Ative a Mesa Operacional.
+                                    Nenhum desempenho registrado. Ative a Mesa Operacional para iniciar a simulação.
                                 </TableCell>
                             </TableRow>
                         )}
