@@ -14,7 +14,6 @@ import type { RobotPerformance } from './operations-log.types';
 import { Label } from '../ui/label';
 import { Switch } from '../ui/switch';
 import { Separator } from '../ui/separator';
-import type { Indicators } from '@/services/indicator-service';
 
 const ROBOT_PERFORMANCE_KEY = 'derivRobotPerformance';
 
@@ -22,7 +21,7 @@ interface TradingDeskProps {
     isMeritocracyOn: boolean;
     setIsMeritocracyOn: (isOn: boolean) => void;
     isCouncilAutopilotOn: boolean;
-    indicators: Indicators | null;
+    robotPerformance: RobotPerformance[];
 }
 
 const indicatorIcons: { [key: string]: React.ReactNode } = {
@@ -93,80 +92,22 @@ function renderStrategyParams(robot: RobotStrategy) {
     }
 }
 
-function renderIndicatorValue(robot: RobotStrategy, indicators: Indicators | null) {
-    if (!indicators) return '...';
-    
-    const format = (val: number | null | undefined, prec = 2) => val?.toFixed(prec) ?? "...";
-    const format4 = (val: number | null | undefined) => format(val, 4);
-
-    switch (robot.strategyType) {
-        case 'RSI': return format(indicators.rsi);
-        case 'STOCHASTIC': return format(indicators.stoch);
-        case 'STOCH_RSI': return format(indicators.stochRSI, 3);
-        case 'MACD_CROSS': return `H: ${format(indicators.macd.histogram)}`;
-        case 'MOVING_AVERAGE_CROSS': return `C: ${format(indicators.ma.short)} / L: ${format(indicators.ma.long)}`;
-        case 'ADX_TREND': return `ADX: ${format(indicators.adx)}`;
-        case 'BOLLINGER_BANDS': return `BBW: ${format(indicators.bbw)}%`;
-        case 'AWESOME_OSCILLATOR': return format(indicators.awesomeOscillator);
-        case 'VWAP': return indicators.vwap.length > 0 ? format4(indicators.vwap[indicators.vwap.length - 1]) : '...';
-        case 'KAMA': return format4(indicators.kama);
-        case 'Z_SCORE': return format(indicators.zScore);
-        case 'TRIX': return `${format(indicators.trix)}%`;
-        case 'ROC': return `${format(indicators.roc)}%`;
-        case 'MFI': return format(indicators.mfi);
-        case 'OBV': return format(indicators.obv, 0);
-        case 'RVI': return format(indicators.rvi);
-        case 'PARABOLIC_SAR': return format4(indicators.parabolicSAR);
-        case 'CHANDELIER_EXIT': return format4(indicators.chandelierExit);
-        case 'ICHIMOKU_CLOUD': return `A:${format4(indicators.ichimoku?.senkouA)}/B:${format4(indicators.ichimoku?.senkouB)}`;
-        case 'PRICE_ACTION_PATTERN': return 'N/A'; // Patterns don't have a single value
-        case 'DONCHIAN_CHANNELS': return `Sup: ${format4(indicators.donchianChannels[indicators.donchianChannels.length -1]?.lower)}`;
-        default: return '...';
-    }
-}
-
-export function TradingDesk({ isMeritocracyOn, setIsMeritocracyOn, isCouncilAutopilotOn, indicators }: TradingDeskProps) {
-    const [performance, setPerformance] = useState<RobotPerformance[]>([]);
-    const [loading, setLoading] = useState(true);
+export function TradingDesk({ isMeritocracyOn, setIsMeritocracyOn, isCouncilAutopilotOn, robotPerformance }: TradingDeskProps) {
     const { toast } = useToast();
 
-    useEffect(() => {
-        const loadPerformance = () => {
-            try {
-                const storedPerformance = localStorage.getItem(ROBOT_PERFORMANCE_KEY);
-                if (storedPerformance) {
-                    const performanceData: RobotPerformance[] = JSON.parse(storedPerformance);
-                    // Classificar por número de vitórias (acertos)
-                    performanceData.sort((a, b) => b.wins - a.wins);
-                    setPerformance(performanceData);
-                }
-            } catch (error) {
-                console.error("Failed to load performance from localStorage", error);
-            }
-            setLoading(false);
-        };
-        loadPerformance();
-
-        const handleStorageChange = (e: StorageEvent) => {
-            if (e.key === ROBOT_PERFORMANCE_KEY) {
-                loadPerformance();
-            }
-        };
-
-        window.addEventListener('storage', handleStorageChange);
-
-        return () => {
-            window.removeEventListener('storage', handleStorageChange);
-        }
-    }, []);
+    // The robotPerformance prop now directly comes from the parent hook, ensuring it's always up-to-date.
+    const sortedPerformance = [...robotPerformance].sort((a, b) => (b.wins || 0) - (a.wins || 0));
 
     const resetPerformance = () => {
         try {
             localStorage.removeItem(ROBOT_PERFORMANCE_KEY);
-            setPerformance([]);
+            // This is tricky because the parent owns the state. A better way would be to call a function passed via props.
+            // For now, we rely on the parent to re-initialize it when the council is formed.
+            // A page reload might be the simplest way to reflect this reset if not.
+            window.location.reload(); 
             toast({
                 title: "Desempenho Resetado",
-                description: "O histórico de desempenho da sessão atual foi limpo.",
+                description: "O histórico da arena foi limpo. A página será recarregada.",
             });
         } catch (error) {
             toast({
@@ -176,10 +117,6 @@ export function TradingDesk({ isMeritocracyOn, setIsMeritocracyOn, isCouncilAuto
             });
         }
     };
-
-    if (loading) {
-        return <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">Carregando...</div>;
-    }
 
     return (
         <Card>
@@ -220,17 +157,16 @@ export function TradingDesk({ isMeritocracyOn, setIsMeritocracyOn, isCouncilAuto
                         <TableRow>
                             <TableHead>Estratégia</TableHead>
                             <TableHead>Parâmetros</TableHead>
-                            <TableHead>Indicador (Valor Atual)</TableHead>
                             <TableHead className="text-center">Trades (V/D)</TableHead>
                             <TableHead className="text-center">Taxa de Acerto</TableHead>
                             <TableHead className="text-right">Resultado (USD)</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {performance.length > 0 ? (
-                            performance.map((robot) => {
-                                const totalTrades = robot.wins + robot.losses;
-                                const winRate = totalTrades > 0 ? (robot.wins / totalTrades) * 100 : 0;
+                        {sortedPerformance.length > 0 ? (
+                            sortedPerformance.map((robot) => {
+                                const totalTrades = (robot.wins || 0) + (robot.losses || 0);
+                                const winRate = totalTrades > 0 ? ((robot.wins || 0) / totalTrades) * 100 : 0;
                                 return (
                                     <TableRow key={robot.id}>
                                         <TableCell className="font-medium">
@@ -240,12 +176,11 @@ export function TradingDesk({ isMeritocracyOn, setIsMeritocracyOn, isCouncilAuto
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-sm text-muted-foreground">{renderStrategyParams(robot.strategy)}</TableCell>
-                                        <TableCell className="font-mono text-xs">{renderIndicatorValue(robot.strategy, indicators)}</TableCell>
                                         <TableCell className="text-center">
                                             <div className="flex items-center justify-center gap-2">
-                                                <span className="flex items-center gap-1 text-green-600"><CheckCircle className="h-4 w-4"/>{robot.wins}</span>
+                                                <span className="flex items-center gap-1 text-green-600"><CheckCircle className="h-4 w-4"/>{robot.wins || 0}</span>
                                                 <span>/</span>
-                                                <span className="flex items-center gap-1 text-red-600">{robot.losses}<XCircle className="h-4 w-4"/></span>
+                                                <span className="flex items-center gap-1 text-red-600">{robot.losses || 0}<XCircle className="h-4 w-4"/></span>
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-center">
@@ -260,16 +195,16 @@ export function TradingDesk({ isMeritocracyOn, setIsMeritocracyOn, isCouncilAuto
                                         </TableCell>
                                         <TableCell className={cn(
                                             "text-right font-bold",
-                                            robot.totalProfit > 0 ? "text-green-600" : "text-red-600"
+                                            (robot.totalProfit || 0) > 0 ? "text-green-600" : (robot.totalProfit || 0) < 0 ? "text-red-600" : "text-muted-foreground"
                                         )}>
-                                            {robot.totalProfit.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+                                            {(robot.totalProfit || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
                                         </TableCell>
                                     </TableRow>
                                 );
                             })
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center h-24">
+                                <TableCell colSpan={5} className="text-center h-24">
                                     Nenhum desempenho registrado. Ative a Mesa Operacional para iniciar a simulação.
                                 </TableCell>
                             </TableRow>
