@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -269,7 +268,7 @@ export function useRobotCouncil(
         // --- 2. Process Arena: Judge Closed Trades ---
         const performanceMap = new Map(robotPerformance.map(p => [p.id, { ...p }]));
         let performanceChanged = false;
-        const remainingVirtualTrades: VirtualTrade[] = [];
+        const stillActiveVirtualTrades: VirtualTrade[] = [];
         
         virtualArenaTradesRef.current.forEach(trade => {
             if (currentTickIndex >= trade.entryTickIndex + trade.durationTicks) {
@@ -288,7 +287,7 @@ export function useRobotCouncil(
                     }
                 }
             } else {
-                remainingVirtualTrades.push(trade);
+                stillActiveVirtualTrades.push(trade);
             }
         });
 
@@ -302,7 +301,7 @@ export function useRobotCouncil(
             
             // a. Arena Logic: If vote is decisive, register a new virtual trade
             if (vote !== 'HOLD') {
-                remainingVirtualTrades.push({
+                stillActiveVirtualTrades.push({
                     robotId: robot.id,
                     vote: vote,
                     entryPrice: currentTick.price,
@@ -329,7 +328,7 @@ export function useRobotCouncil(
         });
 
         // --- 4. Update all states ---
-        virtualArenaTradesRef.current = remainingVirtualTrades;
+        virtualArenaTradesRef.current = stillActiveVirtualTrades;
         if (performanceChanged) {
             const updatedPerformanceArray = Array.from(performanceMap.values());
             setRobotPerformance(updatedPerformanceArray);
