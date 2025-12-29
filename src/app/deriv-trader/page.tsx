@@ -24,6 +24,7 @@ import { SystemStatusSummary } from "@/components/trading/system-status-summary"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AITradeSuggestion } from "@/components/trading/ai-trade-suggestion";
 import { IndicatorPanel } from "@/components/trading/indicator-panel";
+import { VirtualArenaCard } from "@/components/trading/virtual-arena-card";
 
 
 /**
@@ -98,6 +99,12 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                           activeCommittee={robotCouncil.activeCommittee}
                           isAutopilotOn={robotCouncil.isCouncilAutopilotOn}
                         />
+                         <VirtualArenaCard 
+                            isMeritocracyOn={robotCouncil.isMeritocracyOn}
+                            setIsMeritocracyOn={robotCouncil.setIsMeritocracyOn}
+                            isCouncilAutopilotOn={robotCouncil.isCouncilAutopilotOn}
+                            robotPerformance={robotCouncil.robotPerformance}
+                         />
                         <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
                         <OperationsLog operations={operationsLog} />
                     </div>
@@ -126,6 +133,12 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                       supervisionStatus={robotCouncil.supervisionStatus}
                       activeCommittee={robotCouncil.activeCommittee}
                       isAutopilotOn={robotCouncil.isCouncilAutopilotOn}
+                    />
+                    <VirtualArenaCard 
+                        isMeritocracyOn={robotCouncil.isMeritocracyOn}
+                        setIsMeritocracyOn={robotCouncil.setIsMeritocracyOn}
+                        isCouncilAutopilotOn={robotCouncil.isCouncilAutopilotOn}
+                        robotPerformance={robotCouncil.robotPerformance}
                     />
                 </TabsContent>
 

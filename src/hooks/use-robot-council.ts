@@ -10,7 +10,7 @@ import { useFormContext } from 'react-hook-form';
 import type { Indicators } from '@/services/indicator-service';
 import { calculateAllIndicators } from '@/services/indicator-service';
 import type { ChartData } from './types';
-import type { Operation } from '@/components/trading/operations-log.types';
+import type { Operation, RobotPerformance } from '@/components/trading/operations-log.types';
 import { initialCouncilStrategies } from '@/services/council-strategies';
 
 
@@ -29,14 +29,6 @@ export type ManualPromptBatch = {
 };
 
 const ROBOT_PERFORMANCE_KEY = 'derivRobotPerformance';
-export interface RobotPerformance {
-    id: string;
-    strategyType: RobotStrategy['strategyType'];
-    strategy: RobotStrategy;
-    wins: number;
-    losses: number;
-    totalProfit: number;
-}
 
 
 export function useRobotCouncil(
@@ -82,44 +74,50 @@ export function useRobotCouncil(
     }, []);
 
     const updateRobotPerformance = useCallback((operation: Operation) => {
-        if (operation.initiator !== 'Conselho') return;
+        if (operation.initiator !== 'Conselho' || !operation.entryPrice || !operation.exitPrice) return;
         
-        const contributingRobots = Object.entries(councilVotes)
-            .filter(([_, voteData]) => voteData.vote === operation.direction.toUpperCase())
-            .map(([robotId, _]) => robotId);
+        let updatedPerformance: RobotPerformance[] = robotPerformance.length > 0 ? [...robotPerformance] : [];
 
-        if (contributingRobots.length === 0) return;
+        strategyCouncil.forEach(robot => {
+            const voteData = councilVotes[robot.id];
+            if (!voteData || voteData.vote === 'HOLD') return;
 
-        let updatedPerformance = [...robotPerformance];
+            const isWin = (voteData.vote === 'RISE' && operation.exitPrice! > operation.entryPrice!) || 
+                          (voteData.vote === 'FALL' && operation.exitPrice! < operation.entryPrice!);
+            
+            const virtualPnl = isWin ? (operation.stake * 0.92) : -operation.stake;
 
-        contributingRobots.forEach(robotId => {
-            const robotStrategy = strategyCouncil.find(s => s.id === robotId);
-            if (!robotStrategy) return;
-
-            let perf = updatedPerformance.find(p => p.id === robotId);
+            let perf = updatedPerformance.find(p => p.id === robot.id);
             if (!perf) {
-                perf = { id: robotId, strategy: robotStrategy, strategyType: robotStrategy.strategyType, wins: 0, losses: 0, totalProfit: 0 };
+                perf = { id: robot.id, strategy: robot, strategyType: robot.strategyType, wins: 0, losses: 0, totalProfit: 0 };
                 updatedPerformance.push(perf);
             }
 
-            if (operation.status === 'won') {
+            if (isWin) {
                 perf.wins++;
             } else {
                 perf.losses++;
             }
-            perf.totalProfit += operation.result || 0;
+            perf.totalProfit += virtualPnl;
         });
 
-        localStorage.setItem(ROBOT_PERFORMANCE_KEY, JSON.stringify(updatedPerformance));
         setRobotPerformance(updatedPerformance);
+        localStorage.setItem(ROBOT_PERFORMANCE_KEY, JSON.stringify(updatedPerformance));
 
     }, [councilVotes, robotPerformance, strategyCouncil]);
 
      useEffect(() => {
         const lastOp = operationsLog[0];
         if (lastOp && lastOp.status !== 'pending' && lastOp.initiator === 'Conselho') {
-            const alreadyProcessed = robotPerformance.some(p => p.totalProfit !== 0); 
-            if(!alreadyProcessed || operationsLog.length > robotPerformance.reduce((acc, p) => acc + p.wins + p.losses, 0)) {
+            const processedOperations = new Set(robotPerformance.map(p => p.id + (p.wins + p.losses))); 
+            const opIdentifier = lastOp.id.toString() + lastOp.status;
+            
+            const alreadyProcessedInState = robotPerformance.some(p => {
+                const totalTrades = p.wins + p.losses;
+                return totalTrades > 0 && lastOp.stake === p.strategy.suggestedStake; // Simplistic check
+            });
+
+            if (!alreadyProcessedInState) { 
                updateRobotPerformance(lastOp);
             }
         }
@@ -133,15 +131,13 @@ export function useRobotCouncil(
         }
         setIsFetchingCouncil(true);
         
-        // Simula uma pequena latência para feedback do usuário
         await new Promise(resolve => setTimeout(resolve, 500));
 
-        // A lógica de construção agora é local, usando uma configuração pré-definida
         const durationUnit = form.getValues('duration_unit');
         const council = initialCouncilStrategies.map(strategy => ({
             ...strategy,
-            suggestedStake: Math.max(0.35, dailyBalance * 0.01), // 1% da banca
-            suggestedDuration: 5, // Duração padrão de 5 ticks para HFT
+            suggestedStake: Math.max(0.35, dailyBalance * 0.01),
+            suggestedDuration: 5, 
             suggestedDurationUnit: durationUnit,
             justification: strategy.justification.replace('{{timePeriod}}', timePeriod)
         }));
@@ -172,7 +168,6 @@ export function useRobotCouncil(
              return "Comité Geral Intraday";
         }
     
-        // HFT / Scalping
         if (indicators.stoch && (indicators.stoch < 20 || indicators.stoch > 80)) return "Especialistas em Reversão Rápida";
         if (indicators.bbw > 0.1) return "Jogadores de Volatilidade";
         return "Equipa de Scalping Padrão";
@@ -191,7 +186,6 @@ export function useRobotCouncil(
         let finalStake = stake;
         let finalDuration = duration;
 
-        // Rule 1: P&L Management (Hard Veto)
         if (dailyPnl <= -dailyBalance) {
             setIsCouncilAutopilotOn(false);
             return { status: 'veto', message: 'VETO: Limite de perda diário atingido.', finalStake, finalDuration };
@@ -206,25 +200,22 @@ export function useRobotCouncil(
             return { status: 'inactive', message: 'Aguardando consenso tático.', finalStake, finalDuration };
         }
 
-        // Rule 2: Risk Adjustment
         let analysis = "Risco padrão.";
         const direction = riseSum > fallSum ? 'RISE' : 'FALL';
         
-        // Em HFT, o ajuste é rápido e brutal.
         const isHFT = timePeriod.includes('t') || timePeriod.endsWith('s') || parseInt(timePeriod) <= 5;
         
         if (isHFT) {
-            // Se operamos reversão (Stoch extremo), mas VWAP está longe, reduzimos o risco.
             if (indicators.stoch && ((direction === 'RISE' && indicators.stoch < 20) || (direction === 'FALL' && indicators.stoch > 80))) {
                 analysis = "Setup de reversão de HFT detetado."
                 const currentPrice = chartData[chartData.length - 1]?.close;
                 const vwap = indicators.vwap?.[indicators.vwap.length -1];
-                if (currentPrice && vwap && Math.abs(currentPrice - vwap) / vwap > 0.0005) { // 0.05% de distância
+                if (currentPrice && vwap && Math.abs(currentPrice - vwap) / vwap > 0.0005) {
                     finalStake *= 0.7;
                     analysis += " Risco reduzido: operando longe da VWAP."
                 }
             }
-        } else { // Para períodos mais longos
+        } else { 
             if (indicators.adx && indicators.adx < 20) {
                 finalStake *= 0.75;
                 analysis = "Risco reduzido: mercado sem tendência clara (ADX baixo).";
@@ -249,7 +240,6 @@ export function useRobotCouncil(
         }
     }, [strategyCouncil, timePeriod, committeeOfSpecialists]);
     
-    // Recalculate indicators whenever chartData changes
     useEffect(() => {
         if(chartData.length > 0) {
            processNewChartData(chartData);
@@ -272,11 +262,11 @@ export function useRobotCouncil(
                 const perf = robotPerformance.find(p => p.id === robot.id);
                 if (perf && (perf.wins + perf.losses) > 3) {
                      const winRate = perf.wins / (perf.wins + perf.losses);
-                     weight = 0.75 + winRate; 
+                     const pnlFactor = Math.tanh(perf.totalProfit / 50); // Scale PnL
+                     weight = 0.5 + (winRate * 0.75) + (pnlFactor * 0.25);
                 }
             }
             
-            // Lógica de Voto Simplificada (Exemplos)
             if (robot.strategyType === 'RSI' && indicators.rsi) {
                 if (indicators.rsi <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
                 if (indicators.rsi <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
@@ -357,5 +347,6 @@ export function useRobotCouncil(
         supervisionStatus,
         consensusSum,
         consensusDecision,
+        robotPerformance,
     };
 }
