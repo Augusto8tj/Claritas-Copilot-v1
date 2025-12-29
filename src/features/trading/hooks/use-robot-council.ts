@@ -1,15 +1,13 @@
-// /src/features/trading/hooks/use-robot-council.ts
+// src/features/trading/hooks/use-robot-council.ts
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDerivApi } from './use-deriv-api';
 import { useToast } from '@/hooks/use-toast';
-import type { RobotStrategy } from '@/lib/types';
-import type { RiseFallFormValues } from '@/features/trading/components/deriv-trader-interface.types';
+import type { RobotStrategy, ChartData, TickData, CandleData, RiseFallFormValues } from '@/lib/types';
 import { useFormContext } from 'react-hook-form';
 import type { Indicators } from '@/features/trading/services/indicator-service';
 import { calculateAllIndicators } from '@/features/trading/services/indicator-service';
-import type { ChartData, TickData, CandleData } from '@/lib/types';
 import { initialCouncilStrategies } from '@/features/trading/services/council-strategies';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import { saveRobotPerformance, loadRobotPerformance } from '@/features/financials/services/financial-data-service';
@@ -136,11 +134,11 @@ const calculateRobotVote = (
     }
     
     // STOCH_RSI
-    if (robot.strategyType === 'STOCH_RSI' && isValid(indicators.stochRsi)) {
-        if (indicators.stochRsi! <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
-        if (indicators.stochRsi! <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
-        if (indicators.stochRsi! >= robot.weakSellThreshold!) { vote = 'FALL'; confidence = robot.weakConfidence; }
-        if (indicators.stochRsi! >= robot.strongSellThreshold!) { vote = 'FALL'; confidence = robot.strongConfidence; }
+    if (robot.strategyType === 'STOCH_RSI' && isValid(indicators.stochRSI)) {
+        if (indicators.stochRSI! <= robot.weakBuyThreshold!) { vote = 'RISE'; confidence = robot.weakConfidence; }
+        if (indicators.stochRSI! <= robot.strongBuyThreshold!) { vote = 'RISE'; confidence = robot.strongConfidence; }
+        if (indicators.stochRSI! >= robot.weakSellThreshold!) { vote = 'FALL'; confidence = robot.weakConfidence; }
+        if (indicators.stochRSI! >= robot.strongSellThreshold!) { vote = 'FALL'; confidence = robot.strongConfidence; }
     }
 
     return { vote, confidence };

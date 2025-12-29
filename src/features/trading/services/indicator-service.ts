@@ -22,7 +22,6 @@ export interface Indicators {
     ema: (number | null)[];
     vwap: (number | null)[];
     
-    // ✅ CORRIGIDO: Adicionar propriedade 'bb' para acesso direto ao último valor
     bb: { upper: number | null; middle: number | null; lower: number | null };
     bollingerBands: ({ upper: number; middle: number; lower: number } | null)[];
     
@@ -279,7 +278,6 @@ const calculateParabolicSAR = (data: CandleData[], af = 0.02, maxAf = 0.2): (num
     return sar;
 };
 
-// ✅ NOVA FUNÇÃO: Calcular Bollinger Bands corretamente
 const calculateBollingerBands = (
     data: CandleData[], 
     period = 20, 
@@ -318,7 +316,7 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
         macd: { macd: null, signal: null, histogram: null }, 
         ma: { short: null, long: null },
         sma: [], ema: [], vwap: [], 
-        bb: { upper: null, middle: null, lower: null }, // ✅ ADICIONADO
+        bb: { upper: null, middle: null, lower: null },
         bollingerBands: [], 
         donchianChannels: [],
         kama: null, bbw: null, stochRSI: null, zScore: null,
@@ -380,12 +378,9 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
         long: indicators.sma.length > 0 ? indicators.sma[indicators.sma.length - 1] : null,
     };
     
-    // ✅ CORRIGIDO: Usar calculateBollingerBands em vez de donchian
     const bbPeriod = getParam('BOLLINGER_BANDS', 'period', 20);
     const bbStdDev = getParam('BOLLINGER_BANDS', 'stdDev', 2);
     indicators.bollingerBands = calculateBollingerBands(candles, bbPeriod, bbStdDev);
-    
-    // ✅ NOVO: Adicionar acesso direto ao último valor
     const lastBB = indicators.bollingerBands[indicators.bollingerBands.length - 1];
     indicators.bb = lastBB || { upper: null, middle: null, lower: null };
 
