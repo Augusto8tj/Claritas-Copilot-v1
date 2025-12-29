@@ -22,46 +22,11 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock user data to bypass Firebase Auth for testing if needed
-const useMockUser = true; // process.env.NEXT_PUBLIC_USE_MOCK_AUTH === 'true';
-
-const mockUser: User = {
-  uid: "master-key-user-001",
-  displayName: "Superusuário",
-  email: "master@claritas.dev",
-  photoURL: "https://placehold.co/100x100.png",
-  emailVerified: true,
-  isAnonymous: false,
-  metadata: {},
-  providerData: [],
-  providerId: "password",
-  refreshToken: "mock-token",
-  tenantId: null,
-  delete: async () => undefined,
-  getIdToken: async () => "mock-id-token",
-  getIdTokenResult: async () => ({
-    token: "mock-id-token",
-    expirationTime: new Date().toISOString(),
-    authTime: new Date().toISOString(),
-    issuedAtTime: new Date().toISOString(),
-    signInProvider: null,
-    signInSecondFactor: null,
-    claims: {},
-  }),
-  reload: async () => undefined,
-  toJSON: () => ({}),
-};
-
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(useMockUser ? mockUser : null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (useMockUser) {
-        setLoading(false);
-    }
-    
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
