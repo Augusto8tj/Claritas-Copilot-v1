@@ -77,7 +77,7 @@ export function AITradeSuggestion({
             Consenso da Mesa Operacional
         </CardTitle>
         <CardDescription>
-          Análise em tempo real do conselho de 22 robôs analistas.
+          Análise em tempo real do conselho de 22 robôs-analistas.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

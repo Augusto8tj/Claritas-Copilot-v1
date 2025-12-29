@@ -233,7 +233,7 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
             </Badge>
         </div>
         <CardDescription>
-          Controle a orquestra de analistas e a execução automática de operações.
+          Controle a orquestra de robôs-analistas e a execução automática de operações.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -292,7 +292,7 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
                     placeholder="Ex: 1"
                     disabled={isCouncilAutopilotOn}
                 />
-                <p className="text-xs text-muted-foreground">Valor inicial para a IA ajustar.</p>
+                <p className="text-xs text-muted-foreground">Valor inicial para os cálculos de risco.</p>
             </div>
             <div className="space-y-2">
                 <Label htmlFor="council-base-duration">Duração Base (Ticks)</Label>
@@ -307,7 +307,7 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
                     placeholder="Ex: 5"
                     disabled={isCouncilAutopilotOn}
                 />
-                <p className="text-xs text-muted-foreground">Duração inicial para a IA ajustar.</p>
+                <p className="text-xs text-muted-foreground">Duração inicial para os cálculos de risco.</p>
             </div>
         </div>
         

@@ -1,27 +1,10 @@
-
-
 'use server';
 
-import { getAssetAnalysis } from '@/ai/flows/asset-analysis-flow';
-import { AssetAnalysisInputSchema, type AssetAnalysisInput, type AssetAnalysisOutput } from '@/ai/flows/asset-analysis-flow.types';
+// Este ficheiro foi esvaziado porque as ações relacionadas com a IA de trading
+// (getStrategyCouncil, analyzeTradeLoss, getAutotraderStrategy) foram descontinuadas.
+// A lógica do conselho de robôs e da análise de risco agora é tratada localmente
+// no hook `use-robot-council.ts` e seus serviços dependentes.
+// Manter o ficheiro vazio evita erros de importação em locais que ainda não foram limpos.
 
-
-// The getStrategyCouncilAction has been removed as the council generation is now local and synchronous.
-// The analyzeTradeLossAction and getAutotraderStrategyAction have been removed as the old autopilot system is obsolete.
-
-
-export async function getAssetAnalysisAction(input: AssetAnalysisInput): Promise<{ success?: AssetAnalysisOutput; error?: string }> {
-    const validatedInput = AssetAnalysisInputSchema.safeParse(input);
-    if (!validatedInput.success) {
-        console.error("[Action Validation Error] Invalid input for getAssetAnalysisAction:", validatedInput.error.format());
-        return { error: `Dados de entrada inválidos: ${validatedInput.error.message}` };
-    }
-
-    try {
-        const result = await getAssetAnalysis(validatedInput.data);
-        return { success: result };
-    } catch (e: any) {
-        console.error("[Action] Erro ao obter análise de ativo:", e);
-        return { error: e.message || "Ocorreu um erro inesperado ao analisar o ativo." };
-    }
-}
+// A única ação restante (getAssetAnalysisAction) foi movida para um ficheiro mais específico se necessário,
+// ou pode ser reavaliada. Por agora, removemos todo o conteúdo para refletir a nova arquitetura.

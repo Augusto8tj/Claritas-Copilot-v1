@@ -146,28 +146,26 @@ export default function HelpPage() {
             
             <AccordionItem value="item-10">
               <AccordionTrigger className="text-lg font-semibold">
-                Deriv Trader: Gráfico e Copiloto de IA
+                Deriv Trader: A Interface de Trading
               </AccordionTrigger>
               <AccordionContent className="text-base leading-relaxed space-y-2">
-                 <p>A página <strong>Deriv Trader</strong> é um ambiente de negociação integrado que transforma o Claritas num copiloto financeiro avançado. As funcionalidades foram recentemente evoluídas para um nível profissional de estabilidade e performance.</p>
+                 <p>A página <strong>Deriv Trader</strong> é um ambiente de negociação integrado que transforma o Claritas num copiloto financeiro avançado, operando com uma arquitetura de alta performance.</p>
                  <ol className="list-decimal pl-6 space-y-3">
                     <li>
-                      <strong>Motor de Indicadores Centralizado:</strong> O coração do nosso sistema de trading é um motor que calcula, em tempo real, um conjunto completo de <strong>22 categorias de indicadores técnicos</strong>. Este motor alimenta tanto o gráfico que você vê quanto a lógica de decisão do Conselho de Robôs, garantindo consistência total dos dados. Os indicadores incluem RSI, Estocástico, MACD, Médias Móveis (SMA/EMA), Bandas de Bollinger, VWAP, ADX, Nuvem Ichimoku, e mais.
+                      <strong>Motor de Indicadores Centralizado:</strong> O coração do nosso sistema de trading é um motor que calcula, em tempo real, um conjunto completo de <strong>22 categorias de indicadores técnicos</strong> (RSI, Estocástico, MACD, etc.). Este motor alimenta tanto o gráfico que você vê quanto a lógica de decisão do Conselho de Robôs, garantindo consistência total dos dados.
                     </li>
                     <li>
                       <strong>Gráfico de Trading Avançado (SVG):</strong>
                       <ul className="list-disc pl-6 mt-2 space-y-2">
-                          <li><strong>Estabilidade e Responsividade:</strong> O gráfico agora é renderizado com tecnologia SVG, eliminando completamente os problemas de "quebra" ou desalinhamento das velas. Ele é 100% estável e responsivo, adaptando-se a qualquer tamanho de ecrã.</li>
-                          <li><strong>Indicadores Controláveis:</strong> Através do botão "Indicadores", você pode ligar ou desligar individualmente a Média Móvel Simples (SMA), Exponencial (EMA), VWAP e as Bandas de Bollinger, com todos desligados por defeito para uma interface limpa.</li>
-                          <li><strong>Gráfico de Volume:</strong> Um gráfico de barras separado abaixo do principal mostra o volume de negociação de cada período, ajudando a confirmar a força de uma tendência.</li>
-                          <li><strong>Zoom com "Brush":</strong> Em vez de botões, use a área de "brush" na base do gráfico para selecionar uma janela de tempo e dar zoom, ou arraste-a para navegar pelo histórico do ativo de forma fluida.</li>
-                          <li><strong>Crosshair e Snap de Preço:</strong> Uma mira vertical e horizontal segue o cursor com precisão, e uma etiqueta flutuante no eixo Y mostra o preço exato em tempo real, permitindo uma leitura imediata.</li>
+                          <li><strong>Estabilidade e Responsividade:</strong> O gráfico é renderizado com tecnologia SVG, eliminando problemas de "quebra" de velas. É 100% estável e responsivo.</li>
+                          <li><strong>Indicadores Controláveis:</strong> Através do botão "Indicadores", você pode ligar ou desligar individualmente a Média Móvel Simples (SMA), Exponencial (EMA), VWAP e as Bandas de Bollinger.</li>
+                          <li><strong>Ferramentas de Análise:</strong> Use o "brush" na base para dar zoom e o "crosshair" para uma leitura precisa de preços e tempo.</li>
                       </ul>
                     </li>
                     <li>
-                      <strong>Copiloto de Trade em Ação:</strong>
+                      <strong>Análise de Sessão com IA:</strong>
                       <ul className="list-disc pl-6 mt-2">
-                          <li>Ao clicar em <strong>"Analisar Desempenho"</strong>, a IA avalia o seu histórico de operações da sessão e fornece um resumo da sua performance com métricas chave.</li>
+                          <li>Ao clicar em <strong>"Analisar Desempenho"</strong>, uma IA avalia o seu histórico de operações da sessão e fornece um resumo da sua performance com métricas chave.</li>
                       </ul>
                     </li>
                  </ol>
@@ -176,38 +174,29 @@ export default function HelpPage() {
 
              <AccordionItem value="item-11">
                 <AccordionTrigger className="text-lg font-semibold">
-                    A Orquestra Sinfónica da Mesa Operacional de IA
+                    A Mesa Operacional: O Cérebro do Claritas Trader
                 </AccordionTrigger>
                 <AccordionContent className="text-base leading-relaxed space-y-4">
                     <p>
-                        A "Mesa Operacional" é o sistema mais avançado do Claritas, operando de forma totalmente autónoma. Em vez de um único robô, ela simula uma equipa profissional para tomar decisões de trading mais seguras e inteligentes, dividida em três camadas hierárquicas.
+                        A "Mesa Operacional" é o sistema autónomo do Claritas. Em vez de depender de uma única estratégia, ela simula uma equipa de 22 robôs-analistas para tomar decisões de trading mais seguras e inteligentes, com base no poderoso motor de indicadores interno.
                     </p>
-
                     <div>
                         <h4 className="font-semibold text-md mb-2">Camada 1: Os 22 Analistas Táticos (A Equipa)</h4>
                         <p className="text-sm">
-                           São os especialistas de linha de frente. Cada um domina uma única estratégia (RSI, MACD, etc.), totalizando 22 analistas. A cada tick, eles analisam os indicadores em tempo real e emitem um "voto" (`RISE`, `FALL`, `HOLD`) com um nível de confiança. Pense neles como 22 especialistas, cada um na sua secretária, focados no seu gráfico.
+                           São os especialistas da linha da frente. Cada um domina uma estratégia de indicador (RSI, MACD, etc.), definida no ficheiro <code>src/services/council-strategies.ts</code>. A cada tick, eles analisam os dados do motor de indicadores e emitem um "voto" (`RISE`, `FALL`, `HOLD`) com um nível de confiança.
                         </p>
                     </div>
-                    
                     <div>
-                        <h4 className="font-semibold text-md mb-2">Camada 2: O Líder do Comité Tático (O Gestor de Turno)</h4>
+                        <h4 className="font-semibold text-md mb-2">Camada 2: O Comité de Supervisão e Risco (A Direção)</h4>
                         <p className="text-sm">
-                          Esta persona, representada pela função `committeeOfSpecialists`, não vota. Em vez disso, ele avalia as condições gerais do mercado (tendência, volatilidade) e **exibe a sua leitura tática** na interface (ex: "Tendência de Alta com Força"). É o gestor de turno que contextualiza a situação para o utilizador.
-                        </p>
-                    </div>
-
-                    <div>
-                        <h4 className="font-semibold text-md mb-2">Camada 3: O Comité de Supervisão e Risco (A Direção)</h4>
-                        <p className="text-sm">
-                          Esta é a camada final e mais poderosa (`supervisionCommitteeCheck`). Este comité recebe a recomendação do consenso, mas tem **poder de veto e de ajuste dinâmico**. Ele responde a perguntas cruciais:
+                          Esta é a camada final e mais poderosa. Este comité recebe a recomendação do consenso, mas tem **poder de veto e de ajuste dinâmico**. Ele responde a perguntas cruciais:
                         </p>
                          <ul className="list-disc pl-6 mt-2 space-y-1 text-sm">
                             <li>"Já atingimos o nosso limite de perda ou a nossa meta de lucro do dia?" (se sim, **VETO** e para as operações).</li>
-                            <li>"O mercado está demasiado caótico ou volátil?" (se sim, **reduz o valor da aposta (`stake`)** e **aumenta a duração do contrato** para dar mais espaço à operação).</li>
+                            <li>"O mercado está demasiado caótico ou volátil?" (Com base no ADX e BBW, ele **reduz o valor da aposta (`stake`)** e **aumenta a duração do contrato** para se proteger).</li>
                             <li>"O consenso dos analistas é forte o suficiente para esta condição de mercado?" (se não, aguarda).</li>
                         </ul>
-                        <p className="text-sm mt-2">É a direção de risco que dá a aprovação final e ajusta os parâmetros de cada trade de forma autónoma.</p>
+                        <p className="text-sm mt-2">É a direção de risco que dá a aprovação final e ajusta os parâmetros de cada trade de forma autónoma, usando os valores de "Aposta Base" e "Duração Base" como ponto de partida.</p>
                     </div>
                 </AccordionContent>
             </AccordionItem>
@@ -221,7 +210,7 @@ export default function HelpPage() {
                 <div>
                     <h4 className="font-semibold text-md mb-2">Painel "Arena Virtual" e o Leaderboard</h4>
                     <p className="text-sm">
-                      O painel <strong>Arena Virtual</strong>, agora uma aba dentro do Deriv Trader, funciona como um *leaderboard* da sua equipa de IA. Para cada robô, ela mostra:
+                      O painel <strong>Arena Virtual</strong>, agora uma aba dentro do Deriv Trader, funciona como um *leaderboard* da sua equipa de robôs. Para cada um, ela mostra:
                     </p>
                     <ul className="list-disc pl-6 mt-2 space-y-1 text-sm">
                       <li><strong>Estratégia e Parâmetros:</strong> A configuração atual do analista.</li>
@@ -251,10 +240,10 @@ export default function HelpPage() {
 
             <AccordionItem value="item-12">
                 <AccordionTrigger className="text-lg font-semibold">
-                    Ficheiros da Mesa Operacional de IA
+                    Ficheiros da Mesa Operacional
                 </AccordionTrigger>
                 <AccordionContent className="text-base leading-relaxed space-y-4">
-                  <p>A "Mesa Operacional de IA" é um sistema composto por vários ficheiros chave que trabalham em conjunto. Aqui está um resumo das suas responsabilidades:</p>
+                  <p>A "Mesa Operacional" é um sistema composto por vários ficheiros chave que trabalham em conjunto. Aqui está um resumo das suas responsabilidades:</p>
                   <ul className="list-disc pl-6 space-y-3">
                     <li>
                       <strong className="font-mono">src/hooks/use-deriv-api.tsx</strong><br/>
@@ -266,7 +255,7 @@ export default function HelpPage() {
                     </li>
                     <li>
                       <strong className="font-mono">src/services/council-strategies.ts</strong><br/>
-                      O Manual de Estratégias. Este ficheiro define localmente as regras, parâmetros e justificações para cada um dos 22 robôs analistas, eliminando a necessidade de uma chamada de IA para formar o conselho, tornando o processo mais rápido e fiável.
+                      O Manual de Estratégias. Este ficheiro define localmente as regras, parâmetros e justificações para cada um dos 22 robôs analistas, tornando o processo mais rápido e fiável.
                     </li>
                      <li>
                       <strong className="font-mono">src/services/financial-data-service.ts</strong><br/>
@@ -312,7 +301,7 @@ export default function HelpPage() {
                 Configuração da Chave de API (Importante!)
               </AccordionTrigger>
               <AccordionContent className="text-base leading-relaxed space-y-2">
-                <p>Para que os recursos de Inteligência Artificial do Claritas Copilot funcionem, é crucial configurar sua chave de API do Google AI.</p>
+                <p>Para que os recursos de Inteligência Artificial do Claritas Copilot funcionem (como o Chat e a análise de texto), é crucial configurar sua chave de API do Google AI.</p>
                 <p>Siga estes passos:</p>
                 <ol className="list-decimal pl-6 space-y-1">
                   <li>Obtenha uma chave de API no <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary underline">Google AI Studio</a>.</li>
