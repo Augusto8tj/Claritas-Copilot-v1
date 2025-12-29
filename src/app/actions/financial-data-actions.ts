@@ -21,10 +21,13 @@ export async function addGoal(data: { userId: string, name: string; targetAmount
   try {
     const newGoal = await addGoalToService(validatedData.data.userId, validatedData.data.name, validatedData.data.targetAmount);
     revalidatePath("/goals");
+    revalidatePath("/"); // Also revalidate dashboard for the carousel
     return { success: newGoal };
-  } catch (e) {
-    console.error(e);
-    return { error: "Ocorreu um erro inesperado." };
+  } catch (e: any) {
+    console.error("Erro na Server Action addGoal:", e);
+    // Retorna uma mensagem de erro genérica que pode ser exibida na UI.
+    // O erro detalhado já foi emitido para o console de desenvolvimento pelo serviço.
+    return { error: e.message || "Não foi possível criar a meta. Verifique as permissões da base de dados." };
   }
 }
 
@@ -40,6 +43,7 @@ export async function deleteGoal(userId: string, goalId: string): Promise<{ succ
         const result = await deleteGoalFromService(userId, goalId);
         if(result.success) {
             revalidatePath("/goals");
+            revalidatePath("/");
             return { success: true };
         }
         return { success: false, error: "Meta não encontrada." };

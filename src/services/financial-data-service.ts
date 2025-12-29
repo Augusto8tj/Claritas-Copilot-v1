@@ -76,7 +76,6 @@ export async function getGoals(userId: string): Promise<Goal[]> {
 export async function addGoal(userId: string, name: string, targetAmount: number): Promise<Goal> {
     const goalsCol = collection(db, `users/${userId}/goals`);
     
-    // 1. Crie a meta com uma imagem de placeholder primeiro para garantir que seja salva.
     const newGoalData = {
         name,
         targetAmount,
@@ -92,18 +91,17 @@ export async function addGoal(userId: string, name: string, targetAmount: number
             requestResourceData: newGoalData,
         });
         errorEmitter.emit('permission-error', permissionError);
-        throw serverError; // Lançar erro para a camada de ação
+        // Re-lança o erro para que a Server Action que chama esta função possa apanhá-lo
+        throw serverError;
     });
 
-    // 2. Inicie a geração da imagem de IA em segundo plano (sem await)
+    // A geração de imagem continua em segundo plano, sem bloquear a resposta.
     generateGoalImage({ goalName: name })
         .then(imageResult => {
             if (imageResult?.imageUrl) {
-                // Se a imagem for gerada com sucesso, atualize o documento
                 const goalDoc = doc(db, `users/${userId}/goals`, docRef.id);
                 updateDoc(goalDoc, { imageUrl: imageResult.imageUrl })
                     .catch(updateError => {
-                        // Se a atualização falhar, o erro é registado mas a meta já foi criada.
                         console.error("Falha ao atualizar a imagem da meta:", updateError);
                     });
             }
@@ -112,22 +110,22 @@ export async function addGoal(userId: string, name: string, targetAmount: number
             console.error("Falha ao gerar imagem da meta, usando placeholder.", imageError);
         });
 
-    // 3. Retorne a meta com a imagem de placeholder imediatamente.
-    // A UI irá atualizar a imagem posteriormente se a geração de IA for bem-sucedida.
     return { id: docRef.id, ...newGoalData };
 }
 
 export async function deleteGoal(userId: string, goalId: string): Promise<{ success: boolean }> {
     const goalDoc = doc(db, `users/${userId}/goals`, goalId);
-    deleteDoc(goalDoc).catch(async (serverError) => {
+    await deleteDoc(goalDoc).catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
             path: goalDoc.path,
             operation: 'delete',
         });
         errorEmitter.emit('permission-error', permissionError);
+        throw serverError;
     });
     return { success: true };
 }
+
 
 // --- Budget ---
 
@@ -141,7 +139,7 @@ async function getBudgetLimits(userId: string): Promise<{ [key: string]: number 
         // Return default if not exists
         return {
             "Moradia": 2000, "Alimentação": 1000, "Transporte": 500,
-            "Lazer": 400, "Compras": 600, "Outros": 300,
+            "Lazer": 400, "Compras": 600, "Outros": 300, "Contas": 800,
         };
     } catch (serverError) {
          const permissionError = new FirestorePermissionError({
@@ -179,7 +177,7 @@ export async function updateBudgetLimit(userId: string, name: string, newLimit: 
     const settingsDocRef = doc(db, `users/${userId}/settings`, 'budget');
     const dataToSet = { [`limits.${name}`]: newLimit };
 
-    setDoc(settingsDocRef, dataToSet, { merge: true })
+    await setDoc(settingsDocRef, dataToSet, { merge: true })
         .catch(async (serverError) => {
             const permissionError = new FirestorePermissionError({
                 path: settingsDocRef.path,
@@ -187,6 +185,7 @@ export async function updateBudgetLimit(userId: string, name: string, newLimit: 
                 requestResourceData: dataToSet
             });
             errorEmitter.emit('permission-error', permissionError);
+            throw serverError;
         });
 
     const transactions = await getTransactions(userId);
@@ -227,6 +226,7 @@ export async function saveRobotPerformance(userId: string, performanceData: Robo
                 requestResourceData: dataToSave,
             });
             errorEmitter.emit('permission-error', permissionError);
+            throw serverError;
         });
 }
 
@@ -246,23 +246,29 @@ export async function loadRobotPerformance(userId: string): Promise<RobotPerform
             operation: 'get',
         });
         errorEmitter.emit('permission-error', permissionError);
-        // Retornar nulo ou um array vazio em caso de erro para não quebrar a aplicação
-        return null;
+        throw serverError;
     }
 }
 
 
 export async function getHallOfFame(userId: string): Promise<RobotPerformance[]> {
-    const performanceData = await loadRobotPerformance(userId);
-    if (!performanceData) {
+    try {
+        const performanceData = await loadRobotPerformance(userId);
+        if (!performanceData) {
+            return [];
+        }
+
+        const promotedRobots = performanceData.filter(
+            (p) => p.wins >= PROMOTION_THRESHOLD_WINS && p.totalProfit > PROMOTION_THRESHOLD_PROFIT
+        );
+
+        promotedRobots.sort((a, b) => b.totalProfit - a.totalProfit);
+        
+        return promotedRobots;
+    } catch(e) {
+        // Se loadRobotPerformance falhar, a exceção será apanhada aqui.
+        // Como o Hall da Fama é um recurso de "nice-to-have", podemos simplesmente retornar um array vazio.
+        console.error("Não foi possível carregar o Hall da Fama devido a um erro de acesso aos dados:", e);
         return [];
     }
-
-    const promotedRobots = performanceData.filter(
-        (p) => p.wins >= PROMOTION_THRESHOLD_WINS && p.totalProfit > PROMOTION_THRESHOLD_PROFIT
-    );
-
-    promotedRobots.sort((a, b) => b.totalProfit - a.totalProfit);
-    
-    return promotedRobots;
 }
