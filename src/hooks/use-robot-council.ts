@@ -381,20 +381,61 @@ export function useRobotCouncil(
         );
         setIndicators(currentIndicators);
         if (!currentIndicators) return;
-
+        
         // ====================================================================
-        // FASE 2: JULGAMENTO - Avaliar trades virtuais expirados
+        // FASE 2: VOTAÇÃO E REGISTO (ESPELHO)
         // ====================================================================
-        const stillActiveTrades: VirtualTrade[] = [];
+        const newVotes: CouncilVotes = {};
+        let riseConfidenceSum = 0;
+        let fallConfidenceSum = 0;
+        const tradeDuration = form.getValues('duration');
         const performanceMap = new Map<string, RobotPerformance>(
             robotPerformance.map((p) => [p.id, { ...p }])
         );
+
+        strategyCouncil.forEach((robot) => {
+            const { vote, confidence } = calculateRobotVote(robot, currentIndicators, tickCandles);
+
+            // REGISTO IMEDIATO: Se votou, registrar na arena (O ESPELHO)
+            if (vote !== 'HOLD') {
+                const tradeId = `vt_${Date.now()}_${tradeCounterRef.current++}`;
+                const virtualTrade: VirtualTrade = {
+                    id: tradeId,
+                    robotId: robot.id,
+                    vote: vote,
+                    entryPrice: currentTick.price,
+                    entryEpoch: currentTick.epoch,
+                    entryTickIndex: currentTickIndex,
+                    durationTicks: tradeDuration,
+                    exitTickIndex: currentTickIndex + tradeDuration,
+                };
+                virtualTradesRef.current.push(virtualTrade);
+            }
+
+            // Calcular peso (meritocracia)
+            let weight = 1.0;
+            if (isMeritocracyOn) {
+                const perf = performanceMap.get(robot.id);
+                if (perf && perf.wins + perf.losses > 3) {
+                    const winRate = perf.wins / (perf.wins + perf.losses);
+                    const pnlFactor = Math.tanh(perf.totalProfit / 50);
+                    weight = 0.5 + winRate * 0.75 + pnlFactor * 0.25;
+                }
+            }
+
+            newVotes[robot.id] = { vote, confidence, weight };
+            if (vote === 'RISE') riseConfidenceSum += confidence * weight;
+            if (vote === 'FALL') fallConfidenceSum += confidence * weight;
+        });
+        
+        // ====================================================================
+        // FASE 3: JULGAMENTO - Avaliar trades virtuais que expiraram
+        // ====================================================================
+        const stillActiveTrades: VirtualTrade[] = [];
         let performanceChanged = false;
 
         virtualTradesRef.current.forEach((trade) => {
-            const isExpired = currentTickIndex >= trade.exitTickIndex;
-
-            if (isExpired) {
+            if (currentTickIndex >= trade.exitTickIndex) {
                 // Obter o tick de saída
                 const exitTick = priceTicks[trade.exitTickIndex];
                 if (exitTick) {
@@ -430,49 +471,6 @@ export function useRobotCouncil(
             setRobotPerformance(updatedPerformance);
             localStorage.setItem(ROBOT_PERFORMANCE_KEY, JSON.stringify(updatedPerformance));
         }
-
-        // ====================================================================
-        // FASE 3: VOTAÇÃO E REGISTO DE NOVAS TRADES VIRTUAIS
-        // ====================================================================
-        let riseConfidenceSum = 0;
-        let fallConfidenceSum = 0;
-        const newVotes: CouncilVotes = {};
-        const tradeDuration = form.getValues('duration');
-
-        strategyCouncil.forEach((robot) => {
-            const { vote, confidence } = calculateRobotVote(robot, currentIndicators, tickCandles);
-
-            // REGISTO IMEDIATO: Se votou, registrar na arena
-            if (vote !== 'HOLD') {
-                const tradeId = `vt_${Date.now()}_${tradeCounterRef.current++}`;
-                const virtualTrade: VirtualTrade = {
-                    id: tradeId,
-                    robotId: robot.id,
-                    vote: vote,
-                    entryPrice: currentTick.price,
-                    entryEpoch: currentTick.epoch,
-                    entryTickIndex: currentTickIndex,
-                    durationTicks: tradeDuration,
-                    exitTickIndex: currentTickIndex + tradeDuration,
-                };
-                virtualTradesRef.current.push(virtualTrade);
-            }
-
-            // Calcular peso (meritocracia)
-            let weight = 1.0;
-            if (isMeritocracyOn) {
-                const perf = performanceMap.get(robot.id);
-                if (perf && perf.wins + perf.losses > 3) {
-                    const winRate = perf.wins / (perf.wins + perf.losses);
-                    const pnlFactor = Math.tanh(perf.totalProfit / 50);
-                    weight = 0.5 + winRate * 0.75 + pnlFactor * 0.25;
-                }
-            }
-
-            newVotes[robot.id] = { vote, confidence, weight };
-            if (vote === 'RISE') riseConfidenceSum += confidence * weight;
-            if (vote === 'FALL') fallConfidenceSum += confidence * weight;
-        });
 
         // ====================================================================
         // FASE 4: ATUALIZAÇÃO DE ESTADOS
