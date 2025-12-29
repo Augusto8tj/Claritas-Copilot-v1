@@ -282,7 +282,7 @@ export function useRobotCouncil(
         (
             riseSum: number,
             fallSum: number,
-            indicators: Indicators,
+            indicators: Indicators | null,
             dailyPnl: number
         ): {
             finalStake: number;
@@ -294,6 +294,10 @@ export function useRobotCouncil(
             const { stake, duration } = form.getValues();
             let finalStake = stake;
             let finalDuration = duration;
+
+            if (!indicators) {
+                 return { status: 'inactive', message: 'Aguardando indicadores.', finalStake, finalDuration };
+            }
 
             // Limites diários
             if (dailyPnl <= -dailyBalance) {
@@ -465,7 +469,7 @@ export function useRobotCouncil(
         if (councilExecutionRef.current.isExecuting) return;
 
         const dailyPnl = operationsLog.filter(op => new Date(op.timestamp).toDateString() === new Date().toDateString() && op.initiator === 'Conselho').reduce((sum, op) => sum + (op.result || 0), 0);
-        const supervisionDecision = supervisionCommitteeCheck(riseConfidenceSum, fallConfidenceSum, indicators, dailyPnl);
+        const supervisionDecision = supervisionCommitteeCheck(riseConfidenceSum, fallConfidenceSum, currentIndicators, dailyPnl);
         setSupervisionStatus(supervisionDecision);
 
         if (supervisionDecision.status === 'approved') {
@@ -479,7 +483,7 @@ export function useRobotCouncil(
             executeTrade(direction === 'RISE' ? 'CALL' : 'PUT', finalStake, activeSymbol, direction.toLowerCase() as 'rise' | 'fall', finalDuration, form.getValues('duration_unit'), 'Conselho')
                 .finally(() => setTimeout(() => (councilExecutionRef.current.isExecuting = false), 10000));
         }
-    }, [priceTicks, isCouncilAutopilotOn, strategyCouncil, robotPerformance, isMeritocracyOn, activeSymbol, operationsLog, supervisionCommitteeCheck, toast, executeTrade, form, timePeriod, committeeOfSpecialists]);
+    }, [priceTicks, isCouncilAutopilotOn, strategyCouncil, robotPerformance, isMeritocracyOn, activeSymbol, operationsLog, supervisionCommitteeCheck, toast, executeTrade, form, timePeriod, committeeOfSpecialists, consensusThreshold]);
 
     return {
         isCouncilAutopilotOn, setIsCouncilAutopilotOn,
