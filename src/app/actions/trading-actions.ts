@@ -3,10 +3,10 @@
 
 import {
   analyzeMqlCode,
-} from '@/features/ai/flows/mql-analyzer-flow';
+} from '@/ai/flows/mql-analyzer-flow';
 import { MqlAnalyzerInputSchema, type MqlAnalyzerInput } from '@/lib/types';
-import type { TradeResult } from '@/features/trading/services/deriv-api-service';
-import { analyzeOperations } from '@/features/ai/flows/operation-analysis-flow';
+import type { TradeResult } from '@/services/deriv-api-service';
+import { analyzeOperations } from '@/ai/flows/operation-analysis-flow';
 import { OperationAnalysisInputSchema, type OperationAnalysisInput } from '@/lib/types';
 
 

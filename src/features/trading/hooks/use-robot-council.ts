@@ -6,11 +6,11 @@ import { useDerivApi } from './use-deriv-api';
 import { useToast } from '@/hooks/use-toast';
 import type { RobotStrategy, ChartData, TickData, CandleData, RiseFallFormValues } from '@/lib/types';
 import { useFormContext } from 'react-hook-form';
-import type { Indicators } from '@/features/trading/services/indicator-service';
-import { calculateAllIndicators } from '@/features/trading/services/indicator-service';
-import { initialCouncilStrategies } from '@/features/trading/services/council-strategies';
+import type { Indicators } from '@/services/indicator-service';
+import { calculateAllIndicators } from '@/services/indicator-service';
+import { initialCouncilStrategies } from '@/services/council-strategies';
 import { useAuth } from '@/features/auth/hooks/use-auth';
-import { saveRobotPerformance, loadRobotPerformance } from '@/features/financials/services/financial-data-service';
+import { saveRobotPerformance, loadRobotPerformance } from '@/services/financial-data-service';
 
 export type RobotVote = {
     vote: 'RISE' | 'FALL' | 'HOLD';
