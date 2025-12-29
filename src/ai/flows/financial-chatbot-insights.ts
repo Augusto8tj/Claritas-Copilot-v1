@@ -1,4 +1,4 @@
-// src/features/financials/ai/financial-chatbot-insights.ts
+// src/ai/flows/financial-chatbot-insights.ts
 'use server';
 
 /**
@@ -9,9 +9,9 @@
 
 import {ai} from '@/lib/genkit';
 // Ferramentas para acessar dados internos do aplicativo (orçamento, transações, etc.)
-import { getFinancialInsightsTool, getFinancialSummaryTool, addTransactionTool, addGoalTool, getBudgetStatusTool } from './tools/financial-tools';
+import { getFinancialInsightsTool, getFinancialSummaryTool, addTransactionTool, addGoalTool, getBudgetStatusTool } from '@/ai/tools/financial-tools';
 // Ferramentas para acessar dados externos do mercado financeiro (cotações de ações, etc.)
-import { getMarketDataTool } from '@/features/trading/ai/tools/trading-tools';
+import { getMarketDataTool } from '@/ai/tools/trading-tools';
 import { FinancialChatbotInsightsInputSchema, FinancialChatbotInsightsOutputSchema, type FinancialChatbotInsightsInput } from '@/lib/types';
 
 
