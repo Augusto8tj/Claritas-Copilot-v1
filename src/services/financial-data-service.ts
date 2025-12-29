@@ -7,7 +7,11 @@
 import { db, auth } from '@/lib/firebase';
 import { collection, getDocs, addDoc, query, where, doc, updateDoc, deleteDoc, writeBatch, getDoc, setDoc } from 'firebase/firestore';
 import type { Goal, BudgetCategory, Transaction } from '@/lib/types';
+import type { RobotPerformance } from '@/hooks/use-robot-council';
 import { generateGoalImage } from '@/ai/flows/goal-image-generation';
+
+const PROMOTION_THRESHOLD_WINS = 10;
+const PROMOTION_THRESHOLD_PROFIT = 0;
 
 // Helper to get the current user's ID
 const getUserId = (): string | null => {
@@ -142,4 +146,36 @@ export async function getInsights(): Promise<string[]> {
       "Sua maior despesa é o aluguel. Considere procurar opções mais baratas, se possível.",
       "Você está perto de atingir seu fundo de emergência! Continue assim."
     ];
+}
+
+
+// --- Trading Robot Performance ---
+
+export async function saveRobotPerformance(userId: string, performanceData: RobotPerformance[]): Promise<void> {
+    const performanceDocRef = doc(db, 'users', userId, 'trading', 'robotPerformance');
+    await setDoc(performanceDocRef, { performance: performanceData }, { merge: true });
+}
+
+export async function loadRobotPerformance(userId: string): Promise<RobotPerformance[] | null> {
+    const performanceDocRef = doc(db, 'users', userId, 'trading', 'robotPerformance');
+    const docSnap = await getDoc(performanceDocRef);
+    if (docSnap.exists()) {
+        return docSnap.data().performance as RobotPerformance[];
+    }
+    return null;
+}
+
+export async function getHallOfFame(userId: string): Promise<RobotPerformance[]> {
+    const performanceData = await loadRobotPerformance(userId);
+    if (!performanceData) {
+        return [];
+    }
+
+    const promotedRobots = performanceData.filter(
+        (p) => p.wins >= PROMOTION_THRESHOLD_WINS && p.totalProfit > PROMOTION_THRESHOLD_PROFIT
+    );
+
+    promotedRobots.sort((a, b) => b.totalProfit - a.totalProfit);
+    
+    return promotedRobots;
 }

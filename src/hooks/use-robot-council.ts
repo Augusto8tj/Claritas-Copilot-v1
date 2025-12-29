@@ -9,8 +9,9 @@ import { useFormContext } from 'react-hook-form';
 import type { Indicators } from '@/services/indicator-service';
 import { calculateAllIndicators } from '@/services/indicator-service';
 import type { ChartData, TickData, CandleData } from './types';
-import type { RobotPerformance } from '@/components/trading/operations-log.types';
 import { initialCouncilStrategies } from '@/services/council-strategies';
+import { useAuth } from './use-auth';
+import { saveRobotPerformance, loadRobotPerformance } from '@/services/financial-data-service';
 
 export type RobotVote = {
     vote: 'RISE' | 'FALL' | 'HOLD';
@@ -18,6 +19,15 @@ export type RobotVote = {
     weight: number;
 };
 export type CouncilVotes = { [key: string]: RobotVote };
+
+export type RobotPerformance = {
+    id: string;
+    strategyType: RobotStrategy['strategyType'];
+    strategy: RobotStrategy;
+    wins: number;
+    losses: number;
+    totalProfit: number;
+};
 
 // ============================================================================
 // ARENA VIRTUAL: Estrutura de uma Trade Virtual (Espelho dos Votos)
@@ -32,7 +42,6 @@ type VirtualTrade = {
     exitTickIndex: number;
 };
 
-const ROBOT_PERFORMANCE_KEY = 'derivRobotPerformance';
 const VIRTUAL_STAKE = 1.0; // Cada trade virtual usa $1 para calcular PnL
 
 // ============================================================================
@@ -146,6 +155,7 @@ export function useRobotCouncil(
     priceTicks: TickData[]
 ) {
     const { operationsLog, executeTrade, timePeriod, isConnected } = useDerivApi();
+    const { user } = useAuth();
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
@@ -182,29 +192,36 @@ export function useRobotCouncil(
     const councilExecutionRef = useRef({ isExecuting: false });
 
     // ========================================================================
-    // CARREGAR DESEMPENHO PERSISTIDO
+    // CARREGAR DESEMPENHO PERSISTIDO DO FIREBASE
     // ========================================================================
     useEffect(() => {
-        try {
-            const stored = localStorage.getItem(ROBOT_PERFORMANCE_KEY);
-            if (stored) {
-                const parsed = JSON.parse(stored);
-                setRobotPerformance(parsed);
+        if (!user) return;
+
+        const doLoad = async () => {
+            try {
+                const storedPerformance = await loadRobotPerformance(user.uid);
+                if (storedPerformance && storedPerformance.length > 0) {
+                    setRobotPerformance(storedPerformance);
+                    console.log("[Performance] Dados de desempenho carregados do Firebase.");
+                } else {
+                     console.log("[Performance] Nenhum dado de desempenho encontrado no Firebase para este usuário.");
+                }
+            } catch (error) {
+                console.error('Erro ao carregar desempenho do Firebase:', error);
             }
-        } catch (error) {
-            console.error('Erro ao carregar desempenho:', error);
-        }
-    }, []);
+        };
+        doLoad();
+    }, [user]);
 
     // ========================================================================
     // CONSTRUIR O CONSELHO
     // ========================================================================
     const fetchStrategyCouncil = useCallback(async () => {
-        if (!activeSymbol) {
+        if (!activeSymbol || !user) {
             toast({
                 variant: 'destructive',
-                title: 'Nenhum Ativo',
-                description: 'Selecione um ativo para construir o conselho.',
+                title: !user ? 'Não Autenticado' : 'Nenhum Ativo',
+                description: !user ? 'Faça login para usar a Mesa Operacional.' : 'Selecione um ativo para construir o conselho.',
             });
             return;
         }
@@ -228,18 +245,20 @@ export function useRobotCouncil(
 
         setStrategyCouncil(council);
 
-        // Inicializa o desempenho
-        const initialPerformance: RobotPerformance[] = council.map((robot) => ({
-            id: robot.id,
-            strategyType: robot.strategyType,
-            strategy: robot,
-            wins: 0,
-            losses: 0,
-            totalProfit: 0,
-        }));
+        // Inicializa o desempenho se não houver dados
+        if (robotPerformance.length === 0) {
+            const initialPerformance: RobotPerformance[] = council.map((robot) => ({
+                id: robot.id,
+                strategyType: robot.strategyType,
+                strategy: robot,
+                wins: 0,
+                losses: 0,
+                totalProfit: 0,
+            }));
+            setRobotPerformance(initialPerformance);
+            await saveRobotPerformance(user.uid, initialPerformance);
+        }
 
-        setRobotPerformance(initialPerformance);
-        localStorage.setItem(ROBOT_PERFORMANCE_KEY, JSON.stringify(initialPerformance));
 
         toast({
             title: 'Conselho de IA Montado!',
@@ -248,7 +267,7 @@ export function useRobotCouncil(
 
         setIsCouncilAutopilotOn(true);
         setIsFetchingCouncil(false);
-    }, [activeSymbol, dailyBalance, form, timePeriod, toast]);
+    }, [activeSymbol, dailyBalance, form, timePeriod, toast, user, robotPerformance]);
 
     // ========================================================================
     // DISSOLVER O CONSELHO
@@ -328,33 +347,40 @@ export function useRobotCouncil(
                     analysis: `Lucro de $${dailyPnl.toFixed(2)} atingiu a meta de $${dailyTarget}.`
                 };
             }
-
-            // ================== CONSENSO DINÂMICO ==================
+            
+            // ================== CONSENSO DINÂMICO (RELATIVO) ==================
             let effectiveThreshold;
             if (isDynamicConsensusOn) {
+                // 1. Calcular o potencial de voto total (apenas de quem não votou HOLD)
                 const totalPossibleConsensus = Object.values(currentVotes)
                     .filter(v => v.vote !== 'HOLD')
                     .reduce((sum, v) => sum + (v.confidence * v.weight), 0);
 
-                let requiredPercentage = 0.60;
+                // 2. Definir a percentagem base necessária
+                let requiredPercentage = 0.60; // Base: precisa de 60% de convicção
                 let analysisParts: string[] = [];
 
+                // 3. Ajustar a percentagem com base no risco do mercado
                 if (indicators.adx && indicators.adx < 20) {
-                     requiredPercentage += 0.10;
+                     requiredPercentage += 0.15; // +15% se não há tendência
                      analysisParts.push("mercado sem tendência");
                 }
-                if (indicators.bbw && indicators.bbw > 0.1) {
-                    requiredPercentage += 0.15;
+                if (indicators.bbw && indicators.bbw > 0.08) { // Mais sensível
+                    requiredPercentage += 0.20; // +20% para alta volatilidade
                     analysisParts.push("alta volatilidade");
                 }
                 
+                // Limitar a percentagem máxima
                 requiredPercentage = Math.min(requiredPercentage, 0.85);
+
+                // 4. Calcular o limiar final
                 effectiveThreshold = totalPossibleConsensus * requiredPercentage;
                 setConsensusThreshold(Math.round(effectiveThreshold));
 
             } else {
                 effectiveThreshold = consensusThreshold;
             }
+
 
             // Verifica consenso
             const consensusReached = Math.max(riseSum, fallSum) >= effectiveThreshold;
@@ -367,6 +393,7 @@ export function useRobotCouncil(
                 };
             }
 
+            // AJUSTE DE RISCO PARA STAKE E DURATION
             let analysis = 'Risco padrão.';
             let riskFactor = 1.0;
             let durationAdjustment = 0;
@@ -419,6 +446,7 @@ export function useRobotCouncil(
         // Condições de guarda
         if (
             !isConnected ||
+            !user ||
             !isCouncilAutopilotOn ||
             strategyCouncil.length === 0 ||
             !activeSymbol ||
@@ -490,7 +518,10 @@ export function useRobotCouncil(
         if (performanceChanged) {
             const updatedPerformance = Array.from(performanceMap.values());
             setRobotPerformance(updatedPerformance);
-            localStorage.setItem(ROBOT_PERFORMANCE_KEY, JSON.stringify(updatedPerformance));
+            // SALVAR NO FIREBASE
+            if (user) {
+                saveRobotPerformance(user.uid, updatedPerformance);
+            }
         }
 
         // ====================================================================
@@ -614,6 +645,7 @@ export function useRobotCouncil(
         form,
         timePeriod,
         committeeOfSpecialists,
+        user
     ]);
 
     return {

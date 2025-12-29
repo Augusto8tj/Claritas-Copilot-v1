@@ -4,12 +4,11 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { RobotStrategy } from '@/ai/flows/strategy-council-flow.types';
-import { BrainCircuit, Activity, Waves, CandlestickChart, Bot, Trophy } from 'lucide-react';
+import { BrainCircuit, Activity, Waves, CandlestickChart, Bot, Trophy, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { RobotPerformance } from '@/hooks/use-robot-council';
-
-const PROMOTION_THRESHOLD_WINS = 10;
-const PROMOTION_THRESHOLD_PROFIT = 0;
+import { useAuth } from '@/hooks/use-auth';
+import { getHallOfFame } from '@/services/financial-data-service';
 
 const indicatorIcons: { [key: string]: React.ReactNode } = {
     RSI: <BrainCircuit className="h-4 w-4" />,
@@ -48,31 +47,37 @@ function renderStrategyParams(robot: RobotStrategy) {
 
 
 export function HallOfFame() {
+    const { user } = useAuth();
     const [hallOfFame, setHallOfFame] = useState<RobotPerformance[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        try {
-            const storedPerformance = localStorage.getItem('derivRobotPerformance');
-            if (storedPerformance) {
-                const performanceData: RobotPerformance[] = JSON.parse(storedPerformance);
-                
-                const promotedRobots = performanceData.filter(
-                    (p) => p.wins >= PROMOTION_THRESHOLD_WINS && p.totalProfit > PROMOTION_THRESHOLD_PROFIT
-                );
+        if (!user) {
+            setLoading(false);
+            return;
+        };
 
-                promotedRobots.sort((a, b) => b.totalProfit - a.totalProfit);
-
-                setHallOfFame(promotedRobots);
+        const fetchFame = async () => {
+            setLoading(true);
+            try {
+                const famedRobots = await getHallOfFame(user.uid);
+                setHallOfFame(famedRobots);
+            } catch (error) {
+                console.error("Failed to load Hall of Fame from Firestore", error);
+                setHallOfFame([]);
             }
-        } catch (error) {
-            console.error("Failed to load Hall of Fame from localStorage", error);
+            setLoading(false);
         }
-        setLoading(false);
-    }, []);
+
+        fetchFame();
+    }, [user]);
 
     if (loading) {
-        return <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">Carregando...</div>;
+        return (
+            <div className="flex justify-center items-center p-10">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
     }
 
     return (
@@ -83,7 +88,7 @@ export function HallOfFame() {
                     Hall da Fama dos Robôs
                 </CardTitle>
                 <CardDescription>
-                    Um registo permanente dos robôs-analistas mais lucrativos e consistentes da sua sessão. Apenas robôs com mais de {PROMOTION_THRESHOLD_WINS} vitórias e lucro positivo são elegíveis.
+                    Um registo permanente dos robôs-analistas mais lucrativos e consistentes. Apenas robôs com mais de 10 vitórias e lucro positivo são elegíveis.
                 </CardDescription>
             </CardHeader>
             <CardContent>

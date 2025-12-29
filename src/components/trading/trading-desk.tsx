@@ -29,11 +29,13 @@ import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import type { RobotPerformance } from './operations-log.types';
+import type { RobotPerformance } from '@/hooks/use-robot-council';
 import { Label } from '../ui/label';
 import { Switch } from '../ui/switch';
 import { Separator } from '../ui/separator';
 import { Badge } from '../ui/badge';
+import { useAuth } from '@/hooks/use-auth';
+import { saveRobotPerformance } from '@/services/financial-data-service';
 
 interface TradingDeskProps {
     isMeritocracyOn: boolean;
@@ -125,6 +127,7 @@ export function TradingDesk({
     isCouncilAutopilotOn,
     robotPerformance,
 }: TradingDeskProps) {
+    const { user } = useAuth();
     const { toast } = useToast();
 
     // Ordenar por vitórias (depois por lucro)
@@ -146,13 +149,20 @@ export function TradingDesk({
     // Top 3 performers
     const topPerformers = sortedPerformance.slice(0, 3);
 
-    const resetPerformance = () => {
+    const resetPerformance = async () => {
+        if (!user) {
+             toast({ variant: 'destructive', title: 'Erro', description: 'Utilizador não autenticado.'});
+             return;
+        }
         try {
-            localStorage.removeItem('derivRobotPerformance');
+            // No Firebase, resetar significa salvar um array vazio ou com valores zerados
+            const resetData = robotPerformance.map(p => ({ ...p, wins: 0, losses: 0, totalProfit: 0 }));
+            await saveRobotPerformance(user.uid, resetData);
+            
             toast({
                 title: 'Desempenho Resetado',
                 description:
-                    'O histórico da Arena foi limpo. Recarregue a página ou reconstrua o conselho.',
+                    'O histórico da Arena foi limpo na nuvem. A interface irá atualizar.',
             });
              // Forçar recarregamento para refletir o estado limpo
             window.location.reload();
@@ -160,7 +170,7 @@ export function TradingDesk({
             toast({
                 variant: 'destructive',
                 title: 'Erro',
-                description: 'Não foi possível limpar o histórico de desempenho.',
+                description: 'Não foi possível limpar o histórico de desempenho no Firebase.',
             });
         }
     };
