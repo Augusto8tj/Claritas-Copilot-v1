@@ -1,5 +1,5 @@
 // /src/app/status/page.tsx
-import { HealthCheckCard } from "@/features/trading/components/status/health-check-card";
+import { HealthCheckCard } from "@/components/status/health-check-card";
 import { checkGeminiConnection, checkFirestoreConnection } from "@/app/actions";
 import { ListModelsCard } from "@/components/status/list-models-card";
 import { DerivConnectionCard } from "@/components/status/deriv-connection-card";
