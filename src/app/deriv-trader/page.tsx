@@ -126,6 +126,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                                 setIsMeritocracyOn={robotCouncil.setIsMeritocracyOn}
                                 isCouncilAutopilotOn={robotCouncil.isCouncilAutopilotOn}
                                 robotPerformance={robotCouncil.robotPerformance}
+                                councilVotes={robotCouncil.councilVotes}
                             />
                         </TabsContent>
                          <TabsContent value="analysis" className="mt-4">
@@ -171,6 +172,7 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                         setIsMeritocracyOn={robotCouncil.setIsMeritocracyOn}
                         isCouncilAutopilotOn={robotCouncil.isCouncilAutopilotOn}
                         robotPerformance={robotCouncil.robotPerformance}
+                        councilVotes={robotCouncil.councilVotes}
                     />
                 </TabsContent>
 

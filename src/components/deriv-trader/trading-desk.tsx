@@ -25,12 +25,13 @@ import {
     XCircle,
     Trophy,
     AlertTriangle,
+    HelpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import type { RobotPerformance } from '@/hooks/use-robot-council';
+import type { RobotPerformance, CouncilVotes } from '@/hooks/use-robot-council';
 import { Label } from '../ui/label';
 import { Switch } from '../ui/switch';
 import { Separator } from '../ui/separator';
@@ -41,6 +42,7 @@ interface TradingDeskProps {
     setIsMeritocracyOn: (isOn: boolean) => void;
     isCouncilAutopilotOn: boolean;
     robotPerformance: RobotPerformance[];
+    councilVotes: CouncilVotes; // Added for debugging
 }
 
 // ============================================================================
@@ -70,6 +72,12 @@ const indicatorIcons: { [key: string]: React.ReactNode } = {
     CHANDELIER_EXIT: <TrendingUp className="h-4 w-4" />,
     OBV: <Activity className="h-4 w-4" />,
 };
+
+const voteIcons: { [key: string]: React.ReactNode } = {
+    RISE: <CheckCircle className="h-4 w-4 text-green-500" />,
+    FALL: <XCircle className="h-4 w-4 text-red-500" />,
+    HOLD: <HelpCircle className="h-4 w-4 text-yellow-500" />,
+}
 
 // ============================================================================
 // RENDERIZAR PARÂMETROS DA ESTRATÉGIA
@@ -125,6 +133,7 @@ export function TradingDesk({
     setIsMeritocracyOn,
     isCouncilAutopilotOn,
     robotPerformance,
+    councilVotes,
 }: TradingDeskProps) {
     const { toast } = useToast();
 
@@ -271,6 +280,7 @@ export function TradingDesk({
                         <TableRow>
                             <TableHead>Estratégia</TableHead>
                             <TableHead>Parâmetros</TableHead>
+                            <TableHead className="text-center">Voto Atual</TableHead>
                             <TableHead className="text-center">Trades (V/D)</TableHead>
                             <TableHead className="text-center">Taxa de Acerto</TableHead>
                             <TableHead className="text-right">P&amp;L (USD)</TableHead>
@@ -283,6 +293,9 @@ export function TradingDesk({
                                 const winRate =
                                     totalTrades > 0 ? ((robot.wins || 0) / totalTrades) * 100 : 0;
                                 const isTopPerformer = index < 3;
+                                const voteData = councilVotes[robot.id];
+                                const currentVote = voteData?.vote || 'HOLD';
+                                const confidence = voteData?.confidence || 0;
 
                                 return (
                                     <TableRow
@@ -302,6 +315,17 @@ export function TradingDesk({
                                         </TableCell>
                                         <TableCell className="text-xs text-muted-foreground">
                                             {renderStrategyParams(robot.strategy)}
+                                        </TableCell>
+                                        <TableCell className="text-center font-semibold">
+                                            <div className={cn("flex items-center justify-center gap-1.5",
+                                                currentVote === 'RISE' && 'text-green-600',
+                                                currentVote === 'FALL' && 'text-red-600',
+                                                currentVote === 'HOLD' && 'text-yellow-600',
+                                            )}>
+                                                {voteIcons[currentVote]}
+                                                <span>{currentVote}</span>
+                                                {confidence > 0 && <span className="text-xs text-muted-foreground">({confidence})</span>}
+                                            </div>
                                         </TableCell>
                                         <TableCell className="text-center">
                                             <div className="flex items-center justify-center gap-2">
@@ -359,7 +383,7 @@ export function TradingDesk({
                             })
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={5} className="text-center h-24">
+                                <TableCell colSpan={6} className="text-center h-24">
                                     <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
                                         <AlertTriangle className="h-8 w-8" />
                                         <p>
