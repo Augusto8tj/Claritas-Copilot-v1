@@ -63,8 +63,6 @@ export function OperationsLog({ operations }: OperationsLogProps) {
     // O status será atualizado via WebSocket, não precisamos remover o loading state aqui
   };
   
-  const latestTick: TickData | null = priceTicks.length > 0 ? priceTicks[priceTicks.length - 1] : null;
-
   return (
     <Card className="h-full flex flex-col">
       <CardHeader>
@@ -137,7 +135,6 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                           operation={op}
                           onSell={() => handleSell(op.id)}
                           isSelling={sellingContractId === op.id}
-                          latestTick={latestTick}
                         />
                         ) : op.status === "won" ? (
                         <>
