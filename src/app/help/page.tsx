@@ -30,7 +30,16 @@ const ChangelogContent = () => (
         margin: 1.5rem 0;
       }
     `}</style>
-    <h3>v1.0.0 (Atual) - A Ascensão da IA: Autonomia e Persistência</h3>
+     <h3>v1.5.0 (Atual) - A Evolução da Inteligência: Aprendizado Contínuo</h3>
+    <h4>Funcionalidades Principais:</h4>
+    <ul>
+      <li><strong>Laboratório de Evolução Genética:</strong> Implementação do `useStrategyEvolution`, um cérebro de aprendizado contínuo. A cada 50 trades virtuais, o sistema identifica os robôs de pior desempenho e os substitui por "mutações" genéticas dos robôs de elite, garantindo que o conselho se adapte e melhore autonomamente.</li>
+      <li><strong>Consenso de Capital:</strong> Os robôs agora não só opinam sobre a direção e o tempo, mas também sugerem um valor de aposta (`stake`) proporcional à sua convicção. A aposta final é uma média ponderada destas sugestões, ajustada pelo risco.</li>
+      <li><strong>Gestão de Risco Temporal Aprimorada:</strong> A duração do contrato não é mais uma média simples. As sugestões de tempo de cada robô são convertidas para uma unidade comum (segundos), ponderadas pela confiança, e o resultado final é ajustado dinamicamente pela volatilidade do mercado (ATR, BBW).</li>
+      <li><strong>Painel "Evolução":</strong> Uma nova aba foi adicionada ao Deriv Trader para visualizar o histórico do Laboratório de Evolução, mostrando quais estratégias estão a ser promovidas e quais estão a ser substituídas.</li>
+    </ul>
+    <hr/>
+    <h3>v1.0.0 - A Ascensão da IA: Autonomia e Persistência</h3>
     <h4>Funcionalidades Principais:</h4>
     <ul>
       <li><strong>Autonomia Total da Mesa:</strong> A Mesa Operacional agora ajusta dinamicamente não só o <strong>limiar de consenso</strong>, mas também o <strong>valor da aposta (`stake`)</strong> e a <strong>duração do contrato</strong> a cada tick. A IA analisa a volatilidade (ATR, Z-Score) e a força da tendência (ADX) para tomar decisões de risco em tempo real.</li>

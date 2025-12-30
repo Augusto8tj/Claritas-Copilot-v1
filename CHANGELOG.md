@@ -4,7 +4,17 @@ Este documento regista a jornada de desenvolvimento e as principais funcionalida
 
 ---
 
-### v1.0.0 (Atual) - A Ascensão da IA: Autonomia e Persistência
+### v1.5.0 (Atual) - A Evolução da Inteligência: Aprendizado Contínuo e Gestão de Risco Multidimensional
+
+**Funcionalidades Principais:**
+- **Laboratório de Evolução Genética:** Implementação do `useStrategyEvolution`, um cérebro de aprendizado contínuo. A cada 50 trades virtuais, o sistema identifica os robôs de pior desempenho e os substitui por "mutações" genéticas dos robôs de elite, garantindo que o conselho se adapte e melhore autonomamente.
+- **Consenso de Capital:** Os robôs agora não só opinam sobre a direção e o tempo, mas também sugerem um valor de aposta (`stake`) proporcional à sua convicção. A aposta final é uma média ponderada destas sugestões, ajustada pelo risco.
+- **Gestão de Risco Temporal Aprimorada:** A duração do contrato não é mais uma média simples. As sugestões de tempo de cada robô são convertidas para uma unidade comum (segundos), ponderadas pela confiança, e o resultado final é ajustado dinamicamente pela volatilidade do mercado (ATR, BBW).
+- **Painel "Evolução":** Uma nova aba foi adicionada ao Deriv Trader para visualizar o histórico do Laboratório de Evolução, mostrando quais estratégias estão a ser promovidas e quais estão a ser substituídas.
+
+---
+
+### v1.0.0 - A Ascensão da IA: Autonomia e Persistência
 
 **Funcionalidades Principais:**
 - **Autonomia Total da Mesa:** A Mesa Operacional agora ajusta dinamicamente não só o **limiar de consenso**, mas também o **valor da aposta (`stake`)** e a **duração do contrato** a cada tick. A IA analisa a volatilidade (ATR, Z-Score) e a força da tendência (ADX) para tomar decisões de risco em tempo real.
