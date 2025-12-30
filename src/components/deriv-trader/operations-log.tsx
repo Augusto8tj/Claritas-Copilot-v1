@@ -97,17 +97,6 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                 </div>
                 ) : (
                 operations.map((op) => {
-                  let currentStatus: 'winning' | 'losing' | 'even' = 'even';
-                  if (op.status === 'pending' && op.entryPrice && latestTick) {
-                    if (op.direction === 'rise') {
-                      if (latestTick.price > op.entryPrice) currentStatus = 'winning';
-                      else if (latestTick.price < op.entryPrice) currentStatus = 'losing';
-                    } else { // fall
-                      if (latestTick.price < op.entryPrice) currentStatus = 'winning';
-                      else if (latestTick.price > op.entryPrice) currentStatus = 'losing';
-                    }
-                  }
-
                   return (
                     <div key={op.id} className="flex items-center">
                     <div className="flex-1 space-y-1">
@@ -144,11 +133,11 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                         )}
                     >
                         {op.status === "pending" ? (
-                        <PendingOperationCounter 
-                            operation={op}
-                            onSell={() => handleSell(op.id)}
-                            isSelling={sellingContractId === op.id}
-                            currentStatus={currentStatus}
+                        <PendingOperationCounter
+                          operation={op}
+                          onSell={() => handleSell(op.id)}
+                          isSelling={sellingContractId === op.id}
+                          latestTick={latestTick}
                         />
                         ) : op.status === "won" ? (
                         <>
