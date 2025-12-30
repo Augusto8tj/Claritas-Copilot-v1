@@ -2,7 +2,7 @@
 import { HealthCheckCard } from "@/features/trading/components/status/health-check-card";
 import { checkGeminiConnection, checkFirestoreConnection } from "@/app/actions";
 import { ListModelsCard } from "@/components/status/list-models-card";
-import { DerivConnectionCard } from "@/features/trading/components/status/deriv-connection-card";
+import { DerivConnectionCard } from "@/components/status/deriv-connection-card";
 
 export const revalidate = 0; // Disable cache for this page
 
