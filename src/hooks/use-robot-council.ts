@@ -13,12 +13,12 @@ import type { ChartData, TickData, CandleData } from '@/lib/types';
 import { initialCouncilStrategies } from '@/services/council-strategies';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import { saveRobotPerformance, loadRobotPerformance } from '@/services/financial-data-service';
+import { useStrategyEvolution } from './use-strategy-evolution'; // IMPORTA O NOVO HOOK
 
 export type RobotVote = {
     vote: 'RISE' | 'FALL' | 'HOLD';
     confidence: number;
     weight: number;
-    // NEW: Include duration suggestion in the vote
     optimalDuration: number;
     optimalDurationUnit: DurationUnit;
 };
@@ -129,10 +129,9 @@ const calculateRobotVote = (
     return { vote, confidence, optimalDuration, optimalDurationUnit };
 };
 
-// Helper to convert duration to a common unit (seconds)
 const durationToSeconds = (duration: number, unit: DurationUnit): number => {
     switch (unit) {
-        case 't': return duration * 2; // Assuming 1 tick = 2 seconds for calculation
+        case 't': return duration * 2;
         case 's': return duration;
         case 'm': return duration * 60;
         case 'h': return duration * 3600;
@@ -150,8 +149,12 @@ export function useRobotCouncil(
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
+    // USA O NOVO HOOK DE EVOLUÇÃO
+    const { evolvedStrategies, evolveTrigger } = useStrategyEvolution(initialCouncilStrategies);
+    // O CONSELHO AGORA USA AS ESTRATÉGIAS EVOLUÍDAS
+    const [strategyCouncil, setStrategyCouncil] = useState<RobotStrategy[]>(evolvedStrategies);
+    
     const [isCouncilAutopilotOn, setIsCouncilAutopilotOn] = useState(false);
-    const [strategyCouncil, setStrategyCouncil] = useState<RobotStrategy[]>([]);
     const [isFetchingCouncil, setIsFetchingCouncil] = useState(false);
     const [councilVotes, setCouncilVotes] = useState<CouncilVotes>({});
 
@@ -177,6 +180,11 @@ export function useRobotCouncil(
     const [consensusDecision, setConsensusDecision] = useState<'RISE' | 'FALL' | 'HOLD'>('HOLD');
 
     const councilExecutionRef = useRef({ isExecuting: false });
+
+    // ATUALIZA O CONSELHO QUANDO AS ESTRATÉGIAS EVOLUEM
+    useEffect(() => {
+        setStrategyCouncil(evolvedStrategies);
+    }, [evolvedStrategies]);
 
     useEffect(() => {
         if (!user || isAuthLoading) return;
@@ -208,17 +216,11 @@ export function useRobotCouncil(
         tradeCounterRef.current = 0;
         await new Promise((resolve) => setTimeout(resolve, 500));
         
-        const { stake } = form.getValues();
-
-        const council = initialCouncilStrategies.map((strategy) => ({
-            ...strategy,
-            suggestedStake: stake,
-            justification: strategy.justification.replace('{{timePeriod}}', timePeriod),
-        }));
-        setStrategyCouncil(council as RobotStrategy[]);
+        // A ESTRATÉGIA INICIAL AGORA VEM DAS ESTRATÉGIAS EVOLUÍDAS (QUE COMEÇAM COMO AS INICIAIS)
+        setStrategyCouncil(evolvedStrategies);
 
         if (robotPerformance.length === 0) {
-            const initialPerformance: RobotPerformance[] = (council as RobotStrategy[]).map((robot) => ({
+            const initialPerformance: RobotPerformance[] = (evolvedStrategies as RobotStrategy[]).map((robot) => ({
                 id: robot.id,
                 strategyType: robot.strategyType,
                 strategy: robot,
@@ -232,11 +234,11 @@ export function useRobotCouncil(
 
         toast({
             title: 'Conselho de IA Montado!',
-            description: `${council.length} analistas foram convocados. Arena Virtual ativa.`,
+            description: `${evolvedStrategies.length} analistas foram convocados. Arena Virtual ativa.`,
         });
         setIsCouncilAutopilotOn(true);
         setIsFetchingCouncil(false);
-    }, [activeSymbol, timePeriod, toast, user, robotPerformance, form]);
+    }, [activeSymbol, user, toast, robotPerformance, evolvedStrategies]);
 
     const dissolveCouncil = () => {
         setStrategyCouncil([]);
@@ -279,8 +281,7 @@ export function useRobotCouncil(
             analysis?: string;
         } => {
             let { stake: finalStake } = formValues;
-
-            // --- 1. CÁLCULO DO CONSENSO DE DURAÇÃO (EM SEGUNDOS) ---
+            
             let totalDurationWeight = 0;
             let weightedDurationSum = 0;
 
@@ -292,7 +293,6 @@ export function useRobotCouncil(
                 }
             });
             
-            // Duração média ponderada em segundos
             const averageDurationInSeconds = totalDurationWeight > 0 
                 ? weightedDurationSum / totalDurationWeight
                 : durationToSeconds(formValues.duration, formValues.duration_unit);
@@ -329,7 +329,6 @@ export function useRobotCouncil(
                 return { status: 'inactive', message: 'Aguardando consenso tático.', finalStake, finalDuration: formValues.duration, finalDurationUnit: formValues.duration_unit };
             }
 
-            // --- 2. AJUSTE DE STAKE E DURAÇÃO PELA GESTÃO DE RISCO ---
             let analysis = 'Risco padrão.';
             let riskFactor = 1.0;
             let durationFactor = 1.0;
@@ -339,17 +338,17 @@ export function useRobotCouncil(
                 const lastPrice = getPrice(priceTicks[priceTicks.length - 1]);
                 if (indicators.adx && indicators.adx < 20) {
                     riskFactor *= 0.75;
-                    durationFactor *= 1.25; // Aumenta duração em mercado lateral
+                    durationFactor *= 1.25;
                     riskAnalysisParts.push("sem tendência (ADX baixo)");
                 }
                 if (indicators.bbw && indicators.bbw > 0.1) {
                     riskFactor *= 0.8;
-                    durationFactor *= 0.75; // Reduz duração em alta volatilidade
+                    durationFactor *= 0.75;
                     riskAnalysisParts.push("alta volatilidade (BBW alto)");
                 }
                 if (indicators.atr && lastPrice && (indicators.atr / lastPrice) > 0.0002) {
                     riskFactor *= 0.8;
-                    durationFactor *= 0.85; // Reduz duração com ATR elevado
+                    durationFactor *= 0.85;
                     riskAnalysisParts.push("ATR elevado");
                 }
                 
@@ -366,7 +365,6 @@ export function useRobotCouncil(
             let finalDuration: number;
             let finalDurationUnit: DurationUnit;
 
-            // Converte de volta para a unidade mais apropriada
             if (finalDurationInSeconds <= 20) {
                 finalDuration = Math.round(finalDurationInSeconds / 2);
                 finalDurationUnit = 't';
@@ -378,13 +376,11 @@ export function useRobotCouncil(
                 finalDurationUnit = 'm';
             }
 
-            // Aplica restrições mínimas e máximas
             finalStake = Math.max(0.35, finalStake);
             finalDuration = Math.max(1, finalDuration);
              if (finalDurationUnit === 't') {
                 finalDuration = Math.min(10, finalDuration);
              }
-
 
             return { status: 'approved', message: 'Aprovado. Risco avaliado.', analysis, finalStake, finalDuration, finalDurationUnit };
         },
@@ -429,6 +425,9 @@ export function useRobotCouncil(
         if (performanceChanged) {
             const updatedPerformance = Array.from(performanceMap.values());
             setRobotPerformance(updatedPerformance);
+            
+            // ACIONA A EVOLUÇÃO E GUARDA O DESEMPENHO
+            evolveTrigger(updatedPerformance); 
             if (user) saveRobotPerformance(user.uid, updatedPerformance);
         }
 
@@ -444,7 +443,7 @@ export function useRobotCouncil(
                 const tradeId = `vt_${Date.now()}_${tradeCounterRef.current++}`;
                 
                 const durationInSeconds = durationToSeconds(optimalDuration, optimalDurationUnit);
-                const exitTickCount = Math.ceil(durationInSeconds / 2); // Approximate ticks based on 2s per tick
+                const exitTickCount = Math.ceil(durationInSeconds / 2);
 
                 const virtualTrade: VirtualTrade = {
                     id: tradeId, 
@@ -498,7 +497,7 @@ export function useRobotCouncil(
             executeTrade(direction === 'RISE' ? 'CALL' : 'PUT', finalStake, activeSymbol!, direction.toLowerCase() as 'rise' | 'fall', finalDuration, finalDurationUnit, 'Conselho')
                 .finally(() => setTimeout(() => (councilExecutionRef.current.isExecuting = false), 10000));
         }
-    }, [priceTicks, isConnected, isCouncilAutopilotOn, strategyCouncil, robotPerformance, isMeritocracyOn, activeSymbol, operationsLog, supervisionCommitteeCheck, toast, executeTrade, form, timePeriod, committeeOfSpecialists, user, isAuthLoading]);
+    }, [priceTicks, isConnected, isCouncilAutopilotOn, strategyCouncil, robotPerformance, isMeritocracyOn, activeSymbol, operationsLog, supervisionCommitteeCheck, toast, executeTrade, form, timePeriod, committeeOfSpecialists, user, isAuthLoading, evolveTrigger]);
 
     return {
         isCouncilAutopilotOn, setIsCouncilAutopilotOn, strategyCouncil, fetchStrategyCouncil, dissolveCouncil, isFetchingCouncil,
