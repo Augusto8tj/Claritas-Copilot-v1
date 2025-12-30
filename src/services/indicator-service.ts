@@ -1,6 +1,5 @@
 
 // /src/services/indicator-service.ts
-'use client';
 
 /**
  * @fileOverview This service provides a centralized engine for calculating various financial technical indicators.
