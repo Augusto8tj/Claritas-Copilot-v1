@@ -144,7 +144,7 @@ const calculateRobotVote = (
 
 const durationToSeconds = (duration: number, unit: DurationUnit): number => {
     switch (unit) {
-        case 't': return duration * 2;
+        case 't': return duration * 2; // Assume 1 tick = 2 seconds for conversion
         case 's': return duration;
         case 'm': return duration * 60;
         case 'h': return duration * 3600;
@@ -393,7 +393,7 @@ export function useRobotCouncil(
                 finalDurationUnit = 'm';
             }
 
-            finalStake = Math.max(0.35, finalStake);
+            finalStake = parseFloat(Math.max(0.35, finalStake).toFixed(2));
             finalDuration = Math.max(1, finalDuration);
              if (finalDurationUnit === 't') {
                 finalDuration = Math.min(10, finalDuration);
