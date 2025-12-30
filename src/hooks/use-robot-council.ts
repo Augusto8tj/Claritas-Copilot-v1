@@ -193,7 +193,6 @@ const calculateRobotVote = (
         }
     }
     
-    // As outras lógicas que estavam faltando
     if (robot.strategyType === 'AWESOME_OSCILLATOR' && isValid(indicators.awesomeOscillator)) {
         if (indicators.awesomeOscillator! > 0) setVote('RISE', robot.weakConfidence);
         else setVote('FALL', robot.weakConfidence);
@@ -208,14 +207,30 @@ const calculateRobotVote = (
     }
     if (robot.strategyType === 'OBV' && isValid(indicators.obv) && tickCandles.length > 1) {
         // Implementação simplificada: tendência de OBV
-        const obvValues = DerivIndicators.obv(tickCandles);
+        const obvValues = calculateAllIndicators(tickCandles, [], '1m').obv; // Recalculate for history
         if (obvValues.length > 5) {
-             const last5 = obvValues.slice(-5);
-             if (last5[4] > last5[0]) setVote('RISE', robot.weakConfidence);
-             if (last5[4] < last5[0]) setVote('FALL', robot.weakConfidence);
+             const last5 = obvValues.slice(-5).filter(isValid);
+             if (last5.length > 1 && last5[last5.length - 1] > last5[0]) setVote('RISE', robot.weakConfidence);
+             if (last5.length > 1 && last5[last5.length - 1] < last5[0]) setVote('FALL', robot.weakConfidence);
         }
     }
-
+    if (robot.strategyType === 'TRIX' && isValid(indicators.trix)) {
+        if (indicators.trix! > 0) setVote('RISE', robot.weakConfidence);
+        if (indicators.trix! < 0) setVote('FALL', robot.weakConfidence);
+    }
+    if (robot.strategyType === 'ROC' && isValid(indicators.roc)) {
+        if (indicators.roc! > 0) setVote('RISE', robot.weakConfidence);
+        if (indicators.roc! < 0) setVote('FALL', robot.weakConfidence);
+    }
+    if (robot.strategyType === 'RVI' && isValid(indicators.rvi)) {
+        if (indicators.rvi! > 50) setVote('RISE', robot.weakConfidence);
+        if (indicators.rvi! < 50) setVote('FALL', robot.weakConfidence);
+    }
+    if (robot.strategyType === 'PARABOLIC_SAR' && isValid(indicators.parabolicSAR) && tickCandles.length > 0) {
+        const lastPrice = tickCandles[tickCandles.length - 1].close;
+        if (lastPrice > indicators.parabolicSAR!) setVote('RISE', robot.weakConfidence);
+        if (lastPrice < indicators.parabolicSAR!) setVote('FALL', robot.weakConfidence);
+    }
 
     return { vote, confidence, optimalDuration, optimalDurationUnit, suggestedStake };
 };
@@ -484,7 +499,7 @@ export function useRobotCouncil(
         if (!isConnected || !user || !isCouncilAutopilotOn || strategyCouncil.length === 0 || !activeSymbol || tickCandles.length < 2) return;
 
         const currentTick = priceTicks[priceTicks.length - 1];
-
+        
         // 1. Calcular Indicadores
         const currentIndicators = calculateAllIndicators(tickCandles, strategyCouncil, timePeriod);
         setIndicators(currentIndicators);
