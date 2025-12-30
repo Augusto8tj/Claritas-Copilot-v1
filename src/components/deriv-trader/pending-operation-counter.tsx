@@ -6,11 +6,13 @@ import { Loader2, XSquare } from 'lucide-react';
 import type { DurationUnit, Operation } from "@/lib/types";
 import { useDerivApi } from '@/hooks/use-deriv-api';
 import { Button } from '../ui/button';
+import { cn } from '@/lib/utils';
 
 interface PendingOperationCounterProps {
   operation: Operation;
   onSell: () => void;
   isSelling: boolean;
+  currentStatus: 'winning' | 'losing' | 'even';
 }
 
 const SELL_WINDOW_SECONDS = 15; // Janela em segundos para permitir a venda
@@ -23,7 +25,7 @@ const formatTime = (ms: number): string => {
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
-export function PendingOperationCounter({ operation, onSell, isSelling }: PendingOperationCounterProps) {
+export function PendingOperationCounter({ operation, onSell, isSelling, currentStatus }: PendingOperationCounterProps) {
   const { priceTicks } = useDerivApi();
   const [ticksSinceEntry, setTicksSinceEntry] = useState(0);
   const [remainingMs, setRemainingMs] = useState<number | null>(null);
@@ -62,7 +64,8 @@ export function PendingOperationCounter({ operation, onSell, isSelling }: Pendin
     return () => clearInterval(interval);
   }, [endTime, durationUnit]);
 
-  const isSellableNow = isSellable && remainingMs !== null && remainingMs < (SELL_WINDOW_SECONDS * 1000);
+  // Lógica de ativação corrigida: ativo se o tempo restante for MAIOR que 15s.
+  const isSellableNow = isSellable && remainingMs !== null && remainingMs > (SELL_WINDOW_SECONDS * 1000);
   
   const renderCounter = () => {
     if (durationUnit === 't') {
@@ -106,9 +109,12 @@ export function PendingOperationCounter({ operation, onSell, isSelling }: Pendin
       {renderCounter()}
       {isSellable && (
         <Button 
-            variant="destructive" 
+            variant="outline"
             size="sm" 
-            className="h-7 w-20"
+            className={cn("h-7 w-20",
+                currentStatus === 'winning' && 'bg-green-500/10 text-green-600 border-green-500/30 hover:bg-green-500/20 hover:text-green-700',
+                currentStatus === 'losing' && 'bg-red-500/10 text-red-600 border-red-500/30 hover:bg-red-500/20 hover:text-red-700',
+            )}
             onClick={onSell}
             disabled={!isSellableNow || isSelling}
         >
