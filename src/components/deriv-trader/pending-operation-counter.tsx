@@ -111,9 +111,12 @@ export function PendingOperationCounter({ operation, onSell, isSelling, currentS
         <Button 
             variant="outline"
             size="sm" 
-            className={cn("h-7 w-20",
+            className={cn(
+                "h-7 w-20 transition-colors",
+                // Cores baseadas no STATUS ATUAL (lucro/prejuízo), não na direção
                 currentStatus === 'winning' && 'bg-green-500/10 text-green-600 border-green-500/30 hover:bg-green-500/20 hover:text-green-700',
                 currentStatus === 'losing' && 'bg-red-500/10 text-red-600 border-red-500/30 hover:bg-red-500/20 hover:text-red-700',
+                currentStatus === 'even' && 'text-muted-foreground'
             )}
             onClick={onSell}
             disabled={!isSellableNow || isSelling}
