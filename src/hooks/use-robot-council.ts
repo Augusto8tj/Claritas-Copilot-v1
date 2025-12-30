@@ -205,13 +205,15 @@ const calculateRobotVote = (
         if (indicators.zScore! <= -robot.zScoreThreshold!) setVote('RISE', robot.strongConfidence);
         if (indicators.zScore! >= robot.zScoreThreshold!) setVote('FALL', robot.strongConfidence);
     }
-    if (robot.strategyType === 'OBV' && isValid(indicators.obv) && tickCandles.length > 1) {
-        // Implementação simplificada: tendência de OBV
-        const obvValues = calculateAllIndicators(tickCandles, [], '1m').obv; // Recalculate for history
-        if (obvValues.length > 5) {
-             const last5 = obvValues.slice(-5).filter(isValid);
-             if (last5.length > 1 && last5[last5.length - 1] > last5[0]) setVote('RISE', robot.weakConfidence);
-             if (last5.length > 1 && last5[last5.length - 1] < last5[0]) setVote('FALL', robot.weakConfidence);
+     if (robot.strategyType === 'OBV' && isValid(indicators.obv) && tickCandles.length > 1) {
+        if (isValid(indicators.obv)) {
+            // Simplified logic: Check if OBV is rising or falling
+            const obvSma = calculateAllIndicators(tickCandles, [], '1m').sma;
+            if (obvSma.length > 1 && indicators.obv > obvSma[obvSma.length - 1]!) {
+                setVote('RISE', robot.weakConfidence);
+            } else if (obvSma.length > 1 && indicators.obv < obvSma[obvSma.length - 1]!) {
+                setVote('FALL', robot.weakConfidence);
+            }
         }
     }
     if (robot.strategyType === 'TRIX' && isValid(indicators.trix)) {
@@ -499,7 +501,8 @@ export function useRobotCouncil(
         if (!isConnected || !user || !isCouncilAutopilotOn || strategyCouncil.length === 0 || !activeSymbol || tickCandles.length < 2) return;
 
         const currentTick = priceTicks[priceTicks.length - 1];
-        
+        const currentTickIndex = priceTicks.length - 1;
+
         // 1. Calcular Indicadores
         const currentIndicators = calculateAllIndicators(tickCandles, strategyCouncil, timePeriod);
         setIndicators(currentIndicators);
@@ -589,6 +592,8 @@ export function useRobotCouncil(
                     entryPrice: currentTick.price,
                     entryEpoch: currentTick.epoch,
                     exitEpoch: currentTick.epoch + durationInSeconds,
+                    entryTickIndex: 0, // Campo mantido para compatibilidade, mas não usado para julgamento
+                    exitTickIndex: 0,  // Campo mantido para compatibilidade, mas não usado para julgamento
                 };
                 virtualTradesRef.current.push(virtualTrade);
             }
