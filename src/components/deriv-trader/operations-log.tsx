@@ -100,14 +100,19 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                 ) : (
                 operations.map((op) => {
                   
-                  const currentStatus = useMemo(() => {
-                    if (op.status !== 'pending' || !latestTick || !op.entryPrice) return 'even';
+                  // This calculation is simple and must be done here, not in a Hook,
+                  // because this is inside a loop.
+                  let currentStatus: 'winning' | 'losing' | 'even' = 'even';
+                  if (op.status === 'pending' && latestTick && op.entryPrice) {
                     if (op.direction === 'rise') {
-                      return latestTick.price > op.entryPrice ? 'winning' : 'losing';
+                      currentStatus = latestTick.price > op.entryPrice ? 'winning' : 'losing';
                     } else { // fall
-                      return latestTick.price < op.entryPrice ? 'winning' : 'losing';
+                      currentStatus = latestTick.price < op.entryPrice ? 'winning' : 'losing';
                     }
-                  }, [op, latestTick]);
+                     if (latestTick.price === op.entryPrice) {
+                        currentStatus = 'even';
+                    }
+                  }
 
                   return (
                     <div key={op.id} className="flex items-center">
