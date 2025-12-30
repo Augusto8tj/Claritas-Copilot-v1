@@ -100,14 +100,16 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                 ) : (
                 operations.map((op) => {
                   
-                  const currentStatus = useMemo(() => {
+                  // **FIX**: Removed `useMemo` from inside the loop. The calculation is simple
+                  // and does not need memoization here, resolving the React Hook order error.
+                  const currentStatus = (() => {
                     if (op.status !== 'pending' || !latestTick || !op.entryPrice) return 'even';
                     if (op.direction === 'rise') {
                       return latestTick.price > op.entryPrice ? 'winning' : 'losing';
                     } else { // 'fall'
                       return latestTick.price < op.entryPrice ? 'winning' : 'losing';
                     }
-                  }, [op, latestTick]);
+                  })();
 
                   return (
                     <div key={op.id} className="flex items-center">
