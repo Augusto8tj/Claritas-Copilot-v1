@@ -32,7 +32,7 @@ export interface EvolutionEvent {
  * @param eliteRobot O robô de elite a ser mutado.
  * @returns Uma nova estratégia com parâmetros ligeiramente alterados.
  */
-const mutateStrategy = (eliteRobot: RobotStrategy): Omit<RobotStrategy, 'id' | 'suggestedStake' | 'justification'> => {
+const mutateStrategy = (eliteRobot: RobotStrategy): Omit<RobotStrategy, 'id' | 'justification'> => {
     const newStrategy = { ...eliteRobot };
     
     // Fator de mutação pequeno
@@ -65,9 +65,9 @@ const mutateStrategy = (eliteRobot: RobotStrategy): Omit<RobotStrategy, 'id' | '
     }
     
     // Remove os campos que serão gerados novamente
-    const { id, suggestedStake, justification, ...rest } = newStrategy;
+    const { id, justification, ...rest } = newStrategy;
 
-    return rest as Omit<RobotStrategy, 'id' | 'suggestedStake' | 'justification'>;
+    return rest as Omit<RobotStrategy, 'id' | 'justification'>;
 };
 
 
@@ -75,11 +75,11 @@ const mutateStrategy = (eliteRobot: RobotStrategy): Omit<RobotStrategy, 'id' | '
 // O HOOK DE EVOLUÇÃO
 // ============================================================================
 
-export function useStrategyEvolution(initialStrategies: Omit<RobotStrategy, 'suggestedStake'>[]) {
+export function useStrategyEvolution(initialStrategies: Omit<RobotStrategy, 'id' | 'justification'>[]) {
     const { toast } = useToast();
     
     // O estado que guarda as estratégias atuais, começando com as iniciais
-    const [evolvedStrategies, setEvolvedStrategies] = useState<Omit<RobotStrategy, 'suggestedStake'>[]>(initialStrategies);
+    const [evolvedStrategies, setEvolvedStrategies] = useState<Omit<RobotStrategy, 'id' | 'justification'>[]>(initialStrategies);
     // NOVO: Estado para guardar o histórico de eventos de evolução
     const [evolutionHistory, setEvolutionHistory] = useState<EvolutionEvent[]>([]);
 
@@ -132,8 +132,8 @@ export function useStrategyEvolution(initialStrategies: Omit<RobotStrategy, 'sug
         };
         
         // Cria um mapa das novas estratégias
-        const newStrategiesMap = new Map<string, Omit<RobotStrategy, 'suggestedStake'>>(
-            evolvedStrategies.map(s => [s.id, s])
+        const newStrategiesMap = new Map<string, Omit<RobotStrategy, 'id' | 'justification'>>(
+            evolvedStrategies.map(s => [(s as any).id, s])
         );
 
         // Substitui os piores por mutações dos melhores
