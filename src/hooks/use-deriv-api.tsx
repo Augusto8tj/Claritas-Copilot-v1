@@ -2,8 +2,8 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useRef } from 'react';
-import type { TradeResult } from '@/features/trading/services/deriv-api-service';
-import { useToast } from './use-toast';
+import type { TradeResult } from '@/services/deriv-api-service';
+import { useToast } from '@/hooks/use-toast';
 import type { Operation, OperationInitiator, DurationUnit, ChartType, TimePeriod, ChartData, CandleData, TradeAnnotation, TickData } from '@/lib/types';
 import { FirebaseErrorListener } from '@/components/firebase-error-listener';
 
@@ -119,20 +119,21 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     }
 }
 
+const MAX_DATA_POINTS = 5000; // Aumentado de 1000 para 5000
+
 const addDataPoint = (prevData: ChartData[], newPoint: ChartData): ChartData[] => {
-    const data = [...prevData];
+    let data = [...prevData];
     if (data.length > 0 && data[data.length - 1].epoch === newPoint.epoch) {
         data[data.length - 1] = newPoint;
         return data;
     }
-    if (data.length >= MAX_DATA_POINTS) {
-        data.shift();
-    }
     data.push(newPoint);
+    if (data.length > MAX_DATA_POINTS) {
+        // CORREÇÃO: Usa slice(1) para remover o primeiro elemento e efetivamente mover a janela de dados
+        return data.slice(1);
+    }
     return data;
 };
-
-const MAX_DATA_POINTS = 1000;
 
 
 export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
@@ -493,7 +494,10 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
                         }
                         setPriceTicks(prev => {
                             const newTicks = [...prev, newTick];
-                            if (newTicks.length > MAX_DATA_POINTS) newTicks.shift();
+                             if (newTicks.length > MAX_DATA_POINTS) {
+                                // CORREÇÃO: Usa slice para efetivamente mover a janela de dados
+                                return newTicks.slice(1);
+                            }
                             return newTicks;
                         });
                     }
