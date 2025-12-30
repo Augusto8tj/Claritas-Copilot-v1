@@ -11,6 +11,8 @@ import type { Indicators } from '@/services/indicator-service';
 import { calculateAllIndicators } from '@/services/indicator-service';
 import type { ChartData, TickData, CandleData } from '@/lib/types';
 import { initialCouncilStrategies } from '@/services/council-strategies';
+import { useAuth } from '@/features/auth/hooks/use-auth';
+import { saveRobotPerformance, loadRobotPerformance } from '@/services/financial-data-service';
 
 export type RobotVote = {
     vote: 'RISE' | 'FALL' | 'HOLD';
@@ -153,6 +155,7 @@ export function useRobotCouncil(
     priceTicks: TickData[]
 ) {
     const { operationsLog, executeTrade, timePeriod, isConnected } = useDerivApi();
+    const { user, loading: isAuthLoading } = useAuth();
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
@@ -192,29 +195,36 @@ export function useRobotCouncil(
     const councilExecutionRef = useRef({ isExecuting: false });
 
     // ========================================================================
-    // CARREGAR DESEMPENHO PERSISTIDO DO LOCALSTORAGE
+    // CARREGAR DESEMPENHO PERSISTIDO DO FIREBASE
     // ========================================================================
     useEffect(() => {
-        try {
-            const storedPerformance = localStorage.getItem('robotPerformance');
-            if (storedPerformance) {
-                setRobotPerformance(JSON.parse(storedPerformance));
-                console.log("[Performance] Dados de desempenho carregados do localStorage.");
+        if (!user || isAuthLoading) return;
+
+        const doLoad = async () => {
+            try {
+                const storedPerformance = await loadRobotPerformance(user.uid);
+                if (storedPerformance && storedPerformance.length > 0) {
+                    setRobotPerformance(storedPerformance);
+                    console.log("[Performance] Dados de desempenho carregados do Firebase.");
+                } else {
+                     console.log("[Performance] Nenhum dado de desempenho encontrado no Firebase para este usuário.");
+                }
+            } catch (error) {
+                console.error('Erro ao carregar desempenho do Firebase:', error);
             }
-        } catch (error) {
-            console.error('Erro ao carregar desempenho do localStorage:', error);
-        }
-    }, []);
+        };
+        doLoad();
+    }, [user, isAuthLoading]);
 
     // ========================================================================
     // CONSTRUIR O CONSELHO
     // ========================================================================
     const fetchStrategyCouncil = useCallback(async () => {
-        if (!activeSymbol) {
+        if (!activeSymbol || !user) {
             toast({
                 variant: 'destructive',
-                title: 'Nenhum Ativo Selecionado',
-                description: 'Por favor, selecione um ativo para construir o conselho.',
+                title: !user ? 'Não Autenticado' : 'Nenhum Ativo',
+                description: !user ? 'Faça login para usar a Mesa Operacional.' : 'Selecione um ativo para construir o conselho.',
             });
             return;
         }
@@ -249,6 +259,7 @@ export function useRobotCouncil(
                 totalProfit: 0,
             }));
             setRobotPerformance(initialPerformance);
+            await saveRobotPerformance(user.uid, initialPerformance);
         }
 
 
@@ -259,7 +270,7 @@ export function useRobotCouncil(
 
         setIsCouncilAutopilotOn(true);
         setIsFetchingCouncil(false);
-    }, [activeSymbol, dailyBalance, form, timePeriod, toast, robotPerformance.length]);
+    }, [activeSymbol, dailyBalance, form, timePeriod, toast, user, robotPerformance]);
 
     // ========================================================================
     // DISSOLVER O CONSELHO
@@ -436,6 +447,7 @@ export function useRobotCouncil(
         // Condições de guarda
         if (
             !isConnected ||
+            !user ||
             !isCouncilAutopilotOn ||
             strategyCouncil.length === 0 ||
             !activeSymbol ||
@@ -507,14 +519,9 @@ export function useRobotCouncil(
         if (performanceChanged) {
             const updatedPerformance = Array.from(performanceMap.values());
             setRobotPerformance(updatedPerformance);
-            // SALVAR NO LOCALSTORAGE
-            try {
-                localStorage.setItem(
-                    'robotPerformance',
-                    JSON.stringify(updatedPerformance)
-                );
-            } catch (e) {
-                console.error('Falha ao salvar desempenho no localStorage:', e);
+            // SALVAR NO FIREBASE
+            if (user) {
+                saveRobotPerformance(user.uid, updatedPerformance);
             }
         }
 
@@ -524,8 +531,9 @@ export function useRobotCouncil(
         let riseConfidenceSum = 0;
         let fallConfidenceSum = 0;
         const newVotes: CouncilVotes = {};
-        const { duration: formDuration } = form.getValues();
-        const tradeDuration = formDuration > 0 ? formDuration : baseDuration; // Fallback para a duração base
+        
+        // CORREÇÃO: Usar baseDuration para a trade virtual para garantir que seja um valor estável e positivo
+        const tradeDuration = baseDuration > 0 ? baseDuration : 5; 
 
         strategyCouncil.forEach((robot) => {
             const { vote, confidence } = calculateRobotVote(robot, currentIndicators, tickCandles);
@@ -542,7 +550,7 @@ export function useRobotCouncil(
                     entryPrice: currentTick.price,
                     entryEpoch: currentTick.epoch,
                     entryTickIndex: currentTickIndex,
-                    exitTickIndex: currentTickIndex + tradeDuration,
+                    exitTickIndex: currentTickIndex + tradeDuration, // Usar tradeDuration estável
                 };
                 virtualTradesRef.current.push(virtualTrade);
             }
@@ -640,7 +648,9 @@ export function useRobotCouncil(
         form,
         timePeriod,
         committeeOfSpecialists,
+        user,
         baseDuration,
+        isAuthLoading // Adicionado para garantir que o user esteja carregado
     ]);
 
     return {
