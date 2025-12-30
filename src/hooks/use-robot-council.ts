@@ -90,13 +90,16 @@ const calculateRobotVote = (
 
     if (
         robot.strategyType === 'BOLLINGER_BANDS' &&
-        indicators.bb && isValid(indicators.bb.lower) && isValid(indicators.bb.upper) &&
+        indicators.bollingerBands &&
+        indicators.bollingerBands.length > 0 &&
         tickCandles.length > 0
     ) {
+        const lastBand = indicators.bollingerBands[indicators.bollingerBands.length - 1];
         const lastPrice = tickCandles[tickCandles.length - 1].close;
-        if (isValid(lastPrice)) {
-            if (lastPrice <= indicators.bb.lower!) { vote = 'RISE'; confidence = robot.weakConfidence; }
-            if (lastPrice >= indicators.bb.upper!) { vote = 'FALL'; confidence = robot.weakConfidence; }
+
+        if (lastBand && isValid(lastBand.lower) && isValid(lastBand.upper) && isValid(lastPrice)) {
+            if (lastPrice <= lastBand.lower) { vote = 'RISE'; confidence = robot.weakConfidence; }
+            if (lastPrice >= lastBand.upper) { vote = 'FALL'; confidence = robot.weakConfidence; }
         }
     }
 

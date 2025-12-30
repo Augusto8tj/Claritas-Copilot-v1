@@ -382,7 +382,7 @@ export function calculateAllIndicators(chartData: ChartData[], strategyCouncil: 
     const bbPeriod = getParam('BOLLINGER_BANDS', 'period', 20);
     const bbStdDev = getParam('BOLLINGER_BANDS', 'stdDev', 2);
     indicators.bollingerBands = calculateBollingerBands(candles, bbPeriod, bbStdDev);
-    const lastBB = indicators.bollingerBands[indicators.bollingerBands.length - 1];
+    const lastBB = indicators.bollingerBands.length > 0 ? indicators.bollingerBands[indicators.bollingerBands.length - 1] : null;
     indicators.bb = lastBB || { upper: null, middle: null, lower: null };
 
     const bbwValues = DerivIndicators.bollingerBandwidth(candles, bbPeriod, bbStdDev);
