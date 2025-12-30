@@ -2,15 +2,18 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2 } from 'lucide-react';
-import type { DurationUnit } from "@/lib/types";
+import { Loader2, XSquare } from 'lucide-react';
+import type { DurationUnit, Operation } from "@/lib/types";
 import { useDerivApi } from '@/hooks/use-deriv-api';
+import { Button } from '../ui/button';
 
 interface PendingOperationCounterProps {
-  duration: number;
-  durationUnit: DurationUnit;
-  entryTime: number;
+  operation: Operation;
+  onSell: () => void;
+  isSelling: boolean;
 }
+
+const SELL_WINDOW_SECONDS = 15; // Janela em segundos para permitir a venda
 
 const formatTime = (ms: number): string => {
     if (ms < 0) ms = 0;
@@ -20,10 +23,13 @@ const formatTime = (ms: number): string => {
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
-export function PendingOperationCounter({ duration, durationUnit, entryTime }: PendingOperationCounterProps) {
+export function PendingOperationCounter({ operation, onSell, isSelling }: PendingOperationCounterProps) {
   const { priceTicks } = useDerivApi();
   const [ticksSinceEntry, setTicksSinceEntry] = useState(0);
-  const [countdown, setCountdown] = useState<string | null>(null);
+  const [remainingMs, setRemainingMs] = useState<number | null>(null);
+
+  const { duration, durationUnit, timestamp: entryTimeISO, isSellable } = operation;
+  const entryTime = useMemo(() => new Date(entryTimeISO).getTime(), [entryTimeISO]);
 
   const endTime = useMemo(() => {
     if (durationUnit === 't') return null;
@@ -39,49 +45,76 @@ export function PendingOperationCounter({ duration, durationUnit, entryTime }: P
 
   useEffect(() => {
     if (durationUnit !== 't' || !priceTicks) return;
-    
-    // Contar ticks que ocorreram APÓS o tempo de entrada da operação
     const relevantTicks = priceTicks.filter(tick => tick.epoch * 1000 > entryTime);
     setTicksSinceEntry(relevantTicks.length);
-
   }, [priceTicks, entryTime, durationUnit]);
   
-   useEffect(() => {
+  useEffect(() => {
     if (durationUnit === 't' || !endTime) return;
-
     const interval = setInterval(() => {
-        const remainingMs = endTime - Date.now();
-        if (remainingMs > 0) {
-            setCountdown(formatTime(remainingMs));
-        } else {
-            setCountdown("Aguardando resultado...");
+        const newRemainingMs = endTime - Date.now();
+        setRemainingMs(newRemainingMs);
+        if (newRemainingMs <= 0) {
             clearInterval(interval);
         }
     }, 1000);
-
-    // Set initial value immediately
-    setCountdown(formatTime(endTime - Date.now()));
-
+    setRemainingMs(endTime - Date.now());
     return () => clearInterval(interval);
-
   }, [endTime, durationUnit]);
 
+  const isSellableNow = isSellable && remainingMs !== null && remainingMs < (SELL_WINDOW_SECONDS * 1000);
+  
+  const renderCounter = () => {
+    if (durationUnit === 't') {
+      const ticksRemaining = Math.max(0, duration - ticksSinceEntry);
+      return (
+        <div className="flex items-center gap-1.5">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          <span>{ticksRemaining} Ticks</span>
+        </div>
+      );
+    }
 
-  if (durationUnit === 't') {
-    const ticksRemaining = Math.max(0, duration - ticksSinceEntry);
+    if (remainingMs === null) {
+      return (
+        <div className="flex items-center gap-1.5">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          <span>Calculando...</span>
+        </div>
+      );
+    }
+
+    if (remainingMs <= 0) {
+        return (
+             <div className="flex items-center gap-1.5">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span>Aguardando...</span>
+            </div>
+        )
+    }
+
     return (
-      <>
-        <Loader2 className="h-3 w-3 animate-spin" />
-        <span>{ticksRemaining} Ticks</span>
-      </>
+       <div className="flex items-center gap-1.5">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            <span>{formatTime(remainingMs)}</span>
+       </div>
     );
-  }
-
-  // Fallback para durações baseadas em tempo (s, m, h, d)
+  };
+  
   return (
-    <>
-      <Loader2 className="h-3 w-3 animate-spin" />
-      <span>{countdown || 'Calculando...'}</span>
-    </>
+    <div className="flex items-center gap-2">
+      {renderCounter()}
+      {isSellable && (
+        <Button 
+            variant="destructive" 
+            size="sm" 
+            className="h-7 w-20"
+            onClick={onSell}
+            disabled={!isSellableNow || isSelling}
+        >
+          {isSelling ? <Loader2 className="h-4 w-4 animate-spin"/> : <><XSquare className="h-4 w-4 mr-1"/> Encerrar</>}
+        </Button>
+      )}
+    </div>
   );
 }

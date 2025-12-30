@@ -91,6 +91,7 @@ interface DerivApiContextType {
     durationUnit: DurationUnit,
     initiator: OperationInitiator,
   ) => Promise<TradeResult>;
+  sellContract: (contractId: number) => Promise<TradeResult>;
   clearActiveContracts: () => void;
   tradeAnnotations: TradeAnnotation[];
 
@@ -412,6 +413,8 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
             
             const entryPrice = buyResult.entry_tick_display_value ? parseFloat(buyResult.entry_tick_display_value) : buyResult.buy_price;
 
+            const isSellable = durationUnit === 's'; // Apenas contratos de segundos podem ser vendidos
+
             const newOperation: Operation = {
                 id: buyResult.contract_id,
                 asset: symbol,
@@ -423,6 +426,7 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
                 durationUnit: durationUnit,
                 initiator,
                 entryPrice: entryPrice,
+                isSellable,
             };
             setOperationsLog(prevLog => [newOperation, ...prevLog]);
 
@@ -449,6 +453,32 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
              return { success: false, message };
           }
       }, [isConnected, makeRequest, addTradeAnnotation]);
+
+  const sellContract = useCallback(async (contractId: number): Promise<TradeResult> => {
+    if (!wsRef.current || !isConnected) {
+        return { success: false, message: "A conexão com a API da Deriv não está ativa." };
+    }
+
+    try {
+        const sellResponse: any = await makeRequest({ 
+            "sell": contractId,
+            "price": 0, // Vende pelo preço atual de mercado
+        });
+
+        const sellResult = sellResponse.sell;
+        if (sellResult) {
+            // A atualização do contrato virá da subscrição 'proposal_open_contract'
+            return { success: true, message: `Ordem de venda para o contrato ${contractId} enviada.` };
+        } else {
+            throw new Error("A resposta da API não continha os dados de venda esperados.");
+        }
+    } catch (error) {
+        console.error("[Deriv Hook] Erro ao vender o contrato:", error);
+        const message = error instanceof Error ? error.message : "Um erro desconhecido ocorreu ao vender o contrato.";
+        return { success: false, message };
+    }
+  }, [isConnected, makeRequest]);
+
 
   useEffect(() => {
     if (!activeToken || isLoading) {
@@ -740,6 +770,7 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
     timePeriod,
     setTimePeriod,
     executeTrade,
+    sellContract,
     clearActiveContracts,
     tradeAnnotations,
     durationLimits

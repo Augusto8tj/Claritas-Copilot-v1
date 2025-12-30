@@ -83,6 +83,7 @@ export interface Operation {
   initiator: OperationInitiator;
   entryPrice?: number;
   exitPrice?: number;
+  isSellable?: boolean; // NOVO: Campo para indicar se o contrato pode ser vendido
 }
 
 export interface RobotPerformance {

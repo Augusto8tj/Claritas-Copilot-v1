@@ -11,10 +11,13 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { Operation, OperationInitiator, DurationUnit } from "@/lib/types";
-import { ArrowDown, ArrowUp, Bot, User, Users, MoveRight } from "lucide-react";
-import { useMemo } from "react";
+import { ArrowDown, ArrowUp, Bot, User, Users, MoveRight, XSquare, Loader2 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { PendingOperationCounter } from "./pending-operation-counter";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import { Button } from "../ui/button";
+import { useDerivApi } from "@/hooks/use-deriv-api";
+import { useToast } from "@/hooks/use-toast";
 
 
 interface OperationsLogProps {
@@ -37,6 +40,9 @@ const initiatorIcons: Record<OperationInitiator, React.ReactNode> = {
 
 
 export function OperationsLog({ operations }: OperationsLogProps) {
+  const { sellContract } = useDerivApi();
+  const { toast } = useToast();
+  const [sellingContractId, setSellingContractId] = useState<number | null>(null);
 
   const dailySummary = useMemo(() => {
     const today = new Date();
@@ -47,6 +53,16 @@ export function OperationsLog({ operations }: OperationsLogProps) {
       .reduce((sum, op) => sum + (op.result || 0), 0);
   }, [operations]);
 
+  const handleSell = async (contractId: number) => {
+    setSellingContractId(contractId);
+    const result = await sellContract(contractId);
+    if (result.success) {
+      toast({ title: "Ordem de Venda Enviada", description: `O contrato ${contractId} será encerrado ao preço de mercado.` });
+    } else {
+      toast({ title: "Falha na Venda", description: result.message, variant: "destructive" });
+    }
+    // O status será atualizado via WebSocket, não precisamos remover o loading state aqui
+  };
 
   return (
     <Card className="h-full flex flex-col">
@@ -116,9 +132,9 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                     >
                         {op.status === "pending" ? (
                         <PendingOperationCounter 
-                            duration={op.duration} 
-                            durationUnit={op.durationUnit}
-                            entryTime={new Date(op.timestamp).getTime()}
+                            operation={op}
+                            onSell={() => handleSell(op.id)}
+                            isSelling={sellingContractId === op.id}
                         />
                         ) : op.status === "won" ? (
                         <>
