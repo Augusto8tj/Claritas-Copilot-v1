@@ -382,8 +382,8 @@ export function useRobotCouncil(
             let finalDuration: number;
             let finalDurationUnit: DurationUnit;
 
-            if (finalDurationInSeconds <= 20) {
-                finalDuration = Math.max(1, Math.round(finalDurationInSeconds / 2));
+            if (finalDurationInSeconds <= 20 && formValues.duration_unit === 't') {
+                finalDuration = Math.round(finalDurationInSeconds / 2);
                 finalDurationUnit = 't';
             } else if (finalDurationInSeconds <= 120) {
                 finalDuration = Math.round(finalDurationInSeconds);
@@ -394,9 +394,10 @@ export function useRobotCouncil(
             }
 
             finalStake = parseFloat(Math.max(0.35, finalStake).toFixed(2));
-            finalDuration = Math.max(1, finalDuration);
+            // ARREDONDA A DURAÇÃO E VALIDA OS LIMITES
+            finalDuration = Math.round(Math.max(1, finalDuration));
              if (finalDurationUnit === 't') {
-                finalDuration = Math.min(10, finalDuration);
+                finalDuration = Math.max(5, Math.min(10, finalDuration));
              }
 
             return { status: 'approved', message: 'Aprovado. Risco avaliado.', analysis, finalStake, finalDuration, finalDurationUnit };
