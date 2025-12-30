@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "../ui/button";
-import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award, Wand, Trash2, ShieldCheck, ShieldX, Group, ArrowUpCircle, ArrowDownCircle, LayoutGrid, Power, PowerOff } from "lucide-react";
+import { Loader2, Users, Bot, Info, BrainCircuit, CheckCircle, XCircle, HelpCircle, CandlestickChart, Activity, Waves, Cloud, BarChart, TrendingUp, Award, Wand, Trash2, ShieldCheck, ShieldX, Group, ArrowUpCircle, ArrowDownCircle, LayoutGrid, Power, PowerOff, Clock } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "../ui/label";
@@ -22,6 +22,14 @@ import { cn } from "@/lib/utils";
 import { Input } from "../ui/input";
 import type { useRobotCouncil } from "@/hooks/use-robot-council";
 import type { Indicators } from "@/services/indicator-service";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { DurationUnit } from "@/lib/types";
 
 const indicatorIcons: { [key: string]: React.ReactNode } = {
     RSI: <BrainCircuit className="h-4 w-4" />,
@@ -53,6 +61,14 @@ const voteIcons: { [key: string]: React.ReactNode } = {
     FALL: <XCircle className="h-4 w-4 text-red-500" />,
     HOLD: <HelpCircle className="h-4 w-4 text-yellow-500" />,
 }
+
+const durationUnitLabels: Record<DurationUnit, string> = {
+  t: "Ticks",
+  s: "Segundos",
+  m: "Minutos",
+  h: "Horas",
+  d: "Dias",
+};
 
 const robotCategories: Record<string, RobotStrategy['strategyType'][]> = {
     'Especialistas em Momentum': ['RSI', 'STOCHASTIC', 'MACD_CROSS', 'AWESOME_OSCILLATOR', 'TRIX', 'ROC', 'RVI'],
@@ -362,6 +378,9 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
                                     const vote = voteData?.vote || 'HOLD';
                                     const weight = voteData?.weight || 1.0;
                                     const confidence = voteData?.confidence || 0;
+                                    const optimalDuration = voteData?.optimalDuration || robot.optimalDuration;
+                                    const optimalDurationUnit = voteData?.optimalDurationUnit || robot.optimalDurationUnit;
+
                                     return (
                                         <Fragment key={robot.id}>
                                             <div className="text-xs space-y-1">
@@ -377,13 +396,19 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
                                                 <p className="italic pl-5">{robot.justification}</p>
                                                 <div className="pl-5 text-xs">{renderStrategyParams(robot)}</div>
                                                 <div className="pl-5 text-xs">{renderIndicatorValue(robot)}</div>
-                                                <div className={cn("pl-5 font-bold flex items-center gap-1",
+                                                <div className={cn("pl-5 font-bold flex items-center gap-2",
                                                     vote === 'RISE' && 'text-green-600',
                                                     vote === 'FALL' && 'text-red-600',
                                                     vote === 'HOLD' && 'text-yellow-600',
                                                 )}>
-                                                    Voto Atual: {vote} {voteIcons[vote]}
+                                                    <span className="flex items-center gap-1">Voto: {vote} {voteIcons[vote]}</span>
                                                     {confidence > 0 && <span className="font-normal">(Conf: {confidence})</span>}
+                                                    {vote !== 'HOLD' && (
+                                                        <Badge variant="outline" className="flex items-center gap-1">
+                                                            <Clock className="h-3 w-3"/>
+                                                            {optimalDuration} {durationUnitLabels[optimalDurationUnit].slice(0, -1)}
+                                                        </Badge>
+                                                    )}
                                                 </div>
                                             </div>
                                             {index < robots.length - 1 && <Separator className="bg-primary/10 my-2" />}
