@@ -9,7 +9,7 @@ import { AssetSelector } from "@/components/deriv-trader/asset-selector";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MarketChart } from "@/components/deriv-trader/market-chart";
 import { Button } from "@/components/ui/button";
-import { Trash2, Bot, NotepadText, LayoutGrid, Trophy } from "lucide-react";
+import { Trash2, Bot, NotepadText, LayoutGrid } from "lucide-react";
 import { useDerivApi } from "@/hooks/use-deriv-api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OperationsLog } from "@/components/deriv-trader/operations-log";
@@ -24,7 +24,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AITradeSuggestion } from "@/components/deriv-trader/ai-trade-suggestion";
 import { IndicatorPanel } from "@/components/deriv-trader/indicator-panel";
 import { TradingDesk } from "@/components/deriv-trader/trading-desk";
-import { HallOfFame } from "@/components/deriv-trader/hall-of-fame";
 
 
 /**
@@ -113,10 +112,9 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                 </div>
                  <div className="mt-6">
                     <Tabs value={activeTab} onValueChange={setActiveTab}>
-                        <TabsList className="grid w-full grid-cols-4">
+                        <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger value="log">Registo de Operações</TabsTrigger>
                             <TabsTrigger value="desk">Arena Virtual</TabsTrigger>
-                            <TabsTrigger value="fame">Hall da Fama</TabsTrigger>
                             <TabsTrigger value="analysis">Análise com IA</TabsTrigger>
                         </TabsList>
                         <TabsContent value="log" className="mt-4">
@@ -129,9 +127,6 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                                 isCouncilAutopilotOn={robotCouncil.isCouncilAutopilotOn}
                                 robotPerformance={robotCouncil.robotPerformance}
                             />
-                        </TabsContent>
-                         <TabsContent value="fame" className="mt-4">
-                            <HallOfFame />
                         </TabsContent>
                          <TabsContent value="analysis" className="mt-4">
                              <AIAnalysisInterface analyzeSessionPerformance={tradeAnalysis.analyzeSessionPerformance} />
@@ -147,11 +142,10 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
        {/* Layout com Abas para telas pequenas */}
        <div className="lg:hidden mt-6">
            <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-5">
+                <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="trade">Negociar</TabsTrigger>
                     <TabsTrigger value="autopilot"><Bot className="w-4 h-4 mr-1"/> IA</TabsTrigger>
                     <TabsTrigger value="desk"><LayoutGrid className="w-4 h-4 mr-1"/> Arena</TabsTrigger>
-                    <TabsTrigger value="fame"><Trophy className="w-4 h-4 mr-1"/></TabsTrigger>
                     <TabsTrigger value="log"><NotepadText className="w-4 h-4 mr-1"/> Log</TabsTrigger>
                 </TabsList>
 
@@ -178,10 +172,6 @@ function DerivTraderCore({ activeSymbol }: { activeSymbol: string | null }) {
                         isCouncilAutopilotOn={robotCouncil.isCouncilAutopilotOn}
                         robotPerformance={robotCouncil.robotPerformance}
                     />
-                </TabsContent>
-
-                 <TabsContent value="fame" className="mt-4">
-                    <HallOfFame />
                 </TabsContent>
 
                  <TabsContent value="log" className="mt-4 space-y-6">

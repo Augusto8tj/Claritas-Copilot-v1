@@ -35,8 +35,6 @@ import { Label } from '../ui/label';
 import { Switch } from '../ui/switch';
 import { Separator } from '../ui/separator';
 import { Badge } from '../ui/badge';
-import { useAuth } from '@/features/auth/hooks/use-auth';
-import { saveRobotPerformance } from '@/services/financial-data-service';
 
 interface TradingDeskProps {
     isMeritocracyOn: boolean;
@@ -128,7 +126,6 @@ export function TradingDesk({
     isCouncilAutopilotOn,
     robotPerformance,
 }: TradingDeskProps) {
-    const { user } = useAuth();
     const { toast } = useToast();
 
     // Ordenar por vitórias (depois por lucro)
@@ -150,30 +147,15 @@ export function TradingDesk({
     // Top 3 performers
     const topPerformers = sortedPerformance.slice(0, 3);
 
-    const resetPerformance = async () => {
-        if (!user) {
-             toast({ variant: 'destructive', title: 'Erro', description: 'Utilizador não autenticado.'});
-             return;
-        }
-        try {
-            // No Firebase, resetar significa salvar um array vazio ou com valores zerados
-            const resetData = robotPerformance.map(p => ({ ...p, wins: 0, losses: 0, totalProfit: 0 }));
-            await saveRobotPerformance(user.uid, resetData);
-            
-            toast({
-                title: 'Desempenho Resetado',
-                description:
-                    'O histórico da Arena foi limpo na nuvem. A interface irá atualizar.',
-            });
-             // Forçar recarregamento para refletir o estado limpo
-            window.location.reload();
-        } catch (error) {
-            toast({
-                variant: 'destructive',
-                title: 'Erro',
-                description: 'Não foi possível limpar o histórico de desempenho no Firebase.',
-            });
-        }
+    const resetPerformance = () => {
+        localStorage.removeItem('robotPerformance');
+        toast({
+            title: 'Desempenho Resetado',
+            description:
+                'O histórico da Arena foi limpo. A interface irá atualizar em breve.',
+        });
+        // A atualização será refletida no próximo ciclo do `useRobotCouncil`
+        window.location.reload();
     };
 
     return (
