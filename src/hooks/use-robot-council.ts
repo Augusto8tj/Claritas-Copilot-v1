@@ -29,8 +29,8 @@ import type { ChartData, TickData, CandleData, Operation } from '@/lib/types';
 import { initialCouncilStrategies } from '@/services/council-strategies';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import { saveRobotPerformance, loadRobotPerformance } from '@/services/financial-data-service';
-import { useStrategyEvolution, type EvolutionEvent } from './use-strategy-evolution';
-import type { DurationLimits } from './use-deriv-api'; 
+import { useStrategyEvolution } from './use-strategy-evolution';
+import type { DurationLimits } from './use-deriv-api';
 
 // --- TIPAGEM ---
 export type RobotVote = {
@@ -110,8 +110,7 @@ const calculateRobotVote = (
 
     if (!indicators) return { vote: 'HOLD', confidence: 0, optimalDuration, optimalDurationUnit, suggestedStake: 0 };
     
-    // --- LÓGICA DE ESTRATÉGIAS (Simplificada para brevidade, mantendo a sua original) ---
-    // (Mantive a lógica original aqui, assumindo que está correta para seus indicadores)
+    // --- LÓGICA DE ESTRATÉGIAS COMPLETA ---
     
     if (robot.strategyType === 'RSI' && isValid(indicators.rsi)) {
         if (indicators.rsi! <= robot.weakBuyThreshold!) setVote('RISE', robot.weakConfidence);
@@ -119,22 +118,7 @@ const calculateRobotVote = (
         if (indicators.rsi! >= robot.weakSellThreshold!) setVote('FALL', robot.weakConfidence);
         if (indicators.rsi! >= robot.strongSellThreshold!) setVote('FALL', robot.strongConfidence);
     }
-    // ... (Outros indicadores mantidos iguais ao original)
-    if (robot.strategyType === 'MACD_CROSS' && isValid(indicators.macd.macd) && isValid(indicators.macd.signal)) {
-       if (indicators.macd.macd! > indicators.macd.signal!) setVote('RISE', robot.weakConfidence);
-       if (indicators.macd.signal! > indicators.macd.macd!) setVote('FALL', robot.weakConfidence);
-    }
     
-    // Adicionei verificação de segurança para Bollinger
-    if (robot.strategyType === 'BOLLINGER_BANDS' && indicators.bollingerBands?.length && tickCandles.length) {
-        const lastBand = indicators.bollingerBands[indicators.bollingerBands.length - 1];
-        const lastPrice = tickCandles[tickCandles.length - 1].close;
-        if (lastBand && isValid(lastBand.lower) && isValid(lastBand.upper) && isValid(lastPrice)) {
-            if (lastPrice <= lastBand.lower) setVote('RISE', robot.weakConfidence);
-            if (lastPrice >= lastBand.upper) setVote('FALL', robot.weakConfidence);
-        }
-    }
-
     if (robot.strategyType === 'STOCHASTIC' && isValid(indicators.stoch)) {
         if (indicators.stoch! <= robot.weakBuyThreshold!) setVote('RISE', robot.weakConfidence);
         if (indicators.stoch! <= robot.strongBuyThreshold!) setVote('RISE', robot.strongConfidence);
@@ -145,6 +129,20 @@ const calculateRobotVote = (
     if (robot.strategyType === 'MOVING_AVERAGE_CROSS' && isValid(indicators.ma.short) && isValid(indicators.ma.long)) {
         if (indicators.ma.short! > indicators.ma.long!) setVote('RISE', robot.weakConfidence);
         if (indicators.ma.long! > indicators.ma.short!) setVote('FALL', robot.weakConfidence);
+    }
+
+    if (robot.strategyType === 'MACD_CROSS' && isValid(indicators.macd.macd) && isValid(indicators.macd.signal)) {
+       if (indicators.macd.macd! > indicators.macd.signal!) setVote('RISE', robot.weakConfidence);
+       if (indicators.macd.signal! > indicators.macd.macd!) setVote('FALL', robot.weakConfidence);
+    }
+    
+    if (robot.strategyType === 'BOLLINGER_BANDS' && indicators.bollingerBands?.length && tickCandles.length) {
+        const lastBand = indicators.bollingerBands[indicators.bollingerBands.length - 1];
+        const lastPrice = tickCandles[tickCandles.length - 1].close;
+        if (lastBand && isValid(lastBand.lower) && isValid(lastBand.upper) && isValid(lastPrice)) {
+            if (lastPrice <= lastBand.lower) setVote('RISE', robot.weakConfidence);
+            if (lastPrice >= lastBand.upper) setVote('FALL', robot.weakConfidence);
+        }
     }
 
     if (robot.strategyType === 'ADX_TREND' && isValid(indicators.adx)) {
@@ -169,7 +167,33 @@ const calculateRobotVote = (
         if (indicators.stochRSI! >= robot.weakSellThreshold!) setVote('FALL', robot.weakConfidence);
         if (indicators.stochRSI! >= robot.strongSellThreshold!) setVote('FALL', robot.strongConfidence);
     }
+    
+    // As outras lógicas que estavam faltando
+    if (robot.strategyType === 'PRICE_ACTION_PATTERN' && tickCandles.length >= 3) {
+        const [c3, c2, c1] = tickCandles.slice(-3); // third last, second last, last
+        const body = Math.abs(c1.close - c1.open);
+        const upperWick = c1.high - Math.max(c1.open, c1.close);
+        const lowerWick = Math.min(c1.open, c1.close) - c1.low;
+        const isUpTrend = c3.close > c3.open && c2.close > c2.open;
+        const isDownTrend = c3.close < c3.open && c2.close < c2.open;
 
+        if (robot.pattern === 'hammer' && isDownTrend && lowerWick > body * 2 && upperWick < body * 0.5) {
+             setVote('RISE', robot.strongConfidence);
+        }
+        if (robot.pattern === 'shooting_star' && isUpTrend && upperWick > body * 2 && lowerWick < body * 0.5) {
+             setVote('FALL', robot.strongConfidence);
+        }
+    }
+
+    if (robot.strategyType === 'ICHIMOKU_CLOUD' && indicators.ichimoku && isValid(indicators.ichimoku.senkouA) && isValid(indicators.ichimoku.senkouB) && tickCandles.length > 0) {
+        const lastPrice = tickCandles[tickCandles.length - 1].close;
+        if (lastPrice > indicators.ichimoku.senkouA! && lastPrice > indicators.ichimoku.senkouB!) {
+            setVote('RISE', robot.weakConfidence);
+        }
+        if (lastPrice < indicators.ichimoku.senkouA! && lastPrice < indicators.ichimoku.senkouB!) {
+             setVote('FALL', robot.weakConfidence);
+        }
+    }
 
     return { vote, confidence, optimalDuration, optimalDurationUnit, suggestedStake };
 };
@@ -594,3 +618,5 @@ export function useRobotCouncil(
         evolutionHistory,
     };
 }
+
+    
