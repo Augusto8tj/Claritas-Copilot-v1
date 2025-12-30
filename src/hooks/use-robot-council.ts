@@ -59,8 +59,7 @@ type VirtualTrade = {
     vote: 'RISE' | 'FALL';
     entryPrice: number;
     entryEpoch: number;
-    entryTickIndex: number;
-    exitTickIndex: number;
+    exitEpoch: number; // NOVO: Tempo de expiração exato
 };
 
 // --- CONSTANTES ---
@@ -168,9 +167,8 @@ const calculateRobotVote = (
         if (indicators.stochRSI! >= robot.strongSellThreshold!) setVote('FALL', robot.strongConfidence);
     }
     
-    // As outras lógicas que estavam faltando
     if (robot.strategyType === 'PRICE_ACTION_PATTERN' && tickCandles.length >= 3) {
-        const [c3, c2, c1] = tickCandles.slice(-3); // third last, second last, last
+        const [c3, c2, c1] = tickCandles.slice(-3);
         const body = Math.abs(c1.close - c1.open);
         const upperWick = c1.high - Math.max(c1.open, c1.close);
         const lowerWick = Math.min(c1.open, c1.close) - c1.low;
@@ -194,6 +192,30 @@ const calculateRobotVote = (
              setVote('FALL', robot.weakConfidence);
         }
     }
+    
+    // As outras lógicas que estavam faltando
+    if (robot.strategyType === 'AWESOME_OSCILLATOR' && isValid(indicators.awesomeOscillator)) {
+        if (indicators.awesomeOscillator! > 0) setVote('RISE', robot.weakConfidence);
+        else setVote('FALL', robot.weakConfidence);
+    }
+    if (robot.strategyType === 'KAMA' && isValid(indicators.kama) && tickCandles.length > 0) {
+        if (tickCandles[tickCandles.length - 1].close > indicators.kama!) setVote('RISE', robot.weakConfidence);
+        else setVote('FALL', robot.weakConfidence);
+    }
+    if (robot.strategyType === 'Z_SCORE' && isValid(indicators.zScore)) {
+        if (indicators.zScore! <= -robot.zScoreThreshold!) setVote('RISE', robot.strongConfidence);
+        if (indicators.zScore! >= robot.zScoreThreshold!) setVote('FALL', robot.strongConfidence);
+    }
+    if (robot.strategyType === 'OBV' && isValid(indicators.obv) && tickCandles.length > 1) {
+        // Implementação simplificada: tendência de OBV
+        const obvValues = DerivIndicators.obv(tickCandles);
+        if (obvValues.length > 5) {
+             const last5 = obvValues.slice(-5);
+             if (last5[4] > last5[0]) setVote('RISE', robot.weakConfidence);
+             if (last5[4] < last5[0]) setVote('FALL', robot.weakConfidence);
+        }
+    }
+
 
     return { vote, confidence, optimalDuration, optimalDurationUnit, suggestedStake };
 };
@@ -446,7 +468,7 @@ export function useRobotCouncil(
             finalDuration = Math.max(min, Math.min(max, finalDuration));
 
             return { 
-                status: 'approved' as const, 
+                status: 'approved', 
                 message: 'Aprovado pelo Conselho', 
                 analysis, 
                 finalStake, 
@@ -462,7 +484,6 @@ export function useRobotCouncil(
         if (!isConnected || !user || !isCouncilAutopilotOn || strategyCouncil.length === 0 || !activeSymbol || tickCandles.length < 2) return;
 
         const currentTick = priceTicks[priceTicks.length - 1];
-        const currentTickIndex = priceTicks.length - 1;
 
         // 1. Calcular Indicadores
         const currentIndicators = calculateAllIndicators(tickCandles, strategyCouncil, timePeriod);
@@ -481,9 +502,11 @@ export function useRobotCouncil(
         let performanceChanged = false;
 
         virtualTradesRef.current.forEach((trade) => {
-            // Verifica se o trade já expirou baseado no índice do tick
-            if (currentTickIndex >= trade.exitTickIndex) {
-                const exitTick = priceTicks[trade.exitTickIndex]; // Pega o preço exato do tick de saída
+            // Verifica se o trade já expirou baseado no tempo (epoch)
+            if (currentTick.epoch >= trade.exitEpoch) {
+                // Encontrar o tick mais próximo do tempo de saída para um julgamento preciso
+                 const exitTick = priceTicks.find(t => t.epoch >= trade.exitEpoch) || currentTick;
+                
                 if (exitTick) {
                     const isWin = (trade.vote === 'RISE' && exitTick.price > trade.entryPrice) || 
                                   (trade.vote === 'FALL' && exitTick.price < trade.entryPrice);
@@ -543,8 +566,6 @@ export function useRobotCouncil(
             if (vote !== 'HOLD') {
                 const tradeId = `vt_${Date.now()}_${tradeCounterRef.current++}`;
                 const durationInSeconds = durationToSeconds(optimalDuration, optimalDurationUnit);
-                // Assume 1 tick a cada 2 segundos (média sintética) para calcular quando o trade acaba
-                const estimatedTicks = Math.max(1, Math.ceil(durationInSeconds / 2)); 
 
                 const virtualTrade: VirtualTrade = {
                     id: tradeId,
@@ -552,8 +573,7 @@ export function useRobotCouncil(
                     vote: vote,
                     entryPrice: currentTick.price,
                     entryEpoch: currentTick.epoch,
-                    entryTickIndex: currentTickIndex,
-                    exitTickIndex: currentTickIndex + estimatedTicks
+                    exitEpoch: currentTick.epoch + durationInSeconds,
                 };
                 virtualTradesRef.current.push(virtualTrade);
             }
@@ -618,5 +638,3 @@ export function useRobotCouncil(
         evolutionHistory,
     };
 }
-
-    
