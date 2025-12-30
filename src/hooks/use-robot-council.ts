@@ -427,9 +427,9 @@ export function useRobotCouncil(
             
             if (vote !== 'HOLD') {
                 const tradeId = `vt_${Date.now()}_${tradeCounterRef.current++}`;
-                // *** ARENA VIRTUAL EVOLUTION ***
-                // The virtual trade now uses the ROBOT's suggested duration, not the manual one.
-                const exitTickCount = Math.ceil(durationToSeconds(optimalDuration, optimalDurationUnit) / 2);
+                
+                const durationInSeconds = durationToSeconds(optimalDuration, optimalDurationUnit);
+                const exitTickCount = Math.ceil(durationInSeconds / 2); // Approximate ticks based on 2s per tick
 
                 const virtualTrade: VirtualTrade = {
                     id: tradeId, 
@@ -446,20 +446,13 @@ export function useRobotCouncil(
             let weight = 1.0;
             if (isMeritocracyOn) {
                 const perf = performanceMap.get(robot.id);
-                if (perf && (perf.wins + perf.losses) > 3) { // Minimum 4 trades to start weighting
+                if (perf && (perf.wins + perf.losses) > 3) {
                     const winRate = perf.wins / (perf.wins + perf.losses);
-                    const pnlFactor = Math.tanh(perf.totalProfit / 50); // Normalize PnL to a -1 to 1 range
-                    
-                    // New formula: Base weight is 1. Win rate provides the main adjustment. PnL is a small bonus/penalty.
-                    // A 50% win rate results in a 1.0 weight (base).
-                    // A 70% win rate results in a 1.2 weight.
-                    // A 30% win rate results in a 0.8 weight.
-                    // PnL can adjust this by up to +/- 0.2
+                    const pnlFactor = Math.tanh(perf.totalProfit / 50);
                     weight = 1.0 + (winRate - 0.5) + (pnlFactor * 0.2);
-                    weight = Math.max(0.5, Math.min(1.5, weight)); // Clamp weight between 0.5 and 1.5
+                    weight = Math.max(0.5, Math.min(1.5, weight));
                 }
             }
-
 
             newVotes[robot.id] = { vote, confidence, weight, optimalDuration, optimalDurationUnit };
             if (vote === 'RISE') riseConfidenceSum += confidence * weight;
