@@ -2,10 +2,10 @@
 import type { RobotStrategy } from '@/lib/types';
 
 // This file contains the pre-defined, local configuration for the 22 robot analysts.
-// This approach removes the need for an AI call to build the council, making it faster and more reliable.
+// Each robot now has its own optimal duration and unit, making the system's time-based decisions dynamic.
 
-export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 'suggestedDuration' | 'suggestedDurationUnit'>[] = [
-  // --- Momentum & Trend ---
+export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake'>[] = [
+  // --- Momentum & Trend (Short-Term Specialists) ---
   {
     id: "RSI_BOT_1",
     strategyType: "RSI",
@@ -17,6 +17,8 @@ export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 's
     weakBuyThreshold: 35,
     strongSellThreshold: 75,
     weakSellThreshold: 65,
+    optimalDuration: 5,
+    optimalDurationUnit: 't',
   },
   {
     id: "STOCH_BOT_1",
@@ -29,16 +31,20 @@ export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 's
     weakBuyThreshold: 30,
     strongSellThreshold: 80,
     weakSellThreshold: 70,
+    optimalDuration: 5,
+    optimalDurationUnit: 't',
   },
   {
     id: "MACD_BOT_1",
     strategyType: "MACD_CROSS",
-    justification: "MACD padrão (12/26/9) para capturar tendências.",
+    justification: "MACD padrão (12/26/9) para capturar tendências de médio prazo.",
     strongConfidence: 80,
     weakConfidence: 50,
     fastPeriod: 12,
     slowPeriod: 26,
     signalPeriod: 9,
+    optimalDuration: 2,
+    optimalDurationUnit: 'm',
   },
   {
     id: "ADX_BOT_1",
@@ -48,6 +54,8 @@ export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 's
     weakConfidence: 60,
     period: 14,
     trendStrengthThreshold: 25,
+    optimalDuration: 3,
+    optimalDurationUnit: 'm',
   },
   {
     id: "AWESOME_OSC_BOT_1",
@@ -55,6 +63,8 @@ export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 's
     justification: "Busca 'pires' e cruzamentos de linha zero para sinais de momentum.",
     strongConfidence: 75,
     weakConfidence: 50,
+    optimalDuration: 1,
+    optimalDurationUnit: 'm',
   },
   {
     id: "TRIX_BOT_1",
@@ -63,6 +73,8 @@ export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 's
     strongConfidence: 70,
     weakConfidence: 45,
     period: 15,
+    optimalDuration: 2,
+    optimalDurationUnit: 'm',
   },
   {
     id: "ROC_BOT_1",
@@ -71,6 +83,8 @@ export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 's
     strongConfidence: 70,
     weakConfidence: 45,
     period: 12,
+    optimalDuration: 45,
+    optimalDurationUnit: 's',
   },
   {
     id: "RVI_BOT_1",
@@ -83,32 +97,40 @@ export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 's
     weakBuyThreshold: 50,
     strongSellThreshold: 60,
     weakSellThreshold: 50,
+    optimalDuration: 1,
+    optimalDurationUnit: 'm',
   },
   {
     id: "SAR_BOT_1",
     strategyType: "PARABOLIC_SAR",
-    justification: "Identifica reversões de tendência com pontos SAR.",
+    justification: "Identifica reversões de tendência com pontos SAR, ideal para seguir tendências curtas.",
     strongConfidence: 85,
     weakConfidence: 60,
     acceleration: 0.02,
     maxAcceleration: 0.2,
+    optimalDuration: 10,
+    optimalDurationUnit: 't',
   },
   // --- Volatility & Structure ---
   {
     id: "BOLLINGER_BOT_1",
     strategyType: "BOLLINGER_BANDS",
-    justification: "Negocia com base em Bandas de Bollinger padrão (20/2.0) para 'squeezes'.",
+    justification: "Negocia com base em Bandas de Bollinger padrão (20/2.0) para 'squeezes' e toques.",
     strongConfidence: 85,
     weakConfidence: 65,
     period: 20,
     stdDev: 2.0,
+    optimalDuration: 7,
+    optimalDurationUnit: 't',
   },
   {
     id: "ICHIMOKU_BOT_1",
     strategyType: "ICHIMOKU_CLOUD",
-    justification: "Analisa a nuvem Kumo como suporte/resistência dinâmica.",
+    justification: "Analisa a nuvem Kumo como suporte/resistência dinâmica para trades mais longos.",
     strongConfidence: 88,
     weakConfidence: 60,
+    optimalDuration: 5,
+    optimalDurationUnit: 'm',
   },
   {
     id: "KAMA_BOT_1",
@@ -119,6 +141,8 @@ export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 's
     period: 10,
     fastEnd: 2,
     slowEnd: 30,
+    optimalDuration: 3,
+    optimalDurationUnit: 'm',
   },
   {
     id: "DONCHIAN_BOT_1",
@@ -127,15 +151,19 @@ export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 's
     strongConfidence: 80,
     weakConfidence: 55,
     period: 20,
+    optimalDuration: 1,
+    optimalDurationUnit: 'm',
   },
   {
     id: "CHANDELIER_BOT_1",
     strategyType: "CHANDELIER_EXIT",
-    justification: "Usa o Chandelier Exit para seguir a tendência.",
+    justification: "Usa o Chandelier Exit para seguir a tendência, ideal para durações médias.",
     strongConfidence: 85,
     weakConfidence: 60,
     period: 22,
     multiplier: 3,
+    optimalDuration: 2,
+    optimalDurationUnit: 'm',
   },
   // --- Volume & Order Flow ---
   {
@@ -145,6 +173,8 @@ export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 's
     strongConfidence: 75,
     weakConfidence: 50,
     profileBars: 100,
+    optimalDuration: 5,
+    optimalDurationUnit: 'm',
   },
   {
     id: "VWAP_BOT_1",
@@ -152,6 +182,8 @@ export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 's
     justification: "Usa o VWAP como um nível de preço médio dinâmico.",
     strongConfidence: 85,
     weakConfidence: 60,
+    optimalDuration: 1,
+    optimalDurationUnit: 'm',
   },
   {
     id: "MFI_BOT_1",
@@ -164,6 +196,8 @@ export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 's
     weakBuyThreshold: 30,
     strongSellThreshold: 80,
     weakSellThreshold: 70,
+    optimalDuration: 5,
+    optimalDurationUnit: 't',
   },
   {
     id: "OBV_BOT_1",
@@ -171,6 +205,8 @@ export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 's
     justification: "Confirma a força da tendência com base no volume acumulado.",
     strongConfidence: 75,
     weakConfidence: 50,
+    optimalDuration: 2,
+    optimalDurationUnit: 'm',
   },
   // --- Statistical & Mean Reversion ---
   {
@@ -181,6 +217,8 @@ export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 's
     weakConfidence: 55,
     period: 20,
     zScoreThreshold: 2.0,
+    optimalDuration: 7,
+    optimalDurationUnit: 't',
   },
   {
     id: "STOCH_RSI_BOT_1",
@@ -193,6 +231,8 @@ export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 's
     weakBuyThreshold: 0.30,
     strongSellThreshold: 0.80,
     weakSellThreshold: 0.70,
+    optimalDuration: 5,
+    optimalDurationUnit: 't',
   },
   // --- Patterns ---
   {
@@ -202,6 +242,8 @@ export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 's
     strongConfidence: 95,
     weakConfidence: 75,
     pattern: "hammer",
+    optimalDuration: 5,
+    optimalDurationUnit: 't',
   },
   // --- Moving Average ---
   {
@@ -212,5 +254,7 @@ export const initialCouncilStrategies: Omit<RobotStrategy, 'suggestedStake' | 's
     weakConfidence: 52,
     shortPeriod: 10,
     longPeriod: 20,
+    optimalDuration: 1,
+    optimalDurationUnit: 'm',
   }
 ];

@@ -163,7 +163,7 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
             case 'KAMA':
                 return <p>KAMA Atual: <strong>{format(indicators.kama)}</strong></p>;
             case 'STOCH_RSI':
-                return <p>StochRSI Atual: <strong>{format(indicators.stochRsi, 2)}</strong></p>;
+                return <p>StochRSI Atual: <strong>{format(indicators.stochRSI, 2)}</strong></p>;
             case 'AWESOME_OSCILLATOR':
                 return <p>Awesome Osc: <strong>{format(indicators.awesomeOscillator, 2)}</strong></p>;
             case 'TRIX':

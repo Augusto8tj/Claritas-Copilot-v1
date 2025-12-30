@@ -73,8 +73,10 @@ export const RobotStrategySchema = z.object({
     
     // AutoTrader specific
     suggestedStake: z.number().describe("The suggested stake amount for this trade, based on risk analysis. Should be a percentage of the balance, e.g., 1-2%."),
-    suggestedDuration: z.number().describe("The suggested contract duration in ticks, based on market volatility."),
-    suggestedDurationUnit: z.enum(['t', 's', 'm', 'h', 'd']).describe("The unit for the trade duration."),
+    
+    // DYNAMIC DURATION - NEW
+    optimalDuration: z.number().describe("The optimal duration for this specific strategy."),
+    optimalDurationUnit: z.enum(['t', 's', 'm', 'h', 'd']).describe("The optimal duration unit for this strategy."),
 });
 
 export type RobotStrategy = z.infer<typeof RobotStrategySchema>;
