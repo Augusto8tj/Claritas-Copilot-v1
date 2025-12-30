@@ -16,7 +16,7 @@ interface PendingOperationCounterProps {
   currentStatus: 'winning' | 'losing' | 'even';
 }
 
-const SELL_WINDOW_SECONDS = 15; // Janela em segundos ANTES do fim para desativar a venda
+const SELL_WINDOW_SECONDS = 15;
 
 const formatTime = (ms: number): string => {
     if (ms < 0) ms = 0;
@@ -26,7 +26,7 @@ const formatTime = (ms: number): string => {
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
-export function PendingOperationCounter({ operation, onSell, isSelling, currentStatus }: PendingOperationCounterProps) {
+export function PendingOperationCounter({ operation, onSell, isSelling }: PendingOperationCounterProps) {
   const { priceTicks } = useDerivApi();
   const [ticksSinceEntry, setTicksSinceEntry] = useState(0);
   const [remainingMs, setRemainingMs] = useState<number | null>(null);
@@ -38,6 +38,7 @@ export function PendingOperationCounter({ operation, onSell, isSelling, currentS
     return priceTicks.length > 0 ? priceTicks[priceTicks.length - 1] : null;
   }, [priceTicks]);
 
+  // Calcula o estilo baseado estritamente no lucro/prejuízo atual
   const buttonStyle = useMemo(() => {
     if (entryPrice && latestTick) {
       return getGradientStyle({
@@ -80,7 +81,6 @@ export function PendingOperationCounter({ operation, onSell, isSelling, currentS
     return () => clearInterval(interval);
   }, [endTime, durationUnit]);
 
-  // A venda só é permitida se o contrato for vendável E se o tempo restante for maior que a janela de segurança
   const isSellableNow = isSellable && remainingMs !== null && remainingMs > (SELL_WINDOW_SECONDS * 1000);
   
   const renderCounter = () => {
@@ -125,12 +125,12 @@ export function PendingOperationCounter({ operation, onSell, isSelling, currentS
       {renderCounter()}
       {isSellable && (
         <Button 
-            style={buttonStyle}
+            style={buttonStyle} // O style inline sobrescreve o variant
             variant="outline"
             size="sm" 
             className={cn(
-                "h-7 px-2.5 transition-all text-white border border-black/10", // Cor do texto branca para contraste com gradiente
-                (!isSellableNow || isSelling) && 'opacity-50 cursor-not-allowed'
+                "h-7 px-2.5 transition-all text-white border-none", // Removi bordas padrão para usar as do getGradientStyle
+                (!isSellableNow || isSelling) && 'opacity-50 cursor-not-allowed grayscale' // Grayscale ajuda a indicar desabilitado
             )}
             onClick={onSell}
             disabled={!isSellableNow || isSelling}
