@@ -49,6 +49,9 @@ export type ApiHistoricalData = {
     close?: number;
 };
 
+// NOVO: Tipo para os limites de duração
+export type DurationLimits = Record<DurationUnit, { min: number, max: number }>;
+
 interface DerivApiContextType {
   ws: WebSocket | null;
   isConnected: boolean;
@@ -90,6 +93,9 @@ interface DerivApiContextType {
   ) => Promise<TradeResult>;
   clearActiveContracts: () => void;
   tradeAnnotations: TradeAnnotation[];
+
+  // NOVO: Exportar os limites de duração para o ativo atual
+  durationLimits: DurationLimits | null;
 }
 
 const DerivApiContext = createContext<DerivApiContextType | undefined>(undefined);
@@ -119,7 +125,7 @@ const getGranularityForTimePeriod = (timePeriod: TimePeriod): number => {
     }
 }
 
-const MAX_DATA_POINTS = 5000; // Aumentado de 1000 para 5000
+const MAX_DATA_POINTS = 5000;
 
 const addDataPoint = (prevData: ChartData[], newPoint: ChartData): ChartData[] => {
     let data = [...prevData];
@@ -129,16 +135,39 @@ const addDataPoint = (prevData: ChartData[], newPoint: ChartData): ChartData[] =
     }
     data.push(newPoint);
     if (data.length > MAX_DATA_POINTS) {
-        // CORREÇÃO: Usa slice(1) para remover o primeiro elemento e efetivamente mover a janela de dados
         return data.slice(1);
     }
     return data;
 };
 
+// NOVO: Função utilitária para extrair limites de duração
+const getDurationLimitsForAsset = (minDurationStr: string | undefined): DurationLimits => {
+    const defaultLimits: DurationLimits = {
+        t: { min: 5, max: 10 },
+        s: { min: 15, max: 3600 },
+        m: { min: 1, max: 1440 },
+        h: { min: 1, max: 24 },
+        d: { min: 1, max: 365 },
+    };
+
+    if (!minDurationStr) return defaultLimits;
+
+    const unit = minDurationStr.slice(-1) as DurationUnit;
+    const value = parseInt(minDurationStr.slice(0, -1), 10);
+
+    if (isNaN(value) || !defaultLimits[unit]) return defaultLimits;
+    
+    // Atualiza o mínimo para a unidade específica, mantendo os outros padrão
+    const specificLimits = { ...defaultLimits };
+    specificLimits[unit].min = value;
+
+    return specificLimits;
+};
+
 
 export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
-  const [demoToken, setDemoToken] = useState<string | null>('ljUGk6wbLSrtEDo');
-  const [realToken, setRealToken] = useState<string | null>('GU5MwbX1kwvSoyw');
+  const [demoToken, setDemoToken] = useState<string | null>(null);
+  const [realToken, setRealToken] = useState<string | null>(null);
   const [accountType, setAccountTypeState] = useState<AccountType>('demo');
   const [accountBalance, setAccountBalance] = useState<AccountBalance>({ balance: null, currency: null, loading: true });
   const [isLoading, setIsLoading] = useState(true);
@@ -156,6 +185,9 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('5m');
   const activeSubscriptionIdRef = useRef<string | null>(null);
   const [tradeAnnotations, setTradeAnnotations] = useState<TradeAnnotation[]>([]);
+  
+  // NOVO: Estado para os limites de duração do ativo atual
+  const [durationLimits, setDurationLimits] = useState<DurationLimits | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -180,6 +212,17 @@ export const DerivApiProvider = ({ children }: { children: ReactNode }) => {
   }, []);
   
   const activeToken = accountType === 'demo' ? demoToken : realToken;
+
+  // NOVO: Efeito para atualizar os limites de duração quando o ativo muda
+  useEffect(() => {
+    if (activeSymbol && assetGroups.length > 0) {
+      const allAssets = assetGroups.flatMap(g => g.options);
+      const asset = allAssets.find(a => a.value === activeSymbol);
+      if (asset) {
+        setDurationLimits(getDurationLimitsForAsset(asset.minDuration));
+      }
+    }
+  }, [activeSymbol, assetGroups]);
 
   const makeRequest = useCallback(<T,>(request: object): Promise<T> => {
     return new Promise((resolve, reject) => {
@@ -273,7 +316,6 @@ const getHistoricalData = useCallback(async (symbol: string, style: 'ticks' | 'c
 
 
 const subscribeToMarketData = useCallback(async (symbol: string) => {
-    // Cancela subscrição anterior se existir
     if (activeSubscriptionIdRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
         try { 
             await makeRequest({ forget: activeSubscriptionIdRef.current }); 
@@ -286,10 +328,9 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
     setIsChartLoading(true);
     setChartError(null);
     setChartData([]);
-    setPriceTicks([]); // Reset ticks for new symbol
+    setPriceTicks([]); 
 
     try {
-        // 1. Buscar histórico inicial
         const historyStyle = chartType === 'Candle' ? 'candles' : 'ticks';
         const history = await getHistoricalData(symbol, historyStyle, 1000, timePeriod);
         setChartData(history as ChartData[]);
@@ -297,11 +338,9 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
             setPriceTicks(history as TickData[]);
         }
 
-        // 2. Criar subscrição adequada ao tipo de gráfico
         let subRequest: any;
         
         if (chartType === 'Candle') {
-            // Para velas, subscribe em ticks_history com style candles
             subRequest = { 
                 ticks_history: symbol, 
                 style: 'candles', 
@@ -312,7 +351,6 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
                 adjust_start_time: 1
             };
         } else {
-            // Para linha, subscribe em ticks simples
             subRequest = { 
                 ticks: symbol, 
                 subscribe: 1 
@@ -321,7 +359,6 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
         
         const subResponse: any = await makeRequest(subRequest);
         
-        // Armazena o subscription_id correto
         if (subResponse.subscription?.id) {
             activeSubscriptionIdRef.current = subResponse.subscription.id;
             console.log(`[Market Data] Subscribed to ${symbol} (${chartType}) - ID: ${subResponse.subscription.id}`);
@@ -495,7 +532,6 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
                         setPriceTicks(prev => {
                             const newTicks = [...prev, newTick];
                              if (newTicks.length > MAX_DATA_POINTS) {
-                                // CORREÇÃO: Usa slice para efetivamente mover a janela de dados
                                 return newTicks.slice(1);
                             }
                             return newTicks;
@@ -561,7 +597,7 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
                     marketIsOpen: symbol.exchange_is_open === 1,
                     submarket: symbol.submarket,
                     market: marketKey,
-                    minDuration: symbol.min_contract_duration ?? '0t',
+                    minDuration: symbol.min_contract_duration ?? '5t', // Fallback
                 });
             });
             
@@ -702,6 +738,7 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
     executeTrade,
     clearActiveContracts,
     tradeAnnotations,
+    durationLimits
   };
 
   return (

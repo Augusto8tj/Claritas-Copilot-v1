@@ -13,7 +13,8 @@ import type { ChartData, TickData, CandleData } from '@/lib/types';
 import { initialCouncilStrategies } from '@/services/council-strategies';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import { saveRobotPerformance, loadRobotPerformance } from '@/services/financial-data-service';
-import { useStrategyEvolution, type EvolutionEvent } from './use-strategy-evolution'; // IMPORTA O NOVO HOOK
+import { useStrategyEvolution, type EvolutionEvent } from './use-strategy-evolution';
+import type { DurationLimits } from './use-deriv-api'; // NOVO: Importar tipo
 
 export type RobotVote = {
     vote: 'RISE' | 'FALL' | 'HOLD';
@@ -21,7 +22,7 @@ export type RobotVote = {
     weight: number;
     optimalDuration: number;
     optimalDurationUnit: DurationUnit;
-    suggestedStake: number; // NOVO: Cada robô sugere um stake
+    suggestedStake: number;
 };
 export type CouncilVotes = { [key:string]: RobotVote };
 
@@ -61,13 +62,12 @@ const calculateRobotVote = (
 ): Omit<RobotVote, 'weight'> => {
     let vote: RobotVote['vote'] = 'HOLD';
     let confidence = 0;
-    let suggestedStake = 0; // Começa com 0
+    let suggestedStake = 0;
     const { optimalDuration, optimalDurationUnit, suggestedStake: baseStake } = robot;
 
     const setVote = (newVote: 'RISE' | 'FALL', newConfidence: number) => {
         vote = newVote;
         confidence = newConfidence;
-        // Stake é proporcional à confiança (fraco = 50%, forte = 100%)
         if (confidence === robot.strongConfidence) {
             suggestedStake = baseStake;
         } else if (confidence === robot.weakConfidence) {
@@ -144,7 +144,7 @@ const calculateRobotVote = (
 
 const durationToSeconds = (duration: number, unit: DurationUnit): number => {
     switch (unit) {
-        case 't': return duration * 2; // Assume 1 tick = 2 seconds for conversion
+        case 't': return duration * 2;
         case 's': return duration;
         case 'm': return duration * 60;
         case 'h': return duration * 3600;
@@ -153,26 +153,16 @@ const durationToSeconds = (duration: number, unit: DurationUnit): number => {
     }
 };
 
-const durationLimits: Record<DurationUnit, { min: number, max: number }> = {
-    t: { min: 5, max: 10 },
-    s: { min: 15, max: 60 },
-    m: { min: 1, max: 60 },
-    h: { min: 1, max: 24 },
-    d: { min: 1, max: 365 },
-};
-
 export function useRobotCouncil(
     activeSymbol: string | null,
     priceTicks: TickData[]
 ) {
-    const { operationsLog, executeTrade, timePeriod, isConnected } = useDerivApi();
+    const { operationsLog, executeTrade, timePeriod, isConnected, durationLimits } = useDerivApi(); // NOVO: Obter durationLimits
     const { user, loading: isAuthLoading } = useAuth();
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
 
-    // USA O NOVO HOOK DE EVOLUÇÃO
     const { evolvedStrategies, evolveTrigger, evolutionHistory } = useStrategyEvolution(initialCouncilStrategies);
-    // O CONSELHO AGORA USA AS ESTRATÉGIAS EVOLUÍDAS
     const [strategyCouncil, setStrategyCouncil] = useState<RobotStrategy[]>(evolvedStrategies as RobotStrategy[]);
     
     const [isCouncilAutopilotOn, setIsCouncilAutopilotOn] = useState(false);
@@ -202,7 +192,6 @@ export function useRobotCouncil(
 
     const councilExecutionRef = useRef({ isExecuting: false });
 
-    // ATUALIZA O CONSELHO QUANDO AS ESTRATÉGIAS EVOLUEM
     useEffect(() => {
         setStrategyCouncil(evolvedStrategies as RobotStrategy[]);
     }, [evolvedStrategies]);
@@ -237,7 +226,6 @@ export function useRobotCouncil(
         tradeCounterRef.current = 0;
         await new Promise((resolve) => setTimeout(resolve, 500));
         
-        // A ESTRATÉGIA INICIAL AGORA VEM DAS ESTRATÉGIAS EVOLUÍDAS (QUE COMEÇAM COMO AS INICIAIS)
         setStrategyCouncil(evolvedStrategies as RobotStrategy[]);
 
         if (robotPerformance.length === 0) {
@@ -300,7 +288,6 @@ export function useRobotCouncil(
         } => {
             const formValues = form.getValues();
             
-            // Cálculos de consenso para stake e duração
             let totalWeight = 0;
             let weightedStakeSum = 0;
             let weightedDurationSum = 0;
@@ -322,8 +309,8 @@ export function useRobotCouncil(
             const averageStake = totalWeight > 0 ? weightedStakeSum / totalWeight : formValues.stake;
             const averageDurationInSeconds = totalWeight > 0 ? weightedDurationSum / totalWeight : durationToSeconds(formValues.duration, formValues.duration_unit);
             
-            if (!indicators) {
-                 return { status: 'inactive', message: 'Aguardando indicadores.', finalStake: averageStake, finalDuration: formValues.duration, finalDurationUnit: formValues.duration_unit };
+            if (!indicators || !durationLimits) { // NOVO: Verifica se os limites de duração foram carregados
+                 return { status: 'inactive', message: 'Aguardando indicadores ou limites de duração.', finalStake: averageStake, finalDuration: formValues.duration, finalDurationUnit: formValues.duration_unit };
             }
 
             if (dailyPnl <= -dailyBalance) {
@@ -390,10 +377,11 @@ export function useRobotCouncil(
             let finalDuration: number;
             let finalDurationUnit: DurationUnit;
 
-            if (finalDurationInSeconds <= 20 && formValues.duration_unit === 't') {
+            // NOVO: Usa os limites dinâmicos para escolher a unidade e restringir a duração
+            if (finalDurationInSeconds <= durationLimits.t.max * 2 && durationLimits.t.min > 0) { // Prefere ticks se possível
                 finalDuration = Math.round(finalDurationInSeconds / 2);
                 finalDurationUnit = 't';
-            } else if (finalDurationInSeconds <= 120) {
+            } else if (finalDurationInSeconds <= durationLimits.s.max && durationLimits.s.min > 0) {
                 finalDuration = Math.round(finalDurationInSeconds);
                 finalDurationUnit = 's';
             } else {
@@ -402,16 +390,13 @@ export function useRobotCouncil(
             }
 
             finalStake = parseFloat(Math.max(0.35, finalStake).toFixed(2));
-            finalDuration = Math.round(Math.max(1, finalDuration));
-
-            // Garante que a duração final está dentro dos limites da unidade selecionada.
-            const { min, max } = durationLimits[finalDurationUnit];
-            finalDuration = Math.max(min, Math.min(max, finalDuration));
             
+            const { min, max } = durationLimits[finalDurationUnit];
+            finalDuration = Math.max(min, Math.min(max, Math.round(finalDuration)));
 
             return { status: 'approved', message: 'Aprovado. Risco avaliado.', analysis, finalStake, finalDuration, finalDurationUnit };
         },
-        [dailyBalance, dailyTarget, priceTicks, isDynamicConsensusOn, isDynamicRiskOn, consensusThreshold, form]
+        [dailyBalance, dailyTarget, priceTicks, isDynamicConsensusOn, isDynamicRiskOn, consensusThreshold, form, durationLimits] // NOVO: Adiciona durationLimits como dependência
     );
 
     useEffect(() => {
@@ -453,7 +438,6 @@ export function useRobotCouncil(
             const updatedPerformance = Array.from(performanceMap.values());
             setRobotPerformance(updatedPerformance);
             
-            // ACIONA A EVOLUÇÃO E GUARDA O DESEMPENHO
             evolveTrigger(updatedPerformance); 
             if (user) saveRobotPerformance(user.uid, updatedPerformance);
         }
@@ -530,6 +514,6 @@ export function useRobotCouncil(
         councilVotes, dailyBalance, setDailyBalance, dailyTarget, setDailyTarget, consensusThreshold, setConsensusThreshold,
         isDynamicConsensusOn, setIsDynamicConsensusOn, isDynamicRiskOn, setIsDynamicRiskOn, isMeritocracyOn, setIsMeritocracyOn,
         indicators, activeCommittee, supervisionStatus, consensusSum, consensusDecision, robotPerformance,
-        evolutionHistory, // EXPORTA O HISTÓRICO DE EVOLUÇÃO
+        evolutionHistory,
     };
 }

@@ -1,7 +1,7 @@
 // /src/components/deriv-trader/deriv-trader-interface.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useFormContext } from "react-hook-form";
 import {
   Card,
@@ -27,7 +27,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 
 import type { DurationUnit, RiseFallFormValues } from "@/lib/types";
-import { useDerivApi } from "@/hooks/use-deriv-api";
+import { useDerivApi, type DurationLimits } from "@/hooks/use-deriv-api";
 
 type TradeType = 'rise_fall' | 'higher_lower' | 'touch_no_touch';
 
@@ -43,14 +43,6 @@ const durationUnitLabels: Record<DurationUnit, string> = {
   d: "Dias",
 };
 
-const durationLimits: Record<DurationUnit, { min: number, max: number }> = {
-    t: { min: 5, max: 10 },
-    s: { min: 15, max: 60 },
-    m: { min: 1, max: 60 },
-    h: { min: 1, max: 24 },
-    d: { min: 1, max: 365 },
-}
-
 const tradeTypeLabels: Record<TradeType, string> = {
   rise_fall: "Rise/Fall",
   higher_lower: "Higher/Lower",
@@ -61,13 +53,27 @@ function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState<"rise" | "fall" | null>(null);
   const [tradeType, setTradeType] = useState<TradeType>('rise_fall');
-  const { isConnected, executeTrade } = useDerivApi();
+  const { isConnected, executeTrade, durationLimits } = useDerivApi(); // NOVO: Obter limites
 
   const form = useFormContext<RiseFallFormValues>();
 
   const durationUnit = form.watch('duration_unit');
 
+  // NOVO: Atualiza a duração quando a unidade ou os limites mudam
+  useEffect(() => {
+    if (durationLimits) {
+      const { min } = durationLimits[durationUnit];
+      const currentDuration = form.getValues('duration');
+      if (currentDuration < min) {
+        form.setValue('duration', min);
+        form.trigger('duration');
+      }
+    }
+  }, [durationUnit, durationLimits, form]);
+
+
   const handleDurationChange = (amount: number) => {
+    if (!durationLimits) return; // Guarda de segurança
     const currentDuration = form.getValues('duration');
     const { min, max } = durationLimits[durationUnit];
     let newDuration = currentDuration + amount;
@@ -107,7 +113,6 @@ function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
         contractType = data.allowEquals ? 'PUTE' : 'PUT';
       }
     } else {
-        // Logic for other trade types can be added here
         toast({ variant: "destructive", title: "Em breve", description: "Este tipo de negociação ainda não está implementado." });
         setLoading(null);
         return;
@@ -189,8 +194,7 @@ function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
                                             <Select onValueChange={(value) => {
                                                 const newUnit = value as DurationUnit;
                                                 field.onChange(newUnit);
-                                                form.setValue('duration', durationLimits[newUnit].min);
-                                                form.trigger('duration');
+                                                // A lógica de atualização da duração agora está num useEffect
                                             }} value={field.value}>
                                                 <FormControl>
                                                     <SelectTrigger>
@@ -199,7 +203,9 @@ function DerivTraderInterface({ symbol }: DerivTraderInterfaceProps) {
                                                 </FormControl>
                                                 <SelectContent>
                                                     {Object.entries(durationUnitLabels).map(([value, label]) => (
-                                                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                                                        <SelectItem key={value} value={value} disabled={durationLimits && durationLimits[value as DurationUnit].min === 0}>
+                                                            {label}
+                                                        </SelectItem>
                                                     ))}
                                                 </SelectContent>
                                             </Select>
