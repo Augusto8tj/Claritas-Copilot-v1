@@ -540,23 +540,11 @@ export function useRobotCouncil(
         let fallConfidenceSum = 0;
         const newVotes: CouncilVotes = {};
         
-        // CORREÇÃO PRAGMÁTICA: Usar baseDuration para a trade virtual
         const tradeDuration = baseDuration > 0 ? baseDuration : 5; 
-
-        // 🔥 LOGGING PARA DEBUG
-        console.log(`[ARENA DEBUG] Tick ${currentTickIndex}, Processando ${strategyCouncil.length} robôs`);
-        let votesCreated = 0;
 
         strategyCouncil.forEach((robot) => {
             const { vote, confidence } = calculateRobotVote(robot, currentIndicators, tickCandles);
 
-            // 🔥 LOG DE CADA VOTO
-            console.log(`[ARENA] ${robot.strategyType}: ${vote} (conf: ${confidence})`);
-
-            // ====================================================================
-            // ARENA VIRTUAL: FASE 2 - Espelhar o Voto como Trade Virtual
-            // 🔥 CORREÇÃO PRAGMÁTICA: Criar trade para RISE ou FALL
-            // ====================================================================
             if (vote === 'RISE' || vote === 'FALL') {
                 const tradeId = `vt_${Date.now()}_${tradeCounterRef.current++}`;
                 const virtualTrade: VirtualTrade = {
@@ -569,10 +557,6 @@ export function useRobotCouncil(
                     exitTickIndex: currentTickIndex + tradeDuration,
                 };
                 virtualTradesRef.current.push(virtualTrade);
-                votesCreated++;
-                
-                // 🔥 LOG DA CRIAÇÃO DA TRADE
-                console.log(`[ARENA] ✅ Trade virtual criada: ${robot.strategyType} → ${vote} @ $${currentTick.price.toFixed(4)}, expira tick ${virtualTrade.exitTickIndex}`);
             }
 
             // Calcular peso (meritocracia)
@@ -590,13 +574,6 @@ export function useRobotCouncil(
             if (vote === 'RISE') riseConfidenceSum += confidence * weight;
             if (vote === 'FALL') fallConfidenceSum += confidence * weight;
         });
-
-        // 🔥 LOG RESUMO
-        console.log(`[ARENA] 📊 Resumo do Tick ${currentTickIndex}:`);
-        console.log(`  - Trades virtuais criadas: ${votesCreated}`);
-        console.log(`  - Trades ativas total: ${virtualTradesRef.current.length}`);
-        console.log(`  - Consenso: RISE=${riseConfidenceSum.toFixed(1)} vs FALL=${fallConfidenceSum.toFixed(1)}`);
-
 
         // ====================================================================
         // Atualização de Estados
