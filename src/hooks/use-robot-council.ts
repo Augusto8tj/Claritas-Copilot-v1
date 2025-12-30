@@ -168,9 +168,6 @@ export function useRobotCouncil(
     // Configurações da Mesa
     const [dailyBalance, setDailyBalance] = useState(100);
     const [dailyTarget, setDailyTarget] = useState(50);
-    const [baseStake, setBaseStake] = useState(1);
-    const [baseDuration, setBaseDuration] = useState(5);
-    const [baseDurationUnit, setBaseDurationUnit] = useState<DurationUnit>('t');
     const [consensusThreshold, setConsensusThreshold] = useState(300);
     const [isDynamicConsensusOn, setIsDynamicConsensusOn] = useState(true);
     const [isDynamicRiskOn, setIsDynamicRiskOn] = useState(true); // NOVO ESTADO
@@ -237,12 +234,14 @@ export function useRobotCouncil(
         tradeCounterRef.current = 0;
 
         await new Promise((resolve) => setTimeout(resolve, 500));
+        
+        const { duration, duration_unit, stake } = form.getValues();
 
         const council = initialCouncilStrategies.map((strategy) => ({
             ...strategy,
-            suggestedStake: Math.max(0.35, dailyBalance * 0.01),
-            suggestedDuration: baseDuration,
-            suggestedDurationUnit: baseDurationUnit,
+            suggestedStake: stake,
+            suggestedDuration: duration,
+            suggestedDurationUnit: duration_unit,
             justification: strategy.justification.replace('{{timePeriod}}', timePeriod),
         }));
 
@@ -270,7 +269,7 @@ export function useRobotCouncil(
 
         setIsCouncilAutopilotOn(true);
         setIsFetchingCouncil(false);
-    }, [activeSymbol, dailyBalance, timePeriod, toast, user, robotPerformance, baseDuration, baseDurationUnit]);
+    }, [activeSymbol, dailyBalance, form, timePeriod, toast, user, robotPerformance]);
 
     // ========================================================================
     // DISSOLVER O CONSELHO
@@ -324,9 +323,10 @@ export function useRobotCouncil(
             message: string;
             analysis?: string;
         } => {
-            let finalStake = baseStake;
-            let finalDuration = baseDuration;
-            let finalDurationUnit = baseDurationUnit;
+            const { stake, duration, duration_unit } = form.getValues();
+            let finalStake = stake;
+            let finalDuration = duration;
+            let finalDurationUnit = duration_unit;
 
             if (!indicators) {
                  return { status: 'inactive', message: 'Aguardando indicadores.', finalStake, finalDuration, finalDurationUnit };
@@ -419,8 +419,8 @@ export function useRobotCouncil(
                     riskAnalysisParts.push("ATR elevado");
                 }
                 
-                finalStake = baseStake * riskFactor;
-                finalDuration = baseDuration + durationAdjustment;
+                finalStake = stake * riskFactor;
+                finalDuration = duration + durationAdjustment;
 
                 if(riskAnalysisParts.length > 0) {
                     analysis = `Risco/duração ajustados: ${riskAnalysisParts.join(', ')}.`;
@@ -444,7 +444,7 @@ export function useRobotCouncil(
                 finalDurationUnit,
             };
         },
-        [dailyBalance, dailyTarget, priceTicks, isDynamicConsensusOn, isDynamicRiskOn, consensusThreshold, baseStake, baseDuration, baseDurationUnit]
+        [dailyBalance, dailyTarget, priceTicks, isDynamicConsensusOn, isDynamicRiskOn, consensusThreshold, form]
     );
 
     // ========================================================================
@@ -542,23 +542,11 @@ export function useRobotCouncil(
         let fallConfidenceSum = 0;
         const newVotes: CouncilVotes = {};
         
-        // CORREÇÃO PRAGMÁTICA: Usar baseDuration para a trade virtual
-        const tradeDuration = baseDuration > 0 ? baseDuration : 5; 
-
-        // 🔥 LOGGING PARA DEBUG
-        console.log(`[ARENA DEBUG] Tick ${currentTickIndex}, Processando ${strategyCouncil.length} robôs`);
-        let votesCreated = 0;
+        const { duration: tradeDuration } = form.getValues();
 
         strategyCouncil.forEach((robot) => {
             const { vote, confidence } = calculateRobotVote(robot, currentIndicators, tickCandles);
 
-            // 🔥 LOG DE CADA VOTO
-            console.log(`[ARENA] ${robot.strategyType}: ${vote} (conf: ${confidence})`);
-
-            // ====================================================================
-            // ARENA VIRTUAL: FASE 2 - Espelhar o Voto como Trade Virtual
-            // 🔥 CORREÇÃO PRAGMÁTICA: Criar trade para RISE ou FALL
-            // ====================================================================
             if (vote === 'RISE' || vote === 'FALL') {
                 const tradeId = `vt_${Date.now()}_${tradeCounterRef.current++}`;
                 const virtualTrade: VirtualTrade = {
@@ -568,13 +556,9 @@ export function useRobotCouncil(
                     entryPrice: currentTick.price,
                     entryEpoch: currentTick.epoch,
                     entryTickIndex: currentTickIndex,
-                    exitTickIndex: currentTickIndex + tradeDuration,
+                    exitTickIndex: currentTickIndex + (tradeDuration > 0 ? tradeDuration : 5),
                 };
                 virtualTradesRef.current.push(virtualTrade);
-                votesCreated++;
-                
-                // 🔥 LOG DA CRIAÇÃO DA TRADE
-                console.log(`[ARENA] ✅ Trade virtual criada: ${robot.strategyType} → ${vote} @ $${currentTick.price.toFixed(4)}, expira tick ${virtualTrade.exitTickIndex}`);
             }
 
             // Calcular peso (meritocracia)
@@ -592,13 +576,6 @@ export function useRobotCouncil(
             if (vote === 'RISE') riseConfidenceSum += confidence * weight;
             if (vote === 'FALL') fallConfidenceSum += confidence * weight;
         });
-
-        // 🔥 LOG RESUMO
-        console.log(`[ARENA] 📊 Resumo do Tick ${currentTickIndex}:`);
-        console.log(`  - Trades virtuais criadas: ${votesCreated}`);
-        console.log(`  - Trades ativas total: ${virtualTradesRef.current.length}`);
-        console.log(`  - Consenso: RISE=${riseConfidenceSum.toFixed(1)} vs FALL=${fallConfidenceSum.toFixed(1)}`);
-
 
         // ====================================================================
         // Atualização de Estados
@@ -673,11 +650,11 @@ export function useRobotCouncil(
         supervisionCommitteeCheck,
         toast,
         executeTrade,
+        form,
         timePeriod,
         committeeOfSpecialists,
         user,
-        baseDuration,
-        isAuthLoading // Adicionado para garantir que o user esteja carregado
+        isAuthLoading
     ]);
 
     return {
@@ -692,12 +669,6 @@ export function useRobotCouncil(
         setDailyBalance,
         dailyTarget,
         setDailyTarget,
-        baseStake,
-        setBaseStake,
-        baseDuration,
-        setBaseDuration,
-        baseDurationUnit,
-        setBaseDurationUnit,
         consensusThreshold,
         setConsensusThreshold,
         isDynamicConsensusOn,

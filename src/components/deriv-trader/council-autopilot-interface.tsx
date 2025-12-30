@@ -22,8 +22,6 @@ import { cn } from "@/lib/utils";
 import { Input } from "../ui/input";
 import type { useRobotCouncil } from "@/hooks/use-robot-council";
 import type { Indicators } from "@/services/indicator-service";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import type { DurationUnit } from "@/lib/types";
 
 const indicatorIcons: { [key: string]: React.ReactNode } = {
     RSI: <BrainCircuit className="h-4 w-4" />,
@@ -78,12 +76,6 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
     setDailyBalance,
     dailyTarget,
     setDailyTarget,
-    baseStake,
-    setBaseStake,
-    baseDuration,
-    setBaseDuration,
-    baseDurationUnit,
-    setBaseDurationUnit,
     consensusThreshold,
     setConsensusThreshold,
     isDynamicConsensusOn,
@@ -282,52 +274,6 @@ export function CouncilAutopilotInterface(props: CouncilAutopilotInterfaceProps)
             </div>
         </div>
 
-        <Separator />
-
-        <div className="grid grid-cols-2 gap-4">
-             <div className="space-y-2">
-                <Label htmlFor="council-base-stake">Aposta Base (USD)</Label>
-                <Input 
-                    id="council-base-stake"
-                    type="number"
-                    value={baseStake}
-                    min={0.35}
-                    step={0.1}
-                    onChange={(e) => setBaseStake(Number(e.target.value))}
-                    placeholder="Ex: 1"
-                    disabled={isCouncilAutopilotOn}
-                />
-                <p className="text-xs text-muted-foreground">Valor inicial para os cálculos de risco.</p>
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="council-base-duration">Duração Base</Label>
-                <div className="flex gap-2">
-                     <Input 
-                        id="council-base-duration"
-                        type="number"
-                        value={baseDuration}
-                        min={1}
-                        onChange={(e) => setBaseDuration(Number(e.target.value))}
-                        placeholder="Ex: 5"
-                        disabled={isCouncilAutopilotOn}
-                        className="w-2/3"
-                    />
-                    <Select value={baseDurationUnit} onValueChange={(v) => setBaseDurationUnit(v as DurationUnit)} disabled={isCouncilAutopilotOn}>
-                        <SelectTrigger className="w-1/3">
-                            <SelectValue/>
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="t">Ticks</SelectItem>
-                            <SelectItem value="s">Segundos</SelectItem>
-                            <SelectItem value="m">Minutos</SelectItem>
-                            <SelectItem value="h">Horas</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-                <p className="text-xs text-muted-foreground">Duração inicial para os cálculos de risco.</p>
-            </div>
-        </div>
-        
         <Separator />
         
         <div className="space-y-4">
