@@ -64,7 +64,6 @@ export function PendingOperationCounter({ operation, onSell, isSelling, currentS
     return () => clearInterval(interval);
   }, [endTime, durationUnit]);
 
-  // Lógica de ativação corrigida: ativo se o tempo restante for MAIOR que 15s.
   const isSellableNow = isSellable && remainingMs !== null && remainingMs > (SELL_WINDOW_SECONDS * 1000);
   
   const renderCounter = () => {
@@ -73,7 +72,7 @@ export function PendingOperationCounter({ operation, onSell, isSelling, currentS
       return (
         <div className="flex items-center gap-1.5">
           <Loader2 className="h-3 w-3 animate-spin" />
-          <span>{ticksRemaining} Ticks</span>
+          <span className="font-mono text-xs">{ticksRemaining} Ticks</span>
         </div>
       );
     }
@@ -82,7 +81,7 @@ export function PendingOperationCounter({ operation, onSell, isSelling, currentS
       return (
         <div className="flex items-center gap-1.5">
           <Loader2 className="h-3 w-3 animate-spin" />
-          <span>Calculando...</span>
+          <span className="text-xs">Calculando...</span>
         </div>
       );
     }
@@ -91,7 +90,7 @@ export function PendingOperationCounter({ operation, onSell, isSelling, currentS
         return (
              <div className="flex items-center gap-1.5">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                <span>Aguardando...</span>
+                <span className="text-xs">Aguardando...</span>
             </div>
         )
     }
@@ -99,7 +98,7 @@ export function PendingOperationCounter({ operation, onSell, isSelling, currentS
     return (
        <div className="flex items-center gap-1.5">
             <Loader2 className="h-3 w-3 animate-spin" />
-            <span>{formatTime(remainingMs)}</span>
+            <span className="font-mono text-xs font-medium">{formatTime(remainingMs)}</span>
        </div>
     );
   };
@@ -112,16 +111,27 @@ export function PendingOperationCounter({ operation, onSell, isSelling, currentS
             variant="outline"
             size="sm" 
             className={cn(
-                "h-7 w-20 transition-colors",
-                // Cores baseadas no STATUS ATUAL (lucro/prejuízo), não na direção
-                currentStatus === 'winning' && 'bg-green-500/10 text-green-600 border-green-500/30 hover:bg-green-500/20 hover:text-green-700',
-                currentStatus === 'losing' && 'bg-red-500/10 text-red-600 border-red-500/30 hover:bg-red-500/20 hover:text-red-700',
-                currentStatus === 'even' && 'text-muted-foreground'
+                "h-7 px-2.5 transition-all",
+                // Cores baseadas no STATUS ATUAL (lucro/prejuízo)
+                currentStatus === 'winning' && 
+                  'border-green-600/40 bg-green-500/10 text-green-700 hover:bg-green-500/20 hover:border-green-600/60 hover:text-green-800 dark:text-green-500 dark:hover:text-green-400',
+                currentStatus === 'losing' && 
+                  'border-red-600/40 bg-red-500/10 text-red-700 hover:bg-red-500/20 hover:border-red-600/60 hover:text-red-800 dark:text-red-500 dark:hover:text-red-400',
+                currentStatus === 'even' && 
+                  'border-muted text-muted-foreground hover:bg-muted/50',
+                (!isSellableNow || isSelling) && 'opacity-50 cursor-not-allowed'
             )}
             onClick={onSell}
             disabled={!isSellableNow || isSelling}
         >
-          {isSelling ? <Loader2 className="h-4 w-4 animate-spin"/> : <><XSquare className="h-4 w-4 mr-1"/> Encerrar</>}
+          {isSelling ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <>
+              <XSquare className="h-3.5 w-3.5 mr-1.5" />
+              <span className="text-xs font-medium">Encerrar</span>
+            </>
+          )}
         </Button>
       )}
     </div>
