@@ -98,7 +98,18 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                     <p>Nenhuma operação recente.</p>
                 </div>
                 ) : (
-                operations.map((op) => (
+                operations.map((op) => {
+                  
+                  const currentStatus = useMemo(() => {
+                    if (op.status !== 'pending' || !latestTick || !op.entryPrice) return 'even';
+                    if (op.direction === 'rise') {
+                      return latestTick.price > op.entryPrice ? 'winning' : 'losing';
+                    } else { // 'fall'
+                      return latestTick.price < op.entryPrice ? 'winning' : 'losing';
+                    }
+                  }, [op, latestTick]);
+
+                  return (
                     <div key={op.id} className="flex items-center">
                     <div className="flex-1 space-y-1">
                         <p className="text-sm font-medium leading-none flex items-center gap-1.5">
@@ -138,6 +149,7 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                           operation={op}
                           onSell={() => handleSell(op.id)}
                           isSelling={sellingContractId === op.id}
+                          currentStatus={currentStatus}
                         />
                         ) : op.status === "won" ? (
                         <>
@@ -152,7 +164,8 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                         )}
                     </div>
                     </div>
-                  ))
+                  );
+                })
                 )}
             </div>
           </TooltipProvider>

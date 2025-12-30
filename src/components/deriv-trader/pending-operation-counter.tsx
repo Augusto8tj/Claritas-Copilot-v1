@@ -13,6 +13,7 @@ interface PendingOperationCounterProps {
   operation: Operation;
   onSell: () => void;
   isSelling: boolean;
+  currentStatus: 'winning' | 'losing' | 'even';
 }
 
 const SELL_WINDOW_SECONDS = 15;
@@ -25,7 +26,7 @@ const formatTime = (ms: number): string => {
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
-export function PendingOperationCounter({ operation, onSell, isSelling }: PendingOperationCounterProps) {
+export function PendingOperationCounter({ operation, onSell, isSelling, currentStatus }: PendingOperationCounterProps) {
   const { priceTicks } = useDerivApi();
   const [ticksSinceEntry, setTicksSinceEntry] = useState(0);
   const [remainingMs, setRemainingMs] = useState<number | null>(null);
@@ -33,20 +34,12 @@ export function PendingOperationCounter({ operation, onSell, isSelling }: Pendin
   const { duration, durationUnit, timestamp: entryTimeISO, isSellable, entryPrice, direction } = operation;
   const entryTime = useMemo(() => new Date(entryTimeISO).getTime(), [entryTimeISO]);
 
-  const latestTick = useMemo(() => {
-    return priceTicks.length > 0 ? priceTicks[priceTicks.length - 1] : null;
-  }, [priceTicks]);
-
   const buttonStyle = useMemo(() => {
-    if (entryPrice && latestTick) {
-      const isWinning = direction === 'rise' ? latestTick.price > entryPrice : latestTick.price < entryPrice;
-      const isEven = latestTick.price === entryPrice;
-      
-      return getGradientStyle({ isWinning, isEven });
-    }
-    return undefined; 
-  }, [entryPrice, latestTick, direction]);
-
+    return getGradientStyle({
+      isWinning: currentStatus === 'winning',
+      isEven: currentStatus === 'even',
+    });
+  }, [currentStatus]);
 
   const endTime = useMemo(() => {
     if (durationUnit === 't') return null;
