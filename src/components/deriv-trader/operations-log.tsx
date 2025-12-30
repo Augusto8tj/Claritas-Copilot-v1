@@ -10,8 +10,8 @@ import {
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import type { Operation, OperationInitiator, DurationUnit, TickData } from "@/lib/types";
-import { ArrowDown, ArrowUp, Bot, User, Users, MoveRight, XSquare, Loader2 } from "lucide-react";
+import type { Operation, OperationInitiator, TickData } from "@/lib/types";
+import { ArrowDown, ArrowUp, Bot, User, Users, MoveRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 import { useDerivApi } from "@/hooks/use-deriv-api";
