@@ -1,6 +1,23 @@
 // /src/hooks/use-robot-council.ts
 'use client';
 
+/**
+ * @fileoverview Este hook é o cérebro central da Mesa Operacional.
+ * Ele possui duas responsabilidades principais:
+ * 1. O CONSELHO DE ROBÔS:
+ *    - Convoca e gere um conselho de 22 robôs analistas.
+ *    - A cada tick de preço, calcula o voto de cada robô (RISE/FALL/HOLD).
+ *    - Agrega os votos para formar uma decisão de consenso.
+ *    - Aplica a lógica de supervisão e gestão de risco (Comités).
+ *
+ * 2. A ARENA VIRTUAL:
+ *    - Para cada voto válido, cria uma "operação virtual" (paper trade).
+ *    - Rastreia o resultado dessas operações virtuais para medir o desempenho individual de cada robô.
+ *    - Calcula vitórias, derrotas e P&L (Lucro/Prejuízo) para cada analista.
+ *    - Permite o modo "Meritocracia", onde o peso do voto de um robô é ponderado pelo seu desempenho histórico.
+ *    - Persiste os dados de desempenho no Firebase.
+ */
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDerivApi } from './use-deriv-api';
 import { useToast } from './use-toast';
@@ -14,7 +31,7 @@ import { initialCouncilStrategies } from '@/services/council-strategies';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import { saveRobotPerformance, loadRobotPerformance } from '@/services/financial-data-service';
 import { useStrategyEvolution, type EvolutionEvent } from './use-strategy-evolution';
-import type { DurationLimits } from './use-deriv-api'; // NOVO: Importar tipo
+import type { DurationLimits } from './use-deriv-api'; 
 
 export type RobotVote = {
     vote: 'RISE' | 'FALL' | 'HOLD';
@@ -273,7 +290,6 @@ export function useRobotCouncil(
         []
     );
     
-    // NOVO: Comité de Gestão de Posições Abertas
     const positionManagementCommittee = useCallback((activeContracts: Operation[], indicators: Indicators) => {
         if (!indicators.rsi || !indicators.stoch) return;
 
@@ -283,7 +299,6 @@ export function useRobotCouncil(
             const potentialProfit = contract.stake * 0.92; 
             const currentProfit = contract.result || 0;
 
-            // REGRA 1: TAKE PROFIT - Se atingir 70% do lucro potencial, encerrar.
             if (currentProfit >= potentialProfit * 0.7) {
                 console.log(`[Position Committee] TAKE PROFIT para contrato ${contract.id}`);
                 toast({ title: "Mesa Operacional: Take Profit", description: `Contrato ${contract.id} encerrado para garantir lucro.` });
@@ -294,7 +309,6 @@ export function useRobotCouncil(
                 continue; 
             }
 
-            // REGRA 2: STOP LOSS (Reversão de Momentum)
             const isReversal = 
                 (contract.direction === 'rise' && indicators.rsi > 75 && indicators.stoch > 80) ||
                 (contract.direction === 'fall' && indicators.rsi < 25 && indicators.stoch < 20);
@@ -447,7 +461,6 @@ export function useRobotCouncil(
         setIndicators(currentIndicators);
         if (!currentIndicators) { console.warn("[Robot Council] Indicators could not be calculated."); return; }
         
-        // **NOVO**: Executa o comité de gestão de posições
         const activeCouncilContracts = operationsLog.filter(op => op.status === 'pending' && op.initiator === 'Conselho');
         if (activeCouncilContracts.length > 0) {
             positionManagementCommittee(activeCouncilContracts, currentIndicators);
