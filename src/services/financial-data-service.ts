@@ -266,8 +266,8 @@ export async function getHallOfFame(userId: string): Promise<RobotPerformance[]>
         
         return promotedRobots;
     } catch(e) {
-        // Se loadRobotPerformance falhar, a exceção será apanhada aqui.
-        // Como o Hall da Fama é um recurso de "nice-to-have", podemos simplesmente retornar um array vazio.
+        // Se loadRobotPerformance falhar (e agora ele lança um erro), a exceção será apanhada aqui.
+        // Como o Hall da Fama é um recurso de "nice-to-have", podemos simplesmente registar e retornar um array vazio.
         console.error("Não foi possível carregar o Hall da Fama devido a um erro de acesso aos dados:", e);
         return [];
     }

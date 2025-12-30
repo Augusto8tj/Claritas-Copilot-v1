@@ -168,9 +168,12 @@ export function useRobotCouncil(
     // Configurações da Mesa
     const [dailyBalance, setDailyBalance] = useState(100);
     const [dailyTarget, setDailyTarget] = useState(50);
+    const [baseStake, setBaseStake] = useState(1);
+    const [baseDuration, setBaseDuration] = useState(5);
+    const [baseDurationUnit, setBaseDurationUnit] = useState<DurationUnit>('t');
     const [consensusThreshold, setConsensusThreshold] = useState(300);
     const [isDynamicConsensusOn, setIsDynamicConsensusOn] = useState(true);
-    const [isDynamicRiskOn, setIsDynamicRiskOn] = useState(true); // NOVO ESTADO
+    const [isDynamicRiskOn, setIsDynamicRiskOn] = useState(true); 
     const [isMeritocracyOn, setIsMeritocracyOn] = useState(true);
 
     // Estados da Arena Virtual
@@ -208,7 +211,9 @@ export function useRobotCouncil(
                      console.log("[Performance] Nenhum dado de desempenho encontrado no Firebase para este usuário.");
                 }
             } catch (error) {
-                console.error('Erro ao carregar desempenho do Firebase:', error);
+                // A exceção já é tratada e emitida no `financial-data-service`
+                // Apenas registamos aqui, pois a UI não deve quebrar.
+                console.error("useRobotCouncil: Falha ao carregar o desempenho dos robôs.", error);
             }
         };
         doLoad();
@@ -234,14 +239,12 @@ export function useRobotCouncil(
         tradeCounterRef.current = 0;
 
         await new Promise((resolve) => setTimeout(resolve, 500));
-        
-        const { duration, duration_unit, stake } = form.getValues();
 
         const council = initialCouncilStrategies.map((strategy) => ({
             ...strategy,
-            suggestedStake: stake,
-            suggestedDuration: duration,
-            suggestedDurationUnit: duration_unit,
+            suggestedStake: baseStake,
+            suggestedDuration: baseDuration,
+            suggestedDurationUnit: baseDurationUnit,
             justification: strategy.justification.replace('{{timePeriod}}', timePeriod),
         }));
 
@@ -269,7 +272,7 @@ export function useRobotCouncil(
 
         setIsCouncilAutopilotOn(true);
         setIsFetchingCouncil(false);
-    }, [activeSymbol, dailyBalance, form, timePeriod, toast, user, robotPerformance]);
+    }, [activeSymbol, timePeriod, toast, user, robotPerformance, baseStake, baseDuration, baseDurationUnit]);
 
     // ========================================================================
     // DISSOLVER O CONSELHO
@@ -285,9 +288,7 @@ export function useRobotCouncil(
     // COMITÊ DE ESPECIALISTAS
     // ========================================================================
     const committeeOfSpecialists = useCallback(
-        (
-            indicators: Indicators
-        ): string => {
+        (indicators: Indicators): string => {
             if (!indicators.adx || !indicators.stoch) return 'Comité Indefinido';
 
             if (indicators.adx > 25) {
@@ -323,10 +324,9 @@ export function useRobotCouncil(
             message: string;
             analysis?: string;
         } => {
-            const { stake, duration, duration_unit } = form.getValues();
-            let finalStake = stake;
-            let finalDuration = duration;
-            let finalDurationUnit = duration_unit;
+            let finalStake = baseStake;
+            let finalDuration = baseDuration;
+            let finalDurationUnit = baseDurationUnit;
 
             if (!indicators) {
                  return { status: 'inactive', message: 'Aguardando indicadores.', finalStake, finalDuration, finalDurationUnit };
@@ -402,7 +402,7 @@ export function useRobotCouncil(
             let durationAdjustment = 0;
             let riskAnalysisParts: string[] = [];
 
-            if (isDynamicRiskOn) {
+            if (isDynamicRiskOn) { 
                 if (indicators.adx && indicators.adx < 20) {
                     riskFactor *= 0.75;
                     riskAnalysisParts.push("sem tendência (ADX baixo)");
@@ -419,8 +419,8 @@ export function useRobotCouncil(
                     riskAnalysisParts.push("ATR elevado");
                 }
                 
-                finalStake = stake * riskFactor;
-                finalDuration = duration + durationAdjustment;
+                finalStake = baseStake * riskFactor;
+                finalDuration = baseDuration + durationAdjustment;
 
                 if(riskAnalysisParts.length > 0) {
                     analysis = `Risco/duração ajustados: ${riskAnalysisParts.join(', ')}.`;
@@ -444,7 +444,7 @@ export function useRobotCouncil(
                 finalDurationUnit,
             };
         },
-        [dailyBalance, dailyTarget, priceTicks, isDynamicConsensusOn, isDynamicRiskOn, consensusThreshold, form]
+        [dailyBalance, dailyTarget, priceTicks, isDynamicConsensusOn, isDynamicRiskOn, consensusThreshold, baseStake, baseDuration, baseDurationUnit]
     );
 
     // ========================================================================
@@ -542,7 +542,7 @@ export function useRobotCouncil(
         let fallConfidenceSum = 0;
         const newVotes: CouncilVotes = {};
         
-        const { duration: tradeDuration } = form.getValues();
+        const tradeDuration = baseDuration > 0 ? baseDuration : 5;
 
         strategyCouncil.forEach((robot) => {
             const { vote, confidence } = calculateRobotVote(robot, currentIndicators, tickCandles);
@@ -556,7 +556,7 @@ export function useRobotCouncil(
                     entryPrice: currentTick.price,
                     entryEpoch: currentTick.epoch,
                     entryTickIndex: currentTickIndex,
-                    exitTickIndex: currentTickIndex + (tradeDuration > 0 ? tradeDuration : 5),
+                    exitTickIndex: currentTickIndex + tradeDuration,
                 };
                 virtualTradesRef.current.push(virtualTrade);
             }
@@ -654,7 +654,8 @@ export function useRobotCouncil(
         timePeriod,
         committeeOfSpecialists,
         user,
-        isAuthLoading
+        isAuthLoading,
+        baseDuration,
     ]);
 
     return {
@@ -669,6 +670,12 @@ export function useRobotCouncil(
         setDailyBalance,
         dailyTarget,
         setDailyTarget,
+        baseStake,
+        setBaseStake,
+        baseDuration,
+        setBaseDuration,
+        baseDurationUnit,
+        setBaseDurationUnit,
         consensusThreshold,
         setConsensusThreshold,
         isDynamicConsensusOn,
