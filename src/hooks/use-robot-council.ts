@@ -168,9 +168,6 @@ export function useRobotCouncil(
     // Configurações da Mesa
     const [dailyBalance, setDailyBalance] = useState(100);
     const [dailyTarget, setDailyTarget] = useState(50);
-    const [baseStake, setBaseStake] = useState(1);
-    const [baseDuration, setBaseDuration] = useState(5);
-    const [baseDurationUnit, setBaseDurationUnit] = useState<DurationUnit>('t');
     const [consensusThreshold, setConsensusThreshold] = useState(300);
     const [isDynamicConsensusOn, setIsDynamicConsensusOn] = useState(true);
     const [isDynamicRiskOn, setIsDynamicRiskOn] = useState(true); 
@@ -239,12 +236,14 @@ export function useRobotCouncil(
         tradeCounterRef.current = 0;
 
         await new Promise((resolve) => setTimeout(resolve, 500));
+        
+        const { stake, duration, duration_unit } = form.getValues();
 
         const council = initialCouncilStrategies.map((strategy) => ({
             ...strategy,
-            suggestedStake: baseStake,
-            suggestedDuration: baseDuration,
-            suggestedDurationUnit: baseDurationUnit,
+            suggestedStake: stake,
+            suggestedDuration: duration,
+            suggestedDurationUnit: duration_unit,
             justification: strategy.justification.replace('{{timePeriod}}', timePeriod),
         }));
 
@@ -272,7 +271,7 @@ export function useRobotCouncil(
 
         setIsCouncilAutopilotOn(true);
         setIsFetchingCouncil(false);
-    }, [activeSymbol, timePeriod, toast, user, robotPerformance, baseStake, baseDuration, baseDurationUnit]);
+    }, [activeSymbol, timePeriod, toast, user, robotPerformance, form]);
 
     // ========================================================================
     // DISSOLVER O CONSELHO
@@ -315,7 +314,8 @@ export function useRobotCouncil(
             fallSum: number,
             currentVotes: CouncilVotes,
             indicators: Indicators | null,
-            dailyPnl: number
+            dailyPnl: number,
+            formValues: RiseFallFormValues
         ): {
             finalStake: number;
             finalDuration: number;
@@ -324,9 +324,7 @@ export function useRobotCouncil(
             message: string;
             analysis?: string;
         } => {
-            let finalStake = baseStake;
-            let finalDuration = baseDuration;
-            let finalDurationUnit = baseDurationUnit;
+            let { stake: finalStake, duration: finalDuration, duration_unit: finalDurationUnit } = formValues;
 
             if (!indicators) {
                  return { status: 'inactive', message: 'Aguardando indicadores.', finalStake, finalDuration, finalDurationUnit };
@@ -338,9 +336,7 @@ export function useRobotCouncil(
                 return {
                     status: 'veto',
                     message: 'VETO: Limite de perda diário atingido.',
-                    finalStake,
-                    finalDuration,
-                    finalDurationUnit,
+                    finalStake, finalDuration, finalDurationUnit,
                     analysis: `Prejuízo de $${Math.abs(dailyPnl).toFixed(2)} atingiu o limite de $${dailyBalance}.`
                 };
             }
@@ -349,9 +345,7 @@ export function useRobotCouncil(
                 return {
                     status: 'veto',
                     message: 'VETO: Meta de lucro diária atingida.',
-                    finalStake,
-                    finalDuration,
-                    finalDurationUnit,
+                    finalStake, finalDuration, finalDurationUnit,
                     analysis: `Lucro de $${dailyPnl.toFixed(2)} atingiu a meta de $${dailyTarget}.`
                 };
             }
@@ -390,9 +384,7 @@ export function useRobotCouncil(
                 return {
                     status: 'inactive',
                     message: 'Aguardando consenso tático.',
-                    finalStake,
-                    finalDuration,
-                    finalDurationUnit,
+                    finalStake, finalDuration, finalDurationUnit,
                 };
             }
 
@@ -419,8 +411,8 @@ export function useRobotCouncil(
                     riskAnalysisParts.push("ATR elevado");
                 }
                 
-                finalStake = baseStake * riskFactor;
-                finalDuration = baseDuration + durationAdjustment;
+                finalStake = formValues.stake * riskFactor;
+                finalDuration = formValues.duration + durationAdjustment;
 
                 if(riskAnalysisParts.length > 0) {
                     analysis = `Risco/duração ajustados: ${riskAnalysisParts.join(', ')}.`;
@@ -444,7 +436,7 @@ export function useRobotCouncil(
                 finalDurationUnit,
             };
         },
-        [dailyBalance, dailyTarget, priceTicks, isDynamicConsensusOn, isDynamicRiskOn, consensusThreshold, baseStake, baseDuration, baseDurationUnit]
+        [dailyBalance, dailyTarget, priceTicks, isDynamicConsensusOn, isDynamicRiskOn, consensusThreshold]
     );
 
     // ========================================================================
@@ -542,7 +534,8 @@ export function useRobotCouncil(
         let fallConfidenceSum = 0;
         const newVotes: CouncilVotes = {};
         
-        const tradeDuration = baseDuration > 0 ? baseDuration : 5;
+        const formValues = form.getValues();
+        const tradeDuration = formValues.duration > 0 ? formValues.duration : 5;
 
         strategyCouncil.forEach((robot) => {
             const { vote, confidence } = calculateRobotVote(robot, currentIndicators, tickCandles);
@@ -610,7 +603,8 @@ export function useRobotCouncil(
             fallConfidenceSum,
             newVotes,
             currentIndicators,
-            dailyPnl
+            dailyPnl,
+            formValues
         );
         setSupervisionStatus(supervisionDecision);
 
@@ -654,8 +648,7 @@ export function useRobotCouncil(
         timePeriod,
         committeeOfSpecialists,
         user,
-        isAuthLoading,
-        baseDuration,
+        isAuthLoading
     ]);
 
     return {
@@ -670,12 +663,6 @@ export function useRobotCouncil(
         setDailyBalance,
         dailyTarget,
         setDailyTarget,
-        baseStake,
-        setBaseStake,
-        baseDuration,
-        setBaseDuration,
-        baseDurationUnit,
-        setBaseDurationUnit,
         consensusThreshold,
         setConsensusThreshold,
         isDynamicConsensusOn,
