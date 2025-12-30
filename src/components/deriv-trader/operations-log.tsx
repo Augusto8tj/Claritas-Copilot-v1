@@ -98,23 +98,7 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                     <p>Nenhuma operação recente.</p>
                 </div>
                 ) : (
-                operations.map((op) => {
-                  
-                  // This calculation is simple and must be done here, not in a Hook,
-                  // because this is inside a loop.
-                  let currentStatus: 'winning' | 'losing' | 'even' = 'even';
-                  if (op.status === 'pending' && latestTick && op.entryPrice) {
-                    if (op.direction === 'rise') {
-                      currentStatus = latestTick.price > op.entryPrice ? 'winning' : 'losing';
-                    } else { // fall
-                      currentStatus = latestTick.price < op.entryPrice ? 'winning' : 'losing';
-                    }
-                     if (latestTick.price === op.entryPrice) {
-                        currentStatus = 'even';
-                    }
-                  }
-
-                  return (
+                operations.map((op) => (
                     <div key={op.id} className="flex items-center">
                     <div className="flex-1 space-y-1">
                         <p className="text-sm font-medium leading-none flex items-center gap-1.5">
@@ -154,7 +138,6 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                           operation={op}
                           onSell={() => handleSell(op.id)}
                           isSelling={sellingContractId === op.id}
-                          currentStatus={currentStatus}
                         />
                         ) : op.status === "won" ? (
                         <>
@@ -169,8 +152,7 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                         )}
                     </div>
                     </div>
-                  )
-                })
+                  ))
                 )}
             </div>
           </TooltipProvider>

@@ -13,7 +13,6 @@ interface PendingOperationCounterProps {
   operation: Operation;
   onSell: () => void;
   isSelling: boolean;
-  currentStatus: 'winning' | 'losing' | 'even';
 }
 
 const SELL_WINDOW_SECONDS = 15;
@@ -38,20 +37,16 @@ export function PendingOperationCounter({ operation, onSell, isSelling }: Pendin
     return priceTicks.length > 0 ? priceTicks[priceTicks.length - 1] : null;
   }, [priceTicks]);
 
-  // Calcula o estilo baseado estritamente no lucro/prejuízo atual
   const buttonStyle = useMemo(() => {
     if (entryPrice && latestTick) {
       const isWinning = direction === 'rise' ? latestTick.price > entryPrice : latestTick.price < entryPrice;
       const isEven = latestTick.price === entryPrice;
       
-      return getGradientStyle({
-        isWinning,
-        isEven
-      });
+      return getGradientStyle({ isWinning, isEven });
     }
-    // Começa neutro se não houver dados para calcular
-    return getGradientStyle({ isWinning: false, isEven: true });
+    return undefined; 
   }, [entryPrice, latestTick, direction]);
+
 
   const endTime = useMemo(() => {
     if (durationUnit === 't') return null;
@@ -128,11 +123,12 @@ export function PendingOperationCounter({ operation, onSell, isSelling }: Pendin
       {renderCounter()}
       {isSellable && (
         <Button 
-            style={buttonStyle} // O style inline sobrescreve o variant
+            style={buttonStyle}
             variant="outline"
             size="sm" 
             className={cn(
                 "h-7 px-2.5 transition-all text-white border-none",
+                !buttonStyle && 'bg-muted hover:bg-muted/90 text-muted-foreground',
                 (!isSellableNow || isSelling) && 'opacity-50 cursor-not-allowed grayscale'
             )}
             onClick={onSell}
