@@ -9,7 +9,7 @@ import type { RiseFallFormValues } from '@/components/deriv-trader/deriv-trader-
 import { useFormContext } from 'react-hook-form';
 import type { Indicators } from '@/services/indicator-service';
 import { calculateAllIndicators } from '@/services/indicator-service';
-import type { ChartData, TickData, CandleData } from '@/lib/types';
+import type { ChartData, TickData, CandleData, Operation } from '@/lib/types';
 import { initialCouncilStrategies } from '@/services/council-strategies';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import { saveRobotPerformance, loadRobotPerformance } from '@/services/financial-data-service';
@@ -157,7 +157,7 @@ export function useRobotCouncil(
     activeSymbol: string | null,
     priceTicks: TickData[]
 ) {
-    const { operationsLog, executeTrade, timePeriod, isConnected, durationLimits } = useDerivApi(); // NOVO: Obter durationLimits
+    const { operationsLog, executeTrade, timePeriod, isConnected, durationLimits, sellContract } = useDerivApi();
     const { user, loading: isAuthLoading } = useAuth();
     const { toast } = useToast();
     const form = useFormContext<RiseFallFormValues>();
@@ -190,7 +190,7 @@ export function useRobotCouncil(
     const [consensusSum, setConsensusSum] = useState({ rise: 0, fall: 0 });
     const [consensusDecision, setConsensusDecision] = useState<'RISE' | 'FALL' | 'HOLD'>('HOLD');
 
-    const councilExecutionRef = useRef({ isExecuting: false });
+    const councilExecutionRef = useRef<{ isExecuting: boolean, sellingContracts: Set<number> }>({ isExecuting: false, sellingContracts: new Set() });
 
     useEffect(() => {
         setStrategyCouncil(evolvedStrategies as RobotStrategy[]);
@@ -272,6 +272,44 @@ export function useRobotCouncil(
         },
         []
     );
+    
+    // NOVO: Comité de Gestão de Posições Abertas
+    const positionManagementCommittee = useCallback((activeContracts: Operation[], indicators: Indicators) => {
+        if (!indicators.rsi || !indicators.stoch) return;
+
+        for (const contract of activeContracts) {
+            if (councilExecutionRef.current.sellingContracts.has(contract.id)) continue;
+
+            const potentialProfit = contract.stake * 0.92; 
+            const currentProfit = contract.result || 0;
+
+            // REGRA 1: TAKE PROFIT - Se atingir 70% do lucro potencial, encerrar.
+            if (currentProfit >= potentialProfit * 0.7) {
+                console.log(`[Position Committee] TAKE PROFIT para contrato ${contract.id}`);
+                toast({ title: "Mesa Operacional: Take Profit", description: `Contrato ${contract.id} encerrado para garantir lucro.` });
+                councilExecutionRef.current.sellingContracts.add(contract.id);
+                sellContract(contract.id).finally(() => {
+                    setTimeout(() => councilExecutionRef.current.sellingContracts.delete(contract.id), 10000);
+                });
+                continue; 
+            }
+
+            // REGRA 2: STOP LOSS (Reversão de Momentum)
+            const isReversal = 
+                (contract.direction === 'rise' && indicators.rsi > 75 && indicators.stoch > 80) ||
+                (contract.direction === 'fall' && indicators.rsi < 25 && indicators.stoch < 20);
+
+            if (isReversal) {
+                console.log(`[Position Committee] STOP LOSS (Reversão de Momentum) para contrato ${contract.id}`);
+                toast({ title: "Mesa Operacional: Stop Loss", description: `Sinal de reversão detetado. A encerrar contrato ${contract.id}.`, variant: "destructive" });
+                councilExecutionRef.current.sellingContracts.add(contract.id);
+                sellContract(contract.id).finally(() => {
+                    setTimeout(() => councilExecutionRef.current.sellingContracts.delete(contract.id), 10000);
+                });
+            }
+        }
+    }, [sellContract, toast]);
+
 
     const supervisionCommitteeCheck = useCallback(
         (
@@ -309,7 +347,7 @@ export function useRobotCouncil(
             const averageStake = totalWeight > 0 ? weightedStakeSum / totalWeight : formValues.stake;
             const averageDurationInSeconds = totalWeight > 0 ? weightedDurationSum / totalWeight : durationToSeconds(formValues.duration, formValues.duration_unit);
             
-            if (!indicators || !durationLimits) { // NOVO: Verifica se os limites de duração foram carregados
+            if (!indicators || !durationLimits) { 
                  return { status: 'inactive', message: 'Aguardando indicadores ou limites de duração.', finalStake: averageStake, finalDuration: formValues.duration, finalDurationUnit: formValues.duration_unit };
             }
 
@@ -377,8 +415,7 @@ export function useRobotCouncil(
             let finalDuration: number;
             let finalDurationUnit: DurationUnit;
 
-            // NOVO: Usa os limites dinâmicos para escolher a unidade e restringir a duração
-            if (finalDurationInSeconds <= durationLimits.t.max * 2 && durationLimits.t.min > 0) { // Prefere ticks se possível
+            if (finalDurationInSeconds <= durationLimits.t.max * 2 && durationLimits.t.min > 0) { 
                 finalDuration = Math.round(finalDurationInSeconds / 2);
                 finalDurationUnit = 't';
             } else if (finalDurationInSeconds <= durationLimits.s.max && durationLimits.s.min > 0) {
@@ -396,7 +433,7 @@ export function useRobotCouncil(
 
             return { status: 'approved', message: 'Aprovado. Risco avaliado.', analysis, finalStake, finalDuration, finalDurationUnit };
         },
-        [dailyBalance, dailyTarget, priceTicks, isDynamicConsensusOn, isDynamicRiskOn, consensusThreshold, form, durationLimits] // NOVO: Adiciona durationLimits como dependência
+        [dailyBalance, dailyTarget, priceTicks, isDynamicConsensusOn, isDynamicRiskOn, consensusThreshold, form, durationLimits]
     );
 
     useEffect(() => {
@@ -409,6 +446,12 @@ export function useRobotCouncil(
         const currentIndicators = calculateAllIndicators(tickCandles, strategyCouncil, timePeriod);
         setIndicators(currentIndicators);
         if (!currentIndicators) { console.warn("[Robot Council] Indicators could not be calculated."); return; }
+        
+        // **NOVO**: Executa o comité de gestão de posições
+        const activeCouncilContracts = operationsLog.filter(op => op.status === 'pending' && op.initiator === 'Conselho');
+        if (activeCouncilContracts.length > 0) {
+            positionManagementCommittee(activeCouncilContracts, currentIndicators);
+        }
 
         const stillActiveTrades: VirtualTrade[] = [];
         const performanceMap = new Map<string, RobotPerformance>(robotPerformance.map((p) => [p.id, { ...p }]));
@@ -507,7 +550,7 @@ export function useRobotCouncil(
             executeTrade(direction === 'RISE' ? 'CALL' : 'PUT', finalStake, activeSymbol!, direction.toLowerCase() as 'rise' | 'fall', finalDuration, finalDurationUnit, 'Conselho')
                 .finally(() => setTimeout(() => (councilExecutionRef.current.isExecuting = false), 10000));
         }
-    }, [priceTicks, isConnected, isCouncilAutopilotOn, strategyCouncil, robotPerformance, isMeritocracyOn, activeSymbol, operationsLog, supervisionCommitteeCheck, toast, executeTrade, form, timePeriod, committeeOfSpecialists, user, isAuthLoading, evolveTrigger]);
+    }, [priceTicks, isConnected, isCouncilAutopilotOn, strategyCouncil, robotPerformance, isMeritocracyOn, activeSymbol, operationsLog, supervisionCommitteeCheck, toast, executeTrade, form, timePeriod, committeeOfSpecialists, user, isAuthLoading, evolveTrigger, positionManagementCommittee]);
 
     return {
         isCouncilAutopilotOn, setIsCouncilAutopilotOn, strategyCouncil, fetchStrategyCouncil, dissolveCouncil, isFetchingCouncil,
