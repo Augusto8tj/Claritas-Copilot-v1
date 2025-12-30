@@ -40,16 +40,18 @@ export function PendingOperationCounter({ operation, onSell, isSelling }: Pendin
 
   // Calcula o estilo baseado estritamente no lucro/prejuízo atual
   const buttonStyle = useMemo(() => {
-    if (entryPrice && latestTick && latestTick.epoch * 1000 > entryTime) {
+    if (entryPrice && latestTick) {
+      const isWinning = direction === 'rise' ? latestTick.price > entryPrice : latestTick.price < entryPrice;
+      const isEven = latestTick.price === entryPrice;
+      
       return getGradientStyle({
-        entryPrice: entryPrice,
-        currentPrice: latestTick.price,
-        direction: direction,
+        isWinning,
+        isEven
       });
     }
-    // Retorna undefined se não houver tick novo, para começar neutro
-    return undefined;
-  }, [entryPrice, latestTick, direction, entryTime]);
+    // Começa neutro se não houver dados para calcular
+    return getGradientStyle({ isWinning: false, isEven: true });
+  }, [entryPrice, latestTick, direction]);
 
   const endTime = useMemo(() => {
     if (durationUnit === 't') return null;
@@ -126,15 +128,11 @@ export function PendingOperationCounter({ operation, onSell, isSelling }: Pendin
       {renderCounter()}
       {isSellable && (
         <Button 
-            style={buttonStyle} // O style inline (gradiente) sobrescreve o variant
+            style={buttonStyle} // O style inline sobrescreve o variant
             variant="outline"
             size="sm" 
             className={cn(
-                "h-7 px-2.5 transition-all",
-                // Classe neutra para quando o botão ainda não tem cor
-                !buttonStyle && "bg-muted text-muted-foreground hover:bg-muted/80",
-                // Se o estilo estiver definido, garante o texto branco
-                buttonStyle && "text-white border-none",
+                "h-7 px-2.5 transition-all text-white border-none",
                 (!isSellableNow || isSelling) && 'opacity-50 cursor-not-allowed grayscale'
             )}
             onClick={onSell}

@@ -1,24 +1,12 @@
 // /src/components/deriv-trader/utils/get-gradient-style.ts
 
 export function getGradientStyle({
-  entryPrice,
-  currentPrice,
-  direction,
+  isWinning,
+  isEven,
 }: {
-  entryPrice: number;
-  currentPrice: number;
-  direction: "rise" | "fall";
+  isWinning: boolean;
+  isEven: boolean;
 }) {
-  // Determina se a operação está ganhando ou perdendo
-  // Se for 'rise' (compra), ganhamos se o preço atual for maior que a entrada
-  // Se for 'fall' (venda), ganhamos se o preço atual for menor que a entrada
-  const isWinning =
-    direction === "rise"
-      ? currentPrice > entryPrice
-      : currentPrice < entryPrice;
-
-  // Se os preços forem exatamente iguais, consideramos neutro (ou mantemos a cor de perda se preferir)
-  const isEven = currentPrice === entryPrice;
 
   if (isEven) {
     return {
