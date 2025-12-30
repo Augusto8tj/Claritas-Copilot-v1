@@ -205,7 +205,7 @@ export function useRobotCouncil(
         tradeCounterRef.current = 0;
         await new Promise((resolve) => setTimeout(resolve, 500));
         
-        const { stake } = form.getValues();
+        const { stake, duration, duration_unit } = form.getValues();
 
         const council = initialCouncilStrategies.map((strategy) => ({
             ...strategy,
@@ -342,7 +342,6 @@ export function useRobotCouncil(
 
             let analysis = 'Risco padrão.';
             let riskFactor = 1.0;
-            let durationAdjustment = 0;
             let riskAnalysisParts: string[] = [];
 
             if (isDynamicRiskOn) { 
@@ -428,10 +427,18 @@ export function useRobotCouncil(
             
             if (vote !== 'HOLD') {
                 const tradeId = `vt_${Date.now()}_${tradeCounterRef.current++}`;
+                // *** ARENA VIRTUAL EVOLUTION ***
+                // The virtual trade now uses the ROBOT's suggested duration, not the manual one.
+                const exitTickCount = Math.ceil(durationToSeconds(optimalDuration, optimalDurationUnit) / 2);
+
                 const virtualTrade: VirtualTrade = {
-                    id: tradeId, robotId: robot.id, vote: vote, entryPrice: currentTick.price,
-                    entryEpoch: currentTick.epoch, entryTickIndex: currentTickIndex,
-                    exitTickIndex: currentTickIndex + durationToSeconds(optimalDuration, optimalDurationUnit) / 2 // Approximate ticks
+                    id: tradeId, 
+                    robotId: robot.id, 
+                    vote: vote, 
+                    entryPrice: currentTick.price,
+                    entryEpoch: currentTick.epoch, 
+                    entryTickIndex: currentTickIndex,
+                    exitTickIndex: currentTickIndex + exitTickCount
                 };
                 virtualTradesRef.current.push(virtualTrade);
             }
