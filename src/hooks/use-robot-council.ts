@@ -208,7 +208,7 @@ export function useRobotCouncil(
         tradeCounterRef.current = 0;
         await new Promise((resolve) => setTimeout(resolve, 500));
         
-        const { stake, duration, duration_unit } = form.getValues();
+        const { stake } = form.getValues();
 
         const council = initialCouncilStrategies.map((strategy) => ({
             ...strategy,
@@ -280,7 +280,7 @@ export function useRobotCouncil(
         } => {
             let { stake: finalStake } = formValues;
 
-            // DYNAMIC DURATION CALCULATION
+            // --- 1. CÁLCULO DO CONSENSO DE DURAÇÃO (EM SEGUNDOS) ---
             let totalDurationWeight = 0;
             let weightedDurationSum = 0;
 
@@ -291,38 +291,24 @@ export function useRobotCouncil(
                     totalDurationWeight += voteWeight;
                 }
             });
-
-            // Default to form duration if no votes
-            let finalDuration = formValues.duration;
-            let finalDurationUnit = formValues.duration_unit;
             
-            if (totalDurationWeight > 0) {
-                const avgDurationInSeconds = weightedDurationSum / totalDurationWeight;
-                // Convert back to a suitable unit. Prioritize ticks if short, otherwise seconds/minutes.
-                if (avgDurationInSeconds <= 20) { // If avg is <= 20s, use ticks
-                    finalDuration = Math.round(avgDurationInSeconds / 2); // 1 tick = 2s
-                    finalDurationUnit = 't';
-                } else if (avgDurationInSeconds <= 120) { // If <= 2min, use seconds
-                    finalDuration = Math.round(avgDurationInSeconds);
-                    finalDurationUnit = 's';
-                } else { // Otherwise use minutes
-                    finalDuration = Math.round(avgDurationInSeconds / 60);
-                    finalDurationUnit = 'm';
-                }
-            }
+            // Duração média ponderada em segundos
+            const averageDurationInSeconds = totalDurationWeight > 0 
+                ? weightedDurationSum / totalDurationWeight
+                : durationToSeconds(formValues.duration, formValues.duration_unit);
 
 
             if (!indicators) {
-                 return { status: 'inactive', message: 'Aguardando indicadores.', finalStake, finalDuration, finalDurationUnit };
+                 return { status: 'inactive', message: 'Aguardando indicadores.', finalStake, finalDuration: formValues.duration, finalDurationUnit: formValues.duration_unit };
             }
 
             if (dailyPnl <= -dailyBalance) {
                 setIsCouncilAutopilotOn(false);
-                return { status: 'veto', message: 'VETO: Limite de perda diário atingido.', finalStake, finalDuration, finalDurationUnit, analysis: `Prejuízo de $${Math.abs(dailyPnl).toFixed(2)} atingiu o limite de $${dailyBalance}.` };
+                return { status: 'veto', message: 'VETO: Limite de perda diário atingido.', finalStake, finalDuration: formValues.duration, finalDurationUnit: formValues.duration_unit, analysis: `Prejuízo de $${Math.abs(dailyPnl).toFixed(2)} atingiu o limite de $${dailyBalance}.` };
             }
             if (dailyPnl >= dailyTarget) {
                 setIsCouncilAutopilotOn(false);
-                return { status: 'veto', message: 'VETO: Meta de lucro diária atingida.', finalStake, finalDuration, finalDurationUnit, analysis: `Lucro de $${dailyPnl.toFixed(2)} atingiu a meta de $${dailyTarget}.` };
+                return { status: 'veto', message: 'VETO: Meta de lucro diária atingida.', finalStake, finalDuration: formValues.duration, finalDurationUnit: formValues.duration_unit, analysis: `Lucro de $${dailyPnl.toFixed(2)} atingiu a meta de $${dailyTarget}.` };
             }
             
             let effectiveThreshold;
@@ -340,21 +326,30 @@ export function useRobotCouncil(
 
             const consensusReached = Math.max(riseSum, fallSum) >= effectiveThreshold;
             if (!consensusReached) {
-                return { status: 'inactive', message: 'Aguardando consenso tático.', finalStake, finalDuration, finalDurationUnit };
+                return { status: 'inactive', message: 'Aguardando consenso tático.', finalStake, finalDuration: formValues.duration, finalDurationUnit: formValues.duration_unit };
             }
 
+            // --- 2. AJUSTE DE STAKE E DURAÇÃO PELA GESTÃO DE RISCO ---
             let analysis = 'Risco padrão.';
             let riskFactor = 1.0;
+            let durationFactor = 1.0;
             let riskAnalysisParts: string[] = [];
 
             if (isDynamicRiskOn) { 
+                const lastPrice = getPrice(priceTicks[priceTicks.length - 1]);
                 if (indicators.adx && indicators.adx < 20) {
                     riskFactor *= 0.75;
+                    durationFactor *= 1.25; // Aumenta duração em mercado lateral
                     riskAnalysisParts.push("sem tendência (ADX baixo)");
                 }
-                const lastPrice = getPrice(priceTicks[priceTicks.length - 1]);
-                if (indicators.atr && lastPrice && (indicators.atr / lastPrice) > 0.00015) {
+                if (indicators.bbw && indicators.bbw > 0.1) {
                     riskFactor *= 0.8;
+                    durationFactor *= 0.75; // Reduz duração em alta volatilidade
+                    riskAnalysisParts.push("alta volatilidade (BBW alto)");
+                }
+                if (indicators.atr && lastPrice && (indicators.atr / lastPrice) > 0.0002) {
+                    riskFactor *= 0.8;
+                    durationFactor *= 0.85; // Reduz duração com ATR elevado
                     riskAnalysisParts.push("ATR elevado");
                 }
                 
@@ -367,8 +362,25 @@ export function useRobotCouncil(
                  analysis = 'Gestão de risco dinâmica desativada.';
             }
 
+            let finalDurationInSeconds = averageDurationInSeconds * durationFactor;
+            let finalDuration: number;
+            let finalDurationUnit: DurationUnit;
+
+            // Converte de volta para a unidade mais apropriada
+            if (finalDurationInSeconds <= 20) {
+                finalDuration = Math.round(finalDurationInSeconds / 2);
+                finalDurationUnit = 't';
+            } else if (finalDurationInSeconds <= 120) {
+                finalDuration = Math.round(finalDurationInSeconds);
+                finalDurationUnit = 's';
+            } else {
+                finalDuration = Math.round(finalDurationInSeconds / 60);
+                finalDurationUnit = 'm';
+            }
+
+            // Aplica restrições mínimas e máximas
             finalStake = Math.max(0.35, finalStake);
-            finalDuration = Math.round(Math.max(1, finalDuration));
+            finalDuration = Math.max(1, finalDuration);
              if (finalDurationUnit === 't') {
                 finalDuration = Math.min(10, finalDuration);
              }
