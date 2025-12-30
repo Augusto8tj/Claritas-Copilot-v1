@@ -398,30 +398,30 @@ export function useRobotCouncil(
             let analysis = 'Risco padrão.';
             let riskFactor = 1.0;
             let durationAdjustment = 0;
-            let analysisParts: string[] = [];
+            let riskAnalysisParts: string[] = [];
 
-            if (isDynamicRiskOn) { // NOVO: Só ajusta se a opção estiver ligada
+            if (isDynamicRiskOn) {
                 if (indicators.adx && indicators.adx < 20) {
                     riskFactor *= 0.75;
-                    analysisParts.push("sem tendência (ADX baixo)");
+                    riskAnalysisParts.push("sem tendência (ADX baixo)");
                 }
                 if (indicators.bbw && indicators.bbw > 0.1) {
                     riskFactor *= 0.8;
                     durationAdjustment += 2;
-                    analysisParts.push("alta volatilidade (BBW alto)");
+                    riskAnalysisParts.push("alta volatilidade (BBW alto)");
                 }
                 const lastPrice = getPrice(priceTicks[priceTicks.length - 1]);
                 if (indicators.atr && lastPrice && (indicators.atr / lastPrice) > 0.00015) {
                     riskFactor *= 0.8;
                     durationAdjustment += 1;
-                    analysisParts.push("ATR elevado");
+                    riskAnalysisParts.push("ATR elevado");
                 }
                 
                 finalStake = baseStake * riskFactor;
                 finalDuration = baseDuration + durationAdjustment;
 
-                if(analysisParts.length > 0) {
-                    analysis = `Risco e/ou duração ajustados: ${analysisParts.join(', ')}.`;
+                if(riskAnalysisParts.length > 0) {
+                    analysis = `Risco/duração ajustados: ${riskAnalysisParts.join(', ')}.`;
                 }
             } else {
                  analysis = 'Gestão de risco dinâmica desativada.';
@@ -540,11 +540,15 @@ export function useRobotCouncil(
         let fallConfidenceSum = 0;
         const newVotes: CouncilVotes = {};
         
+        // CORREÇÃO PRAGMÁTICA: Usar baseDuration para a trade virtual
         const tradeDuration = baseDuration > 0 ? baseDuration : 5; 
 
         strategyCouncil.forEach((robot) => {
             const { vote, confidence } = calculateRobotVote(robot, currentIndicators, tickCandles);
 
+            // ====================================================================
+            // ARENA VIRTUAL: FASE 2 - Espelhar o Voto como Trade Virtual
+            // ====================================================================
             if (vote === 'RISE' || vote === 'FALL') {
                 const tradeId = `vt_${Date.now()}_${tradeCounterRef.current++}`;
                 const virtualTrade: VirtualTrade = {
@@ -689,3 +693,5 @@ export function useRobotCouncil(
         robotPerformance,
     };
 }
+
+    
