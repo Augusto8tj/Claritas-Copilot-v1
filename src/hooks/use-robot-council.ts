@@ -153,6 +153,14 @@ const durationToSeconds = (duration: number, unit: DurationUnit): number => {
     }
 };
 
+const durationLimits: Record<DurationUnit, { min: number, max: number }> = {
+    t: { min: 5, max: 10 },
+    s: { min: 15, max: 60 },
+    m: { min: 1, max: 60 },
+    h: { min: 1, max: 24 },
+    d: { min: 1, max: 365 },
+};
+
 export function useRobotCouncil(
     activeSymbol: string | null,
     priceTicks: TickData[]
@@ -394,11 +402,12 @@ export function useRobotCouncil(
             }
 
             finalStake = parseFloat(Math.max(0.35, finalStake).toFixed(2));
-            // ARREDONDA A DURAÇÃO E VALIDA OS LIMITES
             finalDuration = Math.round(Math.max(1, finalDuration));
-             if (finalDurationUnit === 't') {
-                finalDuration = Math.max(5, Math.min(10, finalDuration));
-             }
+
+            // Garante que a duração final está dentro dos limites da unidade selecionada.
+            const { min, max } = durationLimits[finalDurationUnit];
+            finalDuration = Math.max(min, Math.min(max, finalDuration));
+            
 
             return { status: 'approved', message: 'Aprovado. Risco avaliado.', analysis, finalStake, finalDuration, finalDurationUnit };
         },
