@@ -13,7 +13,7 @@ import type { ChartData, TickData, CandleData } from '@/lib/types';
 import { initialCouncilStrategies } from '@/services/council-strategies';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import { saveRobotPerformance, loadRobotPerformance } from '@/services/financial-data-service';
-import { useStrategyEvolution } from './use-strategy-evolution'; // IMPORTA O NOVO HOOK
+import { useStrategyEvolution, type EvolutionEvent } from './use-strategy-evolution'; // IMPORTA O NOVO HOOK
 
 export type RobotVote = {
     vote: 'RISE' | 'FALL' | 'HOLD';
@@ -150,9 +150,9 @@ export function useRobotCouncil(
     const form = useFormContext<RiseFallFormValues>();
 
     // USA O NOVO HOOK DE EVOLUÇÃO
-    const { evolvedStrategies, evolveTrigger } = useStrategyEvolution(initialCouncilStrategies);
+    const { evolvedStrategies, evolveTrigger, evolutionHistory } = useStrategyEvolution(initialCouncilStrategies);
     // O CONSELHO AGORA USA AS ESTRATÉGIAS EVOLUÍDAS
-    const [strategyCouncil, setStrategyCouncil] = useState<RobotStrategy[]>(evolvedStrategies);
+    const [strategyCouncil, setStrategyCouncil] = useState<RobotStrategy[]>(evolvedStrategies as RobotStrategy[]);
     
     const [isCouncilAutopilotOn, setIsCouncilAutopilotOn] = useState(false);
     const [isFetchingCouncil, setIsFetchingCouncil] = useState(false);
@@ -183,7 +183,7 @@ export function useRobotCouncil(
 
     // ATUALIZA O CONSELHO QUANDO AS ESTRATÉGIAS EVOLUEM
     useEffect(() => {
-        setStrategyCouncil(evolvedStrategies);
+        setStrategyCouncil(evolvedStrategies as RobotStrategy[]);
     }, [evolvedStrategies]);
 
     useEffect(() => {
@@ -217,7 +217,7 @@ export function useRobotCouncil(
         await new Promise((resolve) => setTimeout(resolve, 500));
         
         // A ESTRATÉGIA INICIAL AGORA VEM DAS ESTRATÉGIAS EVOLUÍDAS (QUE COMEÇAM COMO AS INICIAIS)
-        setStrategyCouncil(evolvedStrategies);
+        setStrategyCouncil(evolvedStrategies as RobotStrategy[]);
 
         if (robotPerformance.length === 0) {
             const initialPerformance: RobotPerformance[] = (evolvedStrategies as RobotStrategy[]).map((robot) => ({
@@ -504,5 +504,6 @@ export function useRobotCouncil(
         councilVotes, dailyBalance, setDailyBalance, dailyTarget, setDailyTarget, consensusThreshold, setConsensusThreshold,
         isDynamicConsensusOn, setIsDynamicConsensusOn, isDynamicRiskOn, setIsDynamicRiskOn, isMeritocracyOn, setIsMeritocracyOn,
         indicators, activeCommittee, supervisionStatus, consensusSum, consensusDecision, robotPerformance,
+        evolutionHistory, // EXPORTA O HISTÓRICO DE EVOLUÇÃO
     };
 }

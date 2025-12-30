@@ -12,6 +12,17 @@ const EVOLUTION_TRIGGER_THRESHOLD = 50; // A cada X trades virtuais, aciona a ev
 const ELITE_COUNT = 5; // Número de melhores robôs a serem usados como base para mutação
 const WORST_COUNT = 5; // Número de piores robôs a serem substituídos
 
+export interface EvolutionEvent {
+    timestamp: Date;
+    elitePerformers: Pick<RobotPerformance, 'id' | 'strategyType' | 'totalProfit' | 'wins' | 'losses'>[];
+    mutations: {
+        replacedBotId: string;
+        replacedBotType: string;
+        parentBotId: string;
+        parentBotType: string;
+    }[];
+}
+
 // ============================================================================
 // FUNÇÕES DE MUTAÇÃO
 // ============================================================================
@@ -69,6 +80,8 @@ export function useStrategyEvolution(initialStrategies: Omit<RobotStrategy, 'sug
     
     // O estado que guarda as estratégias atuais, começando com as iniciais
     const [evolvedStrategies, setEvolvedStrategies] = useState<Omit<RobotStrategy, 'suggestedStake'>[]>(initialStrategies);
+    // NOVO: Estado para guardar o histórico de eventos de evolução
+    const [evolutionHistory, setEvolutionHistory] = useState<EvolutionEvent[]>([]);
 
     // Contador de trades para acionar a evolução
     const tradeCountRef = useRef(0);
@@ -112,6 +125,12 @@ export function useStrategyEvolution(initialStrategies: Omit<RobotStrategy, 'sug
             description: "A IA está a recalibrar os robôs com base no desempenho recente.",
         });
 
+        const newEvent: EvolutionEvent = {
+            timestamp: new Date(),
+            elitePerformers: elitePerformers.map(({ id, strategyType, totalProfit, wins, losses }) => ({ id, strategyType, totalProfit, wins, losses })),
+            mutations: [],
+        };
+        
         // Cria um mapa das novas estratégias
         const newStrategiesMap = new Map<string, Omit<RobotStrategy, 'suggestedStake'>>(
             evolvedStrategies.map(s => [s.id, s])
@@ -119,29 +138,34 @@ export function useStrategyEvolution(initialStrategies: Omit<RobotStrategy, 'sug
 
         // Substitui os piores por mutações dos melhores
         worstPerformers.forEach((worst, index) => {
-            // Pega um dos robôs de elite para ser o "pai" da mutação
             const eliteParent = elitePerformers[index % elitePerformers.length];
-            
             const newStrategyParams = mutateStrategy(eliteParent.strategy);
-
             const newJustification = `Mutação da estratégia ${eliteParent.strategyType} de elite.`;
             
-            // Atualiza a estratégia do robô com pior desempenho no mapa
             newStrategiesMap.set(worst.id, {
-                ...worst.strategy, // Mantém id, tipo, etc.
-                ...newStrategyParams, // Sobrescreve com os novos parâmetros
+                ...worst.strategy, 
+                ...newStrategyParams, 
                 justification: newJustification,
             });
-             console.log(`[Evolution] Robô ${worst.id} (${worst.strategyType}) foi substituído por uma mutação de ${eliteParent.strategyType}.`);
+
+            newEvent.mutations.push({
+                replacedBotId: worst.id,
+                replacedBotType: worst.strategyType,
+                parentBotId: eliteParent.id,
+                parentBotType: eliteParent.strategyType,
+            });
+
+            console.log(`[Evolution] Robô ${worst.id} (${worst.strategyType}) foi substituído por uma mutação de ${eliteParent.strategyType}.`);
         });
 
-        // Atualiza o estado com o novo conjunto de estratégias
         setEvolvedStrategies(Array.from(newStrategiesMap.values()));
+        setEvolutionHistory(prev => [newEvent, ...prev]);
 
     }, [evolvedStrategies, toast]);
 
     return {
         evolvedStrategies,
         evolveTrigger,
+        evolutionHistory, // EXPORTA O HISTÓRICO
     };
 }
