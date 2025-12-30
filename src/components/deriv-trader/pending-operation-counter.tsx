@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Loader2, XSquare } from 'lucide-react';
-import type { DurationUnit, Operation } from "@/lib/types";
+import type { Operation } from "@/lib/types";
 import { useDerivApi } from '@/hooks/use-deriv-api';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';

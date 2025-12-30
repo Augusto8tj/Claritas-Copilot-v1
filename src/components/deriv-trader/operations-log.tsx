@@ -13,11 +13,10 @@ import { cn } from "@/lib/utils";
 import type { Operation, OperationInitiator, DurationUnit, TickData } from "@/lib/types";
 import { ArrowDown, ArrowUp, Bot, User, Users, MoveRight, XSquare, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { PendingOperationCounter } from "./pending-operation-counter";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
-import { Button } from "../ui/button";
 import { useDerivApi } from "@/hooks/use-deriv-api";
 import { useToast } from "@/hooks/use-toast";
+import { PendingOperationCounter } from "./pending-operation-counter";
 
 
 interface OperationsLogProps {
