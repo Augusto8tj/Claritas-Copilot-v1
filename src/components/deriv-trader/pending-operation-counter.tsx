@@ -13,6 +13,7 @@ interface PendingOperationCounterProps {
   operation: Operation;
   onSell: () => void;
   isSelling: boolean;
+  currentStatus: 'winning' | 'losing' | 'even';
 }
 
 const SELL_WINDOW_SECONDS = 15; // Janela em segundos ANTES do fim para desativar a venda
@@ -25,7 +26,7 @@ const formatTime = (ms: number): string => {
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
-export function PendingOperationCounter({ operation, onSell, isSelling }: PendingOperationCounterProps) {
+export function PendingOperationCounter({ operation, onSell, isSelling, currentStatus }: PendingOperationCounterProps) {
   const { priceTicks } = useDerivApi();
   const [ticksSinceEntry, setTicksSinceEntry] = useState(0);
   const [remainingMs, setRemainingMs] = useState<number | null>(null);
@@ -36,13 +37,6 @@ export function PendingOperationCounter({ operation, onSell, isSelling }: Pendin
   const latestTick = useMemo(() => {
     return priceTicks.length > 0 ? priceTicks[priceTicks.length - 1] : null;
   }, [priceTicks]);
-
-  const currentStatus = useMemo(() => {
-    if (!latestTick || !entryPrice) return 'even';
-    if (latestTick.price > entryPrice) return direction === 'rise' ? 'winning' : 'losing';
-    if (latestTick.price < entryPrice) return direction === 'fall' ? 'winning' : 'losing';
-    return 'even';
-  }, [latestTick, entryPrice, direction]);
 
   const buttonStyle = useMemo(() => {
     if (entryPrice && latestTick) {

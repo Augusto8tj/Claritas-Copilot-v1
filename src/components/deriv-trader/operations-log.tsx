@@ -62,6 +62,10 @@ export function OperationsLog({ operations }: OperationsLogProps) {
     }
     // O status será atualizado via WebSocket, não precisamos remover o loading state aqui
   };
+
+  const latestTick = useMemo(() => {
+    return priceTicks.length > 0 ? priceTicks[priceTicks.length - 1] : null;
+  }, [priceTicks]);
   
   return (
     <Card className="h-full flex flex-col">
@@ -95,6 +99,16 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                 </div>
                 ) : (
                 operations.map((op) => {
+                  
+                  const currentStatus = useMemo(() => {
+                    if (op.status !== 'pending' || !latestTick || !op.entryPrice) return 'even';
+                    if (op.direction === 'rise') {
+                      return latestTick.price > op.entryPrice ? 'winning' : 'losing';
+                    } else { // fall
+                      return latestTick.price < op.entryPrice ? 'winning' : 'losing';
+                    }
+                  }, [op, latestTick]);
+
                   return (
                     <div key={op.id} className="flex items-center">
                     <div className="flex-1 space-y-1">
@@ -135,6 +149,7 @@ export function OperationsLog({ operations }: OperationsLogProps) {
                           operation={op}
                           onSell={() => handleSell(op.id)}
                           isSelling={sellingContractId === op.id}
+                          currentStatus={currentStatus}
                         />
                         ) : op.status === "won" ? (
                         <>
