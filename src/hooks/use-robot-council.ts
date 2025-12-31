@@ -109,8 +109,6 @@ const calculateRobotVote = (
 
     if (!indicators) return { vote: 'HOLD', confidence: 0, optimalDuration, optimalDurationUnit, suggestedStake: 0 };
     
-    // --- LÓGICA DE ESTRATÉGIAS COMPLETA ---
-    
     if (robot.strategyType === 'RSI' && isValid(indicators.rsi)) {
         if (indicators.rsi! <= robot.weakBuyThreshold!) setVote('RISE', robot.weakConfidence);
         if (indicators.rsi! <= robot.strongBuyThreshold!) setVote('RISE', robot.strongConfidence);
@@ -205,15 +203,12 @@ const calculateRobotVote = (
         if (indicators.zScore! <= -robot.zScoreThreshold!) setVote('RISE', robot.strongConfidence);
         if (indicators.zScore! >= robot.zScoreThreshold!) setVote('FALL', robot.strongConfidence);
     }
-     if (robot.strategyType === 'OBV' && isValid(indicators.obv) && tickCandles.length > 1) {
-        if (isValid(indicators.obv)) {
-            // Simplified logic: Check if OBV is rising or falling
-            const obvSma = calculateAllIndicators(tickCandles, [], '1m').sma;
-            if (obvSma.length > 1 && indicators.obv > obvSma[obvSma.length - 1]!) {
-                setVote('RISE', robot.weakConfidence);
-            } else if (obvSma.length > 1 && indicators.obv < obvSma[obvSma.length - 1]!) {
-                setVote('FALL', robot.weakConfidence);
-            }
+     if (robot.strategyType === 'OBV' && isValid(indicators.obv) && indicators.sma.length > 1) {
+        const obvSma = calculateAllIndicators(tickCandles.map(c => ({...c, close: indicators.obv!})), [], '1m').sma;
+        if (obvSma.length > 1 && indicators.obv > obvSma[obvSma.length - 1]!) {
+            setVote('RISE', robot.weakConfidence);
+        } else if (obvSma.length > 1 && indicators.obv < obvSma[obvSma.length - 1]!) {
+            setVote('FALL', robot.weakConfidence);
         }
     }
     if (robot.strategyType === 'TRIX' && isValid(indicators.trix)) {
@@ -501,8 +496,7 @@ export function useRobotCouncil(
         if (!isConnected || !user || !isCouncilAutopilotOn || strategyCouncil.length === 0 || !activeSymbol || tickCandles.length < 2) return;
 
         const currentTick = priceTicks[priceTicks.length - 1];
-        const currentTickIndex = priceTicks.length - 1;
-
+        
         // 1. Calcular Indicadores
         const currentIndicators = calculateAllIndicators(tickCandles, strategyCouncil, timePeriod);
         setIndicators(currentIndicators);
@@ -561,56 +555,51 @@ export function useRobotCouncil(
         }
 
         // 4. Nova Votação do Conselho
-        let riseConfidenceSum = 0;
-        let fallConfidenceSum = 0;
         const newVotes: CouncilVotes = {};
-
         strategyCouncil.forEach((robot) => {
-            const { vote, confidence, optimalDuration, optimalDurationUnit, suggestedStake } = calculateRobotVote(robot, currentIndicators, tickCandles);
+            const voteResult = calculateRobotVote(robot, currentIndicators, tickCandles);
             
-            // Peso Meritocrático: Robôs que acertam mais, valem mais
             let weight = 1.0;
             if (isMeritocracyOn) {
                 const perf = performanceMap.get(robot.id);
                 if (perf && (perf.wins + perf.losses) > 5) {
                     const winRateDecimal = perf.winRate / 100;
-                    // Se winrate > 50%, aumenta peso. Se < 50%, diminui.
                     weight = 1 + (winRateDecimal - 0.5) * 2; 
-                    weight = Math.max(0.2, Math.min(2.0, weight)); // Clamp peso entre 0.2 e 2.0
+                    weight = Math.max(0.2, Math.min(2.0, weight));
                 }
             }
 
-            // Criar Trade Virtual se o robô votar
-            if (vote !== 'HOLD') {
+            if (voteResult.vote !== 'HOLD') {
                 const tradeId = `vt_${Date.now()}_${tradeCounterRef.current++}`;
-                const durationInSeconds = durationToSeconds(optimalDuration, optimalDurationUnit);
+                const durationInSeconds = durationToSeconds(voteResult.optimalDuration, voteResult.optimalDurationUnit);
 
                 const virtualTrade: VirtualTrade = {
                     id: tradeId,
                     robotId: robot.id,
-                    vote: vote,
+                    vote: voteResult.vote,
                     entryPrice: currentTick.price,
                     entryEpoch: currentTick.epoch,
                     exitEpoch: currentTick.epoch + durationInSeconds,
-                    entryTickIndex: 0, // Campo mantido para compatibilidade, mas não usado para julgamento
-                    exitTickIndex: 0,  // Campo mantido para compatibilidade, mas não usado para julgamento
                 };
                 virtualTradesRef.current.push(virtualTrade);
             }
 
-            newVotes[robot.id] = { vote, confidence, weight, optimalDuration, optimalDurationUnit, suggestedStake };
-            
-            if (vote === 'RISE') riseConfidenceSum += confidence * weight;
-            if (vote === 'FALL') fallConfidenceSum += confidence * weight;
+            newVotes[robot.id] = { ...voteResult, weight };
         });
 
         setCouncilVotes(newVotes);
-        setConsensusSum({ rise: riseConfidenceSum, fall: fallConfidenceSum });
+        
+        const { rise: riseSum, fall: fallSum } = Object.values(newVotes).reduce((acc, v) => {
+            if (v.vote === 'RISE') acc.rise += v.confidence * v.weight;
+            if (v.vote === 'FALL') acc.fall += v.confidence * v.weight;
+            return acc;
+        }, { rise: 0, fall: 0 });
+        
+        setConsensusSum({ rise: riseSum, fall: fallSum });
         setActiveCommittee(committeeOfSpecialists(currentIndicators));
         
-        // Decisão Visual
-        if (riseConfidenceSum > fallConfidenceSum && riseConfidenceSum > 0) setConsensusDecision('RISE');
-        else if (fallConfidenceSum > riseConfidenceSum && fallConfidenceSum > 0) setConsensusDecision('FALL');
+        if (riseSum > fallSum && riseSum > 0) setConsensusDecision('RISE');
+        else if (fallSum > riseSum && fallSum > 0) setConsensusDecision('FALL');
         else setConsensusDecision('HOLD');
         
         // 5. Execução Real (Se Aprovado)
@@ -625,7 +614,7 @@ export function useRobotCouncil(
 
         if (supervisionDecision.status === 'approved') {
             councilExecutionRef.current.isExecuting = true;
-            const direction = riseConfidenceSum > fallConfidenceSum ? 'RISE' : 'FALL';
+            const direction = riseSum > fallSum ? 'RISE' : 'FALL';
             const { finalStake, finalDuration, finalDurationUnit } = supervisionDecision;
             
             toast({ title: 'Ordem do Conselho', description: `Executando ${direction} com stake de $${finalStake}.` });
@@ -639,7 +628,6 @@ export function useRobotCouncil(
                 finalDurationUnit, 
                 'Conselho'
             ).finally(() => {
-                // Cooldown para evitar abrir muitas ordens seguidas
                 setTimeout(() => (councilExecutionRef.current.isExecuting = false), 5000);
             });
         }
