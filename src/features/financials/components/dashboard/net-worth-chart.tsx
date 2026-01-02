@@ -12,7 +12,7 @@ import {
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { getTransactions } from "@/services/financial-data-service";
 import type { Transaction } from "@/lib/types";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -26,25 +26,36 @@ const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "
 function processData(transactions: Transaction[]): ChartDataPoint[] {
   const monthlyData: { [key: string]: { income: number, expenses: number } } = {};
 
+  // Inicializa todos os meses do ano para garantir que o gráfico tenha sempre 12 pontos
+  const currentYear = new Date().getFullYear();
   for (let i = 0; i < 12; i++) {
-    monthlyData[`2024-${String(i).padStart(2, '0')}`] = { income: 0, expenses: 0 };
+    const monthKey = `${currentYear}-${String(i + 1).padStart(2, '0')}`;
+    monthlyData[monthKey] = { income: 0, expenses: 0 };
   }
-
+  
   transactions.forEach(t => {
-    const monthKey = t.date.substring(0, 7); // YYYY-MM
-    if (!monthlyData[monthKey]) {
-      monthlyData[monthKey] = { income: 0, expenses: 0 };
-    }
-    if (t.type === 'income') {
-      monthlyData[monthKey].income += t.amount;
-    } else {
-      monthlyData[monthKey].expenses += t.amount;
+    try {
+      const transactionDate = new Date(t.date);
+      // Ignora transações de anos diferentes para manter a consistência
+      if (transactionDate.getFullYear() !== currentYear) return;
+      
+      const monthKey = `${currentYear}-${String(transactionDate.getUTCMonth() + 1).padStart(2, '0')}`;
+      
+      if (monthlyData[monthKey]) {
+        if (t.type === 'income') {
+          monthlyData[monthKey].income += t.amount;
+        } else {
+          monthlyData[monthKey].expenses += t.amount;
+        }
+      }
+    } catch(e) {
+      console.error("Invalid date format for transaction:", t);
     }
   });
 
   let cumulativeNetWorth = 0;
   return months.map((monthName, index) => {
-    const monthKey = `2024-${String(index + 1).padStart(2, '0')}`;
+    const monthKey = `${currentYear}-${String(index + 1).padStart(2, '0')}`;
     const monthBalance = (monthlyData[monthKey]?.income || 0) - (monthlyData[monthKey]?.expenses || 0);
     cumulativeNetWorth += monthBalance;
     return {
@@ -67,13 +78,21 @@ export function NetWorthChart() {
 
         const fetchData = async () => {
             setLoading(true);
-            const transactions = await getTransactions(user.uid);
-            const processed = processData(transactions);
-            setData(processed);
+            try {
+                const transactions = await getTransactions(user.uid);
+                const processed = processData(transactions);
+                setData(processed);
+            } catch (error) {
+                console.error("Failed to fetch or process transactions for chart:", error);
+                // Em caso de erro, preenchemos com dados zerados para não quebrar a UI
+                setData(months.map(m => ({ name: m, netWorth: 0 })));
+            }
             setLoading(false);
         };
         fetchData();
     }, [user]);
+
+    const chartData = useMemo(() => data, [data]);
 
     if (loading) {
        return (
@@ -97,7 +116,7 @@ export function NetWorthChart() {
         </CardHeader>
         <CardContent className="pl-2">
             <ResponsiveContainer width="100%" height={350}>
-                <LineChart data={data}>
+                <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis
                     dataKey="name"

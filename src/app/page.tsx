@@ -13,70 +13,11 @@ import { UpcomingBills } from "@/features/financials/components/dashboard/upcomi
 import { MainGoal } from "@/features/financials/components/dashboard/main-goal";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getFinancialSummary } from "@/services/financial-data-service";
-import { auth } from "@/lib/firebase";
 
-export const revalidate = 0; // Force dynamic rendering
-
-function MainGoalSkeleton() {
-  return (
-    <Card>
-      <CardHeader>
-        <Skeleton className="h-6 w-3/4" />
-        <Skeleton className="h-4 w-1/2" />
-      </CardHeader>
-      <CardContent className="flex items-center justify-center p-6">
-        <Skeleton className="h-36 w-36 rounded-full" />
-      </CardContent>
-    </Card>
-  )
-}
-
-function ChartSkeleton() {
-    return (
-        <Card className="col-span-4">
-            <CardHeader>
-                <Skeleton className="h-6 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
-            </CardHeader>
-            <CardContent className="pl-2">
-                <Skeleton className="h-[350px] w-full" />
-            </CardContent>
-        </Card>
-    )
-}
-
-function BalanceSkeleton() {
-    return (
-         <Card>
-            <CardHeader>
-                <Skeleton className="h-6 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
-            </CardHeader>
-            <CardContent>
-                <div className="space-y-2">
-                   <Skeleton className="h-4 w-full" />
-                   <Skeleton className="h-2 w-full" />
-                   <Skeleton className="h-4 w-full" />
-                </div>
-            </CardContent>
-        </Card>
-    )
-}
-
+// A página agora é um Server Component simples que organiza os Client Components.
+// A obtenção de dados foi movida para dentro de cada componente individual.
 
 export default async function DashboardPage() {
-  // Fetch data directly in the server component page
-  const userId = auth.currentUser?.uid;
-  let summary = { income: 0, expenses: 0 };
-  if (userId) {
-      try {
-        summary = await getFinancialSummary(userId);
-      } catch (e) {
-        console.error("Failed to fetch financial summary on server:", e);
-      }
-  }
-
   return (
     <div className="flex-1 space-y-4 p-4 sm:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
@@ -85,20 +26,54 @@ export default async function DashboardPage() {
         </h1>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Suspense é usado para lidar com o carregamento assíncrono de componentes */}
         <Suspense fallback={<Skeleton className="h-36 w-full" />}>
            <AIInsightCard />
         </Suspense>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Suspense fallback={<ChartSkeleton/>}>
+        <Suspense fallback={
+            <Card className="col-span-4">
+                <CardHeader>
+                    <Skeleton className="h-6 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                </CardHeader>
+                <CardContent className="pl-2">
+                    <Skeleton className="h-[350px] w-full" />
+                </CardContent>
+            </Card>
+        }>
             <NetWorthChart />
         </Suspense>
         <div className="col-span-4 lg:col-span-3 space-y-4">
-          <Suspense fallback={<BalanceSkeleton />}>
-            {/* Pass the fetched data as props */}
-            <MonthlyBalance income={summary.income} expenses={summary.expenses} />
+          <Suspense fallback={
+             <Card>
+                <CardHeader>
+                    <Skeleton className="h-6 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-2">
+                       <Skeleton className="h-4 w-full" />
+                       <Skeleton className="h-2 w-full" />
+                       <Skeleton className="h-4 w-full" />
+                    </div>
+                </CardContent>
+            </Card>
+          }>
+            <MonthlyBalance />
           </Suspense>
-          <Suspense fallback={<MainGoalSkeleton />}>
+          <Suspense fallback={
+             <Card>
+                <CardHeader>
+                    <Skeleton className="h-6 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                </CardHeader>
+                <CardContent className="flex items-center justify-center p-6">
+                    <Skeleton className="h-36 w-36 rounded-full" />
+                </CardContent>
+            </Card>
+          }>
             <MainGoal />
           </Suspense>
         </div>

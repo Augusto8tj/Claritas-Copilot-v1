@@ -41,6 +41,7 @@ export function MainGoal() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // useCallback para evitar que a função seja recriada em cada renderização
   const fetchGoals = useCallback(async () => {
     if (!user) {
       setLoading(false);
@@ -53,12 +54,13 @@ export function MainGoal() {
         setGoals(userGoals);
     } catch (error) {
         console.error("Failed to fetch goals:", error);
-        setGoals([]); // Reset goals on error
+        setGoals([]); // Reseta as metas em caso de erro para não mostrar dados antigos
     } finally {
         setLoading(false);
     }
-  }, [user]);
+  }, [user]); // Depende apenas do objeto 'user'
 
+  // useEffect para buscar os dados quando o componente montar ou o usuário mudar
   useEffect(() => {
     fetchGoals();
   }, [fetchGoals]);
@@ -75,11 +77,14 @@ export function MainGoal() {
           <CardTitle className="font-headline">Metas</CardTitle>
           <CardDescription>Faça login para ver suas metas.</CardDescription>
         </CardHeader>
+        <CardContent>
+           <p className="text-sm text-muted-foreground">Autenticação necessária.</p>
+        </CardContent>
       </Card>
     );
   }
 
-  if (!goals || goals.length === 0) {
+  if (goals.length === 0) {
     return (
       <Card>
         <CardHeader>
@@ -104,7 +109,7 @@ export function MainGoal() {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex items-center justify-center p-6">
-        <Carousel className="w-full max-w-xs" opts={{ loop: true }}>
+        <Carousel className="w-full max-w-xs" opts={{ loop: goals.length > 1 }}>
           <CarouselContent>
             {goals.map((goal) => (
               <CarouselItem key={goal.id}>
@@ -115,8 +120,12 @@ export function MainGoal() {
               </CarouselItem>
             ))}
           </CarouselContent>
-          <CarouselPrevious />
-          <CarouselNext />
+          {goals.length > 1 && (
+            <>
+              <CarouselPrevious />
+              <CarouselNext />
+            </>
+          )}
         </Carousel>
       </CardContent>
     </Card>

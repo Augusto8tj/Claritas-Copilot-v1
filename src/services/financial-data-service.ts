@@ -3,9 +3,10 @@
 
 /**
  * @fileOverview A financial data service that interacts with Firebase Firestore.
+ * This file is now fully instrumented with contextual error handling for Firestore security rules.
  */
-import { db, auth } from '@/lib/firebase';
-import { collection, getDocs, addDoc, query, where, doc, updateDoc, deleteDoc, writeBatch, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, writeBatch, getDoc, setDoc, query, where } from 'firebase/firestore';
 import type { Goal, BudgetCategory, Transaction, RobotPerformance } from '@/lib/types';
 import { generateGoalImage } from '@/ai/flows/goal-image-generation';
 
@@ -19,24 +20,25 @@ const PROMOTION_THRESHOLD_PROFIT = 0;
 // --- Transactions ---
 
 export async function getTransactions(userId: string): Promise<Transaction[]> {
+    if (!userId) return [];
     const transactionsCol = collection(db, `users/${userId}/transactions`);
     try {
         const snapshot = await getDocs(transactionsCol);
         return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Transaction));
     } catch (serverError) {
+        // EMIT CONTEXTUAL ERROR
         const permissionError = new FirestorePermissionError({
             path: transactionsCol.path,
             operation: 'list',
         });
         errorEmitter.emit('permission-error', permissionError);
-        // Retornar um array vazio para evitar que a UI quebre
-        return [];
+        return []; // Return empty array to prevent UI crash
     }
 }
 
 export async function addTransaction(userId: string, data: Omit<Transaction, 'id'>): Promise<string> {
     const transactionsCol = collection(db, `users/${userId}/transactions`);
-    addDoc(transactionsCol, data).catch(async (serverError) => {
+    addDoc(transactionsCol, data).catch(async () => { // Removed 'serverError' as we construct our own error
         const permissionError = new FirestorePermissionError({
             path: transactionsCol.path,
             operation: 'create',
@@ -59,6 +61,7 @@ export async function getFinancialSummary(userId: string): Promise<{ income: num
 // --- Goals ---
 
 export async function getGoals(userId: string): Promise<Goal[]> {
+    if (!userId) return [];
     const goalsCol = collection(db, `users/${userId}/goals`);
     try {
         const snapshot = await getDocs(goalsCol);
@@ -75,7 +78,6 @@ export async function getGoals(userId: string): Promise<Goal[]> {
 
 export async function addGoal(userId: string, name: string, targetAmount: number): Promise<Goal> {
     const goalsCol = collection(db, `users/${userId}/goals`);
-    
     const newGoalData = {
         name,
         targetAmount,
@@ -91,63 +93,55 @@ export async function addGoal(userId: string, name: string, targetAmount: number
             requestResourceData: newGoalData,
         });
         errorEmitter.emit('permission-error', permissionError);
-        // Re-lança o erro para que a Server Action que chama esta função possa apanhá-lo
         throw serverError;
     });
 
-    // A geração de imagem continua em segundo plano, sem bloquear a resposta.
     generateGoalImage({ goalName: name })
         .then(imageResult => {
             if (imageResult?.imageUrl) {
                 const goalDoc = doc(db, `users/${userId}/goals`, docRef.id);
                 updateDoc(goalDoc, { imageUrl: imageResult.imageUrl })
-                    .catch(updateError => {
-                        console.error("Falha ao atualizar a imagem da meta:", updateError);
-                    });
+                    .catch(updateError => console.error("Falha ao atualizar a imagem da meta:", updateError));
             }
         })
-        .catch(imageError => {
-            console.error("Falha ao gerar imagem da meta, usando placeholder.", imageError);
-        });
+        .catch(imageError => console.error("Falha ao gerar imagem da meta:", imageError));
 
     return { id: docRef.id, ...newGoalData };
 }
 
 export async function deleteGoal(userId: string, goalId: string): Promise<{ success: boolean }> {
     const goalDoc = doc(db, `users/${userId}/goals`, goalId);
-    await deleteDoc(goalDoc).catch(async (serverError) => {
+    await deleteDoc(goalDoc).catch(async () => {
         const permissionError = new FirestorePermissionError({
             path: goalDoc.path,
             operation: 'delete',
         });
         errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
+        throw new Error("Falha ao deletar a meta.");
     });
     return { success: true };
 }
 
-
 // --- Budget ---
 
 async function getBudgetLimits(userId: string): Promise<{ [key: string]: number }> {
-    const settingsDoc = doc(db, `users/${userId}/settings`, 'budget');
+    const settingsDocRef = doc(db, `users/${userId}/settings/budget`);
     try {
-        const docSnap = await getDoc(settingsDoc);
+        const docSnap = await getDoc(settingsDocRef);
         if (docSnap.exists()) {
             return docSnap.data().limits || {};
         }
-        // Return default if not exists
         return {
             "Moradia": 2000, "Alimentação": 1000, "Transporte": 500,
             "Lazer": 400, "Compras": 600, "Outros": 300, "Contas": 800,
         };
     } catch (serverError) {
          const permissionError = new FirestorePermissionError({
-            path: settingsDoc.path,
+            path: settingsDocRef.path,
             operation: 'get',
         });
         errorEmitter.emit('permission-error', permissionError);
-        return {}; // Return empty on error
+        return {};
     }
 }
 
@@ -178,14 +172,14 @@ export async function updateBudgetLimit(userId: string, name: string, newLimit: 
     const dataToSet = { [`limits.${name}`]: newLimit };
 
     await setDoc(settingsDocRef, dataToSet, { merge: true })
-        .catch(async (serverError) => {
+        .catch(async () => {
             const permissionError = new FirestorePermissionError({
                 path: settingsDocRef.path,
                 operation: 'update',
                 requestResourceData: dataToSet
             });
             errorEmitter.emit('permission-error', permissionError);
-            throw serverError;
+            throw new Error("Falha ao atualizar o limite do orçamento.");
         });
 
     const transactions = await getTransactions(userId);
@@ -201,16 +195,14 @@ export async function getExpenseCategories(userId: string): Promise<string[]> {
     return Object.keys(limits);
 }
 
-// --- General Insights (Still Mocked) ---
+// --- General Insights (Mocked) ---
 export async function getInsights(): Promise<string[]> {
-    // This can be enhanced later to be dynamic based on user data
     return [
       "Você gastou R$150 em restaurantes. Tente cozinhar em casa para economizar.",
       "Sua maior despesa é o aluguel. Considere procurar opções mais baratas, se possível.",
       "Você está perto de atingir seu fundo de emergência! Continue assim."
     ];
 }
-
 
 // --- Trading Robot Performance ---
 
@@ -219,14 +211,14 @@ export async function saveRobotPerformance(userId: string, performanceData: Robo
     const dataToSave = { performance: performanceData };
 
     setDoc(performanceDocRef, dataToSave, { merge: true })
-        .catch(async (serverError) => {
+        .catch(async () => {
             const permissionError = new FirestorePermissionError({
                 path: performanceDocRef.path,
                 operation: 'update',
                 requestResourceData: dataToSave,
             });
             errorEmitter.emit('permission-error', permissionError);
-            throw serverError;
+            throw new Error("Falha ao salvar desempenho dos robôs.");
         });
 }
 
@@ -246,7 +238,7 @@ export async function loadRobotPerformance(userId: string): Promise<RobotPerform
             operation: 'get',
         });
         errorEmitter.emit('permission-error', permissionError);
-        throw serverError;
+        throw serverError; // Re-lança para ser apanhado pelo chamador
     }
 }
 
@@ -266,8 +258,6 @@ export async function getHallOfFame(userId: string): Promise<RobotPerformance[]>
         
         return promotedRobots;
     } catch(e) {
-        // Se loadRobotPerformance falhar (e agora ele lança um erro), a exceção será apanhada aqui.
-        // Como o Hall da Fama é um recurso de "nice-to-have", podemos simplesmente registar e retornar um array vazio.
         console.error("Não foi possível carregar o Hall da Fama devido a um erro de acesso aos dados:", e);
         return [];
     }
