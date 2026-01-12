@@ -147,6 +147,7 @@ async function getBudgetLimits(userId: string): Promise<{ [key: string]: number 
             operation: 'get',
         });
         errorEmitter.emit('permission-error', permissionError);
+        // Retornar um objeto vazio para evitar que a UI quebre completamente
         return {};
     }
 }
