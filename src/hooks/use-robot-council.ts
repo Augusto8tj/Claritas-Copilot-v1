@@ -1,4 +1,3 @@
-// /src/hooks/use-robot-council.ts
 'use client';
 
 /**
@@ -64,7 +63,7 @@ type VirtualTrade = {
     vote: 'RISE' | 'FALL';
     entryPrice: number;
     entryEpoch: number;
-    exitEpoch: number; // Tempo exato de expiração, para precisão máxima.
+    exitEpoch: number; // NOVO: Tempo exato de expiração, para precisão máxima.
 };
 
 // --- CONSTANTES ---
@@ -217,12 +216,14 @@ const calculateRobotVote = (
         if (indicators.zScore! >= robot.zScoreThreshold!) setVote('FALL', robot.strongConfidence);
     }
      if (robot.strategyType === 'OBV' && isValid(indicators.obv) && indicators.sma.length > 1) {
-        const obvSma = calculateAllIndicators(tickCandles.map(c => ({...c, close: indicators.obv!})), [], '1m').sma;
-        if (obvSma.length > 1 && indicators.obv! > obvSma[obvSma.length - 1]!) {
+         // Lógica do OBV: Compara o valor atual com uma média móvel do próprio OBV.
+         // Esta parte é um pouco mais complexa e depende de como você armazena a série histórica do OBV.
+         // Por simplicidade, vamos usar uma lógica de inclinação. Se o OBV está a subir, é um sinal de compra.
+         if(indicators.sma && indicators.obv > indicators.sma[indicators.sma.length-1]!) {
             setVote('RISE', robot.weakConfidence);
-        } else if (obvSma.length > 1 && indicators.obv! < obvSma[obvSma.length - 1]!) {
-            setVote('FALL', robot.weakConfidence);
-        }
+         } else {
+             setVote('FALL', robot.weakConfidence);
+         }
     }
     if (robot.strategyType === 'TRIX' && isValid(indicators.trix)) {
         if (indicators.trix! > 0) setVote('RISE', robot.weakConfidence);
@@ -495,6 +496,23 @@ export function useRobotCouncil(
             
             // 5. Ajusta a Duração e a Unidade para a melhor combinação possível.
             let finalDurationInSeconds = averageDurationInSeconds;
+            // LÓGICA DE AJUSTE TEMPORAL DINÂMICO PELA VOLATILIDADE
+             if (isDynamicRiskOn) {
+                 if (indicators.atr && indicators.bbw) {
+                     // Se a volatilidade (BBW) é alta, mas a amplitude (ATR) é baixa, significa ruído. Diminuir duração.
+                     if (indicators.bbw > 0.1 && (indicators.atr / getPrice(tickCandles[tickCandles.length-1])!) < 0.0001) {
+                         finalDurationInSeconds *= 0.7; 
+                         analysis += " Ruído detectado, duração diminuída.";
+                     } 
+                     // Se a volatilidade é alta e a amplitude também, há um movimento forte. Aumentar duração para dar espaço.
+                     else if (indicators.bbw > 0.1) {
+                         finalDurationInSeconds *= 1.3;
+                         analysis += " Volatilidade direcional, duração aumentada.";
+                     }
+                 }
+            }
+
+
             let finalDurationUnit: DurationUnit = 'm';
             let finalDuration = Math.round(finalDurationInSeconds / 60);
 
@@ -518,7 +536,7 @@ export function useRobotCouncil(
                 finalDurationUnit 
             };
         },
-        [dailyBalance, dailyTarget, isDynamicConsensusOn, isDynamicRiskOn, consensusThreshold, form, durationLimits]
+        [dailyBalance, dailyTarget, isDynamicConsensusOn, isDynamicRiskOn, consensusThreshold, form, durationLimits, tickCandles]
     );
 
     /**
