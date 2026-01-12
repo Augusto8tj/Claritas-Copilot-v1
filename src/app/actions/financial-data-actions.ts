@@ -25,9 +25,9 @@ export async function addGoal(data: { userId: string, name: string; targetAmount
     return { success: newGoal };
   } catch (e: any) {
     console.error("Erro na Server Action addGoal:", e);
-    // Retorna uma mensagem de erro genérica que pode ser exibida na UI.
-    // O erro detalhado já foi emitido para o console de desenvolvimento pelo serviço.
-    return { error: e.message || "Não foi possível criar a meta. Verifique as permissões da base de dados." };
+    // O erro contextual já foi emitido para o console de desenvolvimento pelo serviço.
+    // Retornamos uma mensagem genérica para a UI para não expor detalhes da implementação.
+    return { error: "Não foi possível criar a meta. Verifique as permissões da base de dados e tente novamente." };
   }
 }
 

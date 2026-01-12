@@ -86,6 +86,7 @@ export async function addGoal(userId: string, name: string, targetAmount: number
         imageHint: "new goal"
     };
 
+    // Use .catch() to handle permission errors specifically
     const docRef = await addDoc(goalsCol, newGoalData).catch((serverError) => {
         const permissionError = new FirestorePermissionError({
             path: goalsCol.path,
@@ -93,13 +94,18 @@ export async function addGoal(userId: string, name: string, targetAmount: number
             requestResourceData: newGoalData,
         });
         errorEmitter.emit('permission-error', permissionError);
+        // Re-throw the original error after emitting our custom one
+        // This ensures the calling function knows the operation failed.
         throw serverError;
     });
 
+    // Generate image asynchronously, no need to wait
     generateGoalImage({ goalName: name })
         .then(imageResult => {
             if (imageResult?.imageUrl) {
                 const goalDoc = doc(db, `users/${userId}/goals`, docRef.id);
+                // The update might fail if rules are very strict, but it's a non-critical enhancement.
+                // We'll log the error but won't throw, as the goal is already created.
                 updateDoc(goalDoc, { imageUrl: imageResult.imageUrl })
                     .catch(updateError => console.error("Falha ao atualizar a imagem da meta:", updateError));
             }
