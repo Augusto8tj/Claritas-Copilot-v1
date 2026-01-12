@@ -3,15 +3,25 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Permite que o utilizador autenticado leia e escreva em qualquer documento
-    // dentro da sua própria pasta de utilizador, incluindo subcoleções.
+    // Regra geral: Permite que um utilizador autenticado leia e escreva
+    // em qualquer documento ou subcoleção dentro da sua própria pasta.
+    // O {document=**} é um wildcard recursivo.
     match /users/{userId}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+    
+    // Regras explícitas são mantidas para clareza, embora a regra geral acima
+    // já as cubra. Isto pode ser útil para futuras permissões mais granulares.
 
-    // Regra explícita para garantir o acesso à subcoleção 'goals'
+    // Garante o acesso à subcoleção 'goals'
     match /users/{userId}/goals/{goalId} {
-      allow read, write, create, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // CORREÇÃO: Garante o acesso explícito à subcoleção 'trading'
+    // Esta regra corrige o erro de permissão ao carregar 'robotPerformance'.
+    match /users/{userId}/trading/{tradingDocId} {
+       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }
