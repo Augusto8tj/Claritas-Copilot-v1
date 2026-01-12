@@ -32,7 +32,9 @@ export async function getTransactions(userId: string): Promise<Transaction[]> {
             operation: 'list',
         });
         errorEmitter.emit('permission-error', permissionError);
-        return []; // Return empty array to prevent UI crash
+        // Lançar o erro original também é uma opção se quisermos que a promise falhe.
+        // Neste caso, retornamos um array vazio para evitar que a UI quebre.
+        throw permissionError;
     }
 }
 
@@ -72,7 +74,7 @@ export async function getGoals(userId: string): Promise<Goal[]> {
             operation: 'list',
         });
         errorEmitter.emit('permission-error', permissionError);
-        return [];
+        throw permissionError;
     }
 }
 
@@ -147,8 +149,7 @@ async function getBudgetLimits(userId: string): Promise<{ [key: string]: number 
             operation: 'get',
         });
         errorEmitter.emit('permission-error', permissionError);
-        // Retornar um objeto vazio para evitar que a UI quebre completamente
-        return {};
+        throw permissionError;
     }
 }
 
@@ -245,7 +246,7 @@ export async function loadRobotPerformance(userId: string): Promise<RobotPerform
             operation: 'get',
         });
         errorEmitter.emit('permission-error', permissionError);
-        throw serverError; // Re-lança para ser apanhado pelo chamador
+        throw permissionError; // Re-lança para ser apanhado pelo chamador
     }
 }
 
