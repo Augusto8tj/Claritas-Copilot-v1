@@ -1,3 +1,4 @@
+
 // src/features/trading/hooks/use-deriv-api.tsx
 'use client';
 
@@ -411,7 +412,8 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
             const buyResponse: any = await makeRequest({ "buy": proposal.id, "price": proposal.ask_price });
             const buyResult = buyResponse.buy;
             
-            const entryPrice = buyResult.entry_tick_display_value ? parseFloat(buyResult.entry_tick_display_value) : buyResult.buy_price;
+            const lastKnownTick = priceTicks.length > 0 ? priceTicks[priceTicks.length - 1].price : null;
+            const entryPrice = parseFloat(buyResult.entry_tick_display_value || buyResult.entry_spot_display_value) || lastKnownTick || 0;
 
             const isSellable = durationUnit === 's';
 
@@ -452,7 +454,7 @@ const subscribeToMarketData = useCallback(async (symbol: string) => {
              const message = error instanceof Error ? error.message : "Um erro desconhecido ocorreu.";
              return { success: false, message };
           }
-      }, [isConnected, makeRequest, addTradeAnnotation]);
+      }, [isConnected, makeRequest, addTradeAnnotation, priceTicks]);
 
   const sellContract = useCallback(async (contractId: number): Promise<TradeResult> => {
     if (!wsRef.current || !isConnected) {
